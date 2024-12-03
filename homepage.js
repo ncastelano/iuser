@@ -17,6 +17,12 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth();
 const db = getFirestore();
 
+// Atualizar URL para o nick do usuário logado
+function updateURLWithNick(userNick) {
+  const newURL = `/${userNick}`;
+  window.history.pushState(null, "", newURL);
+}
+
 // Verifica usuário autenticado e carrega seus dados
 onAuthStateChanged(auth, (user) => {
   if (user) {
@@ -28,9 +34,17 @@ onAuthStateChanged(auth, (user) => {
       .then((docSnap) => {
         if (docSnap.exists()) {
           const userData = docSnap.data();
+          const userNick = userData.iuserNick; // Obtém o nick do usuário
           document.getElementById("loggedLatitude").innerText = userData.latitude || "Não informado";
           document.getElementById("loggedLongitude").innerText = userData.longitude || "Não informado";
           document.getElementById("loggedUserEmail").innerText = userData.email;
+
+          // Atualiza a URL com o nick do usuário
+          if (userNick) {
+            updateURLWithNick(userNick);
+          } else {
+            console.error("Nick do usuário não encontrado.");
+          }
         } else {
           console.log("Nenhum documento encontrado para o usuário logado.");
         }
@@ -45,62 +59,38 @@ onAuthStateChanged(auth, (user) => {
 
 // Compartilhar link do perfil
 document.getElementById("shareProfileButton").addEventListener("click", () => {
-    const user = auth.currentUser;
-  
-    if (user) {
-      const docRef = doc(db, "users", user.uid);
-      getDoc(docRef)
-        .then((docSnap) => {
-          if (docSnap.exists()) {
-            const userData = docSnap.data();
-            const userNick = userData.iuserNick; // Pegue o iuserNick do usuário
-  
-            // Concatenar o link correto
-            const profileLink = `iuser.com.br/${userNick}`;
-            
-            // Copiar o link para a área de transferência
-            navigator.clipboard.writeText(profileLink)
-              .then(() => {
-                alert("Link do perfil copiado para a área de transferência!");
-              })
-              .catch((err) => {
-                console.error("Erro ao copiar o link:", err);
-              });
-          } else {
-            console.log("Nenhum documento encontrado para o usuário logado.");
-          }
-        })
-        .catch((err) => {
-          console.error("Erro ao buscar dados do usuário:", err);
-        });
-    } else {
-      alert("Usuário não autenticado.");
-    }
-  });
-  
-// Carregar dados do perfil visitado
-const urlParams = new URLSearchParams(window.location.search);
-const visitedUserId = urlParams.get("userId");
+  const user = auth.currentUser;
 
-if (visitedUserId) {
-  const docRef = doc(db, "users", visitedUserId);
-  getDoc(docRef)
-    .then((docSnap) => {
-      if (docSnap.exists()) {
-        const userData = docSnap.data();
-        document.getElementById("loggedUserEmail").textContent = userData.email;
-        document.getElementById("loggedLatitude").textContent = userData.latitude || "Não informado";
-        document.getElementById("loggedLongitude").textContent = userData.longitude || "Não informado";
-      } else {
-        alert("Usuário não encontrado.");
-      }
-    })
-    .catch((error) => {
-      console.error("Erro ao buscar o perfil:", error);
-    });
-} else {
-  console.log("Nenhum ID de usuário encontrado na URL.");
-}
+  if (user) {
+    const docRef = doc(db, "users", user.uid);
+    getDoc(docRef)
+      .then((docSnap) => {
+        if (docSnap.exists()) {
+          const userData = docSnap.data();
+          const userNick = userData.iuserNick; // Obtém o nick do usuário
+
+          // Gera o link do perfil
+          const profileLink = `iuser.com.br/${userNick}`;
+
+          // Copiar o link para a área de transferência
+          navigator.clipboard.writeText(profileLink)
+            .then(() => {
+              alert("Link do perfil copiado para a área de transferência!");
+            })
+            .catch((err) => {
+              console.error("Erro ao copiar o link:", err);
+            });
+        } else {
+          console.log("Nenhum documento encontrado para o usuário logado.");
+        }
+      })
+      .catch((err) => {
+        console.error("Erro ao buscar dados do usuário:", err);
+      });
+  } else {
+    alert("Usuário não autenticado.");
+  }
+});
 
 // Logout
 const logoutButton = document.getElementById("logout");
