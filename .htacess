@@ -1,8 +1,5 @@
 RewriteEngine On
-
-# Se o arquivo ou diretório não existir
+RewriteBase /
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-
-# Redireciona para usuario.html com parâmetro username
-RewriteRule ^([a-zA-Z0-9_-]+)$ usuario.html?username=$1 [L,QSA]
+RewriteRule ^.*$ /usuario.html [L]

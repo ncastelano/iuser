@@ -51,7 +51,8 @@ form.addEventListener("submit", async (e) => {
     alert("Conta criada com sucesso!");
 
     // Redireciona para o perfil do usuário
-    window.location.href = `/usuario.html?uid=${user.uid}`;
+window.location.href = `/${username}`;
+
 
   } catch (error) {
     console.error("Erro:", error.message);

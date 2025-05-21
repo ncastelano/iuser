@@ -3,17 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <title>Perfil do Usuário</title>
-
-  <!-- CSS externo -->
   <link rel="stylesheet" href="usuario.css" />
+</head>
+<body>
+  <div class="profile-container">
+    <img id="profile-image" src="" alt="Imagem de perfil" />
+    <h1 id="profile-name">Carregando...</h1>
+    <p id="profile-email"></p>
+    <button id="logout-button">Sair</button>
+  </div>
 
-  <!-- Firebase SDKs -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
     import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-firestore.js";
+    import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-firestore.js";
 
-    // Configuração do Firebase
+    // Configuração Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyA5U99_1Y2P52PTd6m5e1bf42ZLPh7KgS8",
       authDomain: "iuserprojeto.firebaseapp.com",
@@ -28,9 +33,10 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Captura o UID da URL
-    const params = new URLSearchParams(window.location.search);
-    const uid = params.get("uid");
+    // Captura o username da URL: /joaosilva
+const path = window.location.pathname;
+const username = path.substring(1);
+
 
     // Referências aos elementos
     const profileName = document.getElementById("profile-name");
@@ -38,47 +44,37 @@
     const profileImage = document.getElementById("profile-image");
     const logoutButton = document.getElementById("logout-button");
 
-    // Função para carregar dados do usuário
+    // Buscar usuário pelo username
     async function carregarUsuario() {
-      if (!uid) {
-        profileName.textContent = "Usuário não encontrado (sem UID)";
+      if (!username) {
+        profileName.textContent = "Usuário não especificado na URL.";
         return;
       }
 
       try {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
+        const q = query(collection(db, "users"), where("username", "==", username));
+        const snapshot = await getDocs(q);
 
-        if (docSnap.exists()) {
-          const dados = docSnap.data();
+        if (!snapshot.empty) {
+          const dados = snapshot.docs[0].data();
           profileName.textContent = dados.name;
           profileEmail.textContent = dados.email;
           profileImage.src = dados.image || "default-profile.png";
         } else {
-          profileName.textContent = "Usuário não encontrado";
+          profileName.textContent = "Usuário não encontrado.";
         }
       } catch (error) {
         console.error("Erro ao carregar usuário:", error);
-        profileName.textContent = "Erro ao carregar perfil";
+        profileName.textContent = "Erro ao carregar perfil.";
       }
     }
 
-    // Sair
     logoutButton.addEventListener("click", async () => {
       await signOut(auth);
-      window.location.href = "index.html"; // ou outra página inicial
+      window.location.href = "index.html";
     });
 
-    // Inicia carregamento
     carregarUsuario();
   </script>
-</head>
-<body>
-  <div class="profile-container">
-    <img id="profile-image" src="" alt="Imagem de perfil" />
-    <h1 id="profile-name">Carregando...</h1>
-    <p id="profile-email"></p>
-    <button id="logout-button">Sair</button>
-  </div>
 </body>
 </html>
