@@ -1,0 +1,57 @@
+/* home.css */
+
+.home-container {
+  max-width: 100px;
+  margin: 50px auto;
+  padding: 20px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  text-align: center;
+}
+
+.home-container h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.profile-info {
+  margin-bottom: 20px;
+}
+
+.profile-info img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid #4f46e5;
+  margin: 100 auto 15px auto;
+  display: block; /* para centralizar com margin auto */
+}
+
+
+.profile-info p {
+  font-size: 1rem;
+  color: #555;
+  margin: 8px 0;
+}
+
+.profile-info strong {
+  color: #222;
+}
+
+#logout-button {
+  background-color: #4f46e5; /* azul roxo */
+  color: white;
+  padding: 10px 25px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+#logout-button:hover {
+  background-color: #3730a3; /* tom mais escuro do azul */
+}
