@@ -1,10 +1,11 @@
 // app.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-auth.js";
 
 import { renderLogin } from './components/login.js';
 import { renderRegister } from './components/register.js';
 import { renderHome } from './components/home.js';
+import { renderProfileFromSlug } from './components/profile.js'; // ✅ IMPORTA aqui!
 
 // Firebase Config
 const firebaseConfig = {
@@ -20,29 +21,37 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
+// ✅ Navegação por hash
+export function navigateTo(route) {
+  window.location.hash = route;
+}
 
-// Navegação simples (SPA)
-export function navigateTo(screen) {
-  switch (screen) {
-    case 'login':
+window.addEventListener("hashchange", handleRoute);
+window.addEventListener("load", handleRoute);
+
+// ✅ Define o roteamento
+function handleRoute() {
+  const hash = decodeURIComponent(window.location.hash.slice(1)); // remove #
+
+  // 🔍 Se não for rota padrão, tenta achar perfil por nome (slug)
+  if (hash && !["login", "register", "home"].includes(hash)) {
+    renderProfileFromSlug(hash); // busca no Firestore por nome
+    return;
+  }
+
+  // Rotas padrão
+  switch (hash) {
+    case "":
+    case "login":
       renderLogin();
       break;
-    case 'register':
+    case "register":
       renderRegister();
       break;
-    case 'home':
+    case "home":
       renderHome();
       break;
     default:
-      renderLogin();
+      document.getElementById("app").innerHTML = "<h2>Página não encontrada</h2>";
   }
 }
-
-// Inicia a tela correta
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    navigateTo('home');
-  } else {
-    navigateTo('login');
-  }
-});
