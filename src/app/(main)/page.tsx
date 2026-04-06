@@ -1,35 +1,13 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-
-interface StoreStats {
-  ratings_count: number
-  ratings_avg: number
-  prep_time_min: number | null
-  prep_time_max: number | null
-  price_min: number | null
-  price_max: number | null
-}
-
-interface Store {
-  id: string
-  name: string
-  storeSlug: string
-  logo_url: string | null
-  description: string | null
-  owner_id: string
-  is_open: boolean
-  location: string | null
-  store_stats: StoreStats
-}
+import { getMockStores, MockStore } from '@/lib/mockData'
 
 export default function Vitrine() {
-  const supabase = createClient()
   const router = useRouter()
 
-  const [stores, setStores] = useState<Store[]>([])
+  const [stores, setStores] = useState<MockStore[]>([])
   const [loading, setLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [hasMore, setHasMore] = useState(true)
@@ -37,6 +15,7 @@ export default function Vitrine() {
   const PAGE_SIZE = 20
   const pageRef = useRef(0)
   const isFetchingRef = useRef(false)
+  const allMockStoresRef = useRef<MockStore[]>([])
 
   // 🔥 INIT
   useEffect(() => {
@@ -47,6 +26,9 @@ export default function Vitrine() {
       pageRef.current = 0
       isFetchingRef.current = false
 
+      // Inicializa os dados mock apenas uma vez
+      allMockStoresRef.current = getMockStores()
+
       // localização
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -55,35 +37,15 @@ export default function Vitrine() {
         )
       }
 
-      const { data, error } = await supabase
-        .from('stores')
-        .select(`id, name, "storeSlug", logo_url, description, owner_id, is_open, location`)
-        .order('created_at', { ascending: false })
-        .range(0, PAGE_SIZE - 1)
-
-      if (error) {
-        console.error("Erro ao carregar lojas na Vitrine:", error)
-      }
-
-      if (!error && data) {
-        const mapped = data.map(store => ({
-          ...store,
-          storeSlug: store.storeSlug,
-          store_stats: {
-            ratings_count: 0,
-            ratings_avg: 0,
-            prep_time_min: null,
-            prep_time_max: null,
-            price_min: null,
-            price_max: null
-          }
-        }))
-
-        setStores(mapped)
-        if (mapped.length < PAGE_SIZE) setHasMore(false)
-      }
-
-      setLoading(false)
+      // Simulando delay de rede
+      setTimeout(() => {
+        const initialData = allMockStoresRef.current.slice(0, PAGE_SIZE)
+        setStores(initialData)
+        if (initialData.length < PAGE_SIZE || initialData.length === allMockStoresRef.current.length) {
+            setHasMore(false)
+        }
+        setLoading(false)
+      }, 500)
     }
 
     init()
@@ -106,50 +68,30 @@ export default function Vitrine() {
 
         const nextPage = pageRef.current + 1
         const start = nextPage * PAGE_SIZE
-        const end = start + PAGE_SIZE - 1
+        const end = start + PAGE_SIZE
 
-        supabase
-          .from('stores')
-          .select(`id, name, "storeSlug", logo_url, description, owner_id, is_open, location`)
-          .order('created_at', { ascending: false })
-          .range(start, end)
-          .then(({ data, error }) => {
-            if (error) {
-              console.error("Erro no scroll infinito:", error)
+        // Simulando rede
+        setTimeout(() => {
+            const nextData = allMockStoresRef.current.slice(start, end)
+            
+            setStores(prev => [...prev, ...nextData])
+
+            if (nextData.length < PAGE_SIZE || [...stores, ...nextData].length >= allMockStoresRef.current.length) {
+                setHasMore(false)
             }
-            if (!error && data) {
-              const mapped = data.map(store => ({
-                ...store,
-                storeSlug: store.storeSlug,
-                store_stats: {
-                  ratings_count: 0,
-                  ratings_avg: 0,
-                  prep_time_min: null,
-                  prep_time_max: null,
-                  price_min: null,
-                  price_max: null
-                }
-              }))
-
-              setStores(prev => [...prev, ...mapped])
-
-              if (mapped.length < PAGE_SIZE) setHasMore(false)
-              pageRef.current = nextPage
-            }
-
+            
+            pageRef.current = nextPage
             isFetchingRef.current = false
-          })
+        }, 500)
       }
     }
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [loading, hasMore])
+  }, [loading, hasMore, stores.length])
 
-  const getLogoUrl = (logoPath: string | null) =>
-    logoPath
-      ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl
-      : ''
+  // Mocked image / logo handle
+  const getLogoUrl = (logoPath: string | null) => ''
 
   const calcDistanceKm = (storeLocation: string | null) => {
     if (!userLocation || !storeLocation) return null
@@ -176,7 +118,7 @@ export default function Vitrine() {
     return (R * c).toFixed(1)
   }
 
-  const renderStoreCard = (store: Store, idx: number) => {
+  const renderStoreCard = (store: MockStore, idx: number) => {
     const stats = store.store_stats
 
     return (
@@ -185,18 +127,8 @@ export default function Vitrine() {
         onClick={() => router.push(`/${store.storeSlug}`)}
         className="glass-glow-card shadow-lg group hover:shadow-[0_10px_30px_rgba(249,115,22,0.15)] hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
       >
-        <div className="relative h-56 w-full bg-neutral-950">
-          {store.logo_url ? (
-            <img
-              src={getLogoUrl(store.logo_url)}
-              alt={store.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-in-out border-b border-neutral-800"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center border-b border-neutral-800">
-              <span className="text-neutral-600 font-medium">Sem Logo</span>
-            </div>
-          )}
+        <div className="relative h-56 w-full bg-neutral-950 flex flex-col items-center justify-center border-b border-neutral-800">
+          <span className="text-neutral-600 font-medium">Sem Logo (Mock)</span>
 
           {/* status */}
           <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider backdrop-blur-md border ${store.is_open ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-500 border-red-500/30'
@@ -265,7 +197,7 @@ export default function Vitrine() {
 
       {/* 🔥 HEADER */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight">Vitrine</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">Vitrine (Modo Mock)</h1>
 
         <button
           onClick={() => router.push('/criar-loja')}

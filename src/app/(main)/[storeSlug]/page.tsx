@@ -3,43 +3,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-
-interface StoreStats {
-    ratings_count: number
-    ratings_avg: number
-    prep_time_min: number | null
-    prep_time_max: number | null
-    price_min: number | null
-    price_max: number | null
-}
-
-interface Store {
-    id: string
-    name: string
-    storeSlug: string
-    logo_url: string | null
-    description: string | null
-    owner_id: string
-    is_open: boolean
-    location: string | null
-    store_stats: StoreStats
-}
-
-interface Product {
-    id: string
-    name: string
-    description: string | null
-    price: number
-    image_url: string | null
-}
+import { getMockStores, getMockProducts, MockStore, MockProduct } from '@/lib/mockData'
 
 export default function StorePage() {
     const { storeSlug } = useParams()
     const router = useRouter()
     const supabase = createClient()
 
-    const [store, setStore] = useState<Store | null>(null)
-    const [products, setProducts] = useState<Product[]>([])
+    const [store, setStore] = useState<MockStore | null>(null)
+    const [products, setProducts] = useState<MockProduct[]>([])
     const [loading, setLoading] = useState(true)
     const [isOwner, setIsOwner] = useState(false)
 
@@ -47,62 +19,35 @@ export default function StorePage() {
         const fetchStore = async () => {
             setLoading(true)
 
-            const { data: storeData, error } = await supabase
-                .from('stores')
-                .select(`id, name, "storeSlug", logo_url, description, owner_id, is_open, location`)
-                .eq('"storeSlug"', storeSlug)
-                .single()
+            // Usa dados de Mock
+            const allStores = getMockStores()
+            const foundStore = allStores.find(s => s.storeSlug === storeSlug)
 
-            if (error) {
-                console.error("Erro na página da loja", error)
-            }
-
-            if (!storeData) {
+            if (!foundStore) {
                 setLoading(false)
                 return
             }
 
-            // 🔥 verifica dono
-            const { data: { user } } = await supabase.auth.getUser()
+            // Simula delay de rede
+            setTimeout(async () => {
+                // 🔥 verifica dono real caso haja sessão ativa (apenas para manter botão + produto)
+                const { data: { user } } = await supabase.auth.getUser()
 
-            if (user && user.id === storeData.owner_id) {
-                setIsOwner(true)
-            }
-
-            setStore({
-                ...storeData,
-                storeSlug: storeData.storeSlug,
-                store_stats: {
-                    ratings_count: 0,
-                    ratings_avg: 0,
-                    prep_time_min: null,
-                    prep_time_max: null,
-                    price_min: null,
-                    price_max: null
+                if (user && user.id === foundStore.owner_id) {
+                    setIsOwner(true)
                 }
-            })
 
-            const { data: productData } = await supabase
-                .from('products')
-                .select('*')
-                .eq('store_id', storeData.id)
-
-            setProducts(productData || [])
-            setLoading(false)
+                setStore(foundStore)
+                setProducts(getMockProducts(foundStore.id))
+                setLoading(false)
+            }, 300)
         }
 
         if (storeSlug) fetchStore()
     }, [storeSlug])
 
-    const getLogoUrl = (logoPath: string | null) =>
-        logoPath
-            ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl
-            : ''
-
-    const getProductImageUrl = (imagePath: string | null) =>
-        imagePath
-            ? supabase.storage.from('product-images').getPublicUrl(imagePath).data.publicUrl
-            : ''
+    const getLogoUrl = (logoPath: string | null) => ''
+    const getProductImageUrl = (imagePath: string | null) => ''
 
     if (loading)
         return (
@@ -113,8 +58,14 @@ export default function StorePage() {
 
     if (!store)
         return (
-            <div className="min-h-screen flex items-center justify-center bg-black text-white">
-                Loja não encontrada
+            <div className="min-h-screen flex items-center justify-center bg-black text-white px-4 text-center">
+                <div className="flex flex-col gap-4">
+                    <h2 className="text-2xl font-bold">Loja não encontrada</h2>
+                    <p className="text-neutral-500">Essa loja ({storeSlug}) não existe nos mocks.</p>
+                    <button onClick={() => router.push('/')} className="text-orange-500 hover:underline">
+                        Voltar para a Vitrine
+                    </button>
+                </div>
             </div>
         )
 
@@ -139,24 +90,16 @@ export default function StorePage() {
                 </button>
 
                 <h1 className="text-xl font-bold truncate tracking-wide">
-                    {store.name}
+                    {store.name} (Mock)
                 </h1>
             </div>
 
             {/* HEADER DA LOJA */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-neutral-900/40 p-6 rounded-2xl border border-neutral-800 shadow-xl backdrop-blur-sm">
 
-                {store.logo_url ? (
-                    <img
-                        src={getLogoUrl(store.logo_url)}
-                        alt={store.name}
-                        className="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover border border-white/20 shadow-2xl"
-                    />
-                ) : (
-                    <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl">
-                        <span className="text-neutral-600 text-sm font-medium">Sem Logo</span>
-                    </div>
-                )}
+                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl">
+                    <span className="text-neutral-600 text-sm font-medium">Sem Logo (Mock)</span>
+                </div>
 
                 <div className="flex flex-col gap-3 text-center md:text-left flex-1 pt-2">
 
@@ -214,7 +157,7 @@ export default function StorePage() {
 
                 <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                     <span className="w-2 h-8 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
-                    Menu
+                    Menu ({products.length})
                 </h3>
 
                 {products.length === 0 ? (
@@ -231,25 +174,20 @@ export default function StorePage() {
                                 key={product.id}
                                 className="bg-neutral-900/60 rounded-2xl overflow-hidden shadow-xl border border-neutral-800 group hover:border-orange-500/50 hover:shadow-[0_10px_30px_rgba(249,115,22,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer backdrop-blur-sm"
                             >
-                                {product.image_url ? (
-                                    <div className="relative w-full h-48 overflow-hidden bg-neutral-950">
-                                        <img
-                                            src={getProductImageUrl(product.image_url)}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-in-out"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800">
-                                        <span className="text-neutral-600 font-medium text-sm">Sem Imagem</span>
-                                    </div>
-                                )}
+                                <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800">
+                                    <span className="text-neutral-600 font-medium text-sm">Sem Imagem (Mock)</span>
+                                </div>
 
                                 <div className="p-5 flex flex-col gap-3 flex-1">
-
-                                    <h4 className="font-bold text-lg line-clamp-1 text-white">
-                                        {product.name}
-                                    </h4>
+                                    
+                                    <div className="flex justify-between items-start gap-2">
+                                        <h4 className="font-bold text-lg line-clamp-1 text-white">
+                                            {product.name}
+                                        </h4>
+                                        <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
+                                            {product.category}
+                                        </span>
+                                    </div>
 
                                     {product.description && (
                                         <p className="text-neutral-400 text-sm line-clamp-2 leading-relaxed">
