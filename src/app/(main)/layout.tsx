@@ -81,8 +81,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 </div>
             </nav>
 
-            {/* Snackbar */}
-            <Snackbar message="" />
+            {/* <Snackbar message="" /> */}
+
         </div>
     )
 }
