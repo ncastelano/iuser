@@ -67,7 +67,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
                     <Link href="/perfil" className={linkClass('/perfil')}>
                         <User size={22} className={pathname === '/perfil' ? 'text-orange-500' : ''} />
-                        Perfil
+                        Eu
                     </Link>
 
                     <button
