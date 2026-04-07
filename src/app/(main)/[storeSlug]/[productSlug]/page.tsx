@@ -1,4 +1,4 @@
-//app/[storeSlug]/novo-produto/[productSlug]/page.tsx
+//app/[storeSlug]/[productSlug]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -8,10 +8,13 @@ import { createClient } from '@/lib/supabase/client'
 interface Product {
     id: string
     name: string
-    price: number
-    type: string
+    price: number | null
+    type: string | null
+    category: string | null
     slug: string
     store_id: string
+    description: string | null
+    image_url: string | null
 }
 
 export default function ProductPage() {
@@ -37,8 +40,8 @@ export default function ProductPage() {
             // 🔍 buscar loja
             const { data: store } = await supabase
                 .from('stores')
-                .select('id')
-                .eq('slug', storeSlug)
+                .select('id, name, storeSlug')
+                .eq('storeSlug', storeSlug)
                 .single()
 
             if (!store) {
@@ -61,15 +64,9 @@ export default function ProductPage() {
 
             setProduct(productData)
 
-            // 🖼 buscar imagem
-            const { data: imageData } = await supabase
-                .from('product_images')
-                .select('url')
-                .eq('product_id', productData.id)
-                .single()
-
-            if (imageData) {
-                setImage(imageData.url)
+            if (productData.image_url) {
+                const url = supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
+                setImage(url)
             }
 
             setLoading(false)
@@ -89,40 +86,65 @@ export default function ProductPage() {
     if (!product) return null
 
     return (
-        <div className="min-h-screen bg-black text-white p-6">
+        <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
+            {/* HEADER INTERNO */}
+            <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+                <button
+                    onClick={() => router.back()}
+                    className="flex w-10 h-10 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 transition shadow-md group"
+                >
+                    <span className="group-hover:-translate-x-1 transition-transform">←</span>
+                </button>
+                <div className="flex flex-col">
+                    <h1 className="text-xl font-bold truncate tracking-wide text-white">
+                        {product.name}
+                    </h1>
+                    <span className="text-xs text-orange-500 uppercase font-black tracking-widest">{product.type || product.category || 'Produto'}</span>
+                </div>
+            </div>
 
-            <div className="max-w-4xl mx-auto">
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
                 {/* IMAGEM */}
-                <div className="w-full h-80 bg-zinc-900 rounded mb-6 overflow-hidden">
-                    {image && (
+                <div className="w-full aspect-square md:aspect-auto md:h-[500px] bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl relative group">
+                    {image ? (
                         <img
                             src={image}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            alt={product.name}
                         />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-neutral-600 font-medium tracking-wide">Sem Imagem</span>
+                        </div>
                     )}
                 </div>
 
-                {/* INFO */}
-                <h1 className="text-2xl font-bold mb-2">
-                    {product.name}
-                </h1>
+                {/* INFO E COMPRA */}
+                <div className="flex flex-col">
+                    <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-4">
+                        {product.name}
+                    </h1>
 
-                <p className="text-zinc-400 mb-4">
-                    Tipo: {product.type}
-                </p>
+                    <p className="text-orange-500 font-black text-3xl mb-8">
+                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
 
-                <p className="text-xl mb-6">
-                    R$ {product.price}
-                </p>
+                    {product.description && (
+                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl mb-8">
+                            <h3 className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-3">Sobre o Produto</h3>
+                            <p className="text-neutral-300 leading-relaxed text-sm">
+                                {product.description}
+                            </p>
+                        </div>
+                    )}
 
-                {/* BOTÃO */}
-                <button className="bg-orange-400 text-black px-6 py-3 rounded font-semibold">
-                    Comprar
-                </button>
-
+                    <div className="mt-auto">
+                        <button className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-black py-4 rounded-xl font-extrabold text-lg shadow-[0_4px_15px_rgba(249,115,22,0.3)] hover:shadow-[0_4px_25px_rgba(249,115,22,0.5)] transform hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                            Comprar Agora
+                        </button>
+                    </div>
+                </div>
             </div>
-
         </div>
     )
 }

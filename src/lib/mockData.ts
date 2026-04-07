@@ -22,8 +22,9 @@ export interface MockProduct {
   store_id: string
   name: string
   description: string | null
-  price: number
+  price: number | null
   category: string | null
+  type?: string | null
   image_url: string | null
   is_active: boolean
   created_at: string
@@ -39,7 +40,7 @@ export function getMockStores(): MockStore[] {
     const prefix = prefixes[i % prefixes.length]
     const suffix = suffixes[(i * 3) % suffixes.length]
     const name = `${prefix} ${suffix} ${i}`
-    
+
     // Lat -8.76, Lng -63.90 as base (Porto Velho offset)
     const lat = -8.76 + (Math.random() * 0.1 - 0.05)
     const lng = -63.90 + (Math.random() * 0.1 - 0.05)
@@ -69,22 +70,22 @@ export function getMockStores(): MockStore[] {
 // Generate 1000+ products, we distribute them among stores based on store_id
 export function getMockProducts(storeId: string): MockProduct[] {
   const products: MockProduct[] = []
-  
+
   // Extrai o ID numérico da store_id: 'store-1', 'store-2', etc..
   let storeNum = 1
   if (storeId.includes('-')) {
-      storeNum = parseInt(storeId.split('-')[1]) || 1
+    storeNum = parseInt(storeId.split('-')[1]) || 1
   }
 
   const categories = ['Lanches', 'Bebidas', 'Sobremesas', 'Pratos Feitos', 'Porções', 'Pizzas']
   const productNames = ['Hambúrguer Caseiro', 'Pizza de Calabresa', 'Coca-Cola 2L', 'Batata Frita Média', 'Açaí 500ml', 'Sanduíche Natural', 'Suco de Laranja', 'Marmita P', 'Pastel de Vento', 'Bolo de Pote']
 
   // Cada loja terá cerca de 10 a 20 produtos (totalizando ~ 1200 a 2400 produtos no geral)
-  const numProducts = 10 + (storeNum % 10) 
+  const numProducts = 10 + (storeNum % 10)
 
   for (let j = 1; j <= numProducts; j++) {
     const baseName = productNames[(storeNum + j) % productNames.length]
-    
+
     products.push({
       id: `prod-${storeNum}-${j}`,
       store_id: storeId,
@@ -103,9 +104,9 @@ export function getMockProducts(storeId: string): MockProduct[] {
 
 // Para busca global de todos os produtos de todas as lojas
 export function getAllMockProducts(): MockProduct[] {
-    let all: MockProduct[] = []
-    for(let i = 1; i <= 120; i++) {
-        all = [...all, ...getMockProducts(`store-${i}`)]
-    }
-    return all
+  let all: MockProduct[] = []
+  for (let i = 1; i <= 120; i++) {
+    all = [...all, ...getMockProducts(`store-${i}`)]
+  }
+  return all
 }

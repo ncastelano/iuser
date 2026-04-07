@@ -19,35 +19,51 @@ export default function StorePage() {
         const fetchStore = async () => {
             setLoading(true)
 
-            // Usa dados de Mock
-            const allStores = getMockStores()
-            const foundStore = allStores.find(s => s.storeSlug === storeSlug)
+            const { data: foundStore } = await supabase
+                .from('stores')
+                .select('id, name, storeSlug, logo_url, description, owner_id, location')
+                .eq('storeSlug', storeSlug)
+                .maybeSingle()
 
             if (!foundStore) {
                 setLoading(false)
                 return
             }
 
-            // Simula delay de rede
-            setTimeout(async () => {
-                // 🔥 verifica dono real caso haja sessão ativa (apenas para manter botão + produto)
-                const { data: { user } } = await supabase.auth.getUser()
+            const { data: { user } } = await supabase.auth.getUser()
 
-                if (user && user.id === foundStore.owner_id) {
-                    setIsOwner(true)
+            if (user && user.id === foundStore.owner_id) {
+                setIsOwner(true)
+            }
+
+            const { data: productsData } = await supabase
+                .from('products')
+                .select('*')
+                .eq('store_id', foundStore.id)
+            
+            const formattedStore = {
+                ...foundStore,
+                is_open: true,
+                store_stats: {
+                    ratings_count: 0,
+                    ratings_avg: 0,
+                    prep_time_min: null,
+                    prep_time_max: null,
+                    price_min: null,
+                    price_max: null
                 }
+            }
 
-                setStore(foundStore)
-                setProducts(getMockProducts(foundStore.id))
-                setLoading(false)
-            }, 300)
+            setStore(formattedStore as any)
+            setProducts((productsData || []) as any)
+            setLoading(false)
         }
 
         if (storeSlug) fetchStore()
     }, [storeSlug])
 
-    const getLogoUrl = (logoPath: string | null) => ''
-    const getProductImageUrl = (imagePath: string | null) => ''
+    const getLogoUrl = (logoPath: string | null) => logoPath ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl : ''
+    const getProductImageUrl = (imagePath: string | null) => imagePath ? supabase.storage.from('product-images').getPublicUrl(imagePath).data.publicUrl : ''
 
     if (loading)
         return (
@@ -90,15 +106,19 @@ export default function StorePage() {
                 </button>
 
                 <h1 className="text-xl font-bold truncate tracking-wide">
-                    {store.name} (Mock)
+                    {store.name}
                 </h1>
             </div>
 
             {/* HEADER DA LOJA */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-neutral-900/40 p-6 rounded-2xl border border-neutral-800 shadow-xl backdrop-blur-sm">
 
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl">
-                    <span className="text-neutral-600 text-sm font-medium">Sem Logo (Mock)</span>
+                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl overflow-hidden">
+                    {store.logo_url ? (
+                        <img src={getLogoUrl(store.logo_url)} className="w-full h-full object-cover" alt="Logo" />
+                    ) : (
+                        <span className="text-neutral-600 text-sm font-medium">Sem Logo</span>
+                    )}
                 </div>
 
                 <div className="flex flex-col gap-3 text-center md:text-left flex-1 pt-2">
@@ -174,8 +194,12 @@ export default function StorePage() {
                                 key={product.id}
                                 className="bg-neutral-900/60 rounded-2xl overflow-hidden shadow-xl border border-neutral-800 group hover:border-orange-500/50 hover:shadow-[0_10px_30px_rgba(249,115,22,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer backdrop-blur-sm"
                             >
-                                <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800">
-                                    <span className="text-neutral-600 font-medium text-sm">Sem Imagem (Mock)</span>
+                                <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800 overflow-hidden">
+                                    {product.image_url ? (
+                                        <img src={getProductImageUrl(product.image_url)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                                    ) : (
+                                        <span className="text-neutral-600 font-medium text-sm">Sem Imagem</span>
+                                    )}
                                 </div>
 
                                 <div className="p-5 flex flex-col gap-3 flex-1">
@@ -185,7 +209,7 @@ export default function StorePage() {
                                             {product.name}
                                         </h4>
                                         <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
-                                            {product.category}
+                                            {product.type || product.category || 'Produto'}
                                         </span>
                                     </div>
 
@@ -197,7 +221,7 @@ export default function StorePage() {
 
                                     <div className="flex items-center justify-between mt-auto pt-4 border-t border-neutral-800">
                                         <p className="text-orange-500 font-extrabold text-xl">
-                                            R$ {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
 
                                         <button className="bg-neutral-800 hover:bg-orange-500 hover:text-black text-white w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 font-bold shadow-md hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]">

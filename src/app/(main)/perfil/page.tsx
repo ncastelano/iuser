@@ -65,10 +65,18 @@ export default function MyProfile() {
 
             <h1 className="text-3xl font-extrabold mb-8 tracking-tight">Meu Perfil</h1>
 
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-3">
-                <span className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
-                Minhas Lojas
-            </h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                    <span className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
+                    Minhas Lojas
+                </h2>
+                <button
+                    onClick={() => router.push('/criar-loja')}
+                    className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] text-black rounded-full font-bold transition-all text-sm whitespace-nowrap flex items-center gap-2"
+                >
+                    + Criar Loja
+                </button>
+            </div>
 
             {stores.length === 0 ? (
                 <div className="bg-neutral-900/50 border border-neutral-800 border-dashed rounded-2xl p-8 text-center">

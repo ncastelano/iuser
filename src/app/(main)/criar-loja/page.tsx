@@ -120,9 +120,7 @@ export default function CriarLoja() {
             description,
             logo_url: logoPath,
             owner_id: userData.user.id,
-            location: locationString,
-            address: address || null,
-            city: city || null
+            location: locationString
         })
 
         if (error) {
@@ -130,7 +128,7 @@ export default function CriarLoja() {
             if (error.code === '23505') {
                 alert('Este slug já está em uso. Escolha outro nome da loja ou altere a URL.')
             } else {
-                alert('Erro ao criar loja')
+                alert(`Erro ao criar loja: ${error.message}`)
             }
             setLoading(false)
             return
