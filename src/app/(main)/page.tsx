@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon } from 'lucide-react'
 
 type SearchMode = 'lojas' | 'produtos'
 
@@ -271,7 +272,7 @@ export default function Vitrine() {
       <div
         key={store.id + idx}
         onClick={() => router.push(`/${store.storeSlug}`)}
-        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-orange-500/10 flex flex-col"
+        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-white/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col"
       >
         <div className="relative h-48 bg-neutral-900 flex items-center justify-center overflow-hidden">
           {store.logo_url ? (
@@ -299,8 +300,8 @@ export default function Vitrine() {
             {store.name}
           </h3>
 
-          <div className="flex items-center gap-1 text-sm text-orange-400">
-            ★ {stats.ratings_avg?.toFixed(1) ?? '0.0'}
+          <div className="flex items-center gap-1 text-sm text-neutral-300">
+            <Star className="w-3 h-3 fill-white text-white" /> {stats.ratings_avg?.toFixed(1) ?? '0.0'}
             <span className="text-neutral-500 text-xs">
               ({stats.ratings_count})
             </span>
@@ -354,7 +355,7 @@ export default function Vitrine() {
             router.push(`/${store.storeSlug}/${product.id}`)
           }
         }}
-        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-orange-500/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-orange-500/10 flex flex-col"
+        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-white/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col"
       >
         <div className="relative h-40 bg-neutral-900 flex items-center justify-center overflow-hidden">
           {product.image_url ? (
@@ -363,7 +364,7 @@ export default function Vitrine() {
             <span className="text-neutral-600 text-sm">Sem imagem</span>
           )}
 
-          <div className="absolute top-2 left-2 px-2 py-1 bg-orange-500 text-black text-xs font-bold rounded-md">
+          <div className="absolute top-2 left-2 px-2 py-1 bg-white text-black text-xs font-bold rounded-md">
             {product.type || product.category || 'Produto'}
           </div>
 
@@ -391,8 +392,8 @@ export default function Vitrine() {
               </div>
               <div className="flex flex-col overflow-hidden">
                 <span className="text-xs text-neutral-400 truncate">{store.name}</span>
-                <div className="flex items-center gap-1 text-[10px] text-orange-400">
-                  ★ {store.store_stats.ratings_avg?.toFixed(1) ?? '0.0'}
+                <div className="flex items-center gap-1 text-[10px] text-neutral-400">
+                  <Star className="w-2.5 h-2.5 fill-current" /> {store.store_stats.ratings_avg?.toFixed(1) ?? '0.0'}
                   {store.store_stats.prep_time_min && (
                     <span className="text-neutral-500 ml-1">
                       • {store.store_stats.prep_time_min}m
@@ -411,7 +412,7 @@ export default function Vitrine() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -424,16 +425,8 @@ export default function Vitrine() {
 
         {/* BUSCA */}
         <div className="flex-1 max-w-xl">
-          <div className="flex items-center gap-2 bg-neutral-900/80 backdrop-blur-md px-4 py-3 rounded-full border border-neutral-800 focus-within:border-orange-500 focus-within:shadow-[0_0_15px_rgba(249,115,22,0.15)] transition-all">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-5 h-5 text-neutral-400 group-focus-within:text-orange-500 transition-colors"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
-            </svg>
+          <div className="flex items-center gap-2 bg-neutral-900/80 backdrop-blur-md px-4 py-3 rounded-full border border-neutral-800 focus-within:border-white focus-within:shadow-[0_0_15px_rgba(255,255,255,0.15)] transition-all">
+            <SearchIcon className="w-5 h-5 text-neutral-400 group-focus-within:text-white transition-colors" />
 
             <input
               type="text"
@@ -463,7 +456,7 @@ export default function Vitrine() {
         <button
           onClick={() => setMode('lojas')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === 'lojas'
-            ? 'bg-orange-500 text-black shadow-md'
+            ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
             : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
             }`}
         >
@@ -472,7 +465,7 @@ export default function Vitrine() {
         <button
           onClick={() => setMode('produtos')}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === 'produtos'
-            ? 'bg-orange-500 text-black shadow-md'
+            ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
             : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
             }`}
         >
@@ -480,24 +473,23 @@ export default function Vitrine() {
         </button>
       </div>
 
-      {/* FILTROS */}
       <div className="flex gap-2 flex-wrap mb-8 pb-4 border-b border-neutral-800">
         {[
-          { label: 'Mais próximo', value: 'distance', icon: '📍' },
-          { label: 'Melhor avaliado', value: 'rating', icon: '⭐' },
-          { label: 'Menor tempo', value: 'prepTime', icon: '⏱' },
-          { label: 'Menor valor', value: 'priceMin', icon: '📉' },
-          { label: 'Maior valor', value: 'priceMax', icon: '📈' },
+          { label: 'Mais próximo', value: 'distance', icon: <MapPin className="w-4 h-4" /> },
+          { label: 'Melhor avaliado', value: 'rating', icon: <Star className="w-4 h-4" /> },
+          { label: 'Menor tempo', value: 'prepTime', icon: <Clock className="w-4 h-4" /> },
+          { label: 'Menor valor', value: 'priceMin', icon: <ArrowDownWideNarrow className="w-4 h-4" /> },
+          { label: 'Maior valor', value: 'priceMax', icon: <ArrowUpNarrowWide className="w-4 h-4" /> },
         ].map(option => (
           <button
             key={option.value}
             onClick={() => setSortBy(option.value as any)}
             className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-2 transition-all ${sortBy === option.value
-              ? 'bg-orange-500/10 text-orange-400 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.1)]'
-              : 'bg-neutral-900/50 text-neutral-400 border-neutral-800 hover:bg-neutral-800'
+              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
+              : 'bg-neutral-900/50 text-neutral-400 border-neutral-800 hover:bg-neutral-800 hover:text-white'
               }`}
           >
-            <span>{option.icon}</span>
+            {option.icon}
             {option.label}
           </button>
         ))}
@@ -541,7 +533,7 @@ export default function Vitrine() {
           <button
             disabled={currentPage === 1}
             onClick={() => loadPage(currentPage - 1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-orange-400 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-white"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400"
           >
             ←
           </button>
@@ -565,7 +557,7 @@ export default function Vitrine() {
                 key={page}
                 onClick={() => loadPage(page)}
                 className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold border transition-all ${currentPage === page
-                  ? 'bg-orange-500 text-black border-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.2)]'
+                  ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
                   : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:bg-neutral-800 hover:text-white'
                   }`}
               >
@@ -577,7 +569,7 @@ export default function Vitrine() {
           <button
             disabled={currentPage === totalPages}
             onClick={() => loadPage(currentPage + 1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-orange-400 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-white"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400"
           >
             →
           </button>

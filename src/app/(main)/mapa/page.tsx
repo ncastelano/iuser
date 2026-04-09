@@ -5,6 +5,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Search, Store, ShoppingBag, X, MapPin } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -152,8 +153,8 @@ export default function MapPage() {
     height: 48px;
     border-radius: 12px;
     overflow: hidden;
-    border: 2px solid #f97316;
-    box-shadow: 0 4px 20px rgba(249,115,22,0.4);
+    border: 2px solid #ffffff;
+    box-shadow: 0 4px 20px rgba(255,255,255,0.4);
     cursor: pointer;
     background: #1a1a1a;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -161,24 +162,26 @@ export default function MapPage() {
 
             inner.onmouseenter = () => {
                 inner.style.transform = 'scale(1.15)'
-                inner.style.boxShadow = '0 6px 25px rgba(249,115,22,0.6)'
+                inner.style.boxShadow = '0 6px 25px rgba(255,255,255,0.6)'
             }
 
             inner.onmouseleave = () => {
                 inner.style.transform = 'scale(1)'
-                inner.style.boxShadow = '0 4px 20px rgba(249,115,22,0.4)'
+                inner.style.boxShadow = '0 4px 20px rgba(255,255,255,0.4)'
             }
 
+            const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
+            
             if (imageUrl) {
                 const img = document.createElement('img')
                 img.src = imageUrl
                 img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
                 img.onerror = () => {
-                    inner.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;font-size:20px;">🏪</div>'
+                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
                 }
                 inner.appendChild(img)
             } else {
-                inner.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;font-size:20px;">🏪</div>'
+                inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
             }
 
             el.appendChild(inner)
@@ -227,8 +230,8 @@ export default function MapPage() {
                 <div className="backdrop-blur-xl bg-black/60 border border-white/10 rounded-2xl p-3 shadow-2xl">
 
                     {/* SEARCH */}
-                    <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 mb-3">
-                        <span className="text-neutral-400 text-sm">🔍</span>
+                    <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 mb-3 border border-white/10 focus-within:border-white focus-within:shadow-[0_0_10px_rgba(255,255,255,0.15)] transition-all">
+                        <Search className="w-4 h-4 text-neutral-400 group-focus-within:text-white" />
                         <input
                             value={search}
                             onChange={e => setSearch(e.target.value)}
@@ -236,7 +239,9 @@ export default function MapPage() {
                             className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-neutral-500"
                         />
                         {search && (
-                            <button onClick={() => setSearch('')} className="text-neutral-400 hover:text-white text-xs">✕</button>
+                            <button onClick={() => setSearch('')} className="text-neutral-400 hover:text-white transition">
+                                <X className="w-4 h-4" />
+                            </button>
                         )}
                     </div>
 
@@ -246,12 +251,12 @@ export default function MapPage() {
                             <button
                                 key={m}
                                 onClick={() => { setMode(m); setSelectedItem(null) }}
-                                className={`flex-1 py-1.5 rounded-xl text-sm font-bold transition-all ${mode === m
-                                    ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.3)]'
+                                className={`flex-1 py-1.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${mode === m
+                                    ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]'
                                     : 'text-neutral-400 hover:text-white'
                                     }`}
                             >
-                                {m === 'lojas' ? '🏪 Lojas' : '🛍 Produtos'}
+                                {m === 'lojas' ? <><Store className="w-4 h-4" /> Lojas</> : <><ShoppingBag className="w-4 h-4" /> Produtos</>}
                             </button>
                         ))}
                     </div>
@@ -274,12 +279,12 @@ export default function MapPage() {
                                     }
                                 }}
                                 className={`flex-shrink-0 backdrop-blur-xl border rounded-xl overflow-hidden cursor-pointer transition-all ${selectedItem?.id === item.id
-                                    ? 'border-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.4)]'
+                                    ? 'border-white shadow-[0_0_10px_rgba(255,255,255,0.4)]'
                                     : 'bg-black/60 border-white/10'
                                     }`}
                                 style={{ minWidth: '90px' }}
                             >
-                                <div className="w-full h-16 bg-neutral-900">
+                                <div className="w-full h-16 bg-neutral-900 flex items-center justify-center">
                                     {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
                                         <img
                                             src={mode === 'lojas' ? item.logo_url : item.image_url}
@@ -287,7 +292,7 @@ export default function MapPage() {
                                             alt={item.name}
                                         />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-xl">🏪</div>
+                                        <Store className="w-6 h-6 text-neutral-500" />
                                     )}
                                 </div>
                                 <p className="text-[10px] text-white px-1.5 py-1 truncate text-left">
@@ -312,7 +317,7 @@ export default function MapPage() {
                         </button>
 
                         {/* IMAGE */}
-                        <div className="w-full h-36 rounded-xl overflow-hidden mb-3 bg-neutral-900">
+                        <div className="w-full h-36 rounded-xl overflow-hidden mb-3 bg-neutral-900 flex items-center justify-center">
                             {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
                                 <img
                                     src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url}
@@ -320,7 +325,7 @@ export default function MapPage() {
                                     alt={selectedItem.name}
                                 />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-4xl">🏪</div>
+                                <Store className="w-10 h-10 text-neutral-500" />
                             )}
                         </div>
 
@@ -334,7 +339,7 @@ export default function MapPage() {
                         {mode === 'produtos' && (
                             <>
                                 {selectedStore && (
-                                    <p className="text-neutral-400 text-sm mt-1">📍 {selectedStore.name}</p>
+                                    <p className="text-neutral-400 text-sm mt-1 flex items-center gap-1"><MapPin className="w-3 h-3" /> {selectedStore.name}</p>
                                 )}
                                 <p className="text-green-400 font-bold text-lg mt-1">
                                     R$ {(selectedItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -351,7 +356,7 @@ export default function MapPage() {
                                     router.push(`/${store?.storeSlug}/${selectedItem.slug || selectedItem.id}`)
                                 }
                             }}
-                            className="mt-3 w-full bg-orange-500 hover:bg-orange-600 py-2.5 rounded-xl text-black font-bold transition shadow-[0_0_15px_rgba(249,115,22,0.3)]"
+                            className="mt-3 w-full bg-white hover:bg-neutral-200 py-2.5 rounded-xl text-black font-bold transition shadow-[0_0_15px_rgba(255,255,255,0.3)]"
                         >
                             Ver detalhes →
                         </button>

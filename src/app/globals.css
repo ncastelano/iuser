@@ -98,16 +98,16 @@
   animation: slide-in 0.3s ease-out;
 }
 
-/* Efeito Premium de Glassmorphism Laranja */
+/* Efeito Premium de Glassmorphism Monochrome */
 .glass-glow-card {
   @apply relative isolate overflow-hidden bg-neutral-900 border border-neutral-800 rounded-2xl;
 }
 
 .glass-glow-card::before {
   content: '';
-  @apply absolute -top-16 -right-16 w-36 h-36 bg-orange-500 rounded-full blur-[60px] opacity-20 pointer-events-none -z-10 transition-all duration-700 ease-in-out;
+  @apply absolute -top-16 -right-16 w-36 h-36 bg-white rounded-full blur-[60px] opacity-10 pointer-events-none -z-10 transition-all duration-700 ease-in-out;
 }
 
 .glass-glow-card:hover::before {
-  @apply opacity-30 scale-125 bg-orange-400 blur-[80px];
+  @apply opacity-20 scale-125 bg-white blur-[80px];
 }

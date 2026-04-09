@@ -60,7 +60,7 @@ function LoginContent() {
         className="w-full max-w-md p-8 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl relative overflow-hidden"
       >
         {/* Glow */}
-        <div className="absolute -top-32 -right-32 w-64 h-64 bg-orange-500 rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
+        <div className="absolute -top-32 -right-32 w-64 h-64 bg-white rounded-full blur-[100px] opacity-5 pointer-events-none"></div>
 
         <h1 className="mb-8 text-3xl font-extrabold text-center tracking-tight text-white">
           iUser
@@ -78,7 +78,7 @@ function LoginContent() {
           </label>
           <input
             type="email"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition placeholder:text-neutral-600"
+            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -92,7 +92,7 @@ function LoginContent() {
           </label>
           <input
             type="password"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition placeholder:text-neutral-600"
+            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -103,7 +103,7 @@ function LoginContent() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 shadow-[0_0_20px_rgba(249,115,22,0.15)] hover:shadow-[0_0_25px_rgba(249,115,22,0.25)]"
+          className="w-full mt-2 bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
         >
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
@@ -112,7 +112,7 @@ function LoginContent() {
           Não tem conta?{' '}
           <a
             href="/register"
-            className="text-orange-500 hover:text-orange-400 transition ml-1"
+            className="text-white hover:underline transition ml-1"
           >
             Cadastre-se
           </a>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Plus, Star, User as UserIcon } from 'lucide-react'
 
 interface StoreStats {
     ratings_count: number
@@ -14,8 +15,13 @@ interface Store {
     name: string
     storeSlug: string
     logo_url: string | null
-    is_open: boolean
+    is_active: boolean
     store_stats: StoreStats
+}
+
+interface UserProfile {
+    avatar_url: string | null
+    name: string | null
 }
 
 export default function MyProfile() {
@@ -23,6 +29,7 @@ export default function MyProfile() {
     const router = useRouter()
 
     const [stores, setStores] = useState<Store[]>([])
+    const [profile, setProfile] = useState<UserProfile | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -33,9 +40,16 @@ export default function MyProfile() {
                 return
             }
 
+            const { data: profileData } = await supabase
+                .from('profiles')
+                .select('avatar_url, name')
+                .eq('id', user.id)
+                .single()
+            setProfile(profileData)
+
             const { data } = await supabase
                 .from('stores')
-                .select(`id, name, storeSlug, logo_url, is_open, store_stats(*)`)
+                .select(`id, name, storeSlug, logo_url, is_active, store_stats(*)`)
                 .eq('owner_id', user.id)
 
             const mapped = (data || []).map(store => ({
@@ -63,18 +77,35 @@ export default function MyProfile() {
     return (
         <div className="p-4 md:p-8 bg-black text-white min-h-screen">
 
-            <h1 className="text-3xl font-extrabold mb-8 tracking-tight">Meu Perfil</h1>
+            {/* Header com Avatar */}
+            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-white/10">
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-neutral-900 border border-white/20 flex items-center justify-center flex-shrink-0">
+                    {profile?.avatar_url ? (
+                        <img 
+                            src={profile.avatar_url.startsWith('http') ? profile.avatar_url : supabase.storage.from('avatars').getPublicUrl(profile.avatar_url).data.publicUrl}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <UserIcon className="w-8 h-8 text-neutral-500" />
+                    )}
+                </div>
+                <div>
+                    <h1 className="text-3xl font-extrabold tracking-tight">Central</h1>
+                    {profile?.name && <p className="text-neutral-400 text-sm">Bem-vindo, {profile.name}</p>}
+                </div>
+            </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <h2 className="text-xl font-bold flex items-center gap-3">
-                    <span className="w-2 h-6 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
+                    <span className="w-2 h-6 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]"></span>
                     Minhas Lojas
                 </h2>
                 <button
                     onClick={() => router.push('/criar-loja')}
-                    className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 hover:shadow-[0_0_15px_rgba(249,115,22,0.3)] text-black rounded-full font-bold transition-all text-sm whitespace-nowrap flex items-center gap-2"
+                    className="px-5 py-2.5 bg-white hover:bg-neutral-200 hover:shadow-[0_0_15px_rgba(255,255,255,0.3)] text-black rounded-full font-bold transition-all text-sm whitespace-nowrap flex items-center gap-2"
                 >
-                    + Criar Loja
+                    <Plus className="w-4 h-4" /> Criar Loja
                 </button>
             </div>
 
@@ -88,7 +119,7 @@ export default function MyProfile() {
                         <div
                             key={store.id}
                             onClick={() => router.push(`/${store.storeSlug}`)}
-                            className="glass-glow-card cursor-pointer hover:scale-105 hover:shadow-[0_10px_30px_rgba(249,115,22,0.1)] hover:border-orange-500/50 transition-all duration-300 group"
+                            className="glass-glow-card cursor-pointer hover:scale-105 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:border-white/50 transition-all duration-300 group"
                         >
                             {store.logo_url ? (
                                 <img
@@ -102,19 +133,16 @@ export default function MyProfile() {
                             )}
 
                             <div className="p-5 flex flex-col gap-2 relative">
-                                <span className={`absolute -top-4 right-4 text-xs font-bold px-3 py-1.5 rounded-lg border shadow-lg backdrop-blur-md ${store.is_open ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-500 border-red-500/30'
+                                <span className={`absolute -top-4 right-4 text-xs font-bold px-3 py-1.5 rounded-lg border shadow-lg backdrop-blur-md ${store.is_active ? 'bg-white/20 text-white border-white/30' : 'bg-red-500/20 text-red-500 border-red-500/30'
                                     }`}>
-                                    {store.is_open ? 'Aberto' : 'Fechado'}
+                                    {store.is_active ? 'Aberto' : 'Fechado'}
                                 </span>
 
                                 <h3 className="font-bold text-lg text-white">{store.name}</h3>
 
-                                <div className="flex items-center text-orange-500 text-sm mt-1">
-                                    {Array.from({ length: 5 }).map((_, i) => (
-                                        <span key={i}>
-                                            {i < Math.round(store.store_stats.ratings_avg) ? '★' : '☆'}
-                                        </span>
-                                    ))}
+                                <div className="flex items-center text-white text-sm mt-1 gap-1">
+                                    <Star className="w-3 h-3 fill-white" />
+                                    <span>{store.store_stats.ratings_avg.toFixed(1)}</span>
                                 </div>
                             </div>
                         </div>

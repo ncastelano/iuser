@@ -45,8 +45,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         const isActive = pathname === path
 
         return `flex flex-col items-center gap-1 text-xs transition-all font-medium ${isActive
-                ? 'text-orange-500 scale-105'
-                : 'text-neutral-500 hover:text-white'
+                ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'
+                : 'text-neutral-500 hover:text-neutral-300'
             }`
     }
 
@@ -66,18 +66,18 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 <div className="max-w-5xl mx-auto flex justify-around items-center py-3">
 
                     <Link href="/" className={linkClass('/')}>
-                        <Store size={22} className={pathname === '/' ? 'text-orange-500' : ''} />
+                        <Store size={22} className={pathname === '/' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : ''} />
                         Vitrine
                     </Link>
 
                     <Link href="/mapa" className={linkClass('/mapa')}>
-                        <MapPinned size={22} className={pathname === '/mapa' ? 'text-orange-500' : ''} />
+                        <MapPinned size={22} className={pathname === '/mapa' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : ''} />
                         Mapa
                     </Link>
 
-                    <Link href="/perfil" className={linkClass('/perfil')}>
-                        <User size={22} className={pathname === '/perfil' ? 'text-orange-500' : ''} />
-                        Perfil
+                    <Link href="/central" className={linkClass('/central')}>
+                        <User size={22} className={pathname === '/central' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : ''} />
+                        Central
                     </Link>
 
                     <button

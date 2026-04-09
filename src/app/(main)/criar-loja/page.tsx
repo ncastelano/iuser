@@ -157,12 +157,12 @@ export default function CriarLoja() {
                     {/* LOGO */}
                     <div
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-28 h-28 mx-auto rounded-full border-2 border-dashed border-neutral-700 flex items-center justify-center cursor-pointer overflow-hidden"
+                        className="w-28 h-28 mx-auto rounded-full border-2 border-dashed border-neutral-700 hover:border-white flex items-center justify-center cursor-pointer overflow-hidden transition group"
                     >
                         {preview ? (
                             <img src={preview} className="w-full h-full object-cover" />
                         ) : (
-                            <Camera />
+                            <Camera className="text-neutral-500 group-hover:text-white transition" />
                         )}
                     </div>
 
@@ -180,11 +180,11 @@ export default function CriarLoja() {
                         placeholder="Nome da loja"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                        className="w-full p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition"
                     />
 
                     {/* SLUG */}
-                    <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 overflow-hidden">
+                    <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 focus-within:border-white focus-within:ring-1 focus-within:ring-white overflow-hidden transition">
                         <span className="flex items-center px-4 bg-neutral-900 text-neutral-500 border-r border-neutral-800 text-sm whitespace-nowrap">
                             iuser.com.br/
                         </span>
@@ -199,7 +199,7 @@ export default function CriarLoja() {
                                         .replace(/[^a-z0-9-]/g, '')
                                 )
                             }
-                            className="w-full p-3 bg-transparent text-white outline-none"
+                            className="w-full p-3.5 bg-transparent text-white outline-none"
                         />
                     </div>
 
@@ -208,7 +208,7 @@ export default function CriarLoja() {
                         placeholder="Descrição"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                        className="w-full p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition"
                     />
 
                     {/* LOCALIZAÇÃO */}
@@ -241,7 +241,7 @@ export default function CriarLoja() {
                                             }
                                         )
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 p-3 bg-neutral-900 border border-neutral-800 rounded-xl"
+                                    className="w-full flex items-center justify-center gap-2 p-3.5 bg-neutral-900 border border-neutral-800 hover:border-white hover:text-white rounded-xl transition text-neutral-400"
                                 >
                                     <MapPinned size={18} />
                                     {loadingLocation ? 'Procurando...' : 'Usar minha localização'}
@@ -255,7 +255,7 @@ export default function CriarLoja() {
                                             setManualAddress(e.target.value)
                                             setEditingAddress(true)
                                         }}
-                                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                                        className="w-full p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition"
                                     />
 
                                     {suggestions.length > 0 && (
@@ -276,12 +276,12 @@ export default function CriarLoja() {
                         )}
 
                         {location && !editingAddress && (
-                            <div className="p-3 border border-orange-500 rounded-xl space-y-2">
-                                <p className="text-xs">{address}</p>
+                            <div className="p-4 border border-white/50 bg-neutral-950 rounded-xl space-y-3 shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+                                <p className="text-xs text-neutral-300">{address}</p>
 
                                 <button
                                     onClick={() => setEditingAddress(true)}
-                                    className="flex items-center gap-2 text-orange-400 text-sm"
+                                    className="flex items-center gap-2 text-white hover:underline text-sm font-semibold"
                                 >
                                     <Edit3 size={16} />
                                     Editar localização
@@ -298,7 +298,7 @@ export default function CriarLoja() {
                                     onChange={(e) => {
                                         setManualAddress(e.target.value)
                                     }}
-                                    className="w-full p-3 bg-neutral-950 rounded-xl"
+                                    className="w-full p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition"
                                 />
 
                                 {suggestions.length > 0 && (
@@ -331,7 +331,7 @@ export default function CriarLoja() {
                     <button
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full bg-orange-500 py-3 rounded-xl font-bold"
+                        className="w-full mt-4 bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
                     >
                         {loading ? 'Criando...' : 'Criar Loja'}
                     </button>
