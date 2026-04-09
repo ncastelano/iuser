@@ -1,126 +1,163 @@
+// src/app/(main)/[storeSlug]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getMockStores, getMockProducts, MockStore, MockProduct } from '@/lib/mockData'
 
 export default function StorePage() {
-    const { storeSlug } = useParams()
+    const params = useParams()
+    // useParams pode retornar string | string[] — garantir string
+    const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const router = useRouter()
-    const supabase = createClient()
 
-    const [store, setStore] = useState<MockStore | null>(null)
-    const [products, setProducts] = useState<MockProduct[]>([])
+    const [store, setStore] = useState<any | null>(null)
+    const [products, setProducts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isOwner, setIsOwner] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
+        if (!storeSlug) return
+
         const fetchStore = async () => {
             setLoading(true)
+            setError(null)
 
-            const { data: foundStore } = await supabase
+            const supabase = createClient()
+
+            // Buscar loja pelo slug — usando ilike para tolerar diferenças de case
+            const { data: foundStore, error: storeError } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug, logo_url, description, owner_id, location')
-                .eq('storeSlug', storeSlug)
+                .select('*')
+                .ilike('storeSlug', storeSlug)
                 .maybeSingle()
 
-            if (!foundStore) {
+            if (storeError) {
+                console.error('[StorePage] Erro ao buscar loja:', storeError)
+                setError(`Erro ao buscar loja: ${storeError.message}`)
                 setLoading(false)
                 return
             }
 
-            const { data: { user } } = await supabase.auth.getUser()
+            if (!foundStore) {
+                console.warn('[StorePage] Loja não encontrada para slug:', storeSlug)
+                setLoading(false)
+                return
+            }
 
+            // Resolver URL pública do logo
+            const logo_url = foundStore.logo_url
+                ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
+                : null
+
+            // Checar se o usuário logado é o dono
+            const { data: { user } } = await supabase.auth.getUser()
             if (user && user.id === foundStore.owner_id) {
                 setIsOwner(true)
             }
 
-            const { data: productsData } = await supabase
+            // Buscar produtos da loja
+            const { data: productsData, error: productsError } = await supabase
                 .from('products')
                 .select('*')
                 .eq('store_id', foundStore.id)
-            
-            const formattedStore = {
-                ...foundStore,
-                is_open: true,
-                store_stats: {
-                    ratings_count: 0,
-                    ratings_avg: 0,
-                    prep_time_min: null,
-                    prep_time_max: null,
-                    price_min: null,
-                    price_max: null
-                }
+                .order('created_at', { ascending: false })
+
+            if (productsError) {
+                console.error('[StorePage] Erro ao buscar produtos:', productsError)
             }
 
-            setStore(formattedStore as any)
-            setProducts((productsData || []) as any)
+            // Resolver URLs públicas dos produtos
+            const mappedProducts = (productsData || []).map(p => ({
+                ...p,
+                image_url: p.image_url
+                    ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
+                    : null
+            }))
+
+            setStore({ ...foundStore, logo_url })
+            setProducts(mappedProducts)
             setLoading(false)
         }
 
-        if (storeSlug) fetchStore()
+        fetchStore()
     }, [storeSlug])
 
-    const getLogoUrl = (logoPath: string | null) => logoPath ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl : ''
-    const getProductImageUrl = (imagePath: string | null) => imagePath ? supabase.storage.from('product-images').getPublicUrl(imagePath).data.publicUrl : ''
-
-    if (loading)
+    // ─── LOADING ────────────────────────────────────────────────────────────────
+    if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-black text-white">
-                Carregando...
+            <div className="min-h-screen flex items-center justify-center bg-black">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-neutral-400 text-sm">Carregando loja...</p>
+                </div>
             </div>
         )
+    }
 
-    if (!store)
+    // ─── ERROR ───────────────────────────────────────────────────────────────────
+    if (error) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white px-4 text-center">
-                <div className="flex flex-col gap-4">
-                    <h2 className="text-2xl font-bold">Loja não encontrada</h2>
-                    <p className="text-neutral-500">Essa loja ({storeSlug}) não existe nos mocks.</p>
+                <div className="flex flex-col gap-4 max-w-sm">
+                    <div className="text-4xl">⚠️</div>
+                    <h2 className="text-2xl font-bold">Erro ao carregar</h2>
+                    <p className="text-neutral-500 text-sm">{error}</p>
                     <button onClick={() => router.push('/')} className="text-orange-500 hover:underline">
                         Voltar para a Vitrine
                     </button>
                 </div>
             </div>
         )
+    }
 
-    const stats = store.store_stats
+    // ─── NOT FOUND ───────────────────────────────────────────────────────────────
+    if (!store) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-black text-white px-4 text-center">
+                <div className="flex flex-col gap-4 max-w-sm">
+                    <div className="text-5xl">🔍</div>
+                    <h2 className="text-2xl font-bold">Loja não encontrada</h2>
+                    <p className="text-neutral-500 text-sm">
+                        Nenhuma loja com o endereço <span className="text-orange-400 font-mono">/{storeSlug}</span> foi encontrada.
+                    </p>
+                    <button onClick={() => router.push('/')} className="text-orange-500 hover:underline text-sm">
+                        ← Voltar para a Vitrine
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
+    // ─── PAGE ────────────────────────────────────────────────────────────────────
     return (
         <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
 
-            {/* HEADER TOP */}
+            {/* BACK + TITLE */}
             <div className="flex items-center gap-4 pb-4 border-b border-white/10">
                 <button
-                    onClick={() => {
-                        if (window.history.length > 1) {
-                            router.back()
-                        } else {
-                            router.push('/')
-                        }
-                    }}
+                    onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
                     className="flex w-10 h-10 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 transition shadow-md group"
                 >
                     <span className="group-hover:-translate-x-1 transition-transform">←</span>
                 </button>
-
-                <h1 className="text-xl font-bold truncate tracking-wide">
-                    {store.name}
-                </h1>
+                <h1 className="text-xl font-bold truncate tracking-wide">{store.name}</h1>
             </div>
 
-            {/* HEADER DA LOJA */}
+            {/* STORE HEADER */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-neutral-900/40 p-6 rounded-2xl border border-neutral-800 shadow-xl backdrop-blur-sm">
 
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl overflow-hidden">
+                {/* LOGO */}
+                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl overflow-hidden flex-shrink-0">
                     {store.logo_url ? (
-                        <img src={getLogoUrl(store.logo_url)} className="w-full h-full object-cover" alt="Logo" />
+                        <img src={store.logo_url} className="w-full h-full object-cover" alt={`Logo ${store.name}`} />
                     ) : (
-                        <span className="text-neutral-600 text-sm font-medium">Sem Logo</span>
+                        <span className="text-neutral-600 text-sm font-medium text-center px-2">{store.name?.charAt(0)}</span>
                     )}
                 </div>
 
+                {/* INFO */}
                 <div className="flex flex-col gap-3 text-center md:text-left flex-1 pt-2">
 
                     <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
@@ -133,34 +170,42 @@ export default function StorePage() {
                         </p>
                     )}
 
-                    {/* ⭐ RATING */}
-                    <div className="flex items-center justify-center md:justify-start gap-2 text-orange-500">
+                    {/* RATING */}
+                    <div className="flex items-center justify-center md:justify-start gap-1 text-orange-500">
                         {Array.from({ length: 5 }).map((_, i) => (
-                            <span key={i}>
-                                {i < Math.round(stats.ratings_avg) ? '★' : '☆'}
-                            </span>
+                            <span key={i}>{i < Math.round(store.ratings_avg ?? 0) ? '★' : '☆'}</span>
                         ))}
                         <span className="text-neutral-400 text-sm ml-1">
-                            ({stats.ratings_count} avaliações)
+                            ({store.ratings_count ?? 0} avaliações)
                         </span>
                     </div>
 
-                    {/* STATUS */}
-                    <div className="mt-2">
-                        <span
-                            className={`inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${store.is_open
+                    {/* BADGES */}
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-1">
+                        <span className={`inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${
+                            store.is_open
                                 ? 'bg-green-500/10 text-green-400 border border-green-500/30'
                                 : 'bg-red-500/10 text-red-500 border border-red-500/30'
-                                }`}
-                        >
-                            {store.is_open ? 'Aberto' : 'Fechado'}
+                        }`}>
+                            {store.is_open ? '● Aberto' : '● Fechado'}
                         </span>
-                    </div>
 
+                        {store.prep_time_min != null && store.prep_time_max != null && (
+                            <span className="px-3 py-1.5 rounded-full text-xs border border-neutral-700 text-neutral-300 bg-neutral-900/50">
+                                ⏱ {store.prep_time_min}–{store.prep_time_max} min
+                            </span>
+                        )}
+
+                        {store.price_min != null && store.price_max != null && (
+                            <span className="px-3 py-1.5 rounded-full text-xs border border-neutral-700 text-green-400 bg-neutral-900/50">
+                                💰 R${store.price_min} – R${store.price_max}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* 🔥 BOTÃO ADD PRODUTO (SÓ DONO) */}
+            {/* OWNER ACTION */}
             {isOwner && (
                 <div className="flex justify-end">
                     <button
@@ -172,45 +217,53 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* PRODUTOS */}
+            {/* PRODUCTS */}
             <div className="mt-4">
-
                 <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                    <span className="w-2 h-8 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]"></span>
+                    <span className="w-2 h-8 bg-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
                     Menu ({products.length})
                 </h3>
 
                 {products.length === 0 ? (
                     <div className="text-center py-16 bg-neutral-900/30 rounded-2xl border border-neutral-800 border-dashed">
-                        <p className="text-neutral-400 text-lg font-medium">
-                            Nenhum produto disponível no momento.
-                        </p>
+                        <p className="text-neutral-400 text-lg font-medium">Nenhum produto disponível no momento.</p>
+                        {isOwner && (
+                            <button
+                                onClick={() => router.push(`/${store.storeSlug}/criar-produto`)}
+                                className="mt-4 text-orange-500 text-sm hover:underline"
+                            >
+                                Adicionar seu primeiro produto →
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-
                         {products.map(product => (
                             <div
                                 key={product.id}
+                                onClick={() => router.push(`/${store.storeSlug}/${product.slug || product.id}`)}
                                 className="bg-neutral-900/60 rounded-2xl overflow-hidden shadow-xl border border-neutral-800 group hover:border-orange-500/50 hover:shadow-[0_10px_30px_rgba(249,115,22,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer backdrop-blur-sm"
                             >
                                 <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800 overflow-hidden">
                                     {product.image_url ? (
-                                        <img src={getProductImageUrl(product.image_url)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                                        <img
+                                            src={product.image_url}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            alt={product.name}
+                                        />
                                     ) : (
                                         <span className="text-neutral-600 font-medium text-sm">Sem Imagem</span>
                                     )}
                                 </div>
 
                                 <div className="p-5 flex flex-col gap-3 flex-1">
-                                    
                                     <div className="flex justify-between items-start gap-2">
-                                        <h4 className="font-bold text-lg line-clamp-1 text-white">
-                                            {product.name}
-                                        </h4>
-                                        <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md">
-                                            {product.type || product.category || 'Produto'}
-                                        </span>
+                                        <h4 className="font-bold text-lg line-clamp-1 text-white">{product.name}</h4>
+                                        {(product.type || product.category) && (
+                                            <span className="text-xs bg-neutral-800 text-neutral-400 px-2 py-1 rounded-md whitespace-nowrap">
+                                                {product.type || product.category}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {product.description && (
@@ -223,16 +276,13 @@ export default function StorePage() {
                                         <p className="text-orange-500 font-extrabold text-xl">
                                             R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
-
                                         <button className="bg-neutral-800 hover:bg-orange-500 hover:text-black text-white w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 font-bold shadow-md hover:shadow-[0_0_15px_rgba(249,115,22,0.4)]">
                                             +
                                         </button>
                                     </div>
-
                                 </div>
                             </div>
                         ))}
-
                     </div>
                 )}
             </div>

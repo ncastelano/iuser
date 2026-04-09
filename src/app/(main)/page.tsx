@@ -2,10 +2,40 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { MockStore, MockProduct } from '@/lib/mockData'
 import { createClient } from '@/lib/supabase/client'
 
 type SearchMode = 'lojas' | 'produtos'
+
+type StoreStats = {
+  ratings_count: number
+  ratings_avg: number
+  prep_time_min: number | null
+  prep_time_max: number | null
+  price_min: number | null
+  price_max: number | null
+}
+
+type StoreType = {
+  id: string
+  name: string
+  storeSlug: string
+  logo_url: string | null
+  description: string | null
+  owner_id: string
+  location: any
+  is_open: boolean
+  store_stats: StoreStats
+}
+
+type ProductType = {
+  id: string
+  name: string
+  store_id: string
+  image_url: string | null
+  category: string | null
+  type: string | null
+  price: number | null
+}
 
 export default function Vitrine() {
   const router = useRouter()
@@ -24,8 +54,8 @@ export default function Vitrine() {
   const [currentPage, setCurrentPage] = useState(1)
 
   const PAGE_SIZE = 30
-  const allMockStoresRef = useRef<MockStore[]>([])
-  const allMockProductsRef = useRef<MockProduct[]>([])
+  const allMockStoresRef = useRef<StoreType[]>([])
+  const allMockProductsRef = useRef<ProductType[]>([])
 
   // 🔍 PLACEHOLDER DINÂMICO
   const getSearchPlaceholder = () => {
@@ -47,14 +77,21 @@ export default function Vitrine() {
   }
 
   // 📍 DISTÂNCIA
-  const calcDistanceKm = (storeLocation: string | null) => {
+  const calcDistanceKm = (storeLocation: any) => {
     if (!userLocation || !storeLocation) return null
 
-    const match = storeLocation.match(/POINT\((-?\d+\.?\d*) (-?\d+\.?\d*)\)/)
-    if (!match) return null
-
-    const lon = parseFloat(match[1])
-    const lat = parseFloat(match[2])
+    let lon, lat;
+    if (typeof storeLocation === 'string') {
+      const match = storeLocation.match(/POINT\((-?\d+\.?\d*)\s+(-?\d+\.?\d*)\)/)
+      if (!match) return null
+      lon = parseFloat(match[1])
+      lat = parseFloat(match[2])
+    } else if (typeof storeLocation === 'object' && storeLocation.type === 'Point' && Array.isArray(storeLocation.coordinates)) {
+      lon = storeLocation.coordinates[0]
+      lat = storeLocation.coordinates[1]
+    } else {
+      return null
+    }
 
     const toRad = (v: number) => (v * Math.PI) / 180
     const R = 6371
@@ -222,7 +259,7 @@ export default function Vitrine() {
   const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1
 
   // 🧩 STORE CARD
-  const renderStoreCard = (store: MockStore, idx: number) => {
+  const renderStoreCard = (store: StoreType, idx: number) => {
     const stats = store.store_stats ?? {}
 
     const distanceKm = calcDistanceKm(store.location)
@@ -258,15 +295,7 @@ export default function Vitrine() {
         </div>
 
         <div className="p-4 flex flex-col gap-3 relative flex-1">
-          <div className="absolute -top-6 right-4 w-12 h-12 rounded-full border-2 border-neutral-900 bg-neutral-800 flex items-center justify-center text-xs shadow-lg overflow-hidden">
-             {store.logo_url ? (
-               <img src={store.logo_url} className="w-full h-full object-cover" alt="Logo" />
-             ) : (
-               <span className="text-neutral-500">Logo</span>
-             )}
-          </div>
-
-          <h3 className="font-semibold text-lg text-white line-clamp-1 pr-12">
+          <h3 className="font-semibold text-lg text-white line-clamp-2 pr-2">
             {store.name}
           </h3>
 
@@ -310,7 +339,7 @@ export default function Vitrine() {
   }
 
   // 🧩 PRODUCT CARD
-  const renderProductCard = (product: MockProduct, idx: number) => {
+  const renderProductCard = (product: ProductType, idx: number) => {
     const store = getStore(product.store_id)
     const distanceKm = store ? calcDistanceKm(store.location) : null
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Camera } from 'lucide-react'
+import { Camera, MapPinned, Edit3, X } from 'lucide-react'
 
 export default function CriarLoja() {
     const router = useRouter()
@@ -12,31 +12,37 @@ export default function CriarLoja() {
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     const [loading, setLoading] = useState(false)
+    const [loadingLocation, setLoadingLocation] = useState(false)
+
     const [name, setName] = useState('')
     const [storeSlug, setStoreSlug] = useState('')
     const [description, setDescription] = useState('')
-    const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
+
+    const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
     const [city, setCity] = useState('')
+
+    const [manualAddress, setManualAddress] = useState('')
+    const [editingAddress, setEditingAddress] = useState(false)
+
+    const [suggestions, setSuggestions] = useState<any[]>([])
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
 
-    // auto-generate slug from name
+    // SLUG AUTOMÁTICO
     useEffect(() => {
-        if (!name) {
-            setStoreSlug('')
-            return
-        }
-        const generatedSlug = name
+        if (!name) return setStoreSlug('')
+        const slug = name
             .toLowerCase()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)+/g, '')
-        setStoreSlug(generatedSlug)
+        setStoreSlug(slug)
     }, [name])
 
+    // IMAGE PREVIEW
     useEffect(() => {
         if (!imageFile) return
         const url = URL.createObjectURL(imageFile)
@@ -44,55 +50,65 @@ export default function CriarLoja() {
         return () => URL.revokeObjectURL(url)
     }, [imageFile])
 
-    const fetchAddressFromCoords = async (lat: number, lng: number) => {
+    // AUTOCOMPLETE
+    useEffect(() => {
+        const delay = setTimeout(() => {
+            if (manualAddress.length < 4) return
+            fetchSuggestions(manualAddress)
+        }, 500)
+
+        return () => clearTimeout(delay)
+    }, [manualAddress])
+
+    const fetchSuggestions = async (query: string) => {
         try {
             const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,place`)
+
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&autocomplete=true&country=BR&limit=5`
+            )
+
             const data = await res.json()
-            if (data && data.features && data.features.length > 0) {
-                const feature = data.features[0]
-                setAddress(feature.place_name)
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
-            }
+            setSuggestions(data.features || [])
         } catch (e) {
             console.error(e)
         }
     }
 
-    const fetchCoordsFromAddress = async (query: string) => {
+    const selectSuggestion = (feature: any) => {
+        const [lng, lat] = feature.center
+
+        setLocation({ lat, lng })
+        setAddress(feature.place_name)
+        setManualAddress(feature.place_name)
+        setSuggestions([])
+        setEditingAddress(false)
+    }
+
+    const fetchAddressFromCoords = async (lat: number, lng: number) => {
         try {
             const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=BR`)
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}`
+            )
             const data = await res.json()
-            if (data && data.features && data.features.length > 0) {
-                const feature = data.features[0]
-                const [lon, lat] = feature.center
-                setLocation({ lat, lng: lon })
-                setAddress(feature.place_name)
-                
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
-            } else {
-                alert('Endereço não encontrado! Tente digitar um formato mais completo (ex: Rua, Número, Cidade, Estado).')
+
+            if (data.features?.length > 0) {
+                setAddress(data.features[0].place_name)
             }
         } catch (e) {
             console.error(e)
-            alert('Erro na busca do endereço no MapBox.')
         }
     }
 
     const handleCreate = async () => {
-        if (!name || !storeSlug) {
-            alert('Preencha os campos obrigatórios')
-            return
-        }
+        if (!name || !storeSlug) return alert('Preencha os campos')
 
         setLoading(true)
 
-        const { data: userData, error: userError } = await supabase.auth.getUser()
-        if (userError || !userData.user) {
-            alert('Você precisa estar logado para criar uma loja')
+        const { data: userData } = await supabase.auth.getUser()
+        if (!userData?.user) {
+            alert('Você precisa estar logado')
             setLoading(false)
             return
         }
@@ -103,16 +119,12 @@ export default function CriarLoja() {
             const fileExt = imageFile.name.split('.').pop()
             const fileName = `${Date.now()}.${fileExt}`
 
-            const { data, error } = await supabase.storage
+            const { data } = await supabase.storage
                 .from('store-logos')
                 .upload(fileName, imageFile)
 
-            if (!error && data) {
-                logoPath = data.path
-            }
+            if (data) logoPath = data.path
         }
-
-        const locationString = location ? `POINT(${location.lng} ${location.lat})` : null;
 
         const { error } = await supabase.from('stores').insert({
             name,
@@ -120,16 +132,11 @@ export default function CriarLoja() {
             description,
             logo_url: logoPath,
             owner_id: userData.user.id,
-            location: locationString
+            location: location ? `POINT(${location.lng} ${location.lat})` : null
         })
 
         if (error) {
-            console.error(error)
-            if (error.code === '23505') {
-                alert('Este slug já está em uso. Escolha outro nome da loja ou altere a URL.')
-            } else {
-                alert(`Erro ao criar loja: ${error.message}`)
-            }
+            alert(error.message)
             setLoading(false)
             return
         }
@@ -138,149 +145,197 @@ export default function CriarLoja() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-24">
+        <div className="min-h-screen bg-black text-white p-4 flex justify-center pb-24">
             <div className="w-full max-w-lg mt-8">
-                <h1 className="text-3xl font-extrabold mb-2 tracking-tight">
+
+                <h1 className="text-3xl font-extrabold mb-6">
                     Criar Nova Loja
                 </h1>
-                <p className="text-neutral-400 mb-8">
-                    Configure os detalhes da sua loja para começar a vender.
-                </p>
 
-                <div className="bg-neutral-900 border border-neutral-800 p-6 md:p-8 rounded-2xl shadow-2xl">
-                    
-                    {/* Logo Upload */}
-                    <div className="mb-8 flex flex-col items-center">
-                        <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-32 h-32 rounded-full border-2 border-dashed border-neutral-700 bg-neutral-950 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition hover:border-orange-500 hover:bg-neutral-900 group"
-                        >
-                            {preview ? (
-                                <img src={preview} className="w-full h-full object-cover" alt="Logo preview" />
-                            ) : (
-                                <>
-                                    <Camera className="text-3xl text-neutral-500 mb-2 group-hover:text-orange-500 transition" />
-                                    <span className="text-xs text-neutral-500 font-medium tracking-wide">Logo</span>
-                                </>
-                            )}
-                        </div>
+                <div className="bg-neutral-900 p-6 rounded-2xl space-y-6">
+
+                    {/* LOGO */}
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-28 h-28 mx-auto rounded-full border-2 border-dashed border-neutral-700 flex items-center justify-center cursor-pointer overflow-hidden"
+                    >
+                        {preview ? (
+                            <img src={preview} className="w-full h-full object-cover" />
+                        ) : (
+                            <Camera />
+                        )}
+                    </div>
+
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) =>
+                            e.target.files && setImageFile(e.target.files[0])
+                        }
+                    />
+
+                    {/* NOME */}
+                    <input
+                        placeholder="Nome da loja"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                    />
+
+                    {/* SLUG */}
+                    <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 overflow-hidden">
+                        <span className="flex items-center px-4 bg-neutral-900 text-neutral-500 border-r border-neutral-800 text-sm whitespace-nowrap">
+                            iuser.com.br/
+                        </span>
+
                         <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
+                            placeholder="minha-loja"
+                            value={storeSlug}
                             onChange={(e) =>
-                                e.target.files && setImageFile(e.target.files[0])
+                                setStoreSlug(
+                                    e.target.value
+                                        .toLowerCase()
+                                        .replace(/[^a-z0-9-]/g, '')
+                                )
                             }
+                            className="w-full p-3 bg-transparent text-white outline-none"
                         />
                     </div>
 
-                    {/* Form Fields */}
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Nome da Loja</label>
-                            <input
-                                placeholder="Ex: Minha Loja Fantástica"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition placeholder:text-neutral-600"
-                            />
-                        </div>
+                    {/* DESCRIÇÃO */}
+                    <textarea
+                        placeholder="Descrição"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                    />
 
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">URL da Loja</label>
-                            <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 overflow-hidden focus-within:border-orange-500 focus-within:ring-1 focus-within:ring-orange-500 transition">
-                                <span className="flex items-center px-4 bg-neutral-900 text-neutral-500 border-r border-neutral-800 text-sm whitespace-nowrap">
-                                    myapp.com/
-                                </span>
-                                <input
-                                    placeholder="minha-loja"
-                                    value={storeSlug}
-                                    onChange={(e) => setStoreSlug(e.target.value)}
-                                    className="w-full p-3.5 bg-transparent text-white outline-none placeholder:text-neutral-600"
-                                />
-                            </div>
-                        </div>
+                    {/* LOCALIZAÇÃO */}
+                    <div className="space-y-3">
 
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Descrição</label>
-                            <textarea
-                                placeholder="O que sua loja vende?"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                rows={3}
-                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition placeholder:text-neutral-600 resize-none"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Localização no Mapa</label>
-                            {location ? (
-                                <div className="p-3.5 bg-neutral-950 text-orange-500 rounded-xl border border-orange-500/50 text-sm flex flex-col gap-2 relative">
-                                    <span className="font-bold">📍 Localização Capturada</span>
-                                    {address ? (
-                                        <p className="text-white text-xs leading-relaxed">{address}</p>
-                                    ) : (
-                                        <span className="text-neutral-500 text-xs animate-pulse">Buscando endereço exato...</span>
-                                    )}
-                                    <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                                        <button 
-                                            onClick={() => {
-                                                const newAddress = prompt("Digite o novo endereço completo (Rua, Número, Bairro, Cidade):", address)
-                                                if (newAddress) fetchCoordsFromAddress(newAddress)
-                                            }} 
-                                            className="text-orange-500 font-semibold text-xs hover:text-white flex-1 bg-orange-500/10 py-2 rounded-lg transition"
-                                        >
-                                            ✏️ Editar Endereço manualmente
-                                        </button>
-                                        <button 
-                                            onClick={() => {
-                                                setLocation(null)
-                                                setAddress('')
-                                                setCity('')
-                                            }} 
-                                            className="text-red-400 font-semibold text-xs hover:text-white bg-red-400/10 px-4 py-2 rounded-lg transition"
-                                        >
-                                            Remover
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
+                        {!location && !editingAddress && (
+                            <>
                                 <button
+                                    disabled={loadingLocation}
                                     onClick={() => {
-                                        if (navigator.geolocation) {
-                                            navigator.geolocation.getCurrentPosition(
-                                                (pos) => {
-                                                    setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-                                                    fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude)
-                                                },
-                                                (err) => alert('Permissão negada ou erro ao buscar localização')
-                                            );
-                                        } else {
-                                            alert('Geolocalização não suportada pelo navegador.');
-                                        }
+                                        setLoadingLocation(true)
+
+                                        navigator.geolocation.getCurrentPosition(
+                                            (pos) => {
+                                                setLocation({
+                                                    lat: pos.coords.latitude,
+                                                    lng: pos.coords.longitude
+                                                })
+
+                                                fetchAddressFromCoords(
+                                                    pos.coords.latitude,
+                                                    pos.coords.longitude
+                                                )
+
+                                                setLoadingLocation(false)
+                                            },
+                                            () => {
+                                                alert('Erro ao obter localização')
+                                                setLoadingLocation(false)
+                                            }
+                                        )
                                     }}
-                                    className="w-full p-3.5 bg-neutral-900 border border-neutral-800 hover:border-orange-500 text-neutral-400 hover:text-orange-500 rounded-xl transition flex items-center justify-center gap-2"
+                                    className="w-full flex items-center justify-center gap-2 p-3 bg-neutral-900 border border-neutral-800 rounded-xl"
                                 >
-                                    📍 Capturar Minha Localização Atual
+                                    <MapPinned size={18} />
+                                    {loadingLocation ? 'Procurando...' : 'Usar minha localização'}
                                 </button>
-                            )}
-                            <p className="text-xs text-neutral-500 mt-2 ml-1">Essencial para aparecer no mapa aos clientes próximos.</p>
-                        </div>
+
+                                <div className="relative">
+                                    <input
+                                        placeholder="Digite um endereço"
+                                        value={manualAddress}
+                                        onChange={(e) => {
+                                            setManualAddress(e.target.value)
+                                            setEditingAddress(true)
+                                        }}
+                                        className="w-full p-3 bg-neutral-950 rounded-xl"
+                                    />
+
+                                    {suggestions.length > 0 && (
+                                        <div className="absolute w-full bg-neutral-900 border mt-1 rounded-xl z-50">
+                                            {suggestions.map((s, i) => (
+                                                <div
+                                                    key={i}
+                                                    onClick={() => selectSuggestion(s)}
+                                                    className="p-3 hover:bg-neutral-800 cursor-pointer"
+                                                >
+                                                    {s.place_name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {location && !editingAddress && (
+                            <div className="p-3 border border-orange-500 rounded-xl space-y-2">
+                                <p className="text-xs">{address}</p>
+
+                                <button
+                                    onClick={() => setEditingAddress(true)}
+                                    className="flex items-center gap-2 text-orange-400 text-sm"
+                                >
+                                    <Edit3 size={16} />
+                                    Editar localização
+                                </button>
+                            </div>
+                        )}
+
+                        {editingAddress && (
+                            <div className="relative space-y-2">
+
+                                <input
+                                    placeholder="Digite um novo endereço"
+                                    value={manualAddress}
+                                    onChange={(e) => {
+                                        setManualAddress(e.target.value)
+                                    }}
+                                    className="w-full p-3 bg-neutral-950 rounded-xl"
+                                />
+
+                                {suggestions.length > 0 && (
+                                    <div className="absolute w-full bg-neutral-900 border mt-1 rounded-xl z-50">
+                                        {suggestions.map((s, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => selectSuggestion(s)}
+                                                className="p-3 hover:bg-neutral-800 cursor-pointer"
+                                            >
+                                                {s.place_name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setEditingAddress(false)}
+                                    className="text-sm text-neutral-400 flex items-center gap-2"
+                                >
+                                    <X size={16} />
+                                    Cancelar edição
+                                </button>
+                            </div>
+                        )}
+
                     </div>
 
-                    {/* Submit Button */}
+                    {/* BOTÃO */}
                     <button
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full mt-10 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.15)] hover:shadow-[0_0_25px_rgba(249,115,22,0.25)]"
+                        className="w-full bg-orange-500 py-3 rounded-xl font-bold"
                     >
-                        {loading ? (
-                            <span className="animate-pulse">Criando...</span>
-                        ) : (
-                            'Criar Minha Loja'
-                        )}
+                        {loading ? 'Criando...' : 'Criar Loja'}
                     </button>
+
                 </div>
             </div>
         </div>
