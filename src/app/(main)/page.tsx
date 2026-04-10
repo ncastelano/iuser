@@ -525,25 +525,24 @@ export default function Vitrine() {
           </div>
         </div>
 
-        {/* RESULTADOS */}
-        {displayedItems.length === 0 && (
-          <div className="py-20 flex flex-col items-center justify-center text-center">
-            <div className="w-24 h-24 mb-6 rounded-full bg-neutral-900/50 flex items-center justify-center border border-neutral-800">
-              <SearchIcon className="w-10 h-10 text-neutral-600" />
+        {/* GRID DE CARDS - COM MÍNIMO DE 3 COLUNAS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 md:gap-6">
+          {displayedItems.length === 0 ? (
+            <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
+              <div className="w-24 h-24 mb-6 rounded-full bg-neutral-900/50 flex items-center justify-center border border-neutral-800">
+                <SearchIcon className="w-10 h-10 text-neutral-600" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Nenhum resultado encontrado</h3>
+              <p className="text-neutral-500 max-w-md">
+                Tente ajustar sua busca ou explorar outras categorias
+              </p>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">Nenhum resultado encontrado</h3>
-            <p className="text-neutral-500 max-w-md">
-              Tente ajustar sua busca ou explorar outras categorias
-            </p>
-          </div>
-        )}
-
-        {/* GRID DE CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
-          {displayedItems.map((item, idx) =>
-            mode === 'lojas'
-              ? renderStoreCard(item, idx)
-              : renderProductCard(item, idx)
+          ) : (
+            displayedItems.map((item, idx) =>
+              mode === 'lojas'
+                ? renderStoreCard(item, idx)
+                : renderProductCard(item, idx)
+            )
           )}
         </div>
 
