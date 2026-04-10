@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Star, User as UserIcon } from 'lucide-react'
+import { Plus, Star, User as UserIcon, Settings } from 'lucide-react'
 
 interface StoreStats {
     ratings_count: number
@@ -47,16 +47,20 @@ export default function MyProfile() {
                 .single()
             setProfile(profileData)
 
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('stores')
-                .select(`id, name, storeSlug, logo_url, is_active, store_stats(*)`)
+                .select(`*`)
                 .eq('owner_id', user.id)
+
+            if (error) {
+                console.error('Erro ao buscar lojas:', error)
+            }
 
             const mapped = (data || []).map(store => ({
                 ...store,
-                store_stats: store.store_stats?.[0] || {
-                    ratings_count: 0,
-                    ratings_avg: 0
+                store_stats: {
+                    ratings_count: store.ratings_count || 0,
+                    ratings_avg: store.ratings_avg || 0
                 }
             }))
 
@@ -77,23 +81,41 @@ export default function MyProfile() {
     return (
         <div className="p-4 md:p-8 bg-black text-white min-h-screen">
 
-            {/* Header com Avatar */}
-            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-white/10">
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-neutral-900 border border-white/20 flex items-center justify-center flex-shrink-0">
-                    {profile?.avatar_url ? (
-                        <img 
-                            src={profile.avatar_url.startsWith('http') ? profile.avatar_url : supabase.storage.from('avatars').getPublicUrl(profile.avatar_url).data.publicUrl}
-                            alt="Avatar"
-                            className="w-full h-full object-cover"
-                        />
-                    ) : (
-                        <UserIcon className="w-8 h-8 text-neutral-500" />
-                    )}
+            {/* Header com Avatar e Botão Settings */}
+            <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-neutral-900 border border-white/20 flex items-center justify-center flex-shrink-0">
+                        {profile?.avatar_url ? (
+                            <img
+                                src={profile.avatar_url.startsWith('http') ? profile.avatar_url : supabase.storage.from('avatars').getPublicUrl(profile.avatar_url).data.publicUrl}
+                                alt="Avatar"
+                                className="w-full h-full object-cover"
+                            />
+                        ) : (
+                            <UserIcon className="w-8 h-8 text-neutral-500" />
+                        )}
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-extrabold tracking-tight">
+                            {profile?.name ?? 'Profile'}
+                        </h1>
+
+                        {profile?.name && (
+                            <p className="text-neutral-400 text-sm">
+                                Bem-vindo!
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight">Central</h1>
-                    {profile?.name && <p className="text-neutral-400 text-sm">Bem-vindo, {profile.name}</p>}
-                </div>
+
+                {/* Botão Settings */}
+                <button
+                    onClick={() => router.push('/configuracoes')}
+                    className="p-3 rounded-full bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 hover:border-white/30 transition-all duration-300 group"
+                    aria-label="Configurações"
+                >
+                    <Settings className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors" />
+                </button>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">

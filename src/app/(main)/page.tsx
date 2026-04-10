@@ -41,7 +41,7 @@ type ProductType = {
 export default function Vitrine() {
   const router = useRouter()
 
-  const [mode, setMode] = useState<SearchMode>('lojas')
+  const [mode, setMode] = useState<SearchMode>('produtos')
   const [displayedItems, setDisplayedItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -408,7 +408,6 @@ export default function Vitrine() {
     )
   }
 
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -420,11 +419,11 @@ export default function Vitrine() {
   return (
     <div className="p-4 md:p-8 text-white bg-black min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/40 via-black to-black">
 
-      {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
+      {/* HEADER COM INPUT E SWITCH NA MESMA LINHA */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
 
         {/* BUSCA */}
-        <div className="flex-1 max-w-xl">
+        <div className="flex-1">
           <div className="flex items-center gap-2 bg-neutral-900/80 backdrop-blur-md px-4 py-3 rounded-full border border-neutral-800 focus-within:border-white focus-within:shadow-[0_0_15px_rgba(255,255,255,0.15)] transition-all">
             <SearchIcon className="w-5 h-5 text-neutral-400 group-focus-within:text-white transition-colors" />
 
@@ -447,32 +446,30 @@ export default function Vitrine() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        {/* SWITCH (LOJAS / PRODUTOS) */}
+        <div className="flex items-center gap-2 p-1 bg-neutral-900/60 backdrop-blur-sm border border-neutral-800 rounded-2xl">
+          <button
+            onClick={() => setMode('produtos')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${mode === 'produtos'
+              ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+              }`}
+          >
+            Produtos e Serviços
+          </button>
+          <button
+            onClick={() => setMode('lojas')}
+            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${mode === 'lojas'
+              ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+              }`}
+          >
+            Lojas
+          </button>
         </div>
       </div>
 
-      {/* TABS (LOJAS / PRODUTOS) */}
-      <div className="flex items-center gap-2 mb-6 p-1 bg-neutral-900/60 backdrop-blur-sm border border-neutral-800 rounded-2xl w-fit">
-        <button
-          onClick={() => setMode('lojas')}
-          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === 'lojas'
-            ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-            : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
-            }`}
-        >
-          Lojas
-        </button>
-        <button
-          onClick={() => setMode('produtos')}
-          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${mode === 'produtos'
-            ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-            : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
-            }`}
-        >
-          Produtos e Serviços
-        </button>
-      </div>
-
+      {/* FILTROS */}
       <div className="flex gap-2 flex-wrap mb-8 pb-4 border-b border-neutral-800">
         {[
           { label: 'Mais próximo', value: 'distance', icon: <MapPin className="w-4 h-4" /> },
