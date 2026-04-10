@@ -35,7 +35,7 @@ export async function generateMetadata(
     
     let productQuery = supabase
         .from('products')
-        .select('name, description, image_url')
+        .select('name, description, image_url, price')
         .eq('store_id', storeData.id)
 
     if (isUuid) {
@@ -59,10 +59,12 @@ export async function generateMetadata(
         }
     }
 
-    const titleStr = `${productData.name}`
-    const descStr = productData.description 
-        ? `${productData.description.substring(0, 100)}... • Loja: ${storeData.name}` 
-        : `Veja detalhes deste catálogo diretamente na loja ${storeData.name}.`
+    const formattedPrice = productData.price != null 
+        ? `R$ ${productData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+        : ''
+
+    const titleStr = formattedPrice ? `${productData.name} - ${formattedPrice}` : productData.name
+    const descStr = `Loja: ${storeData.name}`
 
     return {
         title: titleStr,
