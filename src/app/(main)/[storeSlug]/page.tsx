@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AlertTriangle, Search, ArrowLeft, Star, Plus } from 'lucide-react'
+import { Image as ImageIcon, Trash } from 'lucide-react'
+
 
 export default function StorePage() {
     const params = useParams()
@@ -17,6 +19,10 @@ export default function StorePage() {
     const [loading, setLoading] = useState(true)
     const [isOwner, setIsOwner] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [storeLinks, setStoreLinks] = useState<any[]>([])
+    const [showDialog, setShowDialog] = useState(false)
+    const [linkInput, setLinkInput] = useState('')
+    const [imageFile, setImageFile] = useState<File | null>(null)
 
     const toggleStoreStatus = async () => {
         if (!isOwner || !store) return
@@ -43,6 +49,58 @@ export default function StorePage() {
             }
         }
     }
+
+    const fetchLinks = async (storeId: string) => {
+        const supabase = createClient()
+        const { data } = await supabase
+            .from('store_links')
+            .select('*')
+            .eq('store_id', storeId)
+            .order('created_at', { ascending: false })
+
+        const mapped = (data || []).map(l => ({
+            ...l,
+            image_url: supabase.storage.from('store-links').getPublicUrl(l.image_url).data.publicUrl
+        }))
+
+        setStoreLinks(mapped)
+    }
+
+    const handleSaveLink = async () => {
+        if (!imageFile || !linkInput || !store) return
+
+        const supabase = createClient()
+        const filePath = `${store.id}/${Date.now()}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('store-links')
+            .upload(filePath, imageFile)
+
+        if (uploadError) return alert('Erro ao subir imagem')
+
+        const { error: insertError } = await supabase
+            .from('store_links')
+            .insert({
+                store_id: store.id,
+                image_url: filePath,
+                link_url: linkInput
+            })
+
+        if (insertError) return alert('Erro ao salvar')
+
+        setShowDialog(false)
+        setLinkInput('')
+        setImageFile(null)
+
+        fetchLinks(store.id)
+    }
+
+    const deleteLink = async (id: string) => {
+        const supabase = createClient()
+        await supabase.from('store_links').delete().eq('id', id)
+        setStoreLinks(prev => prev.filter(l => l.id !== id))
+    }
+
 
     useEffect(() => {
         if (!storeSlug) return
@@ -105,6 +163,8 @@ export default function StorePage() {
 
             setStore({ ...foundStore, logo_url })
             setProducts(mappedProducts)
+            await fetchLinks(foundStore.id)
+
             setLoading(false)
         }
 
@@ -195,6 +255,41 @@ export default function StorePage() {
                         <p className="text-gray-400 text-sm md:text-base leading-relaxed">
                             {store.description}
                         </p>
+                    )}
+                    {/* STORE LINKS BUTTON */}
+                    {isOwner && (
+                        <div className="mt-3 flex justify-center md:justify-start">
+                            <button
+                                onClick={() => setShowDialog(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-white/50 hover:bg-neutral-800 transition text-sm shadow-md"
+                            >
+                                <ImageIcon className="w-4 h-4" />
+                                Gerenciar Links
+                            </button>
+                        </div>
+                    )}
+                    {/* STORE LINKS VISUAIS */}
+                    {storeLinks.length > 0 && (
+                        <div className="flex gap-3 flex-wrap justify-center md:justify-start mt-2">
+                            {storeLinks.map(link => (
+                                <div key={link.id} className="relative group">
+                                    <img
+                                        src={link.image_url}
+                                        onClick={() => window.open(link.link_url, '_blank')}
+                                        className="w-24 h-24 object-cover rounded-xl cursor-pointer hover:scale-105 transition"
+                                    />
+
+                                    {isOwner && (
+                                        <button
+                                            onClick={() => deleteLink(link.id)}
+                                            className="absolute top-1 right-1 bg-black/70 p-1 rounded-full opacity-0 group-hover:opacity-100"
+                                        >
+                                            <Trash size={12} />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {/* RATING */}
@@ -313,6 +408,51 @@ export default function StorePage() {
                     </div>
                 )}
             </div>
+            {showDialog && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+                    <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-md flex flex-col gap-4">
+
+                        <h2 className="text-lg font-bold">Adicionar Link</h2>
+
+                        <input
+                            placeholder="https://..."
+                            value={linkInput}
+                            onChange={e => setLinkInput(e.target.value)}
+                            className="p-2 rounded bg-black border border-neutral-700"
+                        />
+
+                        <label className="border-2 border-dashed rounded-xl h-32 flex items-center justify-center cursor-pointer">
+                            {imageFile ? imageFile.name : <ImageIcon />}
+                            <input
+                                type="file"
+                                hidden
+                                onChange={e => setImageFile(e.target.files?.[0] || null)}
+                            />
+                        </label>
+
+                        {/* LISTA DE LINKS EXISTENTES */}
+                        <div className="flex flex-col gap-2 max-h-40 overflow-auto">
+                            {storeLinks.map(link => (
+                                <div key={link.id} className="flex items-center justify-between text-sm bg-black p-2 rounded">
+                                    <span className="truncate">{link.link_url}</span>
+                                    <button onClick={() => deleteLink(link.id)}>
+                                        <Trash size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex justify-between">
+                            <button onClick={() => setShowDialog(false)}>Cancelar</button>
+                            <button onClick={handleSaveLink} className="bg-white text-black px-4 py-2 rounded">
+                                Salvar
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            )}
+
         </div>
     )
 }

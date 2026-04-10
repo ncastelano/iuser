@@ -42,8 +42,8 @@ export default function ProductPage() {
             const { data: store } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug')
-                .eq('storeSlug', storeSlug)
-                .single()
+                .ilike('storeSlug', storeSlug)
+                .maybeSingle()
 
             if (!store) {
                 router.push('/')

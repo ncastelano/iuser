@@ -1,3 +1,4 @@
+// app/criar-produto/page.tsx  
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -11,6 +12,7 @@ export default function CriarProduto() {
     const router = useRouter()
     const params = useParams()
     const supabase = createClient()
+    const [links, setLinks] = useState<any[]>([])
 
     const storeSlug = Array.isArray(params.storeSlug)
         ? params.storeSlug[0]
@@ -25,7 +27,7 @@ export default function CriarProduto() {
     const [description, setDescription] = useState('')
     const [price, setPrice] = useState('')
     const [type, setType] = useState<ProductType>('physical')
-    const [location, setLocation] = useState<{lat: number, lng: number} | null>(null)
+    const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
     const [city, setCity] = useState('')
 
@@ -35,13 +37,14 @@ export default function CriarProduto() {
     // 🔥 buscar loja
     useEffect(() => {
         const fetchStore = async () => {
+
             if (!storeSlug) return
 
             const { data } = await supabase
                 .from('stores')
                 .select('id')
-                .eq('storeSlug', storeSlug)
-                .single()
+                .ilike('storeSlug', storeSlug)
+                .maybeSingle()
 
             if (!data) {
                 alert('Loja não encontrada')
@@ -89,7 +92,7 @@ export default function CriarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
-                
+
                 const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
                 setCity(cityContext ? cityContext.text : '')
             } else {
@@ -267,21 +270,21 @@ export default function CriarProduto() {
                                         <span className="text-neutral-500 text-xs animate-pulse">Buscando endereço exato...</span>
                                     )}
                                     <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 const newAddress = prompt("Digite o novo endereço completo (Rua, Número, Bairro, Cidade):", address)
                                                 if (newAddress) fetchCoordsFromAddress(newAddress)
-                                            }} 
+                                            }}
                                             className="text-white font-semibold text-xs hover:bg-neutral-800 flex-1 border border-white/20 py-2 rounded-lg transition flex justify-center items-center gap-1"
                                         >
                                             <Pencil className="w-3 h-3" /> Editar
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => {
                                                 setLocation(null)
                                                 setAddress('')
                                                 setCity('')
-                                            }} 
+                                            }}
                                             className="text-red-400 font-semibold text-xs hover:text-white bg-red-400/10 px-4 py-2 rounded-lg transition"
                                         >
                                             Remover

@@ -278,11 +278,10 @@ export default function MapPage() {
                                         mapRef.current.flyTo({ center: coords, zoom: 15, duration: 800 })
                                     }
                                 }}
-                                className={`flex-shrink-0 backdrop-blur-xl border rounded-xl overflow-hidden cursor-pointer transition-all ${selectedItem?.id === item.id
+                                className={`flex-shrink-0 w-[90px] min-w-[90px] max-w-[90px] backdrop-blur-xl border rounded-xl overflow-hidden cursor-pointer transition-all ${selectedItem?.id === item.id
                                     ? 'border-white shadow-[0_0_10px_rgba(255,255,255,0.4)]'
                                     : 'bg-black/60 border-white/10'
                                     }`}
-                                style={{ minWidth: '90px' }}
                             >
                                 <div className="w-full h-16 bg-neutral-900 flex items-center justify-center">
                                     {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
