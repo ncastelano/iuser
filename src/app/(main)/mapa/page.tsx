@@ -171,7 +171,7 @@ export default function MapPage() {
             }
 
             const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
-            
+
             if (imageUrl) {
                 const img = document.createElement('img')
                 img.src = imageUrl
@@ -205,10 +205,16 @@ export default function MapPage() {
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
 
-    // ── RENDER ──────────────────────────────────────────────────────────────────
     return (
         // Full‑screen map container with a loading overlay
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
+            {/* Global style to shift Mapbox controls and logo above the bottom navbar */}
+            <style>{`
+                .mapboxgl-ctrl-bottom-right,
+                .mapboxgl-ctrl-bottom-left {
+                    margin-bottom: 85px !important;
+                }
+            `}</style>
 
             {/* MAP CANVAS */}
             <div
@@ -364,11 +370,12 @@ export default function MapPage() {
             )}
 
             {/* STATS BADGE */}
-            <div className="absolute bottom-20 right-4 z-10">
+            <div className="absolute bottom-[88px] left-[8px] z-10">
                 <div className="bg-black/60 backdrop-blur border border-white/10 rounded-xl px-3 py-1.5 text-xs text-neutral-300">
                     {filtered.length} {mode === 'lojas' ? 'lojas' : 'produtos'}
                 </div>
             </div>
+
         </div>
     )
 }
