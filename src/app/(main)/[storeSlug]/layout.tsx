@@ -30,7 +30,11 @@ export async function generateMetadata(
 
     let imageUrl = ''
     if (storeData.logo_url) {
-        imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+        if (storeData.logo_url.startsWith('http')) {
+            imageUrl = storeData.logo_url
+        } else {
+            imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+        }
     }
 
     return {

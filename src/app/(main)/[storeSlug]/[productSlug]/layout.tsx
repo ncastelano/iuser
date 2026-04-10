@@ -52,7 +52,11 @@ export async function generateMetadata(
 
     let imageUrl = ''
     if (productData.image_url) {
-        imageUrl = supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
+        if (productData.image_url.startsWith('http')) {
+            imageUrl = productData.image_url
+        } else {
+            imageUrl = supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
+        }
     }
 
     const titleStr = `${productData.name}`
