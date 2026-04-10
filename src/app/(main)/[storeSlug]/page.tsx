@@ -112,11 +112,13 @@ export default function StorePage() {
             setLoading(true)
             setError(null)
 
-            // ✅ AGORA storeSlug É GARANTIDAMENTE UMA STRING
+            // ✅ USA UMA VARIÁVEL LOCAL GARANTIDA COMO STRING
+            const slug = storeSlug as string
+
             const { data: foundStore, error: storeError } = await supabase
                 .from('stores')
                 .select('*')
-                .eq('storeSlug', storeSlug) // ou .ilike('storeSlug', storeSlug)
+                .ilike('storeSlug', slug) // ✅ Agora é garantidamente string
                 .maybeSingle()
 
             if (storeError) {
@@ -285,7 +287,7 @@ export default function StorePage() {
                 </div>
             </div>
 
-            {/* BANNER LINKS VISUAIS - Movido para cima do Menu */}
+            {/* BANNER LINKS VISUAIS */}
             {storeLinks.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {storeLinks.map(link => (
