@@ -30,15 +30,23 @@ export async function generateMetadata(
         return {}
     }
 
-    // Buscar produto
-    const { data: productData } = await supabase
+    // Identificar se o slug é um ID válido (UUID) para evitar erros no banco
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productSlug)
+    
+    let productQuery = supabase
         .from('products')
         .select('name, description, image_url')
         .eq('store_id', storeData.id)
-        .eq('slug', productSlug)
-        .maybeSingle()
 
-    if (!productData) {
+    if (isUuid) {
+        productQuery = productQuery.eq('id', productSlug)
+    } else {
+        productQuery = productQuery.eq('slug', productSlug)
+    }
+
+    const { data: productData, error } = await productQuery.maybeSingle()
+
+    if (!productData || error) {
         return {}
     }
 
@@ -47,26 +55,25 @@ export async function generateMetadata(
         imageUrl = supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
     }
 
+    const titleStr = `${productData.name}`
+    const descStr = productData.description 
+        ? `${productData.description.substring(0, 100)}... • Loja: ${storeData.name}` 
+        : `Veja detalhes deste catálogo diretamente na loja ${storeData.name}.`
+
     return {
-        title: `${productData.name} - ${storeData.name} | iuser`,
-        description: productData.description || `Confira ${productData.name} na loja ${storeData.name} no iuser!`,
+        title: titleStr,
+        description: descStr,
         openGraph: {
-            title: `${productData.name} - ${storeData.name} | iuser`,
-            description: productData.description || `Confira ${productData.name} na loja ${storeData.name} no iuser!`,
+            title: titleStr,
+            description: descStr,
             url: `https://iuser.com.br/${storeSlug}/${productSlug}`,
-            siteName: 'iuser',
-            images: imageUrl ? [
-                {
-                    url: imageUrl,
-                    width: 800,
-                    height: 600,
-                }
-            ] : [],
+            siteName: storeData.name,
+            images: imageUrl ? [{ url: imageUrl }] : [],
         },
         twitter: {
             card: 'summary_large_image',
-            title: `${productData.name} - ${storeData.name} | iuser`,
-            description: productData.description || `Confira ${productData.name} na loja ${storeData.name} no iuser!`,
+            title: titleStr,
+            description: descStr,
             images: imageUrl ? [imageUrl] : [],
         }
     }

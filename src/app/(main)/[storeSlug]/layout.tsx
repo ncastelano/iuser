@@ -40,14 +40,8 @@ export async function generateMetadata(
             title: `${storeData.name} | iuser`,
             description: storeData.description || `Confira a loja ${storeData.name} no iuser!`,
             url: `https://iuser.com.br/${storeSlug}`,
-            siteName: 'iuser',
-            images: imageUrl ? [
-                {
-                    url: imageUrl,
-                    width: 800,
-                    height: 600,
-                }
-            ] : [],
+            siteName: storeData.name,
+            images: imageUrl ? [{ url: imageUrl }] : [],
         },
         twitter: {
             card: 'summary_large_image',
