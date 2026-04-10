@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Search, ArrowLeft, Star, Plus } from 'lucide-react'
+import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check } from 'lucide-react'
 import { Image as ImageIcon, Trash } from 'lucide-react'
 
 
@@ -23,6 +23,54 @@ export default function StorePage() {
     const [showDialog, setShowDialog] = useState(false)
     const [linkInput, setLinkInput] = useState('')
     const [imageFile, setImageFile] = useState<File | null>(null)
+    const [showShareMenu, setShowShareMenu] = useState(false)
+    const [copied, setCopied] = useState(false)
+
+    const getStoreUrl = () => {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
+        return `${baseUrl}/${storeSlug}`
+    }
+
+    const shareOnWhatsApp = () => {
+        const storeUrl = getStoreUrl()
+        const text = `✨ *${store?.name}* ✨\n\n${store?.storeSlug}\n\n🔗 ${storeUrl}`
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`
+        window.open(whatsappUrl, '_blank')
+        setShowShareMenu(false)
+    }
+
+    const shareOnWhatsAppStory = () => {
+        const storeUrl = getStoreUrl()
+        const storyText = `✨ ${store?.name} ✨`
+        const whatsappStoryUrl = `https://wa.me/?text=${encodeURIComponent(storyText + '\n\n' + storeUrl)}`
+        window.open(whatsappStoryUrl, '_blank')
+        setShowShareMenu(false)
+    }
+
+    const copyToClipboard = async () => {
+        const storeUrl = getStoreUrl()
+        try {
+            await navigator.clipboard.writeText(storeUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+            setTimeout(() => setShowShareMenu(false), 1500)
+        } catch (err) {
+            console.error('Erro ao copiar:', err)
+        }
+    }
+
+    const shareNative = () => {
+        if (navigator.share) {
+            const storeUrl = getStoreUrl()
+            navigator.share({
+                title: store?.name,
+                text: store?.storeSlug,
+                url: storeUrl,
+            }).catch(() => { })
+        } else {
+            setShowShareMenu(true)
+        }
+    }
 
     const toggleStoreStatus = async () => {
         if (!isOwner || !store) return
@@ -221,15 +269,90 @@ export default function StorePage() {
     return (
         <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
 
-            {/* BACK + TITLE */}
-            <div className="flex items-center gap-4 pb-4 border-b border-white/10">
-                <button
-                    onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
-                    className="flex w-10 h-10 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 hover:border-white/50 transition shadow-md group"
-                >
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                </button>
-                <h1 className="text-xl font-bold truncate tracking-wide">{store.name}</h1>
+            {/* BACK + TITLE + SHARE */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 gap-4">
+                <div className="flex items-center gap-4 min-w-0">
+                    <button
+                        onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
+                        className="flex w-10 h-10 flex-shrink-0 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 hover:border-white/50 transition shadow-md group"
+                    >
+                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                    </button>
+                    <h1 className="text-xl font-bold truncate tracking-wide">{store.name}</h1>
+                </div>
+
+                {/* Botão Compartilhar - Preto e Branco */}
+                <div className="relative flex-shrink-0">
+                    <button
+                        onClick={shareNative}
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 hover:border-neutral-500 rounded-xl transition-all duration-300 shadow-md group"
+                    >
+                        <Share2 className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                        <span className="text-sm font-semibold text-neutral-400 group-hover:text-white transition-colors hidden sm:inline">Compartilhar</span>
+                    </button>
+
+                    {/* Menu de Compartilhamento Customizado (para desktop) */}
+                    {showShareMenu && (
+                        <>
+                            <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setShowShareMenu(false)}
+                            />
+                            <div className="absolute right-0 mt-2 w-72 bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200">
+                                <div className="p-3 border-b border-neutral-800">
+                                    <p className="text-xs text-neutral-400 font-medium">Compartilhar via</p>
+                                </div>
+
+                                <button
+                                    onClick={shareOnWhatsApp}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors group"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <MessageCircle className="w-5 h-5 text-green-500" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <p className="text-sm font-semibold text-white">WhatsApp</p>
+                                        <p className="text-xs text-neutral-400">Enviar no chat</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={shareOnWhatsAppStory}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors group border-t border-neutral-800"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <Share2 className="w-5 h-5 text-green-500" />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <p className="text-sm font-semibold text-white">WhatsApp Story</p>
+                                        <p className="text-xs text-neutral-400">Compartilhar nos stories</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors border-t border-neutral-800"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        {copied ? (
+                                            <Check className="w-5 h-5 text-green-500" />
+                                        ) : (
+                                            <Copy className="w-5 h-5 text-neutral-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                        <p className="text-sm font-semibold text-white">
+                                            {copied ? 'Copiado!' : 'Copiar link'}
+                                        </p>
+                                        <p className="text-xs text-neutral-400">
+                                            {copied ? 'Link copiado com sucesso' : 'Copiar URL da loja'}
+                                        </p>
+                                    </div>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* STORE HEADER */}

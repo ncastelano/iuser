@@ -11,10 +11,8 @@ export default function ConfiguracoesPage() {
 
         await supabase.auth.signOut()
 
-        // 🔥 remove histórico (não dá pra voltar)
         router.replace('/login')
 
-        // 🔒 força reload limpando estado
         setTimeout(() => {
             window.location.href = '/login'
         }, 100)
