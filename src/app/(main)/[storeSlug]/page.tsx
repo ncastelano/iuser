@@ -418,7 +418,7 @@ export default function StorePage() {
                             placeholder="https://..."
                             value={linkInput}
                             onChange={e => setLinkInput(e.target.value)}
-                            className="p-2 rounded bg-black border border-neutral-700"
+                            className="p-2 rounded bg-black border border-neutral-700 text-base outline-none"
                         />
 
                         <label className="border-2 border-dashed rounded-xl h-32 flex items-center justify-center cursor-pointer">

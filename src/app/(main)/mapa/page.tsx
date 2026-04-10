@@ -242,7 +242,7 @@ export default function MapPage() {
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             placeholder={mode === 'lojas' ? 'Buscar loja...' : 'Buscar produto...'}
-                            className="flex-1 bg-transparent text-white text-sm outline-none placeholder:text-neutral-500"
+                            className="flex-1 bg-transparent text-white text-base outline-none placeholder:text-neutral-500"
                         />
                         {search && (
                             <button onClick={() => setSearch('')} className="text-neutral-400 hover:text-white transition">

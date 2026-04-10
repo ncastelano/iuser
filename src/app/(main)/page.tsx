@@ -433,7 +433,7 @@ export default function Vitrine() {
               placeholder={getSearchPlaceholder()}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent w-full text-sm text-white placeholder:text-neutral-500 focus:outline-none"
+              className="bg-transparent w-full text-base text-white placeholder:text-neutral-500 focus:outline-none"
             />
 
             {search && (
