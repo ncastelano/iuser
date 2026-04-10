@@ -1,3 +1,4 @@
+// src/app/(main)/[storeSlug]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -6,16 +7,12 @@ import { createClient } from '@/lib/supabase/client'
 import { AlertTriangle, Search, ArrowLeft, Star, Plus } from 'lucide-react'
 import { Image as ImageIcon, Trash } from 'lucide-react'
 
+
 export default function StorePage() {
     const params = useParams()
+    // useParams pode retornar string | string[] — garantir string
+    const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const router = useRouter()
-
-    // 🔒 garante string segura
-    const rawSlug = Array.isArray(params.storeSlug)
-        ? params.storeSlug[0]
-        : params.storeSlug
-
-    const storeSlug = typeof rawSlug === 'string' ? rawSlug : null
 
     const [store, setStore] = useState<any | null>(null)
     const [products, setProducts] = useState<any[]>([])
@@ -27,30 +24,34 @@ export default function StorePage() {
     const [linkInput, setLinkInput] = useState('')
     const [imageFile, setImageFile] = useState<File | null>(null)
 
-    const supabase = createClient()
-
-    // ─────────────────────────────────────────────────────────────
     const toggleStoreStatus = async () => {
         if (!isOwner || !store) return
 
         const newStatus = !store.is_active
+        const confirmMessage = newStatus
+            ? "você quer abrir a loja ?"
+            : "você quer fechar a loja?"
 
-        if (window.confirm(newStatus ? "Abrir loja?" : "Fechar loja?")) {
+        if (window.confirm(confirmMessage)) {
+            // Atualiza optimisticamente
             setStore({ ...store, is_active: newStatus })
 
-            const { error } = await supabase
+            const supabase = createClient()
+            const { error: updateError } = await supabase
                 .from('stores')
                 .update({ is_active: newStatus })
                 .eq('id', store.id)
 
-            if (error) {
-                alert("Erro ao alterar status")
+            if (updateError) {
+                console.error('[StorePage] Erro ao atualizar status da loja:', updateError)
+                alert("Erro ao alterar o status da loja.")
                 setStore({ ...store, is_active: !newStatus })
             }
         }
     }
 
     const fetchLinks = async (storeId: string) => {
+        const supabase = createClient()
         const { data } = await supabase
             .from('store_links')
             .select('*')
@@ -59,8 +60,7 @@ export default function StorePage() {
 
         const mapped = (data || []).map(l => ({
             ...l,
-            image_url: supabase.storage.from('store-links')
-                .getPublicUrl(l.image_url).data.publicUrl
+            image_url: supabase.storage.from('store-links').getPublicUrl(l.image_url).data.publicUrl
         }))
 
         setStoreLinks(mapped)
@@ -69,15 +69,16 @@ export default function StorePage() {
     const handleSaveLink = async () => {
         if (!imageFile || !linkInput || !store) return
 
+        const supabase = createClient()
         const filePath = `${store.id}/${Date.now()}`
 
         const { error: uploadError } = await supabase.storage
             .from('store-links')
             .upload(filePath, imageFile)
 
-        if (uploadError) return alert('Erro upload')
+        if (uploadError) return alert('Erro ao subir imagem')
 
-        const { error } = await supabase
+        const { error: insertError } = await supabase
             .from('store_links')
             .insert({
                 store_id: store.id,
@@ -85,7 +86,7 @@ export default function StorePage() {
                 link_url: linkInput
             })
 
-        if (error) return alert('Erro salvar')
+        if (insertError) return alert('Erro ao salvar')
 
         setShowDialog(false)
         setLinkInput('')
@@ -95,71 +96,73 @@ export default function StorePage() {
     }
 
     const deleteLink = async (id: string) => {
+        const supabase = createClient()
         await supabase.from('store_links').delete().eq('id', id)
         setStoreLinks(prev => prev.filter(l => l.id !== id))
     }
 
-    // ─────────────────────────────────────────────────────────────
+
     useEffect(() => {
-        // ✅ VERIFICAÇÃO ANTES DE USAR storeSlug
-        if (!storeSlug) {
-            setError('Slug da loja inválido')
-            setLoading(false)
-            return
-        }
+        if (!storeSlug) return
 
         const fetchStore = async () => {
             setLoading(true)
             setError(null)
 
-            // ✅ USA UMA VARIÁVEL LOCAL GARANTIDA COMO STRING
-            const slug = storeSlug as string
+            const supabase = createClient()
 
+            // Buscar loja pelo slug — usando ilike para tolerar diferenças de case
             const { data: foundStore, error: storeError } = await supabase
                 .from('stores')
                 .select('*')
-                .ilike('storeSlug', slug) // ✅ Agora é garantidamente string
+                .ilike('storeSlug', storeSlug || '')
                 .maybeSingle()
 
             if (storeError) {
-                setError(storeError.message)
+                console.error('[StorePage] Erro ao buscar loja:', storeError)
+                setError(`Erro ao buscar loja: ${storeError.message}`)
                 setLoading(false)
                 return
             }
 
             if (!foundStore) {
+                console.warn('[StorePage] Loja não encontrada para slug:', storeSlug)
                 setLoading(false)
                 return
             }
 
+            // Resolver URL pública do logo
             const logo_url = foundStore.logo_url
-                ? supabase.storage.from('store-logos')
-                    .getPublicUrl(foundStore.logo_url).data.publicUrl
+                ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
                 : null
 
+            // Checar se o usuário logado é o dono
             const { data: { user } } = await supabase.auth.getUser()
-
-            if (user?.id === foundStore.owner_id) {
+            if (user && user.id === foundStore.owner_id) {
                 setIsOwner(true)
             }
 
-            const { data: productsData } = await supabase
+            // Buscar produtos da loja
+            const { data: productsData, error: productsError } = await supabase
                 .from('products')
                 .select('*')
                 .eq('store_id', foundStore.id)
                 .order('created_at', { ascending: false })
 
+            if (productsError) {
+                console.error('[StorePage] Erro ao buscar produtos:', productsError)
+            }
+
+            // Resolver URLs públicas dos produtos
             const mappedProducts = (productsData || []).map(p => ({
                 ...p,
                 image_url: p.image_url
-                    ? supabase.storage.from('product-images')
-                        .getPublicUrl(p.image_url).data.publicUrl
+                    ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
                     : null
             }))
 
             setStore({ ...foundStore, logo_url })
             setProducts(mappedProducts)
-
             await fetchLinks(foundStore.id)
 
             setLoading(false)
@@ -168,10 +171,10 @@ export default function StorePage() {
         fetchStore()
     }, [storeSlug])
 
-    // ─────────────────────────────────────────────────────────────
+    // ─── LOADING ────────────────────────────────────────────────────────────────
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-black text-white">
+            <div className="min-h-screen flex items-center justify-center bg-black">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin" />
                     <p className="text-neutral-400 text-sm">Carregando loja...</p>
@@ -180,6 +183,7 @@ export default function StorePage() {
         )
     }
 
+    // ─── ERROR ───────────────────────────────────────────────────────────────────
     if (error) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white px-4 text-center">
@@ -195,6 +199,7 @@ export default function StorePage() {
         )
     }
 
+    // ─── NOT FOUND ───────────────────────────────────────────────────────────────
     if (!store) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white px-4 text-center">
@@ -212,9 +217,9 @@ export default function StorePage() {
         )
     }
 
-    // ─────────────────────────────────────────────────────────────
+    // ─── PAGE ────────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10 text-white">
+        <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
 
             {/* BACK + TITLE */}
             <div className="flex items-center gap-4 pb-4 border-b border-white/10">
@@ -250,6 +255,41 @@ export default function StorePage() {
                         <p className="text-gray-400 text-sm md:text-base leading-relaxed">
                             {store.description}
                         </p>
+                    )}
+                    {/* STORE LINKS BUTTON */}
+                    {isOwner && (
+                        <div className="mt-3 flex justify-center md:justify-start">
+                            <button
+                                onClick={() => setShowDialog(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-white/50 hover:bg-neutral-800 transition text-sm shadow-md"
+                            >
+                                <ImageIcon className="w-4 h-4" />
+                                Gerenciar Links
+                            </button>
+                        </div>
+                    )}
+                    {/* STORE LINKS VISUAIS */}
+                    {storeLinks.length > 0 && (
+                        <div className="flex gap-3 flex-wrap justify-center md:justify-start mt-2">
+                            {storeLinks.map(link => (
+                                <div key={link.id} className="relative group">
+                                    <img
+                                        src={link.image_url}
+                                        onClick={() => window.open(link.link_url, '_blank')}
+                                        className="w-24 h-24 object-cover rounded-xl cursor-pointer hover:scale-105 transition"
+                                    />
+
+                                    {isOwner && (
+                                        <button
+                                            onClick={() => deleteLink(link.id)}
+                                            className="absolute top-1 right-1 bg-black/70 p-1 rounded-full opacity-0 group-hover:opacity-100"
+                                        >
+                                            <Trash size={12} />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     )}
 
                     {/* RATING */}
@@ -287,49 +327,14 @@ export default function StorePage() {
                 </div>
             </div>
 
-            {/* BANNER LINKS VISUAIS */}
-            {storeLinks.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {storeLinks.map(link => (
-                        <div key={link.id} className="relative group cursor-pointer" onClick={() => window.open(link.link_url, '_blank')}>
-                            <img
-                                src={link.image_url}
-                                className="w-full aspect-square object-cover rounded-xl hover:scale-105 transition border border-neutral-800 hover:border-white/50"
-                                alt="Banner"
-                            />
-                            {isOwner && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        deleteLink(link.id)
-                                    }}
-                                    className="absolute top-1 right-1 bg-black/70 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition hover:bg-red-600"
-                                >
-                                    <Trash size={12} />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* ACTIONS BAR - Botões lado a lado */}
+            {/* OWNER ACTION */}
             {isOwner && (
-                <div className="flex items-center justify-between">
-                    {/* Botão Adicionar Banner - Lado Esquerdo */}
-                    <button
-                        onClick={() => setShowDialog(true)}
-                        className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 active:bg-neutral-300 transition shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2"
-                    >
-                        <ImageIcon className="w-5 h-5" /> Adicionar Banner
-                    </button>
-
-                    {/* Botão Adicionar Produto - Lado Direito */}
+                <div className="flex justify-end">
                     <button
                         onClick={() => router.push(`/${store.storeSlug}/criar-produto`)}
                         className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 active:bg-neutral-300 transition shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2"
                     >
-                        <Plus className="w-5 h-5" /> Adicionar Produto
+                        <Plus className="w-5 h-5" /> Adicionar Produto ou Serviço
                     </button>
                 </div>
             )}
@@ -403,68 +408,44 @@ export default function StorePage() {
                     </div>
                 )}
             </div>
-
-            {/* DIALOG DE ADICIONAR BANNER */}
             {showDialog && (
                 <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
                     <div className="bg-neutral-900 p-6 rounded-xl w-full max-w-md flex flex-col gap-4">
 
-                        <h2 className="text-lg font-bold">Adicionar Banner</h2>
+                        <h2 className="text-lg font-bold">Adicionar Link</h2>
 
                         <input
                             placeholder="https://..."
                             value={linkInput}
                             onChange={e => setLinkInput(e.target.value)}
-                            className="p-2 rounded bg-black border border-neutral-700 text-white"
+                            className="p-2 rounded bg-black border border-neutral-700 text-base outline-none"
                         />
 
-                        <label className="border-2 border-dashed border-neutral-700 rounded-xl h-32 flex items-center justify-center cursor-pointer hover:border-white/50 transition">
-                            {imageFile ? (
-                                <span className="text-sm text-neutral-300">{imageFile.name}</span>
-                            ) : (
-                                <div className="flex flex-col items-center gap-2 text-neutral-400">
-                                    <ImageIcon className="w-8 h-8" />
-                                    <span className="text-sm">Clique para selecionar uma imagem</span>
-                                </div>
-                            )}
+                        <label className="border-2 border-dashed rounded-xl h-32 flex items-center justify-center cursor-pointer">
+                            {imageFile ? imageFile.name : <ImageIcon />}
                             <input
                                 type="file"
-                                accept="image/*"
                                 hidden
                                 onChange={e => setImageFile(e.target.files?.[0] || null)}
                             />
                         </label>
 
                         {/* LISTA DE LINKS EXISTENTES */}
-                        {storeLinks.length > 0 && (
-                            <div className="flex flex-col gap-2 max-h-40 overflow-auto">
-                                <p className="text-xs text-neutral-400">Banners existentes:</p>
-                                {storeLinks.map(link => (
-                                    <div key={link.id} className="flex items-center justify-between text-sm bg-black p-2 rounded">
-                                        <span className="truncate text-neutral-300">{link.link_url}</span>
-                                        <button
-                                            onClick={() => deleteLink(link.id)}
-                                            className="text-red-400 hover:text-red-300"
-                                        >
-                                            <Trash size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <div className="flex flex-col gap-2 max-h-40 overflow-auto">
+                            {storeLinks.map(link => (
+                                <div key={link.id} className="flex items-center justify-between text-sm bg-black p-2 rounded">
+                                    <span className="truncate">{link.link_url}</span>
+                                    <button onClick={() => deleteLink(link.id)}>
+                                        <Trash size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
 
-                        <div className="flex justify-end gap-3 mt-2">
-                            <button
-                                onClick={() => setShowDialog(false)}
-                                className="px-4 py-2 text-neutral-400 hover:text-white transition"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSaveLink}
-                                className="bg-white text-black px-4 py-2 rounded-lg font-medium hover:bg-neutral-200 transition"
-                            >
-                                Salvar Banner
+                        <div className="flex justify-between">
+                            <button onClick={() => setShowDialog(false)}>Cancelar</button>
+                            <button onClick={handleSaveLink} className="bg-white text-black px-4 py-2 rounded">
+                                Salvar
                             </button>
                         </div>
 

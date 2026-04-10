@@ -320,7 +320,7 @@ export default function Vitrine() {
               </div>
             )}
           </div>
-          
+
           <div className="mt-auto pt-3 flex gap-2">
             {storeProducts.map(p => (
               <div key={p.id} className="w-10 h-10 rounded-md border border-neutral-800 bg-neutral-900 overflow-hidden flex-shrink-0">
@@ -328,7 +328,7 @@ export default function Vitrine() {
                   <img src={p.image_url} className="w-full h-full object-cover" alt={p.name} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-neutral-800 text-[8px] text-neutral-500 text-center leading-none p-0.5 break-words">
-                     {p.name.slice(0, 10)}
+                    {p.name.slice(0, 10)}
                   </div>
                 )}
               </div>

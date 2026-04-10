@@ -42,7 +42,7 @@ export default function ProductPage() {
             const { data: store } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug')
-                .ilike('storeSlug', storeSlug)
+                .ilike('storeSlug', storeSlug || '')
                 .maybeSingle()
 
             if (!store) {

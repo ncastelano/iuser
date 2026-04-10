@@ -43,7 +43,7 @@ export default function CriarProduto() {
             const { data } = await supabase
                 .from('stores')
                 .select('id')
-                .ilike('storeSlug', storeSlug)
+                .ilike('storeSlug', storeSlug || '')
                 .maybeSingle()
 
             if (!data) {
