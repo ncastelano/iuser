@@ -32,7 +32,7 @@ export async function generateMetadata(
 
     // Identificar se o slug é um ID válido (UUID) para evitar erros no banco
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productSlug)
-    
+
     let productQuery = supabase
         .from('products')
         .select('name, description, image_url, price')
@@ -59,8 +59,8 @@ export async function generateMetadata(
         }
     }
 
-    const formattedPrice = productData.price != null 
-        ? `R$ ${productData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+    const formattedPrice = productData.price != null
+        ? `R$ ${productData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         : ''
 
     const titleStr = formattedPrice ? `${productData.name} - ${formattedPrice}` : productData.name
