@@ -80,13 +80,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                         Perfil
                     </Link>
 
-                    <button
-                        onClick={handleLogout}
-                        className="flex flex-col items-center gap-1 text-xs text-neutral-500 font-medium hover:text-red-400 transition focus:outline-none"
-                    >
-                        <LogOut size={22} />
-                        Sair
-                    </button>
 
                 </div>
             </nav>

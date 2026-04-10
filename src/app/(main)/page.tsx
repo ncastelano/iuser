@@ -36,6 +36,7 @@ type ProductType = {
   category: string | null
   type: string | null
   price: number | null
+  slug: string | null
 }
 
 export default function Vitrine() {
@@ -352,7 +353,7 @@ export default function Vitrine() {
         key={product.id + idx}
         onClick={() => {
           if (store) {
-            router.push(`/${store.storeSlug}/${product.id}`)
+            router.push(`/${store.storeSlug}/${product.slug}`)
           }
         }}
         className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-white/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col"
