@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon } from 'lucide-react'
+import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X } from 'lucide-react'
 
 type SearchMode = 'lojas' | 'produtos'
 
@@ -48,6 +48,7 @@ export default function Vitrine() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const [search, setSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
 
   const [sortBy, setSortBy] = useState<
     'distance' | 'rating' | 'prepTime' | 'priceMin' | 'priceMax'
@@ -59,23 +60,17 @@ export default function Vitrine() {
   const allMockStoresRef = useRef<StoreType[]>([])
   const allMockProductsRef = useRef<ProductType[]>([])
 
-  // 🔍 PLACEHOLDER DINÂMICO
-  const getSearchPlaceholder = () => {
-    const isLoja = mode === 'lojas'
-    switch (sortBy) {
-      case 'distance':
-        return isLoja ? 'Procurar loja mais próxima' : 'Procurar produto ou serviço mais próximo'
-      case 'rating':
-        return isLoja ? 'Procurar loja melhor avaliada' : 'Procurar produto ou serviço melhor avaliado'
-      case 'prepTime':
-        return isLoja ? 'Procurar loja mais rápida' : 'Procurar produto ou serviço com preparo rápido'
-      case 'priceMin':
-        return isLoja ? 'Procurar loja mais barata' : 'Procurar produto mais barato'
-      case 'priceMax':
-        return isLoja ? 'Procurar loja requintada' : 'Procurar produto mais caro'
-      default:
-        return isLoja ? 'Procurar loja' : 'Procurar produto'
-    }
+  const filters = [
+    { label: 'Mais próximo', value: 'distance', icon: MapPin },
+    { label: 'Melhor avaliado', value: 'rating', icon: Star },
+    { label: 'Menor tempo', value: 'prepTime', icon: Clock },
+    { label: 'Menor valor', value: 'priceMin', icon: ArrowDownWideNarrow },
+    { label: 'Maior valor', value: 'priceMax', icon: ArrowUpNarrowWide },
+  ]
+
+  const getActiveFilterLabel = () => {
+    const active = filters.find(f => f.value === sortBy)
+    return active ? active.label : 'Filtrar'
   }
 
   // 📍 DISTÂNCIA
@@ -240,8 +235,6 @@ export default function Vitrine() {
           },
           () => { }
         )
-      } else {
-        // Just load without location immediately
       }
 
       setLoading(false)
@@ -263,10 +256,7 @@ export default function Vitrine() {
   // 🧩 STORE CARD
   const renderStoreCard = (store: StoreType, idx: number) => {
     const stats = store.store_stats ?? {}
-
     const distanceKm = calcDistanceKm(store.location)
-
-    // Pegar até 3 produtos dessa loja
     const storeProducts = allMockProductsRef.current.filter(p => p.store_id === store.id).slice(0, 3)
 
     return (
@@ -282,7 +272,7 @@ export default function Vitrine() {
             <span className="text-neutral-600 text-sm">Sem imagem</span>
           )}
 
-          <div className={`absolute top-3 left-3 px-3 py-1 text-xs font-bold rounded-lg border ${store.is_open
+          <div className={`absolute top-3 left-3 px-3 py-1 text-xs font-bold rounded-lg border backdrop-blur-md ${store.is_open
             ? 'bg-green-500/20 text-green-400 border-green-500/30'
             : 'bg-red-500/20 text-red-400 border-red-500/30'
             }`}>
@@ -344,8 +334,6 @@ export default function Vitrine() {
   const renderProductCard = (product: ProductType, idx: number) => {
     const store = getStore(product.store_id)
     const distanceKm = store ? calcDistanceKm(store.location) : null
-
-    // ✅ GARANTE PREÇO VÁLIDO
     const price = typeof product.price === 'number' ? product.price : 0
 
     return (
@@ -381,7 +369,6 @@ export default function Vitrine() {
             {product.name}
           </h3>
 
-          {/* ✅ PREÇO SEGURO */}
           <p className="text-green-400 font-bold text-lg mt-auto pt-2">
             R$ {price.toFixed(2).replace('.', ',')}
           </p>
@@ -418,161 +405,212 @@ export default function Vitrine() {
   }
 
   return (
-    <div className="p-4 md:p-8 text-white bg-black min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/40 via-black to-black">
+    <div className="min-h-screen bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/40 via-black to-black">
 
-      {/* HEADER COM INPUT E SWITCH NA MESMA LINHA */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+      {/* CONTAINER PRINCIPAL COM PADDING RESPONSIVO */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
 
-        {/* BUSCA */}
-        <div className="flex-1">
-          <div className="flex items-center gap-2 bg-neutral-900/80 backdrop-blur-md px-4 py-3 rounded-full border border-neutral-800 focus-within:border-white focus-within:shadow-[0_0_15px_rgba(255,255,255,0.15)] transition-all">
-            <SearchIcon className="w-5 h-5 text-neutral-400 group-focus-within:text-white transition-colors" />
+        {/* HEADER COM TÍTULO */}
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+            {mode === 'produtos' ? 'Produtos e Serviços' : 'Lojas'}
+          </h1>
+          <p className="text-neutral-500 text-sm sm:text-base mt-1">
+            Encontre o que você precisa perto de você
+          </p>
+        </div>
 
-            <input
-              type="text"
-              placeholder={getSearchPlaceholder()}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent w-full text-base text-white placeholder:text-neutral-500 focus:outline-none"
-            />
-
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="text-neutral-400 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            )}
+        {/* SWITCH MODE - ESTILO SEGMENTADO */}
+        <div className="mb-6">
+          <div className="inline-flex p-1 bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-2xl">
+            <button
+              onClick={() => setMode('produtos')}
+              className={`px-4 sm:px-6 py-2 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap ${mode === 'produtos'
+                  ? 'bg-white text-black shadow-lg'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+                }`}
+            >
+              📦 Produtos
+            </button>
+            <button
+              onClick={() => setMode('lojas')}
+              className={`px-4 sm:px-6 py-2 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap ${mode === 'lojas'
+                  ? 'bg-white text-black shadow-lg'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+                }`}
+            >
+              🏪 Lojas
+            </button>
           </div>
         </div>
 
-        {/* SWITCH (LOJAS / PRODUTOS) */}
-        <div className="flex items-center gap-2 p-1 bg-neutral-900/60 backdrop-blur-sm border border-neutral-800 rounded-2xl">
+        {/* BARRA DE BUSCA E FILTRO */}
+        <div className="flex gap-3 mb-4">
+          {/* INPUT DE BUSCA */}
+          <div className="flex-1 relative">
+            <div className="relative group">
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 group-focus-within:text-white transition-colors" />
+
+              <input
+                type="text"
+                placeholder={mode === 'produtos' ? 'Buscar produtos ou serviços...' : 'Buscar lojas...'}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-11 pr-10 py-3 sm:py-3.5 bg-neutral-900/80 backdrop-blur-sm border border-neutral-700 rounded-2xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-white focus:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all"
+              />
+
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* BOTÃO FILTRO MOBILE */}
           <button
-            onClick={() => setMode('produtos')}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${mode === 'produtos'
-              ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
+            onClick={() => setShowFilters(!showFilters)}
+            className={`lg:hidden px-4 py-3 rounded-2xl border transition-all ${showFilters
+                ? 'bg-white text-black border-white'
+                : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:border-white/50'
               }`}
           >
-            Produtos e Serviços
+            <Filter className="w-5 h-5" />
           </button>
-          <button
-            onClick={() => setMode('lojas')}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${mode === 'lojas'
-              ? 'bg-white text-black shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
-              }`}
-          >
-            Lojas
-          </button>
+
+          {/* FILTRO ATIVO MOBILE */}
+          <div className="lg:hidden px-4 py-3 rounded-2xl bg-neutral-900/80 border border-neutral-700">
+            <span className="text-sm font-medium text-white">{getActiveFilterLabel()}</span>
+          </div>
         </div>
-      </div>
 
-      {/* FILTROS */}
-      <div className="flex gap-2 flex-wrap mb-8 pb-4 border-b border-neutral-800">
-        {[
-          { label: 'Mais próximo', value: 'distance', icon: <MapPin className="w-4 h-4" /> },
-          { label: 'Melhor avaliado', value: 'rating', icon: <Star className="w-4 h-4" /> },
-          { label: 'Menor tempo', value: 'prepTime', icon: <Clock className="w-4 h-4" /> },
-          { label: 'Menor valor', value: 'priceMin', icon: <ArrowDownWideNarrow className="w-4 h-4" /> },
-          { label: 'Maior valor', value: 'priceMax', icon: <ArrowUpNarrowWide className="w-4 h-4" /> },
-        ].map(option => (
-          <button
-            key={option.value}
-            onClick={() => setSortBy(option.value as any)}
-            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-medium border flex items-center gap-2 transition-all ${sortBy === option.value
-              ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
-              : 'bg-neutral-900/50 text-neutral-400 border-neutral-800 hover:bg-neutral-800 hover:text-white'
-              }`}
-          >
-            {option.icon}
-            {option.label}
-          </button>
-        ))}
-      </div>
+        {/* FILTROS - DESKTOP (SEMPRE VISÍVEL) / MOBILE (TOGGLE) */}
+        <div className={`${showFilters ? 'block' : 'hidden'} lg:block mb-6`}>
+          <div className="bg-neutral-900/40 backdrop-blur-sm rounded-2xl border border-neutral-800 p-4">
+            <div className="flex items-center gap-2 mb-3 lg:hidden">
+              <Filter className="w-4 h-4 text-neutral-400" />
+              <span className="text-sm font-medium text-neutral-400">Ordenar por</span>
+            </div>
 
-      {/* LISTA VAZIA */}
-      {displayedItems.length === 0 && (
-        <div className="py-20 flex flex-col items-center justify-center text-center text-neutral-500">
-          <div className="text-4xl mb-4">🔍</div>
-          <h3 className="text-xl font-bold text-white mb-2">Nenhum resultado</h3>
-          <p>Tente ajustar a sua busca ou filtros.</p>
+            <div className="flex flex-wrap gap-2">
+              {filters.map((option) => {
+                const Icon = option.icon
+                const isActive = sortBy === option.value
+
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setSortBy(option.value as any)
+                      setShowFilters(false)
+                    }}
+                    className={`group relative px-4 py-2 rounded-full text-sm font-medium border transition-all flex items-center gap-2 ${isActive
+                        ? 'bg-white text-black border-white shadow-lg'
+                        : 'bg-neutral-900/50 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white hover:border-neutral-500'
+                      }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-black' : 'text-neutral-500 group-hover:text-white'}`} />
+                    {option.label}
+
+                    {isActive && (
+                      <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-        {displayedItems.map((item, idx) =>
-          mode === 'lojas'
-            ? renderStoreCard(item, idx)
-            : renderProductCard(item, idx)
+        {/* RESULTADOS */}
+        {displayedItems.length === 0 && (
+          <div className="py-20 flex flex-col items-center justify-center text-center">
+            <div className="w-24 h-24 mb-6 rounded-full bg-neutral-900/50 flex items-center justify-center border border-neutral-800">
+              <SearchIcon className="w-10 h-10 text-neutral-600" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Nenhum resultado encontrado</h3>
+            <p className="text-neutral-500 max-w-md">
+              Tente ajustar sua busca ou explorar outras categorias
+            </p>
+          </div>
+        )}
+
+        {/* GRID DE CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+          {displayedItems.map((item, idx) =>
+            mode === 'lojas'
+              ? renderStoreCard(item, idx)
+              : renderProductCard(item, idx)
+          )}
+        </div>
+
+        {/* INFO E PAGINAÇÃO */}
+        {displayedItems.length > 0 && (
+          <>
+            <div className="flex flex-col sm:flex-row justify-between items-center mt-10 mb-6 text-sm text-neutral-400 gap-3">
+              <div className="bg-neutral-900/50 px-4 py-2 rounded-full border border-neutral-800">
+                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}-
+                {Math.min(currentPage * PAGE_SIZE, totalItems)} de {totalItems} resultados
+              </div>
+
+              <div className="bg-neutral-900/50 px-4 py-2 rounded-full border border-neutral-800">
+                Página {currentPage} de {totalPages}
+              </div>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 pb-10 flex-wrap">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => loadPage(currentPage - 1)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-all disabled:opacity-30 disabled:hover:bg-neutral-900/80 disabled:hover:text-neutral-400"
+                >
+                  ←
+                </button>
+
+                {Array.from({ length: totalPages }).map((_, i) => {
+                  const page = i + 1
+
+                  if (
+                    page !== 1 &&
+                    page !== totalPages &&
+                    Math.abs(page - currentPage) > 2
+                  ) {
+                    if (Math.abs(page - currentPage) === 3) {
+                      return <span key={page} className="text-neutral-600 px-1">...</span>
+                    }
+                    return null
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => loadPage(page)}
+                      className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold border transition-all ${currentPage === page
+                          ? 'bg-white text-black border-white shadow-lg'
+                          : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                })}
+
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => loadPage(currentPage + 1)}
+                  className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-all disabled:opacity-30 disabled:hover:bg-neutral-900/80 disabled:hover:text-neutral-400"
+                >
+                  →
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
-
-      {/* INFO */}
-      {displayedItems.length > 0 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center mt-12 mb-4 text-sm text-neutral-400 gap-4">
-          <span>
-            Mostrando {(currentPage - 1) * PAGE_SIZE + 1}-
-            {Math.min(currentPage * PAGE_SIZE, totalItems)} de {totalItems} resultados
-          </span>
-
-          <span>
-            Página {currentPage} de {totalPages}
-          </span>
-        </div>
-      )}
-
-      {/* PAGINAÇÃO */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 pb-10 flex-wrap">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => loadPage(currentPage - 1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400"
-          >
-            ←
-          </button>
-
-          {Array.from({ length: totalPages }).map((_, i) => {
-            const page = i + 1
-
-            if (
-              page !== 1 &&
-              page !== totalPages &&
-              Math.abs(page - currentPage) > 2
-            ) {
-              if (Math.abs(page - currentPage) === 3) {
-                return <span key={page} className="text-neutral-600 px-1">...</span>
-              }
-              return null
-            }
-
-            return (
-              <button
-                key={page}
-                onClick={() => loadPage(page)}
-                className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold border transition-all ${currentPage === page
-                  ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]'
-                  : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:bg-neutral-800 hover:text-white'
-                  }`}
-              >
-                {page}
-              </button>
-            )
-          })}
-
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => loadPage(currentPage + 1)}
-            className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-800 bg-neutral-900 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-colors disabled:opacity-30 disabled:hover:bg-neutral-900 disabled:hover:text-neutral-400"
-          >
-            →
-          </button>
-        </div>
-      )}
     </div>
   )
 }
