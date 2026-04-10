@@ -111,3 +111,35 @@
 .glass-glow-card:hover::before {
   @apply opacity-20 scale-125 bg-white blur-[80px];
 }
+
+@keyframes spin-slow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes spin-fast {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s ease infinite;
+}
+
+.group:hover .animate-spin-fast {
+  animation: spin-fast 1s linear infinite;
+}

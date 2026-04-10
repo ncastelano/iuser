@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle, Briefcase } from 'lucide-react'
 
 interface Product {
     id: string
@@ -102,7 +102,6 @@ export default function ProductPage() {
 
     const shareOnWhatsAppStory = () => {
         const productUrl = getProductUrl()
-        // Para stories do WhatsApp, precisamos de uma imagem + link
         const storyText = `✨ ${product?.name} - R$ ${(product?.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ✨`
         const whatsappStoryUrl = `https://wa.me/?text=${encodeURIComponent(storyText + '\n\n' + productUrl)}`
         window.open(whatsappStoryUrl, '_blank')
@@ -134,6 +133,30 @@ export default function ProductPage() {
         }
     }
 
+    const getButtonText = () => {
+        const type = product?.type?.toLowerCase()
+        const category = product?.category?.toLowerCase()
+
+        if (type === 'service' || type === 'serviço' || type === 'servico' ||
+            category === 'service' || category === 'serviço' || category === 'servico') {
+            return 'Contratar Agora'
+        }
+
+        return 'Comprar Agora'
+    }
+
+    const getButtonIcon = () => {
+        const type = product?.type?.toLowerCase()
+        const category = product?.category?.toLowerCase()
+
+        if (type === 'service' || type === 'serviço' || type === 'servico' ||
+            category === 'service' || category === 'serviço' || category === 'servico') {
+            return <Briefcase className="w-5 h-5" />
+        }
+
+        return <ShoppingCart className="w-5 h-5" />
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -143,6 +166,13 @@ export default function ProductPage() {
     }
 
     if (!product) return null
+
+    const isService = product?.type?.toLowerCase() === 'service' ||
+        product?.type?.toLowerCase() === 'serviço' ||
+        product?.type?.toLowerCase() === 'servico' ||
+        product?.category?.toLowerCase() === 'service' ||
+        product?.category?.toLowerCase() === 'serviço' ||
+        product?.category?.toLowerCase() === 'servico'
 
     return (
         <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
@@ -159,18 +189,20 @@ export default function ProductPage() {
                         <h1 className="text-xl font-bold truncate tracking-wide text-white">
                             {product.name}
                         </h1>
-                        <span className="text-xs text-neutral-300 uppercase font-black tracking-widest">{product.type || product.category || 'Produto'}</span>
+                        <span className="text-xs text-neutral-300 uppercase font-black tracking-widest">
+                            {product.type === 'service' ? 'Serviço' : (product.type || product.category || 'Produto')}
+                        </span>
                     </div>
                 </div>
 
-                {/* Botão Compartilhar */}
+                {/* Botão Compartilhar - Preto e Branco */}
                 <div className="relative">
                     <button
                         onClick={shareNative}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 rounded-xl transition-all duration-300 shadow-lg hover:shadow-green-500/30 group"
+                        className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 hover:border-neutral-500 rounded-xl transition-all duration-300 shadow-md group"
                     >
-                        <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-semibold">Compartilhar</span>
+                        <Share2 className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
+                        <span className="text-sm font-semibold text-neutral-400 group-hover:text-white transition-colors">Compartilhar</span>
                     </button>
 
                     {/* Menu de Compartilhamento Customizado (para desktop) */}
@@ -251,6 +283,13 @@ export default function ProductPage() {
                             <span className="text-neutral-600 font-medium tracking-wide">Sem Imagem</span>
                         </div>
                     )}
+
+                    {/* Badge de Serviço/Produto */}
+                    {isService && (
+                        <div className="absolute top-4 right-4 px-3 py-1.5 bg-blue-500/20 backdrop-blur-md border border-blue-500/30 rounded-lg">
+                            <span className="text-blue-400 text-xs font-bold">SERVIÇO</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* INFO E COMPRA */}
@@ -265,7 +304,9 @@ export default function ProductPage() {
 
                     {product.description && (
                         <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl mb-8">
-                            <h3 className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-3">Sobre o Produto</h3>
+                            <h3 className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-3">
+                                {isService ? 'Sobre o Serviço' : 'Sobre o Produto'}
+                            </h3>
                             <p className="text-neutral-300 leading-relaxed text-sm">
                                 {product.description}
                             </p>
@@ -273,12 +314,52 @@ export default function ProductPage() {
                     )}
 
                     <div className="mt-auto space-y-3">
-                        <button className="w-full bg-white hover:bg-neutral-200 text-black py-4 rounded-xl font-extrabold text-lg shadow-[0_4px_15px_rgba(255,255,255,0.3)] hover:shadow-[0_4px_25px_rgba(255,255,255,0.4)] transform hover:-translate-y-0.5 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
-                            <ShoppingCart className="w-5 h-5" /> Comprar Agora
-                        </button>
+                        {/* Botão com Borda Gradiente Animada */}
+                        <div className="relative p-[2px] rounded-xl overflow-hidden group">
+                            {/* Gradiente animado que gira */}
+                            <div className={`absolute inset-0 rounded-xl bg-gradient-to-r ${isService
+                                ? 'from-blue-600 via-purple-500 to-blue-600'
+                                : 'from-yellow-400 via-orange-500 to-red-500'
+                                } animate-spin-slow group-hover:animate-spin-fast`}
+                                style={{ backgroundSize: '200% 200%' }}
+                            />
+
+                            {/* Conteúdo interno preto */}
+                            <button
+                                className={`relative w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-black text-white z-10`}
+                            >
+                                {getButtonIcon()}
+                                {getButtonText()}
+                            </button>
+                        </div>
+
+                        {/* Texto adicional explicativo */}
+                        <p className="text-xs text-neutral-500 text-center">
+                            {isService
+                                ? 'Ao contratar, você será redirecionado para finalizar o serviço'
+                                : 'Ao comprar, você será redirecionado para finalizar o pedido'}
+                        </p>
                     </div>
                 </div>
             </div>
+
+            <style jsx>{`
+                @keyframes spin-slow {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                }
+                @keyframes spin-fast {
+                    0% { background-position: 0% 50%; }
+                    100% { background-position: 200% 50%; }
+                }
+                .animate-spin-slow {
+                    animation: spin-slow 3s ease infinite;
+                }
+                .group:hover .animate-spin-fast {
+                    animation: spin-fast 1s linear infinite;
+                }
+            `}</style>
         </div>
     )
 }
