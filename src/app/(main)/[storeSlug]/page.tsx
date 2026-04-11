@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check } from 'lucide-react'
+import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check, ShoppingCart, Minus, X, Trash2, CheckCircle2 } from 'lucide-react'
+import { useCartStore } from '@/store/useCartStore'
 
 export default function StorePage() {
     const params = useParams()
@@ -18,6 +19,15 @@ export default function StorePage() {
     const [error, setError] = useState<string | null>(null)
     const [showShareMenu, setShowShareMenu] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [showCart, setShowCart] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
+    const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
+    const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
+    const totalPrice = cartItems.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+
+    useEffect(() => { setMounted(true) }, [])
 
     const getStoreUrl = () => {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
@@ -409,13 +419,34 @@ export default function StorePage() {
                                         </p>
                                     )}
 
-                                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-neutral-800">
+                                    <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-neutral-800">
                                         <p className="text-white font-extrabold text-xl">
                                             R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
-                                        <button className="bg-neutral-800 hover:bg-white hover:text-black text-white w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-300 font-bold shadow-md hover:shadow-[0_0_15px_rgba(255,255,255,0.4)]">
-                                            <Plus className="w-5 h-5" />
-                                        </button>
+                                        
+                                        {mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    router.push(`/${storeSlug}/carrinho`)
+                                                }}
+                                                className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                                            >
+                                                <CheckCircle2 className="w-5 h-5" />
+                                                Adicionado (Ver)
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                }}
+                                                className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                                            >
+                                                <Plus className="w-5 h-5" />
+                                                Adicionar
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -423,6 +454,34 @@ export default function StorePage() {
                     </div>
                 )}
             </div>
+            {/* VENDAS/CARRINHO BOTTOM BAR */}
+            {mounted && totalItems > 0 && (
+                <>
+                    <div className="h-24"></div>
+                    
+                    <div className="fixed bottom-0 left-0 right-0 p-4 z-40 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none">
+                        <div className="max-w-7xl mx-auto flex justify-center pointer-events-auto">
+                            <button
+                                onClick={() => router.push(`/${storeSlug}/carrinho`)}
+                                className="w-full sm:w-[400px] bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black py-4 px-6 rounded-2xl font-black text-lg flex items-center justify-between shadow-[0_0_30px_rgba(255,165,0,0.3)] hover:shadow-[0_0_40px_rgba(255,165,0,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-black/10 text-black w-8 h-8 rounded-full flex items-center justify-center font-extrabold">
+                                        {totalItems}
+                                    </div>
+                                    <span>Ver Carrinho</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span>R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <ShoppingCart className="w-5 h-5" />
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
+
+
         </div>
     )
 }

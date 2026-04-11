@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, Star, User as UserIcon, Settings, Camera, X, Loader2 } from 'lucide-react'
+import { Plus, Star, User as UserIcon, Settings, Camera, X, Loader2, ShoppingCart, ShoppingBag, ArrowRight } from 'lucide-react'
+import { useCartStore } from '@/store/useCartStore'
 
 interface StoreStats {
     ratings_count: number
@@ -37,8 +38,12 @@ export default function MyProfile() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [mounted, setMounted] = useState(false)
+
+    const { itemsByStore, storeDetails } = useCartStore()
 
     useEffect(() => {
+        setMounted(true)
         const fetchMyStores = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
@@ -403,6 +408,68 @@ export default function MyProfile() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {/* Secao Carrinho */}
+            <div className="flex items-center gap-3 mt-12 mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-3">
+                    <span className="w-2 h-6 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]"></span>
+                    Carrinho
+                </h2>
+                <ShoppingCart className="w-5 h-5 text-neutral-400" />
+            </div>
+
+            {!mounted ? (
+                <div className="text-neutral-500">Carregando carrinhos...</div>
+            ) : Object.keys(itemsByStore).length === 0 ? (
+                <div className="bg-neutral-900/50 border border-neutral-800 border-dashed rounded-2xl p-8 text-center flex flex-col items-center gap-4">
+                    <ShoppingBag className="w-12 h-12 text-neutral-600" />
+                    <p className="text-neutral-400 font-medium text-lg">Você não tem nada no carrinho, vamos ver algum produto para comprar?</p>
+                    <button 
+                        onClick={() => router.push('/')}
+                        className="px-6 py-3 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-colors shadow-md mt-2"
+                    >
+                        Página Principal
+                    </button>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                    {Object.entries(itemsByStore).map(([slug, items]) => {
+                        const storeInfo = storeDetails[slug]
+                        const totalItems = items.reduce((acc, item) => acc + item.quantity, 0)
+                        const totalPrice = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+                        
+                        return (
+                            <div
+                                key={slug}
+                                onClick={() => router.push(`/${slug}`)}
+                                className="bg-neutral-900/60 p-5 rounded-2xl border border-neutral-800 hover:border-white/50 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-all cursor-pointer group flex flex-col gap-4"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-neutral-950 flex-shrink-0 border border-neutral-800">
+                                        {storeInfo?.logo_url ? (
+                                            <img src={storeInfo.logo_url} className="w-full h-full object-cover" alt={storeInfo.name} />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-neutral-500 font-bold text-lg">
+                                                {storeInfo?.name?.charAt(0) || slug.charAt(0)}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <h3 className="font-bold text-lg text-white group-hover:text-white transition-colors">{storeInfo?.name || slug}</h3>
+                                        <p className="text-neutral-400 text-sm">{totalItems} {totalItems === 1 ? 'item' : 'itens'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-4 border-t border-neutral-800">
+                                    <span className="font-extrabold text-white">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <div className="text-neutral-400 group-hover:text-white group-hover:translate-x-1 transition-all">
+                                        <ArrowRight className="w-5 h-5" />
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>

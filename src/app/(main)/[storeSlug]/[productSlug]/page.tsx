@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle, Briefcase } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle, Briefcase, CheckCircle2 } from 'lucide-react'
+import { useCartStore } from '@/store/useCartStore'
 
 interface Product {
     id: string
@@ -44,8 +45,14 @@ export default function ProductPage() {
     const [loading, setLoading] = useState(true)
     const [showShareMenu, setShowShareMenu] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    const { itemsByStore, addItem } = useCartStore()
+    const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
+    const isInCart = product && cartItems.some(item => item.product.id === product.id)
 
     useEffect(() => {
+        setMounted(true)
         const loadProduct = async () => {
             // 🔍 buscar loja
             const { data: storeData } = await supabase
@@ -313,7 +320,36 @@ export default function ProductPage() {
                         </div>
                     )}
 
-                    <div className="mt-auto space-y-3">
+                    <div className="mt-auto space-y-4">
+                        {mounted && (
+                            isInCart ? (
+                                <button
+                                    onClick={() => router.push(`/${storeSlug}/carrinho`)}
+                                    className="w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    <CheckCircle2 className="w-5 h-5" />
+                                    Ver Carrinho
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => {
+                                        if (product && store) {
+                                            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, {
+                                                id: product.id,
+                                                name: product.name,
+                                                price: product.price || 0,
+                                                image_url: image
+                                            })
+                                        }
+                                    }}
+                                    className="w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    <ShoppingCart className="w-5 h-5" />
+                                    Adicionar ao carrinho
+                                </button>
+                            )
+                        )}
+
                         {/* Botão com Borda Gradiente Animada */}
                         <div className="relative p-[2px] rounded-xl overflow-hidden group">
                             {/* Gradiente animado que gira */}
