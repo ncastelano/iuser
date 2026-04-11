@@ -323,16 +323,15 @@ export default function ProductPage() {
                     <div className="mt-auto space-y-4">
                         {mounted && (
                             isInCart ? (
-                                <button
-                                    onClick={() => router.push(`/${storeSlug}/carrinho`)}
-                                    className="w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                    <CheckCircle2 className="w-5 h-5" />
-                                    Ver Carrinho
-                                </button>
+                                <div className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer" onClick={() => router.push(`/${storeSlug}/carrinho`)}>
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
+                                    <button className="relative w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
+                                        <CheckCircle2 className="w-5 h-5 text-white" />
+                                        Ver Carrinho
+                                    </button>
+                                </div>
                             ) : (
-                                <button
-                                    onClick={() => {
+                                <div className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer" onClick={() => {
                                         if (product && store) {
                                             addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, {
                                                 id: product.id,
@@ -341,12 +340,13 @@ export default function ProductPage() {
                                                 image_url: image
                                             })
                                         }
-                                    }}
-                                    className="w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                    <ShoppingCart className="w-5 h-5" />
-                                    Adicionar ao carrinho
-                                </button>
+                                    }}>
+                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
+                                    <button className="relative w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
+                                        <ShoppingCart className="w-5 h-5 text-white" />
+                                        Adicionar ao carrinho
+                                    </button>
+                                </div>
                             )
                         )}
 

@@ -354,7 +354,7 @@ export default function StorePage() {
 
             {/* OWNER ACTION */}
             {isOwner && (
-                <div className="flex justify-end">
+                <div className="flex justify-end mt-[-10px]">
                     <button
                         onClick={() => router.push(`/${store.storeSlug}/criar-produto`)}
                         className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 active:bg-neutral-300 transition shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2"
@@ -364,8 +364,30 @@ export default function StorePage() {
                 </div>
             )}
 
+            {/* CARRINHO SUMMARY AQUI EM CIMA DO MENU */}
+            {mounted && totalItems > 0 && (
+                <div 
+                    className="relative p-[2px] rounded-2xl overflow-hidden group cursor-pointer w-full mb-2"
+                    onClick={() => router.push(`/${storeSlug}/carrinho`)}
+                >
+                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
+                    <div className="relative bg-black w-full py-4 px-6 rounded-2xl flex items-center justify-between z-10 transition-colors group-hover:bg-neutral-950">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white text-black w-8 h-8 rounded-full flex items-center justify-center font-extrabold shadow-[0_0_10px_rgba(255,255,255,0.5)]">
+                                {totalItems}
+                            </div>
+                            <span className="font-extrabold text-white text-lg">Ver Meu Carrinho</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-white">
+                            <span className="font-black text-lg">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            <ShoppingCart className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* PRODUCTS */}
-            <div className="mt-4">
+            <div className="mt-2">
                 <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                     <span className="w-2 h-8 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
                     Menu ({products.length})
@@ -425,16 +447,31 @@ export default function StorePage() {
                                         </p>
                                         
                                         {mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    router.push(`/${storeSlug}/carrinho`)
-                                                }}
-                                                className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                                            >
-                                                <CheckCircle2 className="w-5 h-5" />
-                                                Adicionado (Ver)
-                                            </button>
+                                            <div className="flex gap-2 w-full">
+                                                <div 
+                                                    className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer flex-1"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        router.push(`/${storeSlug}/carrinho`)
+                                                    }}
+                                                >
+                                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
+                                                    <button className="relative w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
+                                                        <CheckCircle2 className="w-4 h-4 text-white" />
+                                                        <span className="truncate">Adicionado</span>
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        removeItem(storeSlug as string, product.id)
+                                                    }}
+                                                    className="py-2.5 px-3 rounded-xl font-bold transition-all flex items-center justify-center bg-red-500 text-black hover:bg-red-600 shadow-md hover:scale-[1.05] active:scale-[0.95] shrink-0"
+                                                    title="Remover"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         ) : (
                                             <button 
                                                 onClick={(e) => {
@@ -454,34 +491,6 @@ export default function StorePage() {
                     </div>
                 )}
             </div>
-            {/* VENDAS/CARRINHO BOTTOM BAR */}
-            {mounted && totalItems > 0 && (
-                <>
-                    <div className="h-24"></div>
-                    
-                    <div className="fixed bottom-0 left-0 right-0 p-4 z-40 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-none">
-                        <div className="max-w-7xl mx-auto flex justify-center pointer-events-auto">
-                            <button
-                                onClick={() => router.push(`/${storeSlug}/carrinho`)}
-                                className="w-full sm:w-[400px] bg-gradient-to-r from-yellow-400 via-orange-500 to-amber-100 text-black py-4 px-6 rounded-2xl font-black text-lg flex items-center justify-between shadow-[0_0_30px_rgba(255,165,0,0.3)] hover:shadow-[0_0_40px_rgba(255,165,0,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-black/10 text-black w-8 h-8 rounded-full flex items-center justify-center font-extrabold">
-                                        {totalItems}
-                                    </div>
-                                    <span>Ver Carrinho</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span>R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                    <ShoppingCart className="w-5 h-5" />
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
-
-
         </div>
     )
 }

@@ -22,7 +22,12 @@ export interface CartState {
     removeItem: (storeSlug: string, productId: string) => void
     clearStoreCart: (storeSlug: string) => void
     updateQuantity: (storeSlug: string, productId: string, delta: number) => void
+    syncToDatabase: () => Promise<void>
+    loadFromDatabase: () => Promise<void>
 }
+
+// Inicializamos o client do supabase fora para as funcoes
+import { createClient } from '@/lib/supabase/client'
 
 export const useCartStore = create<CartState>()(
     persist(
@@ -90,10 +95,56 @@ export const useCartStore = create<CartState>()(
                 const newItemsByStore = { ...state.itemsByStore }
                 delete newItemsByStore[storeSlug]
                 return { itemsByStore: newItemsByStore }
-            })
+            }),
+            syncToDatabase: async () => {
+                const supabase = createClient()
+                const { data: { session } } = await supabase.auth.getSession()
+                if (!session?.user?.id) return
+
+                const state = set((state) => state) // get current state
+                const { itemsByStore, storeDetails } = useCartStore.getState()
+                
+                try {
+                    // Tenta atualizar no supabase uma coluna cart_data (assumindo que o usuario vai criar)
+                    await supabase.from('profiles').update({
+                        cart_data: { itemsByStore, storeDetails }
+                    }).eq('id', session.user.id)
+                } catch (e) {
+                    console.error("Erro ao sincronizar carrinho com banco", e)
+                }
+            },
+            loadFromDatabase: async () => {
+                const supabase = createClient()
+                const { data: { session } } = await supabase.auth.getSession()
+                if (!session?.user?.id) return
+
+                try {
+                    const { data } = await supabase.from('profiles').select('cart_data').eq('id', session.user.id).single()
+                    if (data?.cart_data) {
+                        set({
+                            itemsByStore: data.cart_data.itemsByStore || {},
+                            storeDetails: data.cart_data.storeDetails || {}
+                        })
+                    }
+                } catch (e) {
+                    console.error("Erro ao carregar carrinho do banco", e)
+                }
+            }
         }),
         {
-            name: 'iuser-cart-storage'
+            name: 'iuser-cart-storage',
+            onRehydrateStorage: () => (state) => {
+                // Quando o localStorage for reidratado (na carga da aba), dispara carregar do BD para parear
+                state?.loadFromDatabase().catch(console.error)
+            }
         }
     )
 )
+
+// Opcional: ouvir cada mudança local e disparar o sync (debounced opcionalmente)
+useCartStore.subscribe((state, prevState) => {
+    // se o carrinho mudou, envia
+    if (state.itemsByStore !== prevState.itemsByStore) {
+        state.syncToDatabase().catch(()=> {})
+    }
+})

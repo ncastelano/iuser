@@ -443,7 +443,7 @@ export default function MyProfile() {
                         return (
                             <div
                                 key={slug}
-                                onClick={() => router.push(`/${slug}`)}
+                                onClick={() => router.push(`/${slug}/carrinho`)}
                                 className="bg-neutral-900/60 p-5 rounded-2xl border border-neutral-800 hover:border-white/50 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-all cursor-pointer group flex flex-col gap-4"
                             >
                                 <div className="flex items-center gap-4">
