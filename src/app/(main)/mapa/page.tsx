@@ -127,6 +127,9 @@ export default function MapPage() {
         markersRef.current.forEach(m => m.remove())
         markersRef.current = []
 
+        // Agrupar itens para espalhar (spiderify) quem está na MESMA coordenada
+        const coordGroups: Record<string, any[]> = {}
+        
         filtered.forEach(item => {
             let coords: [number, number] | null = null
 
@@ -138,65 +141,110 @@ export default function MapPage() {
             }
 
             if (!coords) return
+            
+            // chave com precisão de 4 casas (aprox 11 metros)
+            const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`
+            if (!coordGroups[key]) coordGroups[key] = []
+            coordGroups[key].push({ item, coords })
+        })
 
-            const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
+        // Renderizar marcadores
+        Object.values(coordGroups).forEach(group => {
+            group.forEach((entry, index) => {
+                const { item, coords } = entry
+                
+                let lng = coords[0]
+                let lat = coords[1]
+                
+                // Lógica Spiderify: deslocamento radial
+                // O primeiro item (index 0) fica exatamente no ponto. Os próximos formam círculos concêntricos em volta.
+                if (index > 0) {
+                    const radius = 0.00025 * Math.ceil(index / 8) // expede o círculo a cada 8 itens
+                    const angle = index * (Math.PI / 4) // 45 graus pra cada ponto (8 por fileira)
+                    lng += radius * Math.cos(angle)
+                    lat += radius * Math.sin(angle)
+                }
 
-            // Elemento do marker
-            // Elemento do marker (NÃO mexer no transform aqui)
-            const el = document.createElement('div')
+                const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
 
-            // Wrapper interno (aqui pode animar)
-            const inner = document.createElement('div')
+                // Elemento do marker
+                const el = document.createElement('div')
+                el.style.zIndex = (100 - index).toString() // Central fica em cima
 
-            inner.style.cssText = `
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 2px solid #ffffff;
-    box-shadow: 0 4px 20px rgba(255,255,255,0.4);
-    cursor: pointer;
-    background: #1a1a1a;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-`
+                // Wrapper interno
+                const inner = document.createElement('div')
 
-            inner.onmouseenter = () => {
-                inner.style.transform = 'scale(1.15)'
-                inner.style.boxShadow = '0 6px 25px rgba(255,255,255,0.6)'
-            }
+                inner.style.cssText = `
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    border: 2px solid ${index === 0 ? '#ffaa00' : '#ffffff'};
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+                    cursor: pointer;
+                    background: #1a1a1a;
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                `
 
-            inner.onmouseleave = () => {
-                inner.style.transform = 'scale(1)'
-                inner.style.boxShadow = '0 4px 20px rgba(255,255,255,0.4)'
-            }
+                inner.onmouseenter = () => {
+                    inner.style.transform = 'scale(1.2)'
+                    inner.style.boxShadow = '0 6px 25px rgba(255,255,255,0.6)'
+                    el.style.zIndex = "999" // trás pra frente no hover
+                }
 
-            const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
+                inner.onmouseleave = () => {
+                    inner.style.transform = 'scale(1)'
+                    inner.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)'
+                    el.style.zIndex = (100 - index).toString()
+                }
 
-            if (imageUrl) {
-                const img = document.createElement('img')
-                img.src = imageUrl
-                img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
-                img.onerror = () => {
+                const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
+
+                if (imageUrl) {
+                    const img = document.createElement('img')
+                    img.src = imageUrl
+                    img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
+                    img.onerror = () => {
+                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                    }
+                    inner.appendChild(img)
+                } else {
                     inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
                 }
-                inner.appendChild(img)
-            } else {
-                inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
-            }
 
-            el.appendChild(inner)
+                // Add indicator badge se tem mais de um no mesmo lugar, e este for o center
+                if (index === 0 && group.length > 1) {
+                    const badge = document.createElement('div')
+                    badge.innerHTML = `+${group.length - 1}`
+                    badge.style.cssText = `
+                        position: absolute;
+                        bottom: -5px;
+                        right: -5px;
+                        background: #ff5500;
+                        color: white;
+                        font-size: 10px;
+                        font-weight: 900;
+                        padding: 2px 6px;
+                        border-radius: 10px;
+                        border: 2px solid #000;
+                        z-index: 10;
+                    `
+                    el.appendChild(badge)
+                }
 
+                el.appendChild(inner)
 
-            el.onclick = () => {
-                setSelectedItem(item)
-                map.flyTo({ center: coords!, zoom: 15, duration: 800 })
-            }
+                el.onclick = () => {
+                    setSelectedItem(item)
+                    map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
+                }
 
-            const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-                .setLngLat(coords)
-                .addTo(map)
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+                    .setLngLat([lng, lat])
+                    .addTo(map)
 
-            markersRef.current.push(marker)
+                markersRef.current.push(marker)
+            })
         })
     }, [filtered, mode, stores, mapReady])
 
