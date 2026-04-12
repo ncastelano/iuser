@@ -197,7 +197,9 @@ export default function ProductPage() {
                             {product.name}
                         </h1>
                         <span className="text-xs text-neutral-300 uppercase font-black tracking-widest">
-                            {product.type === 'service' ? 'Serviço' : (product.type || product.category || 'Produto')}
+                             {product.type === 'service' || product.type === 'physical'
+                               ? (product.type === 'service' ? 'Serviço' : 'Físico')
+                               : (product.type || product.category || 'Produto')}
                         </span>
                     </div>
                 </div>
@@ -288,6 +290,26 @@ export default function ProductPage() {
                     ) : (
                         <div className="w-full h-full flex items-center justify-center">
                             <span className="text-neutral-600 font-medium tracking-wide">Sem Imagem</span>
+                        </div>
+                    )}
+
+                    {/* Badge da Loja - acima da foto */}
+                    {store && (
+                        <div
+                            className="absolute top-4 left-4 flex items-center gap-2 px-3 py-2 bg-black/70 backdrop-blur-md border border-white/10 rounded-xl cursor-pointer hover:bg-black/80 transition-all"
+                            onClick={(e) => { e.stopPropagation(); router.push(`/${store.storeSlug}`) }}
+                        >
+                            {store.logo_url ? (
+                                <img src={store.logo_url} className="w-8 h-8 rounded-full object-cover border border-white/20 flex-shrink-0" alt={store.name} />
+                            ) : (
+                                <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white text-xs font-bold">{store.name[0]}</span>
+                                </div>
+                            )}
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-neutral-400 leading-none mb-0.5">Vendido por</span>
+                                <span className="text-white text-xs font-bold leading-none">{store.name}</span>
+                            </div>
                         </div>
                     )}
 

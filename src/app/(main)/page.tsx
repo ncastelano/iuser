@@ -3,9 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X } from 'lucide-react'
-
-type SearchMode = 'lojas' | 'produtos'
+import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X, ChevronRight, Store, ShoppingBag } from 'lucide-react'
 
 type StoreStats = {
   ratings_count: number
@@ -39,26 +37,24 @@ type ProductType = {
   slug: string | null
 }
 
+const PREVIEW_COUNT = 20
+
 export default function Vitrine() {
   const router = useRouter()
 
-  const [mode, setMode] = useState<SearchMode>('produtos')
-  const [displayedItems, setDisplayedItems] = useState<any[]>([])
+  const [allStores, setAllStores] = useState<StoreType[]>([])
+  const [allProducts, setAllProducts] = useState<ProductType[]>([])
   const [loading, setLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [showAllProducts, setShowAllProducts] = useState(false)
+  const [showAllStores, setShowAllStores] = useState(false)
 
   const [sortBy, setSortBy] = useState<
     'distance' | 'rating' | 'prepTime' | 'priceMin' | 'priceMax'
   >('distance')
-
-  const [currentPage, setCurrentPage] = useState(1)
-
-  const PAGE_SIZE = 30
-  const allMockStoresRef = useRef<StoreType[]>([])
-  const allMockProductsRef = useRef<ProductType[]>([])
 
   const filters = [
     { label: 'Mais próximo', value: 'distance', icon: MapPin },
@@ -106,86 +102,79 @@ export default function Vitrine() {
     return Number((R * c).toFixed(1))
   }
 
-  const getStore = (storeId: string) => allMockStoresRef.current.find(s => s.id === storeId)
+  const getStore = (storeId: string) => allStores.find(s => s.id === storeId)
 
-  // 🔥 FILTRO + ORDENAÇÃO
-  const sortItems = () => {
-    if (mode === 'lojas') {
-      let filtered = [...allMockStoresRef.current]
-
-      if (search.trim()) {
-        filtered = filtered.filter(store =>
-          store.name.toLowerCase().includes(search.toLowerCase())
-        )
-      }
-
-      return filtered.sort((a, b) => {
-        if (a.is_open !== b.is_open) return a.is_open ? -1 : 1
-
-        const aStats = a.store_stats
-        const bStats = b.store_stats
-
-        switch (sortBy) {
-          case 'distance': {
-            const distA = calcDistanceKm(a.location) ?? 9999
-            const distB = calcDistanceKm(b.location) ?? 9999
-            return distA - distB
-          }
-          case 'rating': return (bStats.ratings_avg ?? 0) - (aStats.ratings_avg ?? 0)
-          case 'prepTime': return (aStats.prep_time_min ?? 9999) - (bStats.prep_time_min ?? 9999)
-          case 'priceMin': return (aStats.price_min ?? 9999) - (bStats.price_min ?? 9999)
-          case 'priceMax': return (bStats.price_max ?? 0) - (aStats.price_max ?? 0)
-          default: return 0
-        }
-      })
-    } else {
-      let filtered = [...allMockProductsRef.current]
-
-      if (search.trim()) {
-        filtered = filtered.filter(p =>
-          p.name.toLowerCase().includes(search.toLowerCase()) ||
-          (p.category?.toLowerCase() || '').includes(search.toLowerCase())
-        )
-      }
-
-      return filtered.sort((a, b) => {
-        const storeA = getStore(a.store_id)
-        const storeB = getStore(b.store_id)
-
-        if (!storeA || !storeB) return 0
-
-        if (storeA.is_open !== storeB.is_open) return storeA.is_open ? -1 : 1
-
-        switch (sortBy) {
-          case 'distance': {
-            const distA = calcDistanceKm(storeA.location) ?? 9999
-            const distB = calcDistanceKm(storeB.location) ?? 9999
-            return distA - distB
-          }
-          case 'rating': return (storeB.store_stats.ratings_avg ?? 0) - (storeA.store_stats.ratings_avg ?? 0)
-          case 'prepTime': return (storeA.store_stats.prep_time_min ?? 9999) - (storeB.store_stats.prep_time_min ?? 9999)
-          case 'priceMin': return (a.price ?? 9999) - (b.price ?? 9999)
-          case 'priceMax': return (b.price ?? 0) - (a.price ?? 0)
-          default: return 0
-        }
-      })
-    }
+  const translateType = (type: string | null) => {
+    if (!type) return null
+    const t = type.toLowerCase()
+    if (t === 'physical') return 'Físico'
+    if (t === 'service') return 'Serviço'
+    return type
   }
 
-  // 🔥 PAGINAÇÃO
-  const loadPage = (page: number) => {
-    const sorted = sortItems()
+  // 🔥 FILTRO + ORDENAÇÃO - STORES
+  const getSortedStores = () => {
+    let filtered = [...allStores]
 
-    const totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1
-    const validPage = Math.max(1, Math.min(page, totalPages))
+    if (search.trim()) {
+      filtered = filtered.filter(store =>
+        store.name.toLowerCase().includes(search.toLowerCase())
+      )
+    }
 
-    const start = (validPage - 1) * PAGE_SIZE
-    const end = start + PAGE_SIZE
+    return filtered.sort((a, b) => {
+      if (a.is_open !== b.is_open) return a.is_open ? -1 : 1
 
-    const data = sorted.slice(start, end)
+      const aStats = a.store_stats
+      const bStats = b.store_stats
 
-    setDisplayedItems(data)
-    setCurrentPage(validPage)
+      switch (sortBy) {
+        case 'distance': {
+          const distA = calcDistanceKm(a.location) ?? 9999
+          const distB = calcDistanceKm(b.location) ?? 9999
+          return distA - distB
+        }
+        case 'rating': return (bStats.ratings_avg ?? 0) - (aStats.ratings_avg ?? 0)
+        case 'prepTime': return (aStats.prep_time_min ?? 9999) - (bStats.prep_time_min ?? 9999)
+        case 'priceMin': return (aStats.price_min ?? 9999) - (bStats.price_min ?? 9999)
+        case 'priceMax': return (bStats.price_max ?? 0) - (aStats.price_max ?? 0)
+        default: return 0
+      }
+    })
+  }
+
+  // 🔥 FILTRO + ORDENAÇÃO - PRODUCTS
+  const getSortedProducts = () => {
+    let filtered = [...allProducts]
+
+    if (search.trim()) {
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        (p.category?.toLowerCase() || '').includes(search.toLowerCase())
+      )
+    }
+
+    return filtered.sort((a, b) => {
+      const storeA = getStore(a.store_id)
+      const storeB = getStore(b.store_id)
+
+      if (!storeA || !storeB) return 0
+
+      if (storeA.is_open !== storeB.is_open) return storeA.is_open ? -1 : 1
+
+      switch (sortBy) {
+        case 'distance': {
+          const distA = calcDistanceKm(storeA.location) ?? 9999
+          const distB = calcDistanceKm(storeB.location) ?? 9999
+          return distA - distB
+        }
+        case 'rating': return (storeB.store_stats.ratings_avg ?? 0) - (storeA.store_stats.ratings_avg ?? 0)
+        case 'prepTime': return (storeA.store_stats.prep_time_min ?? 9999) - (storeB.store_stats.prep_time_min ?? 9999)
+        case 'priceMin': return (a.price ?? 9999) - (b.price ?? 9999)
+        case 'priceMax': return (b.price ?? 0) - (a.price ?? 0)
+        default: return 0
+      }
+    })
   }
 
   // 🔥 INIT
@@ -222,8 +211,8 @@ export default function Vitrine() {
         image_url: product.image_url ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl : null
       }))
 
-      allMockStoresRef.current = mappedStores as any
-      allMockProductsRef.current = mappedProducts as any
+      setAllStores(mappedStores as any)
+      setAllProducts(mappedProducts as any)
 
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -243,87 +232,103 @@ export default function Vitrine() {
     init()
   }, [])
 
-  // 🔁 RELOAD on dep changes
+  // Reset show-all when search/sort changes
   useEffect(() => {
-    if (loading) return
-    loadPage(1)
-  }, [loading, sortBy, userLocation, search, mode])
+    setShowAllProducts(false)
+    setShowAllStores(false)
+  }, [search, sortBy])
 
-  const sortedAll = sortItems()
-  const totalItems = sortedAll.length
-  const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1
-
-  // 🧩 STORE CARD
+  // 🧩 STORE CARD - design destacado, completamente diferente dos produtos
   const renderStoreCard = (store: StoreType, idx: number) => {
     const stats = store.store_stats ?? {}
     const distanceKm = calcDistanceKm(store.location)
-    const storeProducts = allMockProductsRef.current.filter(p => p.store_id === store.id).slice(0, 3)
+    const storeProducts = allProducts.filter(p => p.store_id === store.id).slice(0, 4)
 
     return (
       <div
         key={store.id + idx}
         onClick={() => router.push(`/${store.storeSlug}`)}
-        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-white/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col"
+        className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        <div className="relative h-48 bg-neutral-900 flex items-center justify-center overflow-hidden">
+        {/* Fundo banner da loja */}
+        <div className="relative h-36 overflow-hidden bg-neutral-900">
           {store.logo_url ? (
-            <img src={store.logo_url} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" alt={store.name} />
+            <img src={store.logo_url} className="w-full h-full object-cover opacity-30 group-hover:opacity-40 group-hover:scale-105 transition-all duration-700 blur-sm" alt="" />
           ) : (
-            <span className="text-neutral-600 text-sm">Sem imagem</span>
+            <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950" />
           )}
+          {/* Gradiente sobreposto */}
+          <div className="absolute bottom-0 left-0 w-full h-[35%] bg-gradient-to-t from-neutral-950 via-neutral-950/80 to-transparent translate-y-[6%] group-hover:translate-y-[2%] transition-transform duration-700" />
 
-          <div className={`absolute top-3 left-3 px-3 py-1 text-xs font-bold rounded-lg border backdrop-blur-md ${store.is_open
+          {/* Status badge */}
+          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full border backdrop-blur-md ${store.is_open
             ? 'bg-green-500/20 text-green-400 border-green-500/30'
             : 'bg-red-500/20 text-red-400 border-red-500/30'
             }`}>
-            {store.is_open ? 'Aberto' : 'Fechado'}
+            {store.is_open ? '● Aberto' : '● Fechado'}
           </div>
 
           {distanceKm && (
-            <div className="absolute top-3 right-3 px-2 py-1 text-xs font-semibold bg-black/70 backdrop-blur text-white rounded-md border border-neutral-700">
-              {distanceKm} km
+            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10">
+              <MapPin className="w-3 h-3 inline mr-1 -mt-0.5" />{distanceKm} km
             </div>
           )}
         </div>
 
-        <div className="p-4 flex flex-col gap-3 relative flex-1">
-          <h3 className="font-semibold text-lg text-white line-clamp-2 pr-2">
-            {store.name}
-          </h3>
-
-          <div className="flex items-center gap-1 text-sm text-neutral-300">
-            <Star className="w-3 h-3 fill-white text-white" /> {stats.ratings_avg?.toFixed(1) ?? '0.0'}
-            <span className="text-neutral-500 text-xs">
-              ({stats.ratings_count})
-            </span>
+        {/* Avatar da loja + info */}
+        <div className="px-5 pb-5 flex flex-col gap-3 -mt-8 relative z-10">
+          <div className="flex items-end gap-3">
+            <div className="w-16 h-16 rounded-2xl border-2 border-neutral-700 bg-neutral-900 overflow-hidden shadow-xl flex-shrink-0">
+              {store.logo_url ? (
+                <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Store className="w-6 h-6 text-neutral-500" />
+                </div>
+              )}
+            </div>
+            <div className="mb-1 flex-1 min-w-0">
+              <h3 className="font-bold text-lg text-white leading-tight line-clamp-1">{store.name}</h3>
+              <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-0.5">
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-yellow-400 font-semibold">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+                <span className="text-neutral-600">({stats.ratings_count ?? 0} avaliações)</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-1">
-            {(stats.prep_time_min !== null && stats.prep_time_max !== null) && (
-              <div className="text-xs px-2 py-1 rounded-md bg-neutral-900/50 border border-neutral-800/80 text-neutral-300">
-                ⏱ {stats.prep_time_min}-{stats.prep_time_max} min
-              </div>
-            )}
+          {store.description && (
+            <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">{store.description}</p>
+          )}
 
-            {(stats.price_min !== null && stats.price_max !== null) && (
-              <div className="text-xs px-2 py-1 rounded-md bg-neutral-900/50 border border-neutral-800/80 text-green-400">
-                💰 R${stats.price_min} - R${stats.price_max}
-              </div>
-            )}
-          </div>
+          {/* Mini produtos da loja */}
+          {storeProducts.length > 0 && (
+            <div className="flex gap-2 mt-1">
+              {storeProducts.map(p => (
+                <div key={p.id} className="w-12 h-12 rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden flex-shrink-0 shadow-md">
+                  {p.image_url ? (
+                    <img src={p.image_url} className="w-full h-full object-cover" alt={p.name} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-neutral-800 text-[7px] text-neutral-500 text-center leading-none p-1">
+                      {p.name.slice(0, 8)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {allProducts.filter(p => p.store_id === store.id).length > 4 && (
+                <div className="w-12 h-12 rounded-xl border border-neutral-700 bg-neutral-900/50 flex items-center justify-center flex-shrink-0 text-xs text-neutral-500 font-bold">
+                  +{allProducts.filter(p => p.store_id === store.id).length - 4}
+                </div>
+              )}
+            </div>
+          )}
 
-          <div className="mt-auto pt-3 flex gap-2">
-            {storeProducts.map(p => (
-              <div key={p.id} className="w-10 h-10 rounded-md border border-neutral-800 bg-neutral-900 overflow-hidden flex-shrink-0">
-                {p.image_url ? (
-                  <img src={p.image_url} className="w-full h-full object-cover" alt={p.name} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-neutral-800 text-[8px] text-neutral-500 text-center leading-none p-0.5 break-words">
-                    {p.name.slice(0, 10)}
-                  </div>
-                )}
-              </div>
-            ))}
+          {/* CTA */}
+          <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60 mt-1">
+            <span className="text-xs text-neutral-500">{allProducts.filter(p => p.store_id === store.id).length} produtos</span>
+            <div className="flex items-center gap-1 text-xs font-semibold text-white group-hover:gap-2 transition-all">
+              Visitar loja <ChevronRight className="w-3.5 h-3.5" />
+            </div>
           </div>
         </div>
       </div>
@@ -335,6 +340,7 @@ export default function Vitrine() {
     const store = getStore(product.store_id)
     const distanceKm = store ? calcDistanceKm(store.location) : null
     const price = typeof product.price === 'number' ? product.price : 0
+    const typeLabel = translateType(product.type) || product.category || 'Produto'
 
     return (
       <div
@@ -344,44 +350,74 @@ export default function Vitrine() {
             router.push(`/${store.storeSlug}/${product.slug}`)
           }
         }}
-        className="group cursor-pointer rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950/80 backdrop-blur-sm hover:border-white/50 hover:-translate-y-1 transition-all duration-300 shadow-md hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] flex flex-col"
+        className="group cursor-pointer relative isolate overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        <div className="relative h-40 bg-neutral-900 flex items-center justify-center overflow-hidden">
+        {/* IMAGEM */}
+        <div className="relative h-52 overflow-hidden bg-neutral-900">
+
+          {/* IMG */}
           {product.image_url ? (
-            <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+            <img
+              src={product.image_url}
+              className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform group-hover:scale-110 transition-transform duration-700"
+              alt={product.name}
+            />
           ) : (
-            <span className="text-neutral-600 text-sm">Sem imagem</span>
+            <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center text-neutral-600 text-sm">
+              Sem imagem
+            </div>
           )}
 
-          <div className="absolute top-2 left-2 px-2 py-1 bg-white text-black text-xs font-bold rounded-md">
-            {product.type || product.category || 'Produto'}
+          {/* GRADIENTE CORRIGIDO */}
+          <div className="pointer-events-none absolute bottom-0 left-0 w-full h-[28%] z-10 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent translate-y-[6%] group-hover:translate-y-[2%] transition-transform duration-700" />
+
+
+          {/* BADGE */}
+          <div className="absolute z-20 top-3 left-3 px-2.5 py-1 text-[11px] font-semibold bg-white/10 backdrop-blur-md text-white rounded-full border border-white/20">
+            {typeLabel}
           </div>
 
+          {/* DISTÂNCIA */}
           {distanceKm && (
-            <div className="absolute top-2 right-2 px-2 py-1 text-xs font-semibold bg-black/70 backdrop-blur text-white rounded-md border border-neutral-700">
+            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10">
               {distanceKm} km
             </div>
           )}
         </div>
 
-        <div className="p-4 flex flex-col flex-1 gap-2">
-          <h3 className="font-semibold text-base text-white line-clamp-2 leading-tight">
+        {/* CONTEÚDO */}
+        <div className="px-5 pb-5 pt-4 flex flex-col flex-1 gap-3 bg-neutral-950">
+          <h3 className="font-bold text-base text-white leading-tight line-clamp-2 min-h-[40px]">
             {product.name}
           </h3>
 
-          <p className="text-green-400 font-bold text-lg mt-auto pt-2">
+          <div className="text-green-400 font-extrabold text-xl tracking-tight">
             R$ {price.toFixed(2).replace('.', ',')}
-          </p>
+          </div>
 
           {store && (
-            <div className="flex items-center gap-2 mt-2 pt-3 border-t border-neutral-800/50">
-              <div className="w-6 h-6 rounded-full bg-neutral-800 flex-shrink-0 overflow-hidden">
-                {store.logo_url && <img src={store.logo_url} className="w-full h-full object-cover" alt="Logo" />}
+            <div className="flex items-center gap-2 pt-3 border-t border-neutral-800/60">
+              <div className="w-7 h-7 rounded-full bg-neutral-800 overflow-hidden border border-neutral-700">
+                {store.logo_url ? (
+                  <img src={store.logo_url} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-500">
+                    <Store className="w-3 h-3" />
+                  </div>
+                )}
               </div>
+
               <div className="flex flex-col overflow-hidden">
-                <span className="text-xs text-neutral-400 truncate">{store.name}</span>
-                <div className="flex items-center gap-1 text-[10px] text-neutral-400">
-                  <Star className="w-2.5 h-2.5 fill-current" /> {store.store_stats.ratings_avg?.toFixed(1) ?? '0.0'}
+                <span className="text-xs text-neutral-300 truncate font-medium">
+                  {store.name}
+                </span>
+
+                <div className="flex items-center gap-1 text-[11px] text-neutral-400">
+                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                  <span className="text-yellow-400 font-semibold">
+                    {store.store_stats.ratings_avg?.toFixed(1) ?? '0.0'}
+                  </span>
+
                   {store.store_stats.prep_time_min && (
                     <span className="text-neutral-500 ml-1">
                       • {store.store_stats.prep_time_min}m
@@ -392,9 +428,17 @@ export default function Vitrine() {
             </div>
           )}
         </div>
+
+        {/* HOVER */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
+          <div className="absolute inset-0 bg-white/5" />
+        </div>
       </div>
     )
   }
+
+
+
 
   if (loading) {
     return (
@@ -404,56 +448,38 @@ export default function Vitrine() {
     )
   }
 
+  const sortedProducts = getSortedProducts()
+  const sortedStores = getSortedStores()
+
+  const visibleProducts = showAllProducts ? sortedProducts : sortedProducts.slice(0, PREVIEW_COUNT)
+  const visibleStores = showAllStores ? sortedStores : sortedStores.slice(0, PREVIEW_COUNT)
+
+  const hasMoreProducts = sortedProducts.length > PREVIEW_COUNT
+  const hasMoreStores = sortedStores.length > PREVIEW_COUNT
+
   return (
     <div className="min-h-screen bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/40 via-black to-black">
 
-      {/* CONTAINER PRINCIPAL COM PADDING RESPONSIVO */}
+      {/* CONTAINER PRINCIPAL */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
 
-        {/* HEADER COM TÍTULO */}
+        {/* HEADER */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            {mode === 'produtos' ? 'Produtos e Serviços' : 'Lojas'}
+            iUser
           </h1>
-          <p className="text-neutral-500 text-sm sm:text-base mt-1">
-            Encontre o que você precisa perto de você
-          </p>
-        </div>
 
-        {/* SWITCH MODE - ESTILO SEGMENTADO */}
-        <div className="mb-6">
-          <div className="inline-flex p-1 bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-2xl">
-            <button
-              onClick={() => setMode('produtos')}
-              className={`px-4 sm:px-6 py-2 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap ${mode === 'produtos'
-                  ? 'bg-white text-black shadow-lg'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
-                }`}
-            >
-              📦 Produtos
-            </button>
-            <button
-              onClick={() => setMode('lojas')}
-              className={`px-4 sm:px-6 py-2 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap ${mode === 'lojas'
-                  ? 'bg-white text-black shadow-lg'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/50'
-                }`}
-            >
-              🏪 Lojas
-            </button>
-          </div>
         </div>
 
         {/* BARRA DE BUSCA E FILTRO */}
         <div className="flex gap-3 mb-4">
-          {/* INPUT DE BUSCA */}
           <div className="flex-1 relative">
             <div className="relative group">
               <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 group-focus-within:text-white transition-colors" />
 
               <input
                 type="text"
-                placeholder={mode === 'produtos' ? 'Buscar produtos ou serviços...' : 'Buscar lojas...'}
+                placeholder="Buscar produtos, serviços ou lojas..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-11 pr-10 py-3 sm:py-3.5 bg-neutral-900/80 backdrop-blur-sm border border-neutral-700 rounded-2xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-white focus:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all"
@@ -474,8 +500,8 @@ export default function Vitrine() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`lg:hidden px-4 py-3 rounded-2xl border transition-all ${showFilters
-                ? 'bg-white text-black border-white'
-                : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:border-white/50'
+              ? 'bg-white text-black border-white'
+              : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:border-white/50'
               }`}
           >
             <Filter className="w-5 h-5" />
@@ -487,8 +513,8 @@ export default function Vitrine() {
           </div>
         </div>
 
-        {/* FILTROS - DESKTOP (SEMPRE VISÍVEL) / MOBILE (TOGGLE) */}
-        <div className={`${showFilters ? 'block' : 'hidden'} lg:block mb-6`}>
+        {/* FILTROS */}
+        <div className={`${showFilters ? 'block' : 'hidden'} lg:block mb-8`}>
           <div className="bg-neutral-900/40 backdrop-blur-sm rounded-2xl border border-neutral-800 p-4">
             <div className="flex items-center gap-2 mb-3 lg:hidden">
               <Filter className="w-4 h-4 text-neutral-400" />
@@ -508,8 +534,8 @@ export default function Vitrine() {
                       setShowFilters(false)
                     }}
                     className={`group relative px-4 py-2 rounded-full text-sm font-medium border transition-all flex items-center gap-2 ${isActive
-                        ? 'bg-white text-black border-white shadow-lg'
-                        : 'bg-neutral-900/50 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white hover:border-neutral-500'
+                      ? 'bg-white text-black border-white shadow-lg'
+                      : 'bg-neutral-900/50 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white hover:border-neutral-500'
                       }`}
                   >
                     <Icon className={`w-4 h-4 ${isActive ? 'text-black' : 'text-neutral-500 group-hover:text-white'}`} />
@@ -525,90 +551,140 @@ export default function Vitrine() {
           </div>
         </div>
 
-        {/* GRID DE CARDS - COM MÍNIMO DE 3 COLUNAS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5 md:gap-6">
-          {displayedItems.length === 0 ? (
-            <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-              <div className="w-24 h-24 mb-6 rounded-full bg-neutral-900/50 flex items-center justify-center border border-neutral-800">
-                <SearchIcon className="w-10 h-10 text-neutral-600" />
+        {/* ═══════════════════════════════════
+            SEÇÃO DE PRODUTOS
+        ═══════════════════════════════════ */}
+        <section className="mb-14">
+          {/* Header seção produtos */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/10">
+                <ShoppingBag className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Nenhum resultado encontrado</h3>
-              <p className="text-neutral-500 max-w-md">
-                Tente ajustar sua busca ou explorar outras categorias
-              </p>
+              <div>
+                <h2 className="text-lg font-bold text-white">Produtos e Serviços</h2>
+                <p className="text-xs text-neutral-500">{sortedProducts.length} itens disponíveis</p>
+              </div>
+            </div>
+            {hasMoreProducts && !showAllProducts && (
+              <button
+                onClick={() => setShowAllProducts(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
+              >
+                Ver todos ({sortedProducts.length})
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
+            {showAllProducts && (
+              <button
+                onClick={() => setShowAllProducts(false)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" /> Mostrar menos
+              </button>
+            )}
+          </div>
+
+          {sortedProducts.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
+              <ShoppingBag className="w-10 h-10 text-neutral-700 mb-3" />
+              <p className="text-neutral-500 text-sm">Nenhum produto encontrado</p>
             </div>
           ) : (
-            displayedItems.map((item, idx) =>
-              mode === 'lojas'
-                ? renderStoreCard(item, idx)
-                : renderProductCard(item, idx)
-            )
-          )}
-        </div>
-
-        {/* INFO E PAGINAÇÃO */}
-        {displayedItems.length > 0 && (
-          <>
-            <div className="flex flex-col sm:flex-row justify-between items-center mt-10 mb-6 text-sm text-neutral-400 gap-3">
-              <div className="bg-neutral-900/50 px-4 py-2 rounded-full border border-neutral-800">
-                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}-
-                {Math.min(currentPage * PAGE_SIZE, totalItems)} de {totalItems} resultados
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
               </div>
 
-              <div className="bg-neutral-900/50 px-4 py-2 rounded-full border border-neutral-800">
-                Página {currentPage} de {totalPages}
+              {/* Botão ver todos abaixo do grid */}
+              {hasMoreProducts && !showAllProducts && (
+                <div className="mt-5 text-center">
+                  <button
+                    onClick={() => setShowAllProducts(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
+                  >
+                    Ver todos os {sortedProducts.length} produtos
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {/* ═══════════════════════════════════
+            SEÇÃO DE LOJAS — design destacado
+        ═══════════════════════════════════ */}
+        <section>
+          {/* Divisor decorativo */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-800" />
+            </div>
+            <div className="relative flex justify-center">
+              <div className="flex items-center gap-3 px-5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-2xl shadow-lg">
+                <Store className="w-4 h-4 text-neutral-300" />
+                <span className="text-sm font-bold text-neutral-200 tracking-wide uppercase">Lojas</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-neutral-500" />
+                <span className="text-xs text-neutral-500">{sortedStores.length} lojas</span>
               </div>
             </div>
+          </div>
 
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 pb-10 flex-wrap">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => loadPage(currentPage - 1)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-all disabled:opacity-30 disabled:hover:bg-neutral-900/80 disabled:hover:text-neutral-400"
-                >
-                  ←
-                </button>
-
-                {Array.from({ length: totalPages }).map((_, i) => {
-                  const page = i + 1
-
-                  if (
-                    page !== 1 &&
-                    page !== totalPages &&
-                    Math.abs(page - currentPage) > 2
-                  ) {
-                    if (Math.abs(page - currentPage) === 3) {
-                      return <span key={page} className="text-neutral-600 px-1">...</span>
-                    }
-                    return null
-                  }
-
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => loadPage(page)}
-                      className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold border transition-all ${currentPage === page
-                          ? 'bg-white text-black border-white shadow-lg'
-                          : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white'
-                        }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                })}
-
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => loadPage(currentPage + 1)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full border border-neutral-700 bg-neutral-900/80 text-sm hover:bg-neutral-800 hover:text-white hover:border-white/50 transition-all disabled:opacity-30 disabled:hover:bg-neutral-900/80 disabled:hover:text-neutral-400"
-                >
-                  →
-                </button>
-              </div>
+          {/* Header seção lojas */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-white">Descubra as lojas</h2>
+              <p className="text-xs text-neutral-500">Explore e visite as lojas próximas</p>
+            </div>
+            {hasMoreStores && !showAllStores && (
+              <button
+                onClick={() => setShowAllStores(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
+              >
+                Ver todas ({sortedStores.length})
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             )}
-          </>
-        )}
+            {showAllStores && (
+              <button
+                onClick={() => setShowAllStores(false)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" /> Mostrar menos
+              </button>
+            )}
+          </div>
+
+          {sortedStores.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
+              <Store className="w-10 h-10 text-neutral-700 mb-3" />
+              <p className="text-neutral-500 text-sm">Nenhuma loja encontrada</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+                {visibleStores.map((item, idx) => renderStoreCard(item, idx))}
+              </div>
+
+              {/* Botão ver todas lojas */}
+              {hasMoreStores && !showAllStores && (
+                <div className="mt-5 text-center">
+                  <button
+                    onClick={() => setShowAllStores(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
+                  >
+                    Ver todas as {sortedStores.length} lojas
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="pb-10" />
+        </section>
+
       </div>
     </div>
   )
