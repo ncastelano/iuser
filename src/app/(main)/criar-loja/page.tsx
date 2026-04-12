@@ -13,6 +13,7 @@ export default function CriarLoja() {
 
     const [loading, setLoading] = useState(false)
     const [loadingLocation, setLoadingLocation] = useState(false)
+    const [slugStatus, setSlugStatus] = useState<'idle'|'checking'|'available'|'taken'>('idle')
 
     const [name, setName] = useState('')
     const [storeSlug, setStoreSlug] = useState('')
@@ -39,8 +40,33 @@ export default function CriarLoja() {
             .replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)+/g, '')
+        
+        // Só tenta gerar do nome se ainda não foi criado ou modificado muito
         setStoreSlug(slug)
     }, [name])
+
+    // CHECAR DISPONIBILIDADE DO SLUG
+    useEffect(() => {
+        if (!storeSlug) {
+            setSlugStatus('idle')
+            return
+        }
+
+        const check = async () => {
+            setSlugStatus('checking')
+            const { data } = await supabase.from('stores').select('id').eq('storeSlug', storeSlug).limit(1).maybeSingle()
+            if (data) {
+                setSlugStatus('taken')
+                // Sugere um novo slug em caso de colisão (exemplo: loja-123)
+                setStoreSlug(`${storeSlug}-${Math.floor(Math.random() * 9999)}`)
+            } else {
+                setSlugStatus('available')
+            }
+        }
+
+        const timer = setTimeout(check, 600)
+        return () => clearTimeout(timer)
+    }, [storeSlug, supabase])
 
     // IMAGE PREVIEW
     useEffect(() => {
@@ -184,23 +210,28 @@ export default function CriarLoja() {
                     />
 
                     {/* SLUG */}
-                    <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 focus-within:border-white focus-within:ring-1 focus-within:ring-white overflow-hidden transition">
-                        <span className="flex items-center px-4 bg-neutral-900 text-neutral-500 border-r border-neutral-800 text-sm whitespace-nowrap">
-                            iuser.com.br/
-                        </span>
+                    <div>
+                        <div className="flex bg-neutral-950 rounded-xl border border-neutral-800 focus-within:border-white focus-within:ring-1 focus-within:ring-white overflow-hidden transition">
+                            <span className="flex items-center px-4 bg-neutral-900 text-neutral-500 border-r border-neutral-800 text-sm whitespace-nowrap">
+                                iuser.com.br/
+                            </span>
 
-                        <input
-                            placeholder="minha-loja"
-                            value={storeSlug}
-                            onChange={(e) =>
-                                setStoreSlug(
-                                    e.target.value
-                                        .toLowerCase()
-                                        .replace(/[^a-z0-9-]/g, '')
-                                )
-                            }
-                            className="w-full p-3.5 bg-transparent text-white outline-none"
-                        />
+                            <input
+                                placeholder="minha-loja"
+                                value={storeSlug}
+                                onChange={(e) =>
+                                    setStoreSlug(
+                                        e.target.value
+                                            .toLowerCase()
+                                            .replace(/[^a-z0-9-]/g, '')
+                                    )
+                                }
+                                className="w-full p-3.5 bg-transparent text-white outline-none"
+                            />
+                        </div>
+                        {storeSlug && slugStatus === 'checking' && <p className="text-xs text-neutral-500 mt-2 ml-1 animate-pulse">Verificando disponibilidade...</p>}
+                        {storeSlug && slugStatus === 'available' && <p className="text-xs text-green-500 mt-2 ml-1">✓ Endereço disponível!</p>}
+                        {storeSlug && slugStatus === 'taken' && <p className="text-xs text-red-500 mt-2 ml-1">✗ Endereço indisponível, gerando alternativa...</p>}
                     </div>
 
                     {/* DESCRIÇÃO */}
@@ -244,7 +275,7 @@ export default function CriarLoja() {
                                     className="w-full flex items-center justify-center gap-2 p-3.5 bg-neutral-900 border border-neutral-800 hover:border-white hover:text-white rounded-xl transition text-neutral-400"
                                 >
                                     <MapPinned size={18} />
-                                    {loadingLocation ? 'Procurando...' : 'Usar minha localização'}
+                                    {loadingLocation ? 'Procurando localização...' : 'Usar minha localização'}
                                 </button>
 
                                 <div className="relative">

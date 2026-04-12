@@ -156,24 +156,23 @@ export default function MapPage() {
                 let lng = coords[0]
                 let lat = coords[1]
                 
-                // Lógica Spiderify: deslocamento radial
-                // O primeiro item (index 0) fica exatamente no ponto. Os próximos formam círculos concêntricos em volta.
+                // Lógica Spiderify: deslocamento radial dinâmico logo nas coordenadas cartográficas
                 if (index > 0) {
-                    const radius = 0.00025 * Math.ceil(index / 8) // expede o círculo a cada 8 itens
-                    const angle = index * (Math.PI / 4) // 45 graus pra cada ponto (8 por fileira)
+                    const radius = 0.00025 * Math.ceil(index / 8) // dispersa a cada 8 itens
+                    const angle = index * (Math.PI / 4) // 45 graus
                     lng += radius * Math.cos(angle)
                     lat += radius * Math.sin(angle)
                 }
 
                 const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
 
-                // Elemento do marker
+                // O wrapper base que o mapbox controla
                 const el = document.createElement('div')
                 el.style.zIndex = (100 - index).toString() // Central fica em cima
 
-                // Wrapper interno
+                // O Elemento interno é o redondinho em formato de pino/avatar
                 const inner = document.createElement('div')
-
+                
                 inner.style.cssText = `
                     width: 48px;
                     height: 48px;
@@ -212,6 +211,8 @@ export default function MapPage() {
                     inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
                 }
 
+                el.appendChild(inner)
+
                 // Add indicator badge se tem mais de um no mesmo lugar, e este for o center
                 if (index === 0 && group.length > 1) {
                     const badge = document.createElement('div')
@@ -220,8 +221,8 @@ export default function MapPage() {
                         position: absolute;
                         bottom: -5px;
                         right: -5px;
-                        background: #ff5500;
-                        color: white;
+                        background: #ffaa00;
+                        color: black;
                         font-size: 10px;
                         font-weight: 900;
                         padding: 2px 6px;
@@ -231,8 +232,6 @@ export default function MapPage() {
                     `
                     el.appendChild(badge)
                 }
-
-                el.appendChild(inner)
 
                 el.onclick = () => {
                     setSelectedItem(item)

@@ -1,28 +1,27 @@
-// app/criar-produto/page.tsx  
+// app/(main)/[storeSlug]/[productSlug]/editar-produto/page.tsx
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil } from 'lucide-react'
+import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil, Trash2 } from 'lucide-react'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
-export default function CriarProduto() {
+export default function EditarProduto() {
     const router = useRouter()
     const params = useParams()
     const supabase = createClient()
-    const [links, setLinks] = useState<any[]>([])
 
-    const storeSlug = Array.isArray(params.storeSlug)
-        ? params.storeSlug[0]
-        : params.storeSlug
+    const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
+    const productSlug = Array.isArray(params.productSlug) ? params.productSlug[0] : params.productSlug
 
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-    const [storeId, setStoreId] = useState<string | null>(null)
+    const [productId, setProductId] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [loadingLocation, setLoadingLocation] = useState(false)
+    const [pageLoading, setPageLoading] = useState(true)
 
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
@@ -35,31 +34,80 @@ export default function CriarProduto() {
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
 
-    // 🔥 buscar loja
     useEffect(() => {
-        const fetchStore = async () => {
+        const fetchProductData = async () => {
+            if (!storeSlug || !productSlug) return
 
-            if (!storeSlug) return
-
-            const { data } = await supabase
-                .from('stores')
-                .select('id')
-                .ilike('storeSlug', storeSlug || '')
-                .maybeSingle()
-
-            if (!data) {
-                alert('Loja não encontrada')
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                alert('Você precisa estar logado.')
                 router.push('/')
                 return
             }
 
-            setStoreId(data.id)
+            const { data: store, error: storeError } = await supabase.from('stores').select('id, owner_id').ilike('storeSlug', storeSlug).single()
+
+            if (storeError || !store) {
+                alert('Loja não encontrada.')
+                router.push('/')
+                return
+            }
+
+            if (store.owner_id !== user.id) {
+                alert('Você não tem permissão para editar este produto.')
+                router.push(`/${storeSlug}`)
+                return
+            }
+
+            const decodedSlug = decodeURIComponent(productSlug || '')
+            
+            let q = supabase.from('products').select('*').eq('store_id', store.id)
+            
+            if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decodedSlug)) {
+                q = q.eq('id', decodedSlug)
+            } else {
+                q = q.eq('slug', decodedSlug)
+            }
+            
+            const { data, error } = await q.limit(1).maybeSingle()
+
+            if (error || !data) {
+                console.error("Erro fetch product:", error, "Slug:", decodedSlug)
+                alert(`Produto não encontrado. (Buscando: ${decodedSlug}) Erro interno: ${error?.message || 'Sem dados'}`)
+                router.push(`/${storeSlug}`)
+                return
+            }
+
+            setProductId(data.id)
+            setName(data.name || '')
+            setDescription(data.description || '')
+            setPrice(data.price?.toString().replace('.', ',') || '')
+            setType((data.type as ProductType) || 'physical')
+            setAddress(data.address || '')
+            setCity(data.city || '')
+
+            if (data.image_url) {
+                const url = supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl
+                setPreview(url)
+            }
+
+            if (data.location) {
+                if (typeof data.location === 'string') {
+                    const match = data.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
+                    if (match) {
+                        setLocation({ lng: parseFloat(match[1]), lat: parseFloat(match[2]) });
+                    }
+                } else if (data.location.type === 'Point' && data.location.coordinates) {
+                    setLocation({ lng: data.location.coordinates[0], lat: data.location.coordinates[1] })
+                }
+            }
+
+            setPageLoading(false)
         }
 
-        fetchStore()
-    }, [storeSlug])
+        fetchProductData()
+    }, [storeSlug, productSlug])
 
-    // preview imagem
     useEffect(() => {
         if (!imageFile) return
         const url = URL.createObjectURL(imageFile)
@@ -105,15 +153,15 @@ export default function CriarProduto() {
         }
     }
 
-    const handleCreate = async () => {
-        if (!name || !price || !storeId) {
+    const handleUpdate = async () => {
+        if (!name || !price || !productId) {
             alert('Preencha os campos obrigatórios')
             return
         }
 
         setLoading(true)
 
-        let imagePath: string | null = null
+        let imagePath: string | undefined = undefined
 
         if (imageFile) {
             const fileExt = imageFile.name.split('.').pop()
@@ -135,10 +183,10 @@ export default function CriarProduto() {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)+/g, '')
 
-        // VERIFICA SE O SLUG JÁ EXISTE NESTA LOJA, SE SIM, COLOCA SUFIXO
+        // VERIFICA SE O NOVO SLUG DO PRODUTO EXISTE E COLOCA SUFIXO (Ignorando a si mesmo)
         let isUnique = false
         while (!isUnique) {
-            const { data } = await supabase.from('products').select('id').eq('slug', slug).eq('store_id', storeId).limit(1).maybeSingle()
+            const { data } = await supabase.from('products').select('id').eq('slug', slug).neq('id', productId).limit(1).maybeSingle()
             if (data) {
                 slug = slug + '-' + Math.floor(Math.random() * 9999).toString()
             } else {
@@ -148,26 +196,49 @@ export default function CriarProduto() {
 
         const locationString = location ? `POINT(${location.lng} ${location.lat})` : null;
 
-        const { error } = await supabase.from('products').insert({
+        const updateData: any = {
             name,
             slug,
             description,
             price: parseFloat(price.replace(',', '.')),
             type,
-            image_url: imagePath,
-            store_id: storeId,
             location: locationString,
             address: address || null,
             city: city || null
-        })
+        }
+
+        if (imagePath) {
+            updateData.image_url = imagePath
+        }
+
+        const { error } = await supabase.from('products').update(updateData).eq('id', productId)
 
         if (error) {
             console.error(error)
-            alert('Erro ao criar produto')
+            alert('Erro ao atualizar produto')
             setLoading(false)
             return
         }
 
+        router.push(`/${storeSlug}`)
+    }
+
+    const handleDelete = async () => {
+        if (!window.confirm("Certeza que deseja deletar permanentemente este produto? Esta ação não pode ser desfeita.")) {
+            return
+        }
+
+        setLoading(true)
+        const { error } = await supabase.from('products').delete().eq('id', productId)
+
+        if (error) {
+            console.error(error)
+            alert("Erro ao deletar produto.")
+            setLoading(false)
+            return
+        }
+
+        alert("Produto deletado com sucesso.")
         router.push(`/${storeSlug}`)
     }
 
@@ -177,15 +248,29 @@ export default function CriarProduto() {
         { label: 'Serviço', value: 'service', icon: Briefcase }
     ]
 
+    if (pageLoading) {
+        return (
+            <div className="min-h-screen bg-black flex items-center justify-center text-white">
+                <span className="animate-pulse">Carregando dados do produto...</span>
+            </div>
+        )
+    }
+
     return (
         <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-24">
             <div className="w-full max-w-lg mt-8">
-                <h1 className="text-3xl font-extrabold mb-2 tracking-tight">
-                    Novo Produto
-                </h1>
-                <p className="text-neutral-400 mb-8">
-                    Adicione um novo item ao seu catálogo.
-                </p>
+                <div className="flex justify-between items-end mb-8">
+                    <div>
+                        <h1 className="text-3xl font-extrabold mb-1 tracking-tight">Editar Produto</h1>
+                        <p className="text-neutral-400 text-sm">Atualize as informações ou remova o item.</p>
+                    </div>
+                    <button
+                        onClick={() => router.push(`/${storeSlug}`)}
+                        className="text-neutral-400 hover:text-white text-sm"
+                    >
+                        Voltar
+                    </button>
+                </div>
 
                 <div className="bg-neutral-900 border border-neutral-800 p-6 md:p-8 rounded-2xl shadow-2xl">
 
@@ -275,11 +360,11 @@ export default function CriarProduto() {
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Localização do Produto/Serviço</label>
                             {location ? (
                                 <div className="p-3.5 bg-neutral-950 text-white rounded-xl border border-white/50 text-sm flex flex-col gap-2 relative">
-                                    <span className="font-bold flex items-center gap-1"><MapPin className="w-4 h-4" /> Localização Capturada</span>
+                                    <span className="font-bold flex items-center gap-1"><MapPin className="w-4 h-4" /> Localização Atual</span>
                                     {address ? (
                                         <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
                                     ) : (
-                                        <span className="text-neutral-500 text-xs animate-pulse">Buscando endereço exato...</span>
+                                        <span className="text-neutral-500 text-xs animate-pulse">Coordenadas: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
                                     )}
                                     <div className="flex flex-col sm:flex-row gap-2 mt-2">
                                         <button
@@ -299,7 +384,7 @@ export default function CriarProduto() {
                                             }}
                                             className="text-red-400 font-semibold text-xs hover:text-white bg-red-400/10 px-4 py-2 rounded-lg transition"
                                         >
-                                            Remover
+                                            Limpar Localização
                                         </button>
                                     </div>
                                 </div>
@@ -327,25 +412,37 @@ export default function CriarProduto() {
                                     }}
                                     className="w-full p-3.5 bg-neutral-900 border border-neutral-800 hover:border-white text-neutral-400 hover:text-white rounded-xl transition flex items-center justify-center gap-2"
                                 >
-                                    <MapPin className="w-5 h-5" /> {loadingLocation ? 'Procurando localização...' : 'Capturar Onde Será Vendido/Realizado'}
+                                    <MapPin className="w-5 h-5" /> {loadingLocation ? 'Procurando localização...' : 'Adicionar Localização Exata'}
                                 </button>
                             )}
-                            <p className="text-xs text-neutral-500 mt-2 ml-1">Onde as pessoas podem encontrar isso usando o mapa.</p>
+                            <p className="text-xs text-neutral-500 mt-2 ml-1">Útil se este item for em um ponto diferente da loja mãe.</p>
                         </div>
                     </div>
 
-                    {/* BOTÃO */}
-                    <button
-                        onClick={handleCreate}
-                        disabled={loading}
-                        className="w-full mt-10 bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
-                    >
-                        {loading ? (
-                            <span className="animate-pulse">Adicionando...</span>
-                        ) : (
-                            'Adicionar Produto'
-                        )}
-                    </button>
+                    {/* BOTÕES */}
+                    <div className="mt-10 flex flex-col gap-3">
+                        <button
+                            onClick={handleUpdate}
+                            disabled={loading}
+                            className="w-full bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
+                        >
+                            {loading ? (
+                                <span className="animate-pulse">Salvando...</span>
+                            ) : (
+                                'Salvar Alterações'
+                            )}
+                        </button>
+
+                        <button
+                            onClick={handleDelete}
+                            disabled={loading}
+                            className="w-full bg-red-500/10 border border-red-500/50 hover:bg-red-500 text-red-500 hover:text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                            Deletar Produto
+                        </button>
+                    </div>
+
                 </div>
             </div>
         </div>

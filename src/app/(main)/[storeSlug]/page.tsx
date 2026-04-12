@@ -430,7 +430,7 @@ export default function StorePage() {
                                         <h4 className="font-bold text-lg line-clamp-1 text-white">{product.name}</h4>
                                         {(product.type || product.category) && (
                                             <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-1 rounded-md whitespace-nowrap">
-                                                {product.type || product.category}
+                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : (product.type || product.category)}
                                             </span>
                                         )}
                                     </div>
@@ -446,43 +446,55 @@ export default function StorePage() {
                                             R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         </p>
                                         
-                                        {mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                            <div className="flex gap-2 w-full">
-                                                <div 
-                                                    className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer flex-1"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        router.push(`/${storeSlug}/carrinho`)
-                                                    }}
-                                                >
-                                                    <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
-                                                    <button className="relative w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
-                                                        <CheckCircle2 className="w-4 h-4 text-white" />
-                                                        <span className="truncate">Adicionado</span>
-                                                    </button>
-                                                </div>
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        removeItem(storeSlug as string, product.id)
-                                                    }}
-                                                    className="py-2.5 px-3 rounded-xl font-bold transition-all flex items-center justify-center bg-red-500 text-black hover:bg-red-600 shadow-md hover:scale-[1.05] active:scale-[0.95] shrink-0"
-                                                    title="Remover"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </div>
-                                        ) : (
+                                        {isOwner ? (
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                    router.push(`/${storeSlug}/${product.slug || product.id}/editar-produto`)
                                                 }}
                                                 className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                                             >
-                                                <Plus className="w-5 h-5" />
-                                                Adicionar
+                                                <span>✏️ Editar</span>
                                             </button>
+                                        ) : (
+                                            mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                                <div className="flex gap-2 w-full">
+                                                    <div 
+                                                        className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer flex-1"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            router.push(`/${storeSlug}/carrinho`)
+                                                        }}
+                                                    >
+                                                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
+                                                        <button className="relative w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
+                                                            <CheckCircle2 className="w-4 h-4 text-white" />
+                                                            <span className="truncate">Adicionado</span>
+                                                        </button>
+                                                    </div>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            removeItem(storeSlug as string, product.id)
+                                                        }}
+                                                        className="py-2.5 px-3 rounded-xl font-bold transition-all flex items-center justify-center bg-red-500 text-black hover:bg-red-600 shadow-md hover:scale-[1.05] active:scale-[0.95] shrink-0"
+                                                        title="Remover"
+                                                    >
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                    }}
+                                                    className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                                                >
+                                                    <Plus className="w-5 h-5" />
+                                                    Adicionar
+                                                </button>
+                                            )
                                         )}
                                     </div>
                                 </div>
