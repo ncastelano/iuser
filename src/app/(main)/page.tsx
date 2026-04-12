@@ -250,18 +250,24 @@ export default function Vitrine() {
         onClick={() => router.push(`/${store.storeSlug}`)}
         className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        {/* Fundo banner da loja */}
-        <div className="relative h-36 overflow-hidden bg-neutral-900">
+        {/* Fundo banner da loja - imagem completa com blur gradiente no rodapé */}
+        <div className="relative h-48 overflow-hidden bg-neutral-900">
           {store.logo_url ? (
-            <img src={store.logo_url} className="w-full h-full object-cover opacity-30 group-hover:opacity-40 group-hover:scale-105 transition-all duration-700 blur-sm" alt="" />
+            <>
+              <img
+                src={store.logo_url}
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-700"
+                alt=""
+              />
+              {/* Gradiente no rodapé da imagem */}
+              <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent" />
+            </>
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950" />
           )}
-          {/* Gradiente sobreposto */}
-          <div className="absolute bottom-0 left-0 w-full h-[35%] bg-gradient-to-t from-neutral-950 via-neutral-950/80 to-transparent translate-y-[6%] group-hover:translate-y-[2%] transition-transform duration-700" />
 
           {/* Status badge */}
-          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full border backdrop-blur-md ${store.is_open
+          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full border backdrop-blur-md z-10 ${store.is_open
             ? 'bg-green-500/20 text-green-400 border-green-500/30'
             : 'bg-red-500/20 text-red-400 border-red-500/30'
             }`}>
@@ -269,7 +275,7 @@ export default function Vitrine() {
           </div>
 
           {distanceKm && (
-            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10">
+            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 z-10">
               <MapPin className="w-3 h-3 inline mr-1 -mt-0.5" />{distanceKm} km
             </div>
           )}
@@ -335,7 +341,7 @@ export default function Vitrine() {
     )
   }
 
-  // 🧩 PRODUCT CARD
+  // 🧩 PRODUCT CARD - SEM GRADIENTE ESCURO NA IMAGEM
   const renderProductCard = (product: ProductType, idx: number) => {
     const store = getStore(product.store_id)
     const distanceKm = store ? calcDistanceKm(store.location) : null
@@ -352,10 +358,8 @@ export default function Vitrine() {
         }}
         className="group cursor-pointer relative isolate overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        {/* IMAGEM */}
+        {/* IMAGEM - SEM GRADIENTE ESCURO */}
         <div className="relative h-52 overflow-hidden bg-neutral-900">
-
-          {/* IMG */}
           {product.image_url ? (
             <img
               src={product.image_url}
@@ -367,10 +371,6 @@ export default function Vitrine() {
               Sem imagem
             </div>
           )}
-
-          {/* GRADIENTE CORRIGIDO */}
-          <div className="pointer-events-none absolute bottom-0 left-0 w-full h-[28%] z-10 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent translate-y-[6%] group-hover:translate-y-[2%] transition-transform duration-700" />
-
 
           {/* BADGE */}
           <div className="absolute z-20 top-3 left-3 px-2.5 py-1 text-[11px] font-semibold bg-white/10 backdrop-blur-md text-white rounded-full border border-white/20">
@@ -437,9 +437,6 @@ export default function Vitrine() {
     )
   }
 
-
-
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -468,7 +465,6 @@ export default function Vitrine() {
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
             iUser
           </h1>
-
         </div>
 
         {/* BARRA DE BUSCA E FILTRO */}
@@ -552,7 +548,7 @@ export default function Vitrine() {
         </div>
 
         {/* ═══════════════════════════════════
-            SEÇÃO DE PRODUTOS
+            SEÇÃO DE PRODUTOS - GRID COM MÍNIMO 2 POR LINHA
         ═══════════════════════════════════ */}
         <section className="mb-14">
           {/* Header seção produtos */}
@@ -592,6 +588,7 @@ export default function Vitrine() {
             </div>
           ) : (
             <>
+              {/* Grid responsivo: mínimo 2 colunas, máximo 5 */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
               </div>
