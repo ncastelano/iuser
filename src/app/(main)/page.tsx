@@ -218,8 +218,8 @@ export default function Vitrine() {
         navigator.geolocation.getCurrentPosition(
           pos => {
             setUserLocation({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude
+              lat: pos.coordinates.latitude,
+              lng: pos.coordinates.longitude
             })
           },
           () => { }
@@ -548,7 +548,7 @@ export default function Vitrine() {
         </div>
 
         {/* ═══════════════════════════════════
-            SEÇÃO DE PRODUTOS - GRID COM MÍNIMO 2 POR LINHA
+            SEÇÃO DE PRODUTOS - 2 colunas (mobile/tablet/desktop médio) e 4 para telas grandes
         ═══════════════════════════════════ */}
         <section className="mb-14">
           {/* Header seção produtos */}
@@ -588,8 +588,8 @@ export default function Vitrine() {
             </div>
           ) : (
             <>
-              {/* Grid responsivo: mínimo 2 colunas, máximo 5 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {/* Grid: 2 colunas para mobile, tablet e desktop médio | 4 colunas para desktop grande */}
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
                 {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
               </div>
 
@@ -660,7 +660,8 @@ export default function Vitrine() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
+              {/* Grid de lojas: 1 coluna mobile, 2 colunas tablet/desktop médio, 3 colunas desktop grande */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
                 {visibleStores.map((item, idx) => renderStoreCard(item, idx))}
               </div>
 
