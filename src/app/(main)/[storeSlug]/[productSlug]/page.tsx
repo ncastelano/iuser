@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle, Briefcase, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Share2, Check, Copy, MessageCircle, Briefcase, CheckCircle2, Store, Star, ChevronRight, Tag, MapPin } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 
 interface Product {
@@ -19,11 +19,15 @@ interface Product {
     image_url: string | null
 }
 
-interface Store {
+interface StoreData {
     id: string
     name: string
     storeSlug: string
     logo_url: string | null
+    description: string | null
+    is_active: boolean | null
+    ratings_avg: number | null
+    ratings_count: number | null
 }
 
 export default function ProductPage() {
@@ -40,7 +44,7 @@ export default function ProductPage() {
         : params.productSlug
 
     const [product, setProduct] = useState<Product | null>(null)
-    const [store, setStore] = useState<Store | null>(null)
+    const [store, setStore] = useState<StoreData | null>(null)
     const [image, setImage] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [showShareMenu, setShowShareMenu] = useState(false)
@@ -57,7 +61,7 @@ export default function ProductPage() {
             // 🔍 buscar loja
             const { data: storeData } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug, logo_url')
+                .select('id, name, storeSlug, logo_url, description, is_active, ratings_avg, ratings_count')
                 .ilike('storeSlug', storeSlug || '')
                 .maybeSingle()
 
@@ -66,7 +70,11 @@ export default function ProductPage() {
                 return
             }
 
-            setStore(storeData)
+            const logo_url = storeData.logo_url
+                ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+                : null
+
+            setStore({ ...storeData, logo_url })
 
             // 🔥 buscar produto pelo slug
             const { data: productData } = await supabase
@@ -167,7 +175,10 @@ export default function ProductPage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white">
-                Carregando...
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                    <p className="text-neutral-400 text-sm">Carregando produto...</p>
+                </div>
             </div>
         )
     }
@@ -180,6 +191,10 @@ export default function ProductPage() {
         product?.category?.toLowerCase() === 'service' ||
         product?.category?.toLowerCase() === 'serviço' ||
         product?.category?.toLowerCase() === 'servico'
+
+    const typeLabel = product.type === 'service' ? 'Serviço'
+        : product.type === 'physical' ? 'Produto Físico'
+        : (product.type || product.category || 'Produto')
 
     return (
         <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
@@ -196,15 +211,13 @@ export default function ProductPage() {
                         <h1 className="text-xl font-bold truncate tracking-wide text-white">
                             {product.name}
                         </h1>
-                        <span className="text-xs text-neutral-300 uppercase font-black tracking-widest">
-                             {product.type === 'service' || product.type === 'physical'
-                               ? (product.type === 'service' ? 'Serviço' : 'Físico')
-                               : (product.type || product.category || 'Produto')}
+                        <span className="text-xs text-neutral-400 uppercase font-semibold tracking-widest">
+                            {typeLabel}
                         </span>
                     </div>
                 </div>
 
-                {/* Botão Compartilhar - Preto e Branco */}
+                {/* Botão Compartilhar */}
                 <div className="relative">
                     <button
                         onClick={shareNative}
@@ -214,7 +227,6 @@ export default function ProductPage() {
                         <span className="text-sm font-semibold text-neutral-400 group-hover:text-white transition-colors">Compartilhar</span>
                     </button>
 
-                    {/* Menu de Compartilhamento Customizado (para desktop) */}
                     {showShareMenu && (
                         <>
                             <div
@@ -279,60 +291,105 @@ export default function ProductPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-                {/* IMAGEM */}
-                <div className="w-full aspect-square md:aspect-auto md:h-[500px] bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl relative group">
-                    {image ? (
-                        <img
-                            src={image}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                            alt={product.name}
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                            <span className="text-neutral-600 font-medium tracking-wide">Sem Imagem</span>
-                        </div>
-                    )}
+                {/* COLUNA ESQUERDA: IMAGEM + CARD DA LOJA */}
+                <div className="flex flex-col gap-4">
+                    {/* IMAGEM */}
+                    <div className="w-full aspect-square md:aspect-auto md:h-[440px] bg-neutral-950 rounded-2xl overflow-hidden border border-neutral-800 shadow-2xl relative group">
+                        {image ? (
+                            <img
+                                src={image}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                alt={product.name}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                                <span className="text-neutral-600 font-medium tracking-wide">Sem Imagem</span>
+                            </div>
+                        )}
 
-                    {/* Badge da Loja - acima da foto */}
+                        {/* Badge tipo produto - canto superior direito */}
+                        <div className={`absolute top-4 right-4 px-3 py-1.5 backdrop-blur-md border rounded-lg ${isService
+                            ? 'bg-blue-500/20 border-blue-500/30'
+                            : 'bg-white/10 border-white/20'
+                        }`}>
+                            <span className={`text-xs font-bold ${isService ? 'text-blue-400' : 'text-white'}`}>
+                                {typeLabel.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* CARD DA LOJA — abaixo da imagem, design premium */}
                     {store && (
                         <div
-                            className="absolute top-4 left-4 flex items-center gap-2 px-3 py-2 bg-black/70 backdrop-blur-md border border-white/10 rounded-xl cursor-pointer hover:bg-black/80 transition-all"
-                            onClick={(e) => { e.stopPropagation(); router.push(`/${store.storeSlug}`) }}
+                            className="group w-full bg-neutral-900/60 backdrop-blur-sm border border-neutral-800 hover:border-white/20 rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:shadow-[0_4px_24px_rgba(255,255,255,0.06)] hover:-translate-y-0.5"
+                            onClick={() => router.push(`/${store.storeSlug}`)}
                         >
-                            {store.logo_url ? (
-                                <img src={store.logo_url} className="w-8 h-8 rounded-full object-cover border border-white/20 flex-shrink-0" alt={store.name} />
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-neutral-700 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-white text-xs font-bold">{store.name[0]}</span>
+                            <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest mb-3">Vendido por</p>
+                            <div className="flex items-center gap-4">
+                                {/* Logo da loja */}
+                                <div className="w-14 h-14 rounded-xl bg-neutral-800 border border-neutral-700 overflow-hidden flex-shrink-0 shadow-lg">
+                                    {store.logo_url ? (
+                                        <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Store className="w-6 h-6 text-neutral-500" />
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-neutral-400 leading-none mb-0.5">Vendido por</span>
-                                <span className="text-white text-xs font-bold leading-none">{store.name}</span>
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Badge de Serviço/Produto */}
-                    {isService && (
-                        <div className="absolute top-4 right-4 px-3 py-1.5 bg-blue-500/20 backdrop-blur-md border border-blue-500/30 rounded-lg">
-                            <span className="text-blue-400 text-xs font-bold">SERVIÇO</span>
+                                {/* Info da loja */}
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="text-white font-bold text-base leading-tight truncate">{store.name}</span>
+                                    {store.description && (
+                                        <span className="text-neutral-500 text-xs line-clamp-1 mt-0.5">{store.description}</span>
+                                    )}
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <div className="flex items-center gap-1">
+                                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                                            <span className="text-yellow-400 text-xs font-bold">
+                                                {store.ratings_avg?.toFixed(1) ?? '0,0'}
+                                            </span>
+                                            <span className="text-neutral-600 text-xs">
+                                                ({store.ratings_count ?? 0})
+                                            </span>
+                                        </div>
+                                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${store.is_active
+                                            ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                            : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                        }`}>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                                            {store.is_active ? 'Aberto' : 'Fechado'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Seta */}
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-neutral-800 group-hover:bg-white/10 flex items-center justify-center transition-colors">
+                                    <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors group-hover:translate-x-0.5 transition-transform" />
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
 
                 {/* INFO E COMPRA */}
                 <div className="flex flex-col">
+                    {/* Tag categoria */}
+                    <div className="flex items-center gap-2 mb-3">
+                        <Tag className="w-3.5 h-3.5 text-neutral-500" />
+                        <span className="text-xs text-neutral-500 uppercase font-semibold tracking-widest">{typeLabel}</span>
+                    </div>
+
                     <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400 mb-4">
                         {product.name}
                     </h1>
 
-                    <p className="text-white font-black text-3xl mb-8">
+                    <p className="text-white font-black text-3xl mb-6">
                         R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </p>
 
                     {product.description && (
-                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl mb-8">
+                        <div className="bg-neutral-900/50 border border-neutral-800 p-6 rounded-2xl mb-8 flex-1">
                             <h3 className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-3">
                                 {isService ? 'Sobre o Serviço' : 'Sobre o Produto'}
                             </h3>
@@ -374,15 +431,12 @@ export default function ProductPage() {
 
                         {/* Botão com Borda Gradiente Animada */}
                         <div className="relative p-[2px] rounded-xl overflow-hidden group">
-                            {/* Gradiente animado que gira */}
                             <div className={`absolute inset-0 rounded-xl bg-gradient-to-r ${isService
                                 ? 'from-blue-600 via-purple-500 to-blue-600'
                                 : 'from-yellow-400 via-orange-500 to-red-500'
                                 } animate-spin-slow group-hover:animate-spin-fast`}
                                 style={{ backgroundSize: '200% 200%' }}
                             />
-
-                            {/* Conteúdo interno preto */}
                             <button
                                 className={`relative w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-black text-white z-10`}
                             >
@@ -391,7 +445,6 @@ export default function ProductPage() {
                             </button>
                         </div>
 
-                        {/* Texto adicional explicativo */}
                         <p className="text-xs text-neutral-500 text-center">
                             {isService
                                 ? 'Ao contratar, você será redirecionado para finalizar o serviço'

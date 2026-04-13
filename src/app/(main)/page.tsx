@@ -99,7 +99,8 @@ export default function Vitrine() {
       Math.sin(dLon / 2) ** 2
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return Number((R * c).toFixed(1))
+    const km = R * c
+    return km.toFixed(1).replace('.', ',')
   }
 
   const getStore = (storeId: string) => allStores.find(s => s.id === storeId)
@@ -130,8 +131,8 @@ export default function Vitrine() {
 
       switch (sortBy) {
         case 'distance': {
-          const distA = calcDistanceKm(a.location) ?? 9999
-          const distB = calcDistanceKm(b.location) ?? 9999
+          const distA = calcDistanceKm(a.location) ? parseFloat((calcDistanceKm(a.location) as string).replace(',', '.')) : 9999
+          const distB = calcDistanceKm(b.location) ? parseFloat((calcDistanceKm(b.location) as string).replace(',', '.')) : 9999
           return distA - distB
         }
         case 'rating': return (bStats.ratings_avg ?? 0) - (aStats.ratings_avg ?? 0)
@@ -164,8 +165,8 @@ export default function Vitrine() {
 
       switch (sortBy) {
         case 'distance': {
-          const distA = calcDistanceKm(storeA.location) ?? 9999
-          const distB = calcDistanceKm(storeB.location) ?? 9999
+          const distA = calcDistanceKm(storeA.location) ? parseFloat((calcDistanceKm(storeA.location) as string).replace(',', '.')) : 9999
+          const distB = calcDistanceKm(storeB.location) ? parseFloat((calcDistanceKm(storeB.location) as string).replace(',', '.')) : 9999
           return distA - distB
         }
         case 'rating': return (storeB.store_stats.ratings_avg ?? 0) - (storeA.store_stats.ratings_avg ?? 0)
@@ -275,8 +276,8 @@ export default function Vitrine() {
           </div>
 
           {distanceKm && (
-            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 z-10">
-              <MapPin className="w-3 h-3 inline mr-1 -mt-0.5" />{distanceKm} km
+            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 z-10 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />{distanceKm} km
             </div>
           )}
         </div>
@@ -379,8 +380,8 @@ export default function Vitrine() {
 
           {/* DISTÂNCIA */}
           {distanceKm && (
-            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10">
-              {distanceKm} km
+            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />{distanceKm} km
             </div>
           )}
         </div>

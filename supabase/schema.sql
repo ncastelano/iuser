@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS public.stores (
   price_min NUMERIC(10,2),
   price_max NUMERIC(10,2),
   created_at TIMESTAMPTZ DEFAULT now(),
-  location geography(POINT)
+  location geography(POINT),
+  calendar_url TEXT
 );
 
 -- Products table (with geography location)

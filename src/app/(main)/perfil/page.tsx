@@ -40,6 +40,7 @@ export default function MyProfile() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [mounted, setMounted] = useState(false)
 
+
     const { itemsByStore, storeDetails } = useCartStore()
 
     useEffect(() => {
@@ -76,6 +77,7 @@ export default function MyProfile() {
             }))
 
             setStores(mapped)
+
             setLoading(false)
         }
 
@@ -472,6 +474,8 @@ export default function MyProfile() {
                     })}
                 </div>
             )}
+
+
         </div>
     )
 }

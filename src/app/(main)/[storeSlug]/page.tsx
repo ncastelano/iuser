@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check, ShoppingCart, Minus, X, Trash2, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check, ShoppingCart, X, Trash2, CheckCircle2 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 
 export default function StorePage() {
@@ -21,6 +21,7 @@ export default function StorePage() {
     const [copied, setCopied] = useState(false)
     const [showCart, setShowCart] = useState(false)
     const [mounted, setMounted] = useState(false)
+
 
     const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
@@ -136,6 +137,7 @@ export default function StorePage() {
             if (user && user.id === foundStore.owner_id) {
                 setIsOwner(true)
             }
+
 
             const { data: productsData, error: productsError } = await supabase
                 .from('products')
@@ -386,7 +388,7 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* PRODUCTS */}
+            {/* PRODUTOS */}
             <div className="mt-2">
                 <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
                     <span className="w-2 h-8 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
