@@ -218,8 +218,8 @@ export default function Vitrine() {
         navigator.geolocation.getCurrentPosition(
           pos => {
             setUserLocation({
-              lat: pos.coordinates.latitude,
-              lng: pos.coordinates.longitude
+              lat: pos.coords.latitude,  // CORRIGIDO: coords (com S) ao invés de coordinates
+              lng: pos.coords.longitude  // CORRIGIDO: coords (com S) ao invés de coordinates
             })
           },
           () => { }
@@ -589,7 +589,7 @@ export default function Vitrine() {
           ) : (
             <>
               {/* Grid: 2 colunas para mobile, tablet e desktop médio | 4 colunas para desktop grande */}
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
                 {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
               </div>
 
