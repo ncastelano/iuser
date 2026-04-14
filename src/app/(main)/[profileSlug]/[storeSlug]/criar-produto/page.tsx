@@ -18,6 +18,10 @@ export default function CriarProduto() {
         ? params.storeSlug[0]
         : params.storeSlug
 
+    const profileSlug = Array.isArray(params.profileSlug)
+        ? params.profileSlug[0]
+        : params.profileSlug
+
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     const [storeId, setStoreId] = useState<string | null>(null)
@@ -168,7 +172,7 @@ export default function CriarProduto() {
             return
         }
 
-        router.push(`/${storeSlug}`)
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const typeOptions = [

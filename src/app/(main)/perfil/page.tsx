@@ -24,6 +24,7 @@ interface UserProfile {
     avatar_url: string | null
     name: string | null
     id?: string
+    profileSlug?: string
 }
 
 export default function MyProfile() {
@@ -54,7 +55,7 @@ export default function MyProfile() {
 
             const { data: profileData } = await supabase
                 .from('profiles')
-                .select('avatar_url, name, id')
+                .select('avatar_url, name, id, profileSlug')
                 .eq('id', user.id)
                 .single()
             setProfile(profileData)
@@ -381,7 +382,14 @@ export default function MyProfile() {
                     {stores.map(store => (
                         <div
                             key={store.id}
-                            onClick={() => router.push(`/${store.storeSlug}`)}
+                            onClick={() => {
+                                if (profile?.profileSlug) {
+                                    router.push(`/${profile.profileSlug}/${store.storeSlug}`)
+                                } else {
+                                    alert('Você precisa configurar o seu link de perfil antes de acessar as lojas!')
+                                    router.push('/configuracoes')
+                                }
+                            }}
                             className="glass-glow-card cursor-pointer hover:scale-105 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:border-white/50 transition-all duration-300 group"
                         >
                             {store.logo_url ? (
@@ -445,7 +453,13 @@ export default function MyProfile() {
                         return (
                             <div
                                 key={slug}
-                                onClick={() => router.push(`/${slug}/carrinho`)}
+                                onClick={() => {
+                                    // Aqui não sabemos o profileSlug facilmente a partir dos itens do carrinho apenas pelo storeSlug, mas o router.push precisa.
+                                    // O ideal seria que useCartStore salvasse o profileSlug também.
+                                    // Como fallback provisório estamos redirecionando para a raiz caso falte.
+                                    const pSlug = profile?.profileSlug || 'store' 
+                                    router.push(`/${pSlug}/${slug}/carrinho`)
+                                }}
                                 className="bg-neutral-900/60 p-5 rounded-2xl border border-neutral-800 hover:border-white/50 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-all cursor-pointer group flex flex-col gap-4"
                             >
                                 <div className="flex items-center gap-4">

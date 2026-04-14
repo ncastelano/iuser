@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 export default function Register() {
   const router = useRouter()
   const [name, setName] = useState('')
+  const [profileSlug, setProfileSlug] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,9 +25,29 @@ export default function Register() {
       return
     }
 
+    if (!profileSlug || !/^[a-z0-9-]+$/.test(profileSlug)) {
+      setError('O link do perfil deve conter apenas letras minúsculas, números e hifens (-)')
+      setLoading(false)
+      return
+    }
+
     const supabase = createClient()
 
     try {
+      // 0. Verificar se profileSlug já existe
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('profileSlug', profileSlug)
+        .single()
+      
+      if (existingProfile) {
+        setError('Este link já está em uso por outro usuário.')
+        setLoading(false)
+        return
+      }
+
+      // 1. Criar usuário no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -40,8 +61,51 @@ export default function Register() {
       if (authError) throw authError
 
       if (authData.user) {
-        router.push('/login?success=account_created')
+        // 2. Buscar o cookie de referral (quem convidou)
+        const getReferralSlug = async () => {
+          try {
+            const res = await fetch('/api/get-referral-cookie')
+            const data = await res.json()
+            return data.referralSlug || null
+          } catch {
+            return null
+          }
+        }
 
+        const referralSlug = await getReferralSlug()
+        let uplineId = null
+
+        // 3. Se veio de convite, buscar o ID do upline
+        if (referralSlug) {
+          const { data: upline } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('profileSlug', referralSlug)
+            .single()
+
+          uplineId = upline?.id || null
+        }
+
+        // 4. Criar/Atualizar perfil com upline_id (se houver) e profileSlug
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: authData.user.id,
+            name: name,
+            upline_id: uplineId,
+            profileSlug: profileSlug
+          })
+
+        if (profileError) {
+          console.error('Erro ao criar perfil:', profileError)
+          // Mesmo com erro no perfil, o usuário foi criado no Auth
+        }
+
+        // 5. Limpar cookie de referral
+        await fetch('/api/clear-referral-cookie', { method: 'POST' })
+
+        // 6. Redirecionar para login
+        router.push('/login?success=account_created')
       }
     } catch (err: any) {
       setError(err.message)
@@ -73,6 +137,22 @@ export default function Register() {
             required
             disabled={loading}
           />
+        </div>
+
+        <div className="mb-5">
+          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Link do seu Perfil</label>
+          <div className="flex items-center bg-neutral-950 rounded-xl border border-neutral-800 focus-within:border-white focus-within:ring-1 focus-within:ring-white transition overflow-hidden">
+            <span className="pl-3.5 pr-1 text-neutral-500 whitespace-nowrap">iuser.com.br/</span>
+            <input
+              type="text"
+              className="w-full p-3.5 pl-1 bg-transparent text-white outline-none placeholder:text-neutral-600"
+              placeholder="seunome"
+              value={profileSlug}
+              onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              required
+              disabled={loading}
+            />
+          </div>
         </div>
 
         <div className="mb-5">

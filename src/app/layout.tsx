@@ -1,4 +1,5 @@
 import type { Viewport, Metadata } from 'next'
+import { Providers } from './providers'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -22,7 +23,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )

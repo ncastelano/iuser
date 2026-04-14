@@ -15,6 +15,7 @@ export default function EditarProduto() {
 
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const productSlug = Array.isArray(params.productSlug) ? params.productSlug[0] : params.productSlug
+    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
 
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -55,7 +56,7 @@ export default function EditarProduto() {
 
             if (store.owner_id !== user.id) {
                 alert('Você não tem permissão para editar este produto.')
-                router.push(`/${storeSlug}`)
+                router.push(`/${profileSlug}/${storeSlug}`)
                 return
             }
 
@@ -74,7 +75,7 @@ export default function EditarProduto() {
             if (error || !data) {
                 console.error("Erro fetch product:", error, "Slug:", decodedSlug)
                 alert(`Produto não encontrado. (Buscando: ${decodedSlug}) Erro interno: ${error?.message || 'Sem dados'}`)
-                router.push(`/${storeSlug}`)
+                router.push(`/${profileSlug}/${storeSlug}`)
                 return
             }
 
@@ -220,7 +221,7 @@ export default function EditarProduto() {
             return
         }
 
-        router.push(`/${storeSlug}`)
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const handleDelete = async () => {
@@ -239,7 +240,7 @@ export default function EditarProduto() {
         }
 
         alert("Produto deletado com sucesso.")
-        router.push(`/${storeSlug}`)
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const typeOptions = [
@@ -265,7 +266,7 @@ export default function EditarProduto() {
                         <p className="text-neutral-400 text-sm">Atualize as informações ou remova o item.</p>
                     </div>
                     <button
-                        onClick={() => router.push(`/${storeSlug}`)}
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
                         className="text-neutral-400 hover:text-white text-sm"
                     >
                         Voltar

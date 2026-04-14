@@ -24,6 +24,7 @@ type StoreType = {
   location: any
   is_open: boolean
   store_stats: StoreStats
+  profileSlug?: string
 }
 
 type ProductType = {
@@ -38,6 +39,34 @@ type ProductType = {
 }
 
 const PREVIEW_COUNT = 20
+
+// Função para parsear coordenadas (suporta WKT e GeoJSON)
+function parseCoords(location: any): [number, number] | null {
+  if (!location) return null
+
+  // Se for string JSON, tenta parsear
+  if (typeof location === 'string') {
+    try {
+      location = JSON.parse(location)
+    } catch {
+      // Continua para outros checks
+    }
+  }
+
+  // Formato GeoJSON
+  if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
+    const [lng, lat] = location.coordinates
+    return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+  }
+
+  // Fallback para WKT string
+  if (typeof location === 'string') {
+    const match = location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+    return match ? [parseFloat(match[1]), parseFloat(match[2])] : null
+  }
+
+  return null
+}
 
 export default function Vitrine() {
   const router = useRouter()
@@ -69,25 +98,17 @@ export default function Vitrine() {
     return active ? active.label : 'Filtrar'
   }
 
-  // 📍 DISTÂNCIA
-  const calcDistanceKm = (storeLocation: any) => {
+  // 📍 DISTÂNCIA - USANDO PARSE COORDENADAS ROBUSTO
+  const calcDistanceKm = (storeLocation: any): number | null => {
     if (!userLocation || !storeLocation) return null
 
-    let lon, lat;
-    if (typeof storeLocation === 'string') {
-      const match = storeLocation.match(/POINT\((-?\d+\.?\d*)\s+(-?\d+\.?\d*)\)/)
-      if (!match) return null
-      lon = parseFloat(match[1])
-      lat = parseFloat(match[2])
-    } else if (typeof storeLocation === 'object' && storeLocation.type === 'Point' && Array.isArray(storeLocation.coordinates)) {
-      lon = storeLocation.coordinates[0]
-      lat = storeLocation.coordinates[1]
-    } else {
-      return null
-    }
+    const coords = parseCoords(storeLocation)
+    if (!coords) return null
+
+    const [lon, lat] = coords
 
     const toRad = (v: number) => (v * Math.PI) / 180
-    const R = 6371
+    const R = 6371 // Raio da Terra em km
 
     const dLat = toRad(lat - userLocation.lat)
     const dLon = toRad(lon - userLocation.lng)
@@ -100,7 +121,22 @@ export default function Vitrine() {
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     const km = R * c
-    return km.toFixed(1).replace('.', ',')
+
+    return km
+  }
+
+  // Função para formatar distância
+  const formatDistance = (distance: number | null): string | null => {
+    if (distance === null) return null
+
+    if (distance < 1) {
+      // Menos de 1km, mostrar em metros
+      const meters = Math.round(distance * 1000)
+      return `${meters}m`
+    } else {
+      // Mais de 1km, mostrar em km com 1 casa decimal
+      return `${distance.toFixed(1)}km`
+    }
   }
 
   const getStore = (storeId: string) => allStores.find(s => s.id === storeId)
@@ -131,8 +167,8 @@ export default function Vitrine() {
 
       switch (sortBy) {
         case 'distance': {
-          const distA = calcDistanceKm(a.location) ? parseFloat((calcDistanceKm(a.location) as string).replace(',', '.')) : 9999
-          const distB = calcDistanceKm(b.location) ? parseFloat((calcDistanceKm(b.location) as string).replace(',', '.')) : 9999
+          const distA = calcDistanceKm(a.location) ?? 9999
+          const distB = calcDistanceKm(b.location) ?? 9999
           return distA - distB
         }
         case 'rating': return (bStats.ratings_avg ?? 0) - (aStats.ratings_avg ?? 0)
@@ -165,8 +201,8 @@ export default function Vitrine() {
 
       switch (sortBy) {
         case 'distance': {
-          const distA = calcDistanceKm(storeA.location) ? parseFloat((calcDistanceKm(storeA.location) as string).replace(',', '.')) : 9999
-          const distB = calcDistanceKm(storeB.location) ? parseFloat((calcDistanceKm(storeB.location) as string).replace(',', '.')) : 9999
+          const distA = calcDistanceKm(storeA.location) ?? 9999
+          const distB = calcDistanceKm(storeB.location) ?? 9999
           return distA - distB
         }
         case 'rating': return (storeB.store_stats.ratings_avg ?? 0) - (storeA.store_stats.ratings_avg ?? 0)
@@ -189,23 +225,31 @@ export default function Vitrine() {
         .from('stores')
         .select(`id, name, storeSlug, logo_url, description, owner_id, location`)
 
+      const { data: profilesList } = await supabase
+        .from('profiles')
+        .select('id, "profileSlug"')
+
       const { data: productsList } = await supabase
         .from('products')
         .select('*')
 
-      const mappedStores = (storesList || []).map(store => ({
-        ...store,
-        logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
-        is_open: true,
-        store_stats: {
-          ratings_count: 0,
-          ratings_avg: 0,
-          prep_time_min: null,
-          prep_time_max: null,
-          price_min: null,
-          price_max: null
+      const mappedStores = (storesList || []).map(store => {
+        const prof = (profilesList || []).find(p => p.id === store.owner_id)
+        return {
+          ...store,
+          profileSlug: prof?.profileSlug || 'loja',
+          logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
+          is_open: true,
+          store_stats: {
+            ratings_count: 0,
+            ratings_avg: 0,
+            prep_time_min: null,
+            prep_time_max: null,
+            price_min: null,
+            price_max: null
+          }
         }
-      }))
+      })
 
       const mappedProducts = (productsList || []).map(product => ({
         ...product,
@@ -219,8 +263,8 @@ export default function Vitrine() {
         navigator.geolocation.getCurrentPosition(
           pos => {
             setUserLocation({
-              lat: pos.coords.latitude,  // CORRIGIDO: coords (com S) ao invés de coordinates
-              lng: pos.coords.longitude  // CORRIGIDO: coords (com S) ao invés de coordinates
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude
             })
           },
           () => { }
@@ -239,19 +283,20 @@ export default function Vitrine() {
     setShowAllStores(false)
   }, [search, sortBy])
 
-  // 🧩 STORE CARD - design destacado, completamente diferente dos produtos
+  // 🧩 STORE CARD - COM DISTÂNCIA
   const renderStoreCard = (store: StoreType, idx: number) => {
     const stats = store.store_stats ?? {}
-    const distanceKm = calcDistanceKm(store.location)
+    const distance = calcDistanceKm(store.location)
+    const distanceFormatted = formatDistance(distance)
     const storeProducts = allProducts.filter(p => p.store_id === store.id).slice(0, 4)
 
     return (
       <div
         key={store.id + idx}
-        onClick={() => router.push(`/${store.storeSlug}`)}
+        onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
         className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        {/* Fundo banner da loja - imagem completa com blur gradiente no rodapé */}
+        {/* Fundo banner da loja */}
         <div className="relative h-48 overflow-hidden bg-neutral-900">
           {store.logo_url ? (
             <>
@@ -260,7 +305,6 @@ export default function Vitrine() {
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-700"
                 alt=""
               />
-              {/* Gradiente no rodapé da imagem */}
               <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent" />
             </>
           ) : (
@@ -275,9 +319,11 @@ export default function Vitrine() {
             {store.is_open ? '● Aberto' : '● Fechado'}
           </div>
 
-          {distanceKm && (
-            <div className="absolute top-3 left-3 px-2 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 z-10 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />{distanceKm} km
+          {/* DISTÂNCIA - DESTAQUE */}
+          {distanceFormatted && (
+            <div className="absolute top-3 left-3 px-2.5 py-1.5 text-xs font-bold bg-black/70 backdrop-blur-md text-white rounded-full border border-white/20 z-10 flex items-center gap-1.5 shadow-lg">
+              <MapPin className="w-3 h-3 text-white" />
+              <span>{distanceFormatted}</span>
             </div>
           )}
         </div>
@@ -300,6 +346,17 @@ export default function Vitrine() {
                 <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                 <span className="text-yellow-400 font-semibold">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
                 <span className="text-neutral-600">({stats.ratings_count ?? 0} avaliações)</span>
+
+                {/* DISTÂNCIA NA LINHA DE INFO TAMBÉM */}
+                {distanceFormatted && (
+                  <>
+                    <span className="text-neutral-600">•</span>
+                    <span className="text-neutral-400 flex items-center gap-0.5">
+                      <MapPin className="w-2.5 h-2.5" />
+                      {distanceFormatted}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -342,10 +399,11 @@ export default function Vitrine() {
     )
   }
 
-  // 🧩 PRODUCT CARD - SEM GRADIENTE ESCURO NA IMAGEM
+  // 🧩 PRODUCT CARD - COM DISTÂNCIA
   const renderProductCard = (product: ProductType, idx: number) => {
     const store = getStore(product.store_id)
-    const distanceKm = store ? calcDistanceKm(store.location) : null
+    const distance = store ? calcDistanceKm(store.location) : null
+    const distanceFormatted = formatDistance(distance)
     const price = typeof product.price === 'number' ? product.price : 0
     const typeLabel = translateType(product.type) || product.category || 'Produto'
 
@@ -354,12 +412,12 @@ export default function Vitrine() {
         key={product.id + idx}
         onClick={() => {
           if (store) {
-            router.push(`/${store.storeSlug}/${product.slug}`)
+            router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug}`)
           }
         }}
         className="group cursor-pointer relative isolate overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
-        {/* IMAGEM - SEM GRADIENTE ESCURO */}
+        {/* IMAGEM */}
         <div className="relative h-52 overflow-hidden bg-neutral-900">
           {product.image_url ? (
             <img
@@ -379,9 +437,10 @@ export default function Vitrine() {
           </div>
 
           {/* DISTÂNCIA */}
-          {distanceKm && (
-            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-semibold bg-black/60 backdrop-blur text-white rounded-full border border-white/10 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />{distanceKm} km
+          {distanceFormatted && (
+            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-bold bg-black/70 backdrop-blur-md text-white rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
+              <MapPin className="w-3 h-3" />
+              <span>{distanceFormatted}</span>
             </div>
           )}
         </div>
@@ -408,10 +467,20 @@ export default function Vitrine() {
                 )}
               </div>
 
-              <div className="flex flex-col overflow-hidden">
-                <span className="text-xs text-neutral-300 truncate font-medium">
-                  {store.name}
-                </span>
+              <div className="flex flex-col overflow-hidden flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-neutral-300 truncate font-medium">
+                    {store.name}
+                  </span>
+
+                  {/* DISTÂNCIA NA LINHA DA LOJA */}
+                  {distanceFormatted && (
+                    <span className="text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
+                      <MapPin className="w-2.5 h-2.5" />
+                      {distanceFormatted}
+                    </span>
+                  )}
+                </div>
 
                 <div className="flex items-center gap-1 text-[11px] text-neutral-400">
                   <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
@@ -549,71 +618,9 @@ export default function Vitrine() {
         </div>
 
         {/* ═══════════════════════════════════
-            SEÇÃO DE PRODUTOS - 2 colunas (mobile/tablet/desktop médio) e 4 para telas grandes
+            SEÇÃO DE LOJAS - PRIMEIRO (acima)
         ═══════════════════════════════════ */}
         <section className="mb-14">
-          {/* Header seção produtos */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/10">
-                <ShoppingBag className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Produtos e Serviços</h2>
-                <p className="text-xs text-neutral-500">{sortedProducts.length} itens disponíveis</p>
-              </div>
-            </div>
-            {hasMoreProducts && !showAllProducts && (
-              <button
-                onClick={() => setShowAllProducts(true)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
-              >
-                Ver todos ({sortedProducts.length})
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-            {showAllProducts && (
-              <button
-                onClick={() => setShowAllProducts(false)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" /> Mostrar menos
-              </button>
-            )}
-          </div>
-
-          {sortedProducts.length === 0 ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
-              <ShoppingBag className="w-10 h-10 text-neutral-700 mb-3" />
-              <p className="text-neutral-500 text-sm">Nenhum produto encontrado</p>
-            </div>
-          ) : (
-            <>
-              {/* Grid: 2 colunas para mobile, tablet e desktop médio | 4 colunas para desktop grande */}
-              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
-                {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
-              </div>
-
-              {/* Botão ver todos abaixo do grid */}
-              {hasMoreProducts && !showAllProducts && (
-                <div className="mt-5 text-center">
-                  <button
-                    onClick={() => setShowAllProducts(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
-                  >
-                    Ver todos os {sortedProducts.length} produtos
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
-
-        {/* ═══════════════════════════════════
-            SEÇÃO DE LOJAS — design destacado
-        ═══════════════════════════════════ */}
-        <section>
           {/* Divisor decorativo */}
           <div className="relative mb-8">
             <div className="absolute inset-0 flex items-center">
@@ -674,6 +681,68 @@ export default function Vitrine() {
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
                   >
                     Ver todas as {sortedStores.length} lojas
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+
+        {/* ═══════════════════════════════════
+            SEÇÃO DE PRODUTOS - DEPOIS (abaixo)
+        ═══════════════════════════════════ */}
+        <section>
+          {/* Header seção produtos */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/10">
+                <ShoppingBag className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Produtos e Serviços</h2>
+                <p className="text-xs text-neutral-500">{sortedProducts.length} itens disponíveis</p>
+              </div>
+            </div>
+            {hasMoreProducts && !showAllProducts && (
+              <button
+                onClick={() => setShowAllProducts(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
+              >
+                Ver todos ({sortedProducts.length})
+                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
+            {showAllProducts && (
+              <button
+                onClick={() => setShowAllProducts(false)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" /> Mostrar menos
+              </button>
+            )}
+          </div>
+
+          {sortedProducts.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
+              <ShoppingBag className="w-10 h-10 text-neutral-700 mb-3" />
+              <p className="text-neutral-500 text-sm">Nenhum produto encontrado</p>
+            </div>
+          ) : (
+            <>
+              {/* Grid: 2 colunas para mobile, tablet e desktop médio | 4 colunas para desktop grande */}
+              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
+                {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
+              </div>
+
+              {/* Botão ver todos abaixo do grid */}
+              {hasMoreProducts && !showAllProducts && (
+                <div className="mt-5 text-center">
+                  <button
+                    onClick={() => setShowAllProducts(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
+                  >
+                    Ver todos os {sortedProducts.length} produtos
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>

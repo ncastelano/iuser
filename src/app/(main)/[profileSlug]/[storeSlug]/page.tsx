@@ -10,6 +10,7 @@ import { useCartStore } from '@/store/useCartStore'
 export default function StorePage() {
     const params = useParams()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
+    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
 
     const [store, setStore] = useState<any | null>(null)
@@ -32,7 +33,7 @@ export default function StorePage() {
 
     const getStoreUrl = () => {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
-        return `${baseUrl}/${storeSlug}`
+        return `${baseUrl}/${profileSlug}/${storeSlug}`
     }
 
     const shareOnWhatsApp = () => {
@@ -358,7 +359,7 @@ export default function StorePage() {
             {isOwner && (
                 <div className="flex justify-end mt-[-10px]">
                     <button
-                        onClick={() => router.push(`/${store.storeSlug}/criar-produto`)}
+                        onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
                         className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 active:bg-neutral-300 transition shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2"
                     >
                         <Plus className="w-5 h-5" /> Adicionar Produto ou Serviço
@@ -370,7 +371,7 @@ export default function StorePage() {
             {mounted && totalItems > 0 && (
                 <div 
                     className="relative p-[2px] rounded-2xl overflow-hidden group cursor-pointer w-full mb-2"
-                    onClick={() => router.push(`/${storeSlug}/carrinho`)}
+                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
                     <div className="relative bg-black w-full py-4 px-6 rounded-2xl flex items-center justify-between z-10 transition-colors group-hover:bg-neutral-950">
@@ -400,7 +401,7 @@ export default function StorePage() {
                         <p className="text-neutral-400 text-lg font-medium">Nenhum produto disponível no momento.</p>
                         {isOwner && (
                             <button
-                                onClick={() => router.push(`/${store.storeSlug}/criar-produto`)}
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
                                 className="mt-4 text-white text-sm hover:underline flex items-center gap-1"
                             >
                                 Adicionar seu primeiro produto <ArrowLeft className="w-4 h-4 rotate-180" />
@@ -412,7 +413,7 @@ export default function StorePage() {
                         {products.map(product => (
                             <div
                                 key={product.id}
-                                onClick={() => router.push(`/${store.storeSlug}/${product.slug || product.id}`)}
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
                                 className="bg-neutral-900/60 rounded-2xl overflow-hidden shadow-xl border border-neutral-800 group hover:border-white/50 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer backdrop-blur-sm"
                             >
                                 <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800 overflow-hidden relative">
@@ -452,7 +453,7 @@ export default function StorePage() {
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    router.push(`/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                    router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
                                                 }}
                                                 className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                                             >
@@ -465,7 +466,7 @@ export default function StorePage() {
                                                         className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer flex-1"
                                                         onClick={(e) => {
                                                             e.stopPropagation()
-                                                            router.push(`/${storeSlug}/carrinho`)
+                                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
                                                         }}
                                                     >
                                                         <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />

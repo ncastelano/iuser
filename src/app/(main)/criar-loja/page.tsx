@@ -13,7 +13,7 @@ export default function CriarLoja() {
 
     const [loading, setLoading] = useState(false)
     const [loadingLocation, setLoadingLocation] = useState(false)
-    const [slugStatus, setSlugStatus] = useState<'idle'|'checking'|'available'|'taken'>('idle')
+    const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
 
     const [name, setName] = useState('')
     const [storeSlug, setStoreSlug] = useState('')
@@ -40,8 +40,7 @@ export default function CriarLoja() {
             .replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)+/g, '')
-        
-        // Só tenta gerar do nome se ainda não foi criado ou modificado muito
+
         setStoreSlug(slug)
     }, [name])
 
@@ -57,7 +56,6 @@ export default function CriarLoja() {
             const { data } = await supabase.from('stores').select('id').eq('storeSlug', storeSlug).limit(1).maybeSingle()
             if (data) {
                 setSlugStatus('taken')
-                // Sugere um novo slug em caso de colisão (exemplo: loja-123)
                 setStoreSlug(`${storeSlug}-${Math.floor(Math.random() * 9999)}`)
             } else {
                 setSlugStatus('available')
@@ -145,9 +143,13 @@ export default function CriarLoja() {
             const fileExt = imageFile.name.split('.').pop()
             const fileName = `${Date.now()}.${fileExt}`
 
-            const { data } = await supabase.storage
+            const { data, error } = await supabase.storage
                 .from('store-logos')
                 .upload(fileName, imageFile)
+
+            if (error) {
+                console.error(error)
+            }
 
             if (data) logoPath = data.path
         }
@@ -167,7 +169,19 @@ export default function CriarLoja() {
             return
         }
 
-        router.push(`/${storeSlug}`)
+        // Buscar o profileSlug do usuário
+        const { data: profileData } = await supabase
+            .from('profiles')
+            .select('profileSlug')
+            .eq('id', userData.user.id)
+            .single()
+
+        const profileSlug = profileData?.profileSlug || 'perfil'
+
+        setLoading(false)
+
+        // Redirecionar para a URL com profileSlug e storeSlug
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     return (

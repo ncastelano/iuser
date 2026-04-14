@@ -73,6 +73,7 @@ export default function AgendaPage() {
   const supabase = createClient()
 
   const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
+  const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
 
   const [store, setStore] = useState<StoreInfo | null>(null)
   const [settings, setSettings] = useState<ScheduleSettings | null>(null)
@@ -346,7 +347,7 @@ export default function AgendaPage() {
       <div className="flex items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push(`/${store.storeSlug}`)}
+            onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
             className="flex w-10 h-10 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 hover:border-white/50 transition shadow-md group"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />

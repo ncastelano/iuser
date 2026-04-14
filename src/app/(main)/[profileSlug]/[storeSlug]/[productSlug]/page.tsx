@@ -39,6 +39,10 @@ export default function ProductPage() {
         ? params.storeSlug[0]
         : params.storeSlug
 
+    const profileSlug = Array.isArray(params.profileSlug)
+        ? params.profileSlug[0]
+        : params.profileSlug
+
     const productSlug = Array.isArray(params.productSlug)
         ? params.productSlug[0]
         : params.productSlug
@@ -85,7 +89,7 @@ export default function ProductPage() {
                 .single()
 
             if (!productData) {
-                router.push(`/${storeSlug}`)
+                router.push(`/${profileSlug}/${storeSlug}`)
                 return
             }
 
@@ -104,7 +108,7 @@ export default function ProductPage() {
 
     const getProductUrl = () => {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-        return `${baseUrl}/${storeSlug}/${productSlug}`
+        return `${baseUrl}/${profileSlug}/${storeSlug}/${productSlug}`
     }
 
     const shareOnWhatsApp = () => {
@@ -322,7 +326,7 @@ export default function ProductPage() {
                     {store && (
                         <div
                             className="group w-full bg-neutral-900/60 backdrop-blur-sm border border-neutral-800 hover:border-white/20 rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:shadow-[0_4px_24px_rgba(255,255,255,0.06)] hover:-translate-y-0.5"
-                            onClick={() => router.push(`/${store.storeSlug}`)}
+                            onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
                         >
                             <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest mb-3">Vendido por</p>
                             <div className="flex items-center gap-4">
@@ -402,7 +406,7 @@ export default function ProductPage() {
                     <div className="mt-auto space-y-4">
                         {mounted && (
                             isInCart ? (
-                                <div className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer" onClick={() => router.push(`/${storeSlug}/carrinho`)}>
+                                <div className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer" onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}>
                                     <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
                                     <button className="relative w-full py-4 rounded-xl font-extrabold text-lg transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
                                         <CheckCircle2 className="w-5 h-5 text-white" />

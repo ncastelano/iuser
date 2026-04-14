@@ -9,8 +9,8 @@ export default function CarrinhoPage() {
     const params = useParams()
     const router = useRouter()
     
-    // Suporte params como array ou string (Next13+)
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
+    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     
     const { itemsByStore, updateQuantity, removeItem, storeDetails } = useCartStore()
     const [mounted, setMounted] = useState(false)
@@ -45,7 +45,7 @@ export default function CarrinhoPage() {
         <div className="max-w-3xl mx-auto p-4 md:p-8 animate-fade-in text-white relative z-10">
             <div className="flex items-center gap-4 mb-8">
                 <button
-                    onClick={() => router.push(`/${storeSlug}`)}
+                    onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
                     className="flex w-10 h-10 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 hover:border-white/50 transition shadow-md group shrink-0"
                 >
                     <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -71,7 +71,7 @@ export default function CarrinhoPage() {
                     <h2 className="text-2xl font-bold text-white">Seu carrinho está vazio</h2>
                     <p className="text-neutral-400 text-lg">Volte para a loja e adicione alguns produtos!</p>
                     <button 
-                        onClick={() => router.push(`/${storeSlug}`)}
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
                         className="mt-6 px-8 py-4 bg-white text-black font-extrabold text-lg rounded-xl hover:bg-neutral-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:scale-105 active:scale-95"
                     >
                         Voltar para a Loja
