@@ -38,7 +38,7 @@ export default function ProfilePage() {
                 .from('stores')
                 .select('*')
                 .eq('owner_id', profileData.id)
-                .eq('is_active', true)
+                .eq('is_open', true)
 
             setStores(storesData || [])
             setLoading(false)

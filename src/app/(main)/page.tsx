@@ -88,7 +88,6 @@ export default function Vitrine() {
   const filters = [
     { label: 'Mais próximo', value: 'distance', icon: MapPin },
     { label: 'Melhor avaliado', value: 'rating', icon: Star },
-    { label: 'Menor tempo', value: 'prepTime', icon: Clock },
     { label: 'Menor valor', value: 'priceMin', icon: ArrowDownWideNarrow },
     { label: 'Maior valor', value: 'priceMax', icon: ArrowUpNarrowWide },
   ]
@@ -221,40 +220,49 @@ export default function Vitrine() {
 
       const supabase = createClient()
 
+      // Fetch usando as views _geo (idêntico ao MapPage) para trazer as coordenadas em formato legível
       const { data: storesList } = await supabase
-        .from('stores')
-        .select(`id, name, storeSlug, logo_url, description, owner_id, location`)
+        .from('stores_geo')
+        .select('*')
 
       const { data: profilesList } = await supabase
         .from('profiles')
         .select('id, "profileSlug"')
 
       const { data: productsList } = await supabase
-        .from('products')
+        .from('products_geo')
         .select('*')
+
+      const mappedProducts = (productsList || []).map(product => ({
+        ...product,
+        image_url: product.image_url ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl : null,
+        price: typeof product.price === 'string' ? parseFloat(product.price) : typeof product.price === 'number' ? product.price : null
+      }))
 
       const mappedStores = (storesList || []).map(store => {
         const prof = (profilesList || []).find(p => p.id === store.owner_id)
+        
+        // Verifica todos os produtos desta loja para calcular preço mínimo e máximo
+        const storeProducts = mappedProducts.filter(p => p.store_id === store.id)
+        const prices = storeProducts.map(p => p.price).filter(p => p !== null && !isNaN(p as number)) as number[]
+        const minPrice = prices.length > 0 ? Math.min(...prices) : null
+        const maxPrice = prices.length > 0 ? Math.max(...prices) : null
+
         return {
           ...store,
           profileSlug: prof?.profileSlug || 'loja',
           logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
-          is_open: true,
+          is_open: store.is_open ?? true,
           store_stats: {
-            ratings_count: 0,
-            ratings_avg: 0,
-            prep_time_min: null,
-            prep_time_max: null,
-            price_min: null,
-            price_max: null
+            ratings_count: store.ratings_count ?? 0,
+            ratings_avg: store.ratings_avg ?? 0,
+            prep_time_min: store.prep_time_min ?? null,
+            prep_time_max: store.prep_time_max ?? null,
+            price_min: minPrice,
+            price_max: maxPrice
           }
         }
       })
-
-      const mappedProducts = (productsList || []).map(product => ({
-        ...product,
-        image_url: product.image_url ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl : null
-      }))
 
       setAllStores(mappedStores as any)
       setAllProducts(mappedProducts as any)

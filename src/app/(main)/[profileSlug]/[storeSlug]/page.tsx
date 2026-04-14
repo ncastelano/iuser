@@ -80,24 +80,24 @@ export default function StorePage() {
     const toggleStoreStatus = async () => {
         if (!isOwner || !store) return
 
-        const newStatus = !store.is_active
+        const newStatus = !store.is_open
         const confirmMessage = newStatus
             ? "Você quer abrir a loja?"
             : "Você quer fechar a loja?"
 
         if (window.confirm(confirmMessage)) {
-            setStore({ ...store, is_active: newStatus })
+            setStore({ ...store, is_open: newStatus })
 
             const supabase = createClient()
             const { error: updateError } = await supabase
                 .from('stores')
-                .update({ is_active: newStatus })
+                .update({ is_open: newStatus })
                 .eq('id', store.id)
 
             if (updateError) {
                 console.error('[StorePage] Erro ao atualizar status da loja:', updateError)
                 alert("Erro ao alterar o status da loja.")
-                setStore({ ...store, is_active: !newStatus })
+                setStore({ ...store, is_open: !newStatus })
             }
         }
     }
@@ -135,8 +135,15 @@ export default function StorePage() {
                 : null
 
             const { data: { user } } = await supabase.auth.getUser()
-            if (user && user.id === foundStore.owner_id) {
-                setIsOwner(true)
+            if (user) {
+                if (user.id === foundStore.owner_id) {
+                    setIsOwner(true)
+                } else {
+                    supabase.from('store_views').insert({
+                        store_id: foundStore.id,
+                        viewer_id: user.id
+                    }).then(({error}) => { if (error) console.error('Erro ao registrar view:', error) })
+                }
             }
 
 
@@ -322,8 +329,10 @@ export default function StorePage() {
 
                     {/* RATING */}
                     <div className="flex items-center justify-center md:justify-start gap-1 text-white">
-                        <Star className="w-4 h-4 fill-white" />
-                        <span className="font-bold">{store.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`w-4 h-4 ${i < Math.round(store.ratings_avg || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-neutral-600'}`} />
+                        ))}
+                        <span className="font-bold ml-1">{store.ratings_avg?.toFixed(1) ?? '0.0'}</span>
                         <span className="text-neutral-400 text-sm ml-1">
                             ({store.ratings_count ?? 0} avaliações)
                         </span>
@@ -333,11 +342,11 @@ export default function StorePage() {
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-1">
                         <button
                             onClick={isOwner ? toggleStoreStatus : undefined}
-                            className={`inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${store.is_active
+                            className={`inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${store.is_open
                                 ? 'bg-green-500/10 text-green-400 border border-green-500/30'
                                 : 'bg-red-500/10 text-red-500 border border-red-500/30'
                                 } ${isOwner ? 'cursor-pointer hover:opacity-80 transition hover:scale-105 active:scale-95 shadow-md flex items-center gap-1' : 'cursor-default'}`}>
-                            {store.is_active ? '● Aberto' : '● Fechado'}
+                            {store.is_open ? '● Aberto' : '● Fechado'}
                         </button>
 
                         {store.prep_time_min != null && store.prep_time_max != null && (

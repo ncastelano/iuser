@@ -1,31 +1,95 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ArrowLeft, Save, LogOut } from 'lucide-react'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
+    const supabase = createClient()
+    const [whatsapp, setWhatsapp] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+
+    useEffect(() => {
+        async function loadProfile() {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data } = await supabase.from('profiles').select('whatsapp').eq('id', user.id).single()
+                if (data?.whatsapp) {
+                    setWhatsapp(data.whatsapp)
+                }
+            }
+            setLoading(false)
+        }
+        loadProfile()
+    }, [])
+
+    const handleSave = async () => {
+        setSaving(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { error } = await supabase.from('profiles').update({ whatsapp }).eq('id', user.id)
+            if (error) {
+                alert('Erro ao salvar whatsapp')
+            } else {
+                alert('Salvo com sucesso!')
+            }
+        }
+        setSaving(false)
+    }
 
     const handleLogout = async () => {
-        const supabase = createClient()
-
         await supabase.auth.signOut()
-
         router.replace('/login')
-
         setTimeout(() => {
             window.location.href = '/login'
         }, 100)
     }
 
+    if (loading) return <div className="min-h-screen bg-black flex justify-center items-center">Carregando...</div>
+
     return (
-        <div className="min-h-screen flex items-center justify-center bg-black text-white">
-            <button
-                onClick={handleLogout}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition-all"
-            >
-                Sair da conta
-            </button>
+        <div className="min-h-screen bg-black text-white p-4 md:p-8">
+            <div className="max-w-2xl mx-auto space-y-6 mt-6">
+                <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+                    <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 transition">
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <h1 className="text-2xl font-bold">Configurações</h1>
+                </div>
+
+                <div className="bg-neutral-900/60 p-6 rounded-2xl border border-neutral-800 space-y-4">
+                    <div>
+                        <label className="block text-sm font-semibold text-neutral-300 mb-2">Seu WhatsApp</label>
+                        <p className="text-xs text-neutral-500 mb-4">Iremos trabalhar depois com o seu WhatsApp para mandar extratos ou avisos da plataforma.</p>
+                        <input 
+                            type="text" 
+                            placeholder="(00) 00000-0000"
+                            value={whatsapp}
+                            onChange={(e) => setWhatsapp(e.target.value)}
+                            className="w-full bg-neutral-950 border border-neutral-700 px-4 py-3 rounded-xl text-white outline-none focus:border-white transition"
+                        />
+                    </div>
+                    <button 
+                        onClick={handleSave} 
+                        disabled={saving}
+                        className="py-3 px-6 bg-white text-black font-bold flex items-center justify-center gap-2 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
+                    >
+                        {saving ? 'Salvando...' : <><Save className="w-4 h-4"/> Salvar Alterações</>}
+                    </button>
+                </div>
+
+                <div className="pt-8">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-2 px-6 py-3 bg-red-600/20 text-red-500 hover:bg-red-600/30 border border-red-600/30 rounded-xl font-bold transition-all w-full justify-center"
+                    >
+                        <LogOut className="w-5 h-5" /> Sair da conta
+                    </button>
+                </div>
+            </div>
         </div>
     )
 }

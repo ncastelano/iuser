@@ -51,12 +51,21 @@ export default function MapPage() {
     const [selectedItem, setSelectedItem] = useState<any | null>(null)
     const [search, setSearch] = useState('')
     const [mapReady, setMapReady] = useState(false)
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [overrideList, setOverrideList] = useState<any[] | null>(null)
 
     const router = useRouter()
 
     // ── INIT MAP ────────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!mapContainerRef.current) return
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => {}
+            )
+        }
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
@@ -113,10 +122,14 @@ export default function MapPage() {
 
     // ── FILTER ──────────────────────────────────────────────────────────────────
     useEffect(() => {
+        if (overrideList) {
+            setFiltered(overrideList)
+            return
+        }
         const items = mode === 'lojas' ? stores : products
         const q = search.toLowerCase()
         setFiltered(q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items)
-    }, [search, mode, stores, products])
+    }, [search, mode, stores, products, overrideList])
 
     // ── MARKERS ─────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -156,13 +169,8 @@ export default function MapPage() {
                 let lng = coords[0]
                 let lat = coords[1]
                 
-                // Lógica Spiderify: deslocamento radial dinâmico logo nas coordenadas cartográficas
-                if (index > 0) {
-                    const radius = 0.00025 * Math.ceil(index / 8) // dispersa a cada 8 itens
-                    const angle = index * (Math.PI / 4) // 45 graus
-                    lng += radius * Math.cos(angle)
-                    lat += radius * Math.sin(angle)
-                }
+                // Deslocamento radial dinâmico removido por pedido
+                // lng lat permanecem iguais
 
                 const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
 
@@ -179,21 +187,18 @@ export default function MapPage() {
                     border-radius: 12px;
                     overflow: hidden;
                     border: 2px solid ${index === 0 ? '#ffaa00' : '#ffffff'};
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
                     cursor: pointer;
                     background: #1a1a1a;
-                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    transition: transform 0.2s ease;
                 `
 
                 inner.onmouseenter = () => {
                     inner.style.transform = 'scale(1.2)'
-                    inner.style.boxShadow = '0 6px 25px rgba(255,255,255,0.6)'
                     el.style.zIndex = "999" // trás pra frente no hover
                 }
 
                 inner.onmouseleave = () => {
                     inner.style.transform = 'scale(1)'
-                    inner.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4)'
                     el.style.zIndex = (100 - index).toString()
                 }
 
@@ -229,7 +234,13 @@ export default function MapPage() {
                         border-radius: 10px;
                         border: 2px solid #000;
                         z-index: 10;
+                        cursor: pointer;
                     `
+                    badge.onclick = (e) => {
+                        e.stopPropagation()
+                        setOverrideList(group.map(g => g.item))
+                        map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
+                    }
                     el.appendChild(badge)
                 }
 
@@ -251,6 +262,26 @@ export default function MapPage() {
     const selectedStore = mode === 'produtos'
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
+
+    const calcDistanceKm = (storeLocation: any): number | null => {
+        if (!userLocation || !storeLocation) return null
+        const coords = parseCoords(storeLocation)
+        if (!coords) return null
+        const [lon, lat] = coords
+        const R = 6371
+        const dLat = (lat - userLocation.lat) * Math.PI / 180
+        const dLon = (lon - userLocation.lng) * Math.PI / 180
+        const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(userLocation.lat*Math.PI/180)*Math.cos(lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2)
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+    }
+
+    const formatDistance = (distance: number | null): string | null => {
+        if (distance === null) return null
+        return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`
+    }
+
+    const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' ? selectedItem : selectedStore)?.location) : null
+    const distanceFormatted = formatDistance(distanceValue)
 
     return (
         // Full‑screen map container with a loading overlay
@@ -287,7 +318,7 @@ export default function MapPage() {
                         <Search className="w-4 h-4 text-neutral-400 group-focus-within:text-white" />
                         <input
                             value={search}
-                            onChange={e => setSearch(e.target.value)}
+                            onChange={e => { setSearch(e.target.value); setOverrideList(null) }}
                             placeholder={mode === 'lojas' ? 'Buscar loja...' : 'Buscar produto...'}
                             className="flex-1 bg-transparent text-white text-base outline-none placeholder:text-neutral-500"
                         />
@@ -303,7 +334,7 @@ export default function MapPage() {
                         {(['lojas', 'produtos'] as Mode[]).map(m => (
                             <button
                                 key={m}
-                                onClick={() => { setMode(m); setSelectedItem(null) }}
+                                onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
                                 className={`flex-1 py-1.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${mode === m
                                     ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]'
                                     : 'text-neutral-400 hover:text-white'
@@ -317,8 +348,17 @@ export default function MapPage() {
 
                 {/* CAROUSEL */}
                 {filtered.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto mt-2 pb-1 scrollbar-hide">
-                        {filtered.map(item => (
+                    <div className={`relative mt-2 ${overrideList ? 'p-1.5 border-2 border-[#ffaa00] rounded-xl bg-black/60 shadow-lg' : ''}`}>
+                        {overrideList && (
+                            <button
+                                onClick={() => setOverrideList(null)}
+                                className="absolute -top-3 -right-2 z-20 w-6 h-6 flex items-center justify-center rounded-full bg-red-600 border border-black text-white shadow-2xl hover:scale-110 active:scale-95 transition-all"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                            {filtered.map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => {
@@ -352,6 +392,7 @@ export default function MapPage() {
                                 </p>
                             </button>
                         ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -382,7 +423,15 @@ export default function MapPage() {
                         </div>
 
                         {/* INFO */}
-                        <h3 className="text-white font-bold text-lg">{selectedItem.name}</h3>
+                        <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-white font-bold text-lg leading-tight">{selectedItem.name}</h3>
+                            {distanceFormatted && (
+                                <div className="px-2 py-1 text-[10px] font-bold bg-white/10 text-white rounded-md border border-white/20 whitespace-nowrap flex items-center gap-1 shadow-lg shrink-0 mt-1">
+                                    <MapPin className="w-3 h-3" />
+                                    <span>{distanceFormatted}</span>
+                                </div>
+                            )}
+                        </div>
 
                         {mode === 'lojas' && selectedItem.description && (
                             <p className="text-neutral-400 text-sm mt-1 line-clamp-2">{selectedItem.description}</p>

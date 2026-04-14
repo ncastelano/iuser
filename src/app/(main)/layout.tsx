@@ -75,9 +75,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                         Mapa
                     </Link>
 
-                    <Link href="/perfil" className={linkClass('/perfil')}>
-                        <User size={22} className={pathname === '/perfil' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : ''} />
-                        Perfil
+                    <Link href="/dashboard" className={linkClass('/dashboard')}>
+                        <User size={22} className={pathname === '/dashboard' ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]' : ''} />
+                        Dashboard
                     </Link>
 
 
