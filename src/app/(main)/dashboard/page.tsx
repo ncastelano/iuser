@@ -124,12 +124,12 @@ export default function DashboardPage() {
     const toggleStoreStatus = async (storeId: string, currentStatus: boolean, storeName: string) => {
         const newStatus = !currentStatus
         if (!confirm(`Deseja definir a loja "${storeName}" como ${newStatus ? 'ABERTO' : 'FECHADO'}?`)) return
-        
+
         // Optimistic update
         setStores(prev => prev.map(s => s.id === storeId ? { ...s, is_open: newStatus } : s))
-        
+
         const { error } = await supabase.from('stores').update({ is_open: newStatus }).eq('id', storeId)
-        
+
         if (error) {
             alert('Erro ao alterar o status da loja')
             // Revert on error
@@ -214,7 +214,7 @@ export default function DashboardPage() {
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-black text-white">Carregando painel...</div>
 
-    const referralLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/${profile?.profileSlug}`
+    const referralLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/${profile?.profileSlug}/convite`
 
     return (
         <div className="p-4 md:p-8 bg-black text-white min-h-screen pb-24">
@@ -355,14 +355,14 @@ export default function DashboardPage() {
                                 }
                             }} className="glass-glow-card relative cursor-pointer hover:scale-[1.02] hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:border-white/50 transition-all duration-300 group flex flex-col">
                                 {store.logo_url ? <img src={getLogoUrl(store.logo_url)} className="w-full h-44 object-cover border-b border-neutral-800 group-hover:opacity-90 transition-opacity" /> : <div className="w-full h-44 bg-neutral-950 border-b border-neutral-800 flex items-center justify-center"><span className="text-neutral-600 font-medium text-sm">Sem Logo</span></div>}
-                                
+
                                 <div className="p-5 flex flex-col gap-3 relative flex-1">
                                     <div className="absolute -top-5 right-4 flex items-center gap-2 backdrop-blur-md bg-black/80 pr-1 rounded-xl shadow-lg border border-neutral-800 group-hover:border-neutral-600 transition">
                                         <span className={`px-3 py-1.5 rounded-l-xl text-xs font-bold text-white ${store.is_open ? 'bg-green-600' : 'bg-red-600'}`}>
                                             {store.is_open ? 'Aberto' : 'Fechado'}
                                         </span>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }} 
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }}
                                             className="px-3 py-1.5 text-xs font-bold bg-neutral-800 rounded-r-xl rounded-l-md hover:bg-neutral-700 hover:text-white text-neutral-300 transition-colors"
                                         >
                                             Trocar
@@ -423,7 +423,7 @@ export default function DashboardPage() {
                     </div>
                 )}
             </div>
-            
+
         </div>
     )
 }
