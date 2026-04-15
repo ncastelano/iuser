@@ -18,7 +18,7 @@ export function DownlineTree({ userId }: { userId: string }) {
 
   if (isLoading) return <div className="text-neutral-400 p-4">Carregando arvore...</div>
   if (error) return <div className="text-red-500 p-4">Erro ao carregar rede.</div>
-  
+
   if (!downlines || downlines.length === 0) {
     return (
       <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center text-neutral-500">

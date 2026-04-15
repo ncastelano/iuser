@@ -61,10 +61,10 @@ export default function ComissoesPage() {
         </div>
 
         {commissions.length === 0 ? (
-           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-10 text-center flex flex-col items-center gap-3">
-             <Receipt className="w-12 h-12 text-neutral-600" />
-             <p className="text-neutral-500">Você ainda não recebeu comissões.</p>
-           </div>
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-10 text-center flex flex-col items-center gap-3">
+            <Receipt className="w-12 h-12 text-neutral-600" />
+            <p className="text-neutral-500">Você ainda não recebeu comissões.</p>
+          </div>
         ) : (
           <div className="space-y-4">
             {commissions.map((comm) => (

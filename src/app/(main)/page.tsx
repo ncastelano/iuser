@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X, ChevronRight, Store, ShoppingBag } from 'lucide-react'
+import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X, ChevronRight, Store, ShoppingBag, Plus } from 'lucide-react'
 
 type StoreStats = {
   ratings_count: number
@@ -241,7 +241,7 @@ export default function Vitrine() {
 
       const mappedStores = (storesList || []).map(store => {
         const prof = (profilesList || []).find(p => p.id === store.owner_id)
-        
+
         // Verifica todos os produtos desta loja para calcular preço mínimo e máximo
         const storeProducts = mappedProducts.filter(p => p.store_id === store.id)
         const prices = storeProducts.map(p => p.price).filter(p => p !== null && !isNaN(p as number)) as number[]
@@ -302,29 +302,27 @@ export default function Vitrine() {
       <div
         key={store.id + idx}
         onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-        className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
+        className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
       >
         {/* Fundo banner da loja */}
         <div className="relative h-48 overflow-hidden bg-neutral-900">
           {store.logo_url ? (
-            <>
-              <img
-                src={store.logo_url}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-700"
-                alt=""
-              />
-              <div className="absolute bottom-0 left-0 w-full h-1/3 bg-gradient-to-t from-neutral-950 via-neutral-950/90 to-transparent" />
-            </>
+            <img
+              src={store.logo_url}
+              className="absolute inset-0 w-full h-full object-cover bg-white"
+              alt={store.name}
+            />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950" />
+            <div className="w-full h-full bg-neutral-900" />
           )}
 
+
           {/* Status badge */}
-          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full border backdrop-blur-md z-10 ${store.is_open
-            ? 'bg-green-500/20 text-green-400 border-green-500/30'
-            : 'bg-red-500/20 text-red-400 border-red-500/30'
+          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full z-10 ${store.is_open
+            ? 'bg-green-600 text-white'
+            : 'bg-red-600 text-white'
             }`}>
-            {store.is_open ? '● Aberto' : '● Fechado'}
+            {store.is_open ? 'Aberto' : 'Fechado'}
           </div>
 
           {/* DISTÂNCIA - DESTAQUE */}
@@ -337,8 +335,8 @@ export default function Vitrine() {
         </div>
 
         {/* Avatar da loja + info */}
-        <div className="px-5 pb-5 flex flex-col gap-3 -mt-8 relative z-10">
-          <div className="flex items-end gap-3">
+        <div className="px-5 pb-5 pt-5 flex flex-col gap-3 relative z-10">
+          <div className="hidden">
             <div className="w-16 h-16 rounded-2xl border-2 border-neutral-700 bg-neutral-900 overflow-hidden shadow-xl flex-shrink-0">
               {store.logo_url ? (
                 <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
@@ -366,6 +364,15 @@ export default function Vitrine() {
                   </>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="mb-1 flex-1 min-w-0">
+            <h3 className="font-bold text-lg text-white leading-tight line-clamp-1">{store.name}</h3>
+            <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-0.5">
+              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+              <span className="text-yellow-400 font-semibold">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+              <span className="text-neutral-600">({stats.ratings_count ?? 0} avaliações)</span>
             </div>
           </div>
 
@@ -465,7 +472,7 @@ export default function Vitrine() {
 
           {store && (
             <div className="flex items-center gap-2 pt-3 border-t border-neutral-800/60">
-              <div className="w-7 h-7 rounded-full bg-neutral-800 overflow-hidden border border-neutral-700">
+              <div className="hidden">
                 {store.logo_url ? (
                   <img src={store.logo_url} className="w-full h-full object-cover" />
                 ) : (
@@ -483,7 +490,7 @@ export default function Vitrine() {
 
                   {/* DISTÂNCIA NA LINHA DA LOJA */}
                   {distanceFormatted && (
-                    <span className="text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
+                    <span className="hidden text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
                       <MapPin className="w-2.5 h-2.5" />
                       {distanceFormatted}
                     </span>
@@ -533,234 +540,228 @@ export default function Vitrine() {
   const hasMoreStores = sortedStores.length > PREVIEW_COUNT
 
   return (
-    <div className="min-h-screen bg-black bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-neutral-900/40 via-black to-black">
+    <div className="relative min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black overflow-x-hidden">
+      {/* Background Glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[130px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
+      </div>
 
-      {/* CONTAINER PRINCIPAL */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
-
-        {/* HEADER */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            iUser
-          </h1>
-        </div>
-
-        {/* BARRA DE BUSCA E FILTRO */}
-        <div className="flex gap-3 mb-4">
-          <div className="flex-1 relative">
-            <div className="relative group">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 group-focus-within:text-white transition-colors" />
-
-              <input
-                type="text"
-                placeholder="Buscar produtos, serviços ou lojas..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-11 pr-10 py-3 sm:py-3.5 bg-neutral-900/80 backdrop-blur-sm border border-neutral-700 rounded-2xl text-white placeholder:text-neutral-500 focus:outline-none focus:border-white focus:shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all"
-              />
-
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12 sm:mb-20">
+          <div className="space-y-4">
+            <h1 className="text-6xl md:text-8xl font-black tracking-tighter italic uppercase text-white leading-[0.8]">
+              iUser<span className="text-blue-500">.</span>
+            </h1>
+            <p className="text-neutral-500 text-lg font-bold uppercase tracking-[0.2em] ml-2">Vitrine Digital de Alta Performance</p>
           </div>
-
-          {/* BOTÃO FILTRO MOBILE */}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`lg:hidden px-4 py-3 rounded-2xl border transition-all ${showFilters
-              ? 'bg-white text-black border-white'
-              : 'bg-neutral-900/80 text-neutral-400 border-neutral-700 hover:border-white/50'
-              }`}
-          >
-            <Filter className="w-5 h-5" />
-          </button>
-
-          {/* FILTRO ATIVO MOBILE */}
-          <div className="lg:hidden px-4 py-3 rounded-2xl bg-neutral-900/80 border border-neutral-700">
-            <span className="text-sm font-medium text-white">{getActiveFilterLabel()}</span>
-          </div>
-        </div>
-
-        {/* FILTROS */}
-        <div className={`${showFilters ? 'block' : 'hidden'} lg:block mb-8`}>
-          <div className="bg-neutral-900/40 backdrop-blur-sm rounded-2xl border border-neutral-800 p-4">
-            <div className="flex items-center gap-2 mb-3 lg:hidden">
-              <Filter className="w-4 h-4 text-neutral-400" />
-              <span className="text-sm font-medium text-neutral-400">Ordenar por</span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {filters.map((option) => {
-                const Icon = option.icon
-                const isActive = sortBy === option.value
-
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      setSortBy(option.value as any)
-                      setShowFilters(false)
-                    }}
-                    className={`group relative px-4 py-2 rounded-full text-sm font-medium border transition-all flex items-center gap-2 ${isActive
-                      ? 'bg-white text-black border-white shadow-lg'
-                      : 'bg-neutral-900/50 text-neutral-400 border-neutral-700 hover:bg-neutral-800 hover:text-white hover:border-neutral-500'
-                      }`}
-                  >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-black' : 'text-neutral-500 group-hover:text-white'}`} />
-                    {option.label}
-
-                    {isActive && (
-                      <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
-                    )}
+          
+          <div className="flex flex-col gap-4 w-full md:w-auto">
+             <div className="relative group">
+                <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-neutral-600 group-focus-within:text-white transition-all duration-300" />
+                <input
+                  type="text"
+                  placeholder="O que você está procurando hoje?"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full md:w-[400px] pl-14 pr-12 py-5 bg-neutral-900/40 backdrop-blur-xl border border-white/5 rounded-[32px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
+                    <X className="w-5 h-5" />
                   </button>
-                )
-              })}
-            </div>
+                )}
+             </div>
           </div>
-        </div>
+        </header>
 
-        {/* ═══════════════════════════════════
-            SEÇÃO DE LOJAS - PRIMEIRO (acima)
-        ═══════════════════════════════════ */}
-        <section className="mb-14">
-          {/* Divisor decorativo */}
-          <div className="relative mb-8">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-800" />
-            </div>
-            <div className="relative flex justify-center">
-              <div className="flex items-center gap-3 px-5 py-2.5 bg-neutral-950 border border-neutral-700 rounded-2xl shadow-lg">
-                <Store className="w-4 h-4 text-neutral-300" />
-                <span className="text-sm font-bold text-neutral-200 tracking-wide uppercase">Lojas</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-neutral-500" />
-                <span className="text-xs text-neutral-500">{sortedStores.length} lojas</span>
+        {/* Categories / Filters Bar */}
+        <nav className="mb-16 overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex items-center gap-3 pb-4">
+            {filters.map((option) => {
+              const Icon = option.icon
+              const isActive = sortBy === option.value
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => setSortBy(option.value as any)}
+                  className={`flex-shrink-0 flex items-center gap-3 px-8 py-4 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-500 ${
+                    isActive 
+                      ? 'bg-white text-black border-white shadow-[0_15px_30px_rgba(255,255,255,0.15)] active:scale-95' 
+                      : 'bg-neutral-950/50 text-neutral-500 border-white/5 hover:border-white/20 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+
+        {/* Lojas Section */}
+        <section className="mb-24">
+          <div className="flex items-end justify-between mb-10 gap-4">
+            <div className="space-y-2">
+              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Próximos de Você</h2>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">{sortedStores.length} stores encontradas</p>
               </div>
             </div>
-          </div>
-
-          {/* Header seção lojas */}
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="text-lg font-bold text-white">Descubra as lojas</h2>
-              <p className="text-xs text-neutral-500">Explore e visite as lojas próximas</p>
-            </div>
-            {hasMoreStores && !showAllStores && (
-              <button
-                onClick={() => setShowAllStores(true)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
+            {hasMoreStores && (
+              <button 
+                onClick={() => setShowAllStores(!showAllStores)}
+                className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >
-                Ver todas ({sortedStores.length})
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-            {showAllStores && (
-              <button
-                onClick={() => setShowAllStores(false)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" /> Mostrar menos
+                {showAllStores ? 'Ver Menos' : `Ver Todas (${sortedStores.length})`}
+                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllStores ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
               </button>
             )}
           </div>
 
           {sortedStores.length === 0 ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
-              <Store className="w-10 h-10 text-neutral-700 mb-3" />
-              <p className="text-neutral-500 text-sm">Nenhuma loja encontrada</p>
+            <div className="py-24 text-center rounded-[40px] border border-dashed border-white/5 bg-white/[0.01]">
+              <Store className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
+              <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Nenhuma loja encontrada na sua região</p>
             </div>
           ) : (
-            <>
-              {/* Grid de lojas: 1 coluna mobile, 2 colunas tablet/desktop médio, 3 colunas desktop grande */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-                {visibleStores.map((item, idx) => renderStoreCard(item, idx))}
-              </div>
-
-              {/* Botão ver todas lojas */}
-              {hasMoreStores && !showAllStores && (
-                <div className="mt-5 text-center">
-                  <button
-                    onClick={() => setShowAllStores(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {visibleStores.map((store, idx) => {
+                const stats = store.store_stats ?? {}
+                const distance = calcDistanceKm(store.location)
+                const distanceFormatted = formatDistance(distance)
+                return (
+                  <div
+                    key={store.id + idx}
+                    onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
+                    className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[40px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl"
                   >
-                    Ver todas as {sortedStores.length} lojas
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </>
+                    <div className="relative h-48 bg-neutral-950 overflow-hidden">
+                      {store.logo_url ? (
+                        <img src={store.logo_url} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" alt={store.name} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-neutral-800 text-6xl font-black italic">{store.name?.charAt(0)}</div>
+                      )}
+                      
+                      <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl z-20">
+                         <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white">{store.is_open ? 'Aberta' : 'Fechada'}</span>
+                      </div>
+
+                      {distanceFormatted && (
+                        <div className="absolute top-6 right-6 px-4 py-2 bg-white text-black font-black rounded-2xl z-20 shadow-2xl flex items-center gap-1.5 grayscale group-hover:grayscale-0 transition-all">
+                           <MapPin className="w-3.5 h-3.5" />
+                           <span className="text-[10px] uppercase tracking-tighter">{distanceFormatted}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-8 space-y-6">
+                      <div className="space-y-2">
+                        <h3 className="text-3xl font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors truncate">{store.name}</h3>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                            <span className="text-sm font-black text-white italic">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+                          </div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-neutral-600">{stats.ratings_count ?? 0} Avaliações</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-6 border-t border-white/5">
+                        <div className="flex -space-x-3">
+                           {[1,2,3].map(i => (
+                             <div key={i} className="w-10 h-10 rounded-full bg-neutral-800 border-4 border-neutral-950 ring-1 ring-white/5" />
+                           ))}
+                        </div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-white transition-colors">Visitar Vitrine &rarr;</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </section>
 
-        {/* ═══════════════════════════════════
-            SEÇÃO DE PRODUTOS - DEPOIS (abaixo)
-        ═══════════════════════════════════ */}
-        <section>
-          {/* Header seção produtos */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/10">
-                <ShoppingBag className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-white">Produtos e Serviços</h2>
-                <p className="text-xs text-neutral-500">{sortedProducts.length} itens disponíveis</p>
+        {/* Produtos Section */}
+        <section className="pb-20">
+          <div className="flex items-end justify-between mb-10 gap-4">
+            <div className="space-y-2">
+              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Trending Items</h2>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">{sortedProducts.length} itens disponíveis</p>
               </div>
             </div>
-            {hasMoreProducts && !showAllProducts && (
-              <button
-                onClick={() => setShowAllProducts(true)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors group"
+            {hasMoreProducts && (
+              <button 
+                onClick={() => setShowAllProducts(!showAllProducts)}
+                className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >
-                Ver todos ({sortedProducts.length})
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-            {showAllProducts && (
-              <button
-                onClick={() => setShowAllProducts(false)}
-                className="flex items-center gap-1.5 text-sm font-semibold text-neutral-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" /> Mostrar menos
+                {showAllProducts ? 'Ver Menos' : `Ver Todos (${sortedProducts.length})`}
+                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
               </button>
             )}
           </div>
 
-          {sortedProducts.length === 0 ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-neutral-800/50 bg-neutral-950/50">
-              <ShoppingBag className="w-10 h-10 text-neutral-700 mb-3" />
-              <p className="text-neutral-500 text-sm">Nenhum produto encontrado</p>
-            </div>
-          ) : (
-            <>
-              {/* Grid: 2 colunas para mobile, tablet e desktop médio | 4 colunas para desktop grande */}
-              <div className="grid grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
-                {visibleProducts.map((item, idx) => renderProductCard(item, idx))}
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            {visibleProducts.map((product, idx) => {
+              const store = getStore(product.store_id)
+              const distance = store ? calcDistanceKm(store.location) : null
+              const distanceFormatted = formatDistance(distance)
+              const price = typeof product.price === 'number' ? product.price : 0
+              const typeLabel = translateType(product.type) || product.category || 'Item'
+              
+              return (
+                <div
+                  key={product.id + idx}
+                  onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug}`)}
+                  className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[36px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl"
+                >
+                  <div className="relative aspect-[4/5] bg-neutral-950 overflow-hidden">
+                    {product.image_url ? (
+                      <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-800 text-4xl font-black italic">ITEM</div>
+                    )}
+                    
+                    <div className="absolute top-5 left-5 z-10">
+                       <div className="bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white">
+                          {typeLabel}
+                      </div>
+                    </div>
 
-              {/* Botão ver todos abaixo do grid */}
-              {hasMoreProducts && !showAllProducts && (
-                <div className="mt-5 text-center">
-                  <button
-                    onClick={() => setShowAllProducts(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl border border-neutral-700 bg-neutral-900/80 text-sm font-semibold text-white hover:border-white/50 hover:bg-neutral-800 transition-all"
-                  >
-                    Ver todos os {sortedProducts.length} produtos
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                    {distanceFormatted && (
+                      <div className="absolute bottom-5 right-5 z-10">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/10 rounded-xl text-[10px] font-black uppercase text-white">
+                           <MapPin className="w-3 h-3" /> {distanceFormatted}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-7 space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-xl font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors truncate">{product.name}</h4>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-600 truncate">{store?.name || 'Loja Parceira'}</p>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                      <span className="text-2xl font-black italic tracking-tighter text-white">R$ {price.toFixed(2).replace('.', ',')}</span>
+                      <div className="w-10 h-10 rounded-2xl bg-white text-black flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:scale-110">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </>
-          )}
-
-          <div className="pb-10" />
+              )
+            })}
+          </div>
         </section>
-
       </div>
     </div>
   )

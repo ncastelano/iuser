@@ -16,7 +16,10 @@ export default function ConfiguracoesPage() {
         async function loadProfile() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                const { data } = await supabase.from('profiles').select('whatsapp').eq('id', user.id).single()
+                const { data, error } = await supabase.from('profiles').select('whatsapp').eq('id', user.id).single()
+                if (error) {
+                    console.error('[Configuracoes] Erro ao carregar WhatsApp:', error)
+                }
                 if (data?.whatsapp) {
                     setWhatsapp(data.whatsapp)
                 }
@@ -28,12 +31,15 @@ export default function ConfiguracoesPage() {
 
     const handleSave = async () => {
         setSaving(true)
+        const normalizedWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-            const { error } = await supabase.from('profiles').update({ whatsapp }).eq('id', user.id)
+            const { error } = await supabase.from('profiles').update({ whatsapp: normalizedWhatsapp || null }).eq('id', user.id)
             if (error) {
-                alert('Erro ao salvar whatsapp')
+                console.error('[Configuracoes] Erro ao salvar WhatsApp:', error)
+                alert(`Erro ao salvar WhatsApp: ${error.message}`)
             } else {
+                setWhatsapp(normalizedWhatsapp)
                 alert('Salvo com sucesso!')
             }
         }
@@ -64,20 +70,21 @@ export default function ConfiguracoesPage() {
                     <div>
                         <label className="block text-sm font-semibold text-neutral-300 mb-2">Seu WhatsApp</label>
                         <p className="text-xs text-neutral-500 mb-4">Iremos trabalhar depois com o seu WhatsApp para mandar extratos ou avisos da plataforma.</p>
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             placeholder="(00) 00000-0000"
                             value={whatsapp}
                             onChange={(e) => setWhatsapp(e.target.value)}
+                            inputMode="tel"
                             className="w-full bg-neutral-950 border border-neutral-700 px-4 py-3 rounded-xl text-white outline-none focus:border-white transition"
                         />
                     </div>
-                    <button 
-                        onClick={handleSave} 
+                    <button
+                        onClick={handleSave}
                         disabled={saving}
                         className="py-3 px-6 bg-white text-black font-bold flex items-center justify-center gap-2 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
                     >
-                        {saving ? 'Salvando...' : <><Save className="w-4 h-4"/> Salvar Alterações</>}
+                        {saving ? 'Salvando...' : <><Save className="w-4 h-4" /> Salvar Alterações</>}
                     </button>
                 </div>
 

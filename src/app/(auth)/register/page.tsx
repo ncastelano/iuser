@@ -40,7 +40,7 @@ export default function Register() {
         .select('id')
         .eq('profileSlug', profileSlug)
         .single()
-      
+
       if (existingProfile) {
         setError('Este link já está em uso por outro usuário.')
         setLoading(false)
@@ -111,98 +111,114 @@ export default function Register() {
       setError(err.message)
     } finally {
       setLoading(false)
-    }
-  }
+    }  return (
+    <div className="relative flex items-center justify-center min-h-screen bg-black px-4 py-12 overflow-hidden selection:bg-white selection:text-black">
+      {/* Background Glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[130px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:40px_40px]" />
+      </div>
 
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-black px-4 py-12">
-      <form onSubmit={handleRegister} className="w-full max-w-md p-8 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl relative overflow-hidden">
-        {/* Glow effect */}
-        <div className="absolute -top-32 -left-32 w-64 h-64 bg-white rounded-full blur-[100px] opacity-5 pointer-events-none"></div>
-
-        <h1 className="mb-8 text-2xl text-center text-white font-medium tracking-tight">
-          Criar conta no{' '}
-          <span className="font-extrabold text-white tracking-wide block text-3xl mt-1">iUser</span>
-        </h1>
-
-        {error && <div className="p-4 mb-6 text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl">{error}</div>}
-
-        <div className="mb-5">
-          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Nome completo</label>
-          <input
-            type="text"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            disabled={loading}
-          />
+      <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-neutral-900/40 backdrop-blur-3xl border border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700">
+        <div className="text-center space-y-4 mb-10">
+          <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white leading-none">
+            Bem-vindo ao <span className="text-blue-500">iUser.</span>
+          </h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500">Inicie sua Jornada Digital</p>
         </div>
 
-        <div className="mb-5">
-          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Link do seu Perfil</label>
-          <div className="flex items-center bg-neutral-950 rounded-xl border border-neutral-800 focus-within:border-white focus-within:ring-1 focus-within:ring-white transition overflow-hidden">
-            <span className="pl-3.5 pr-1 text-neutral-500 whitespace-nowrap">iuser.com.br/</span>
+        {error && (
+          <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-2xl animate-shake">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500 ml-4">Full Identity / Nome</label>
             <input
               type="text"
-              className="w-full p-3.5 pl-1 bg-transparent text-white outline-none placeholder:text-neutral-600"
-              placeholder="seunome"
-              value={profileSlug}
-              onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+              className="w-full px-8 py-4 bg-black border border-white/5 rounded-[24px] text-white placeholder:text-neutral-800 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+              placeholder="Como devemos lhe chamar?"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               required
               disabled={loading}
             />
           </div>
-        </div>
 
-        <div className="mb-5">
-          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Email</label>
-          <input
-            type="email"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500 ml-4">Unique Slug / Link do Perfil</label>
+            <div className="flex items-center bg-black border border-white/5 rounded-[24px] focus-within:border-white/20 focus-within:ring-4 focus-within:ring-white/5 transition-all duration-500 overflow-hidden group">
+              <span className="pl-6 pr-1 text-[10px] font-black text-neutral-600 uppercase tracking-widest bg-white/[0.02] h-full flex items-center">iuser.com.br/</span>
+              <input
+                type="text"
+                className="w-full py-4 pl-1 pr-6 bg-transparent text-white outline-none placeholder:text-neutral-800"
+                placeholder="seu-link"
+                value={profileSlug}
+                onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                required
+                disabled={loading}
+              />
+            </div>
+          </div>
 
-        <div className="mb-5">
-          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Senha</label>
-          <input
-            type="password"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500 ml-4">Credential / Email</label>
+            <input
+              type="email"
+              className="w-full px-8 py-4 bg-black border border-white/5 rounded-[24px] text-white placeholder:text-neutral-800 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+              placeholder="Seu melhor e-mail"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-        <div className="mb-8">
-          <label className="block mb-2 text-sm font-semibold text-neutral-300 ml-1">Confirmar Senha</label>
-          <input
-            type="password"
-            className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500 ml-4">Password</label>
+              <input
+                type="password"
+                className="w-full px-6 py-4 bg-black border border-white/5 rounded-[24px] text-white placeholder:text-neutral-800 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-neutral-500 ml-4">Confirm</label>
+              <input
+                type="password"
+                className="w-full px-6 py-4 bg-black border border-white/5 rounded-[24px] text-white placeholder:text-neutral-800 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
+          className="w-full mt-10 bg-white text-black py-5 rounded-[32px] font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 active:scale-[0.96] disabled:opacity-30 shadow-2xl hover:shadow-white/10"
         >
-          {loading ? 'Cadastrando...' : 'Criar minha conta'}
+          {loading ? 'Processando...' : 'Finalizar Cadastro'}
         </button>
 
-        <p className="mt-8 text-center text-sm font-medium text-neutral-400">
-          Já tem conta? <a href="/login" className="text-white hover:underline transition ml-1">Entre agora</a>
+        <p className="mt-10 text-center text-[10px] font-black uppercase tracking-[0.2em] text-neutral-600">
+          Já faz parte da rede?{' '}
+          <a href="/login" className="text-white hover:text-blue-400 transition ml-2">Login &rarr;</a>
         </p>
       </form>
     </div>
+  )
+}
+v>
   )
 }

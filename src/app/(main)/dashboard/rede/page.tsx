@@ -11,7 +11,7 @@ export default function RedePage() {
   const router = useRouter()
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
-  const [networkCounts, setNetworkCounts] = useState<{level: number, count: string}[]>([])
+  const [networkCounts, setNetworkCounts] = useState<{ level: number, count: string }[]>([])
 
   useEffect(() => {
     async function loadUser() {
@@ -58,10 +58,10 @@ export default function RedePage() {
         {/* Níveis Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-10">
           {levelsData.map(lvl => (
-             <div key={lvl.level} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
-               <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-1">Nível {lvl.level}</p>
-               <p className="text-2xl font-extrabold text-white">{lvl.count}</p>
-             </div>
+            <div key={lvl.level} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 text-center">
+              <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest mb-1">Nível {lvl.level}</p>
+              <p className="text-2xl font-extrabold text-white">{lvl.count}</p>
+            </div>
           ))}
         </div>
 

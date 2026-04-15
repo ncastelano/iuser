@@ -1,11 +1,39 @@
-// src/app/(main)/[storeSlug]/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AlertTriangle, Search, ArrowLeft, Star, Plus, Share2, MessageCircle, Copy, Check, ShoppingCart, X, Trash2, CheckCircle2 } from 'lucide-react'
+import {
+    AlertTriangle,
+    ArrowLeft,
+    Check,
+    CheckCircle2,
+    Copy,
+    Calendar,
+    MessageCircle,
+    Plus,
+    Search,
+    Share2,
+    ShoppingCart,
+    Trash2,
+} from 'lucide-react'
+import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
+import { RatingStars } from '@/components/ratings/RatingStars'
+import { getAvatarUrl } from '@/lib/avatar'
+
+type RatingRow = {
+    id: string
+    rating: number
+    profile_id: string
+    created_at: string
+    profiles?: {
+        id: string
+        name: string | null
+        avatar_url: string | null
+        profileSlug?: string | null
+    } | null
+}
 
 export default function StorePage() {
     const params = useParams()
@@ -15,162 +43,184 @@ export default function StorePage() {
 
     const [store, setStore] = useState<any | null>(null)
     const [products, setProducts] = useState<any[]>([])
+    const [ratings, setRatings] = useState<RatingRow[]>([])
     const [loading, setLoading] = useState(true)
-    const [isOwner, setIsOwner] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isOwner, setIsOwner] = useState(false)
+    const [mounted, setMounted] = useState(false)
     const [showShareMenu, setShowShareMenu] = useState(false)
     const [copied, setCopied] = useState(false)
-    const [showCart, setShowCart] = useState(false)
-    const [mounted, setMounted] = useState(false)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [myRating, setMyRating] = useState(0)
+    const [ratingLoading, setRatingLoading] = useState(false)
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+    const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
 
-
-    const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
+    const { itemsByStore, addItem, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
     const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
-    const totalPrice = cartItems.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+    const totalPrice = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+    const [supabase] = useState(() => createClient())
 
-    useEffect(() => { setMounted(true) }, [])
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
-    const getStoreUrl = () => {
+    const storeUrl = useMemo(() => {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
         return `${baseUrl}/${profileSlug}/${storeSlug}`
-    }
+    }, [profileSlug, storeSlug])
 
-    const shareOnWhatsApp = () => {
-        const storeUrl = getStoreUrl()
-        const text = `✨ *${store?.name}* ✨\n\n${store?.storeSlug}\n\n🔗 ${storeUrl}`
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`
-        window.open(whatsappUrl, '_blank')
-        setShowShareMenu(false)
-    }
+    const loadRatings = useCallback(async (storeId: string, userId?: string | null) => {
+        const { data, error: ratingsError } = await supabase
+            .from('store_ratings')
+            .select('id, rating, profile_id, created_at, profiles(id, name, avatar_url, "profileSlug")')
+            .eq('store_id', storeId)
+            .order('created_at', { ascending: false })
 
-    const shareOnWhatsAppStory = () => {
-        const storeUrl = getStoreUrl()
-        const storyText = `✨ ${store?.name} ✨`
-        const whatsappStoryUrl = `https://wa.me/?text=${encodeURIComponent(storyText + '\n\n' + storeUrl)}`
-        window.open(whatsappStoryUrl, '_blank')
-        setShowShareMenu(false)
-    }
-
-    const copyToClipboard = async () => {
-        const storeUrl = getStoreUrl()
-        try {
-            await navigator.clipboard.writeText(storeUrl)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-            setTimeout(() => setShowShareMenu(false), 1500)
-        } catch (err) {
-            console.error('Erro ao copiar:', err)
+        if (ratingsError) {
+            console.error('[StorePage] Erro ao buscar avaliações:', ratingsError)
+            return
         }
-    }
 
-    const shareNative = () => {
-        if (navigator.share) {
-            const storeUrl = getStoreUrl()
-            navigator.share({
-                title: store?.name,
-                text: store?.storeSlug,
-                url: storeUrl,
-            }).catch(() => { })
-        } else {
-            setShowShareMenu(true)
+        const rows = (data || []) as RatingRow[]
+        setRatings(rows)
+
+        const activeUserId = userId ?? currentUserId
+        setMyRating(rows.find((rating) => rating.profile_id === activeUserId)?.rating ?? 0)
+    }, [currentUserId, supabase])
+
+    const loadStore = useCallback(async () => {
+        if (!storeSlug) return
+
+        setLoading(true)
+        setError(null)
+
+        const { data: foundStore, error: storeError } = await supabase
+            .from('stores')
+            .select('*')
+            .ilike('storeSlug', storeSlug)
+            .maybeSingle()
+
+        if (storeError) {
+            setError(`Erro ao buscar loja: ${storeError.message}`)
+            setLoading(false)
+            return
         }
+
+        if (!foundStore) {
+            setLoading(false)
+            return
+        }
+
+        const logoUrl = foundStore.logo_url
+            ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
+            : null
+
+        const { data: { user } } = await supabase.auth.getUser()
+        const userId = user?.id ?? null
+        setCurrentUserId(userId)
+        setIsOwner(userId === foundStore.owner_id)
+
+        if (userId && userId !== foundStore.owner_id) {
+            supabase.from('store_views').insert({
+                store_id: foundStore.id,
+                viewer_id: userId,
+            }).then(({ error: viewError }) => {
+                if (viewError) console.error('[StorePage] Erro ao registrar view:', viewError)
+            })
+        }
+
+        const { data: productsData, error: productsError } = await supabase
+            .from('products')
+            .select('*')
+            .eq('store_id', foundStore.id)
+            .order('created_at', { ascending: false })
+
+        if (productsError) {
+            console.error('[StorePage] Erro ao buscar produtos:', productsError)
+        }
+
+        const mappedProducts = (productsData || []).map((product) => ({
+            ...product,
+            image_url: product.image_url
+                ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl
+                : null,
+        }))
+
+        setStore({ ...foundStore, logo_url: logoUrl })
+        setProducts(mappedProducts)
+        await loadRatings(foundStore.id, userId)
+
+        // Load upcoming appointments for social proof
+        const { data: upcomingData } = await supabase
+            .from('appointments')
+            .select('profiles:client_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .gte('start_time', new Date().toISOString())
+            .order('start_time', { ascending: true })
+            .limit(5)
+        
+        setUpcomingAppointments(upcomingData || [])
+        setLoading(false)
+    }, [loadRatings, storeSlug, supabase])
+
+    useEffect(() => {
+        loadStore()
+    }, [loadStore])
+
+    const submitRating = async (rating: number) => {
+        if (!store) return
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            alert('Entre na sua conta para avaliar esta loja.')
+            router.push('/login')
+            return
+        }
+
+        setRatingLoading(true)
+        const { error: upsertError } = await supabase
+            .from('store_ratings')
+            .upsert({
+                store_id: store.id,
+                profile_id: user.id,
+                rating,
+            }, { onConflict: 'store_id,profile_id' })
+
+        if (upsertError) {
+            console.error('[StorePage] Erro ao salvar avaliação:', upsertError)
+            alert('Não foi possível salvar sua avaliação agora.')
+            setRatingLoading(false)
+            return
+        }
+
+        setMyRating(rating)
+        await loadStore()
+        setRatingLoading(false)
     }
 
     const toggleStoreStatus = async () => {
-        if (!isOwner || !store) return
+        if (!store || !isOwner) return
+        const nextIsOpen = !store.is_open
 
-        const newStatus = !store.is_open
-        const confirmMessage = newStatus
-            ? "Você quer abrir a loja?"
-            : "Você quer fechar a loja?"
+        if (!window.confirm(nextIsOpen ? 'Você quer abrir a loja?' : 'Você quer fechar a loja?')) return
 
-        if (window.confirm(confirmMessage)) {
-            setStore({ ...store, is_open: newStatus })
+        setStore({ ...store, is_open: nextIsOpen })
 
-            const supabase = createClient()
-            const { error: updateError } = await supabase
-                .from('stores')
-                .update({ is_open: newStatus })
-                .eq('id', store.id)
+        const { error: updateError } = await supabase
+            .from('stores')
+            .update({ is_open: nextIsOpen })
+            .eq('id', store.id)
 
-            if (updateError) {
-                console.error('[StorePage] Erro ao atualizar status da loja:', updateError)
-                alert("Erro ao alterar o status da loja.")
-                setStore({ ...store, is_open: !newStatus })
-            }
+        if (updateError) {
+            console.error('[StorePage] Erro ao atualizar status:', updateError)
+            alert('Erro ao alterar o status da loja.')
+            setStore({ ...store, is_open: !nextIsOpen })
         }
     }
 
-    useEffect(() => {
-        if (!storeSlug) return
-
-        const fetchStore = async () => {
-            setLoading(true)
-            setError(null)
-
-            const supabase = createClient()
-
-            const { data: foundStore, error: storeError } = await supabase
-                .from('stores')
-                .select('*')
-                .ilike('storeSlug', storeSlug || '')
-                .maybeSingle()
-
-            if (storeError) {
-                console.error('[StorePage] Erro ao buscar loja:', storeError)
-                setError(`Erro ao buscar loja: ${storeError.message}`)
-                setLoading(false)
-                return
-            }
-
-            if (!foundStore) {
-                console.warn('[StorePage] Loja não encontrada para slug:', storeSlug)
-                setLoading(false)
-                return
-            }
-
-            const logo_url = foundStore.logo_url
-                ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
-                : null
-
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                if (user.id === foundStore.owner_id) {
-                    setIsOwner(true)
-                } else {
-                    supabase.from('store_views').insert({
-                        store_id: foundStore.id,
-                        viewer_id: user.id
-                    }).then(({error}) => { if (error) console.error('Erro ao registrar view:', error) })
-                }
-            }
-
-
-            const { data: productsData, error: productsError } = await supabase
-                .from('products')
-                .select('*')
-                .eq('store_id', foundStore.id)
-                .order('created_at', { ascending: false })
-
-            if (productsError) {
-                console.error('[StorePage] Erro ao buscar produtos:', productsError)
-            }
-
-            const mappedProducts = (productsData || []).map(p => ({
-                ...p,
-                image_url: p.image_url
-                    ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
-                    : null
-            }))
-
-            setStore({ ...foundStore, logo_url })
-            setProducts(mappedProducts)
-            setLoading(false)
-        }
-
-        fetchStore()
-    }, [storeSlug])
+    const latestRatings = ratings.slice(0, 6)
 
     if (loading) {
         return (
@@ -191,7 +241,7 @@ export default function StorePage() {
                     <h2 className="text-2xl font-bold">Erro ao carregar</h2>
                     <p className="text-neutral-500 text-sm">{error}</p>
                     <button onClick={() => router.push('/')} className="text-neutral-300 hover:text-white hover:underline mt-2">
-                        Voltar para a Vitrine
+                        Voltar para a vitrine
                     </button>
                 </div>
             </div>
@@ -207,314 +257,378 @@ export default function StorePage() {
                     <p className="text-neutral-500 text-sm">
                         Nenhuma loja com o endereço <span className="text-white font-mono">/{storeSlug}</span> foi encontrada.
                     </p>
-                    <button onClick={() => router.push('/')} className="text-neutral-300 hover:text-white hover:underline text-sm mt-2 flex items-center gap-1">
-                        <ArrowLeft className="w-4 h-4" /> Voltar para a Vitrine
-                    </button>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col gap-6 w-full animate-fade-in relative z-10">
-
-            {/* BACK + TITLE + SHARE */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 gap-4">
-                <div className="flex items-center gap-4 min-w-0">
-                    <button
-                        onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
-                        className="flex w-10 h-10 flex-shrink-0 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 hover:border-white/50 transition shadow-md group"
-                    >
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    </button>
-                    <h1 className="text-xl font-bold truncate tracking-wide">{store.name}</h1>
-                </div>
-
-                <div className="relative flex-shrink-0">
-                    <button
-                        onClick={shareNative}
-                        className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-neutral-700 hover:bg-neutral-800 hover:border-neutral-500 rounded-xl transition-all duration-300 shadow-md group"
-                    >
-                        <Share2 className="w-4 h-4 text-neutral-400 group-hover:text-white transition-colors" />
-                        <span className="text-sm font-semibold text-neutral-400 group-hover:text-white transition-colors hidden sm:inline">Compartilhar</span>
-                    </button>
-
-                    {showShareMenu && (
-                        <>
-                            <div
-                                className="fixed inset-0 z-40"
-                                onClick={() => setShowShareMenu(false)}
-                            />
-                            <div className="absolute right-0 mt-2 w-72 bg-neutral-900 border border-neutral-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200">
-                                <div className="p-3 border-b border-neutral-800">
-                                    <p className="text-xs text-neutral-400 font-medium">Compartilhar via</p>
-                                </div>
-
-                                <button
-                                    onClick={shareOnWhatsApp}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors group"
-                                >
-                                    <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <MessageCircle className="w-5 h-5 text-green-500" />
-                                    </div>
-                                    <div className="flex-1 text-left">
-                                        <p className="text-sm font-semibold text-white">WhatsApp</p>
-                                        <p className="text-xs text-neutral-400">Enviar no chat</p>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={shareOnWhatsAppStory}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors group border-t border-neutral-800"
-                                >
-                                    <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <Share2 className="w-5 h-5 text-green-500" />
-                                    </div>
-                                    <div className="flex-1 text-left">
-                                        <p className="text-sm font-semibold text-white">WhatsApp Story</p>
-                                        <p className="text-xs text-neutral-400">Compartilhar nos stories</p>
-                                    </div>
-                                </button>
-
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-neutral-800 transition-colors border-t border-neutral-800"
-                                >
-                                    <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        {copied ? (
-                                            <Check className="w-5 h-5 text-green-500" />
-                                        ) : (
-                                            <Copy className="w-5 h-5 text-neutral-400" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1 text-left">
-                                        <p className="text-sm font-semibold text-white">
-                                            {copied ? 'Copiado!' : 'Copiar link'}
-                                        </p>
-                                        <p className="text-xs text-neutral-400">
-                                            {copied ? 'Link copiado com sucesso' : 'Copiar URL da loja'}
-                                        </p>
-                                    </div>
-                                </button>
-                            </div>
-                        </>
-                    )}
-                </div>
+        <div className="relative min-h-screen pb-20 overflow-hidden bg-black text-white font-sans selection:bg-white selection:text-black">
+            {/* Background Effects */}
+            <div className="fixed inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 blur-[100px] rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px]" />
             </div>
 
-            {/* STORE HEADER */}
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-neutral-900/40 p-6 rounded-2xl border border-neutral-800 shadow-xl backdrop-blur-sm">
+            {store && (
+                <ScheduleModal
+                    isOpen={isScheduleModalOpen}
+                    onClose={() => setIsScheduleModalOpen(false)}
+                    store={{
+                        id: store.id,
+                        name: store.name,
+                        storeSlug: store.storeSlug
+                    }}
+                />
+            )}
 
-                {/* LOGO */}
-                <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-neutral-950 flex items-center justify-center border border-neutral-800 shadow-2xl overflow-hidden flex-shrink-0">
-                    {store.logo_url ? (
-                        <img src={store.logo_url} className="w-full h-full object-cover" alt={`Logo ${store.name}`} />
-                    ) : (
-                        <span className="text-neutral-600 text-sm font-medium text-center px-2">{store.name?.charAt(0)}</span>
-                    )}
-                </div>
-
-                {/* INFO */}
-                <div className="flex flex-col gap-3 text-center md:text-left flex-1 pt-2">
-
-                    <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-                        {store.name}
-                    </h2>
-
-                    {store.description && (
-                        <p className="text-gray-400 text-sm md:text-base leading-relaxed">
-                            {store.description}
-                        </p>
-                    )}
-
-                    {/* RATING */}
-                    <div className="flex items-center justify-center md:justify-start gap-1 text-white">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <Star key={i} className={`w-4 h-4 ${i < Math.round(store.ratings_avg || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-neutral-600'}`} />
-                        ))}
-                        <span className="font-bold ml-1">{store.ratings_avg?.toFixed(1) ?? '0.0'}</span>
-                        <span className="text-neutral-400 text-sm ml-1">
-                            ({store.ratings_count ?? 0} avaliações)
-                        </span>
+            {/* Sticky Navigation Header */}
+            <header className="sticky top-0 z-50 px-4 py-4 md:px-8 border-b border-white/5 bg-black/60 backdrop-blur-xl transition-all duration-300">
+                <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <button
+                            onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
+                            className="group flex w-11 h-11 items-center justify-center bg-neutral-900/50 border border-neutral-800 rounded-2xl hover:bg-white hover:text-black transition-all duration-300"
+                        >
+                            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                        </button>
+                        <div className="min-w-0 flex flex-col">
+                            <h1 className="text-xl font-bold truncate tracking-tight">{store.name}</h1>
+                            <div className="flex items-center gap-1.5">
+                                <span className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]'}`} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                                    {store.is_open ? 'Aberto Agora' : 'Fechado no Momento'}
+                                </span>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* BADGES */}
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-1">
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={isOwner ? toggleStoreStatus : undefined}
-                            className={`inline-block px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest ${store.is_open
-                                ? 'bg-green-500/10 text-green-400 border border-green-500/30'
-                                : 'bg-red-500/10 text-red-500 border border-red-500/30'
-                                } ${isOwner ? 'cursor-pointer hover:opacity-80 transition hover:scale-105 active:scale-95 shadow-md flex items-center gap-1' : 'cursor-default'}`}>
-                            {store.is_open ? '● Aberto' : '● Fechado'}
+                            onClick={() => {
+                                if (navigator.share) {
+                                    navigator.share({ title: store.name, text: store.storeSlug, url: storeUrl }).catch(() => { })
+                                } else {
+                                    setShowShareMenu(true)
+                                }
+                            }}
+                            className="flex w-11 h-11 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-2xl hover:border-neutral-500 transition-all duration-300"
+                        >
+                            <Share2 className="w-5 h-5 text-neutral-400 group-hover:text-white" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Share Menu Portal */}
+                {showShareMenu && (
+                    <div className="max-w-7xl mx-auto relative h-0">
+                        <div className="fixed inset-0 z-40" onClick={() => setShowShareMenu(false)} />
+                        <div className="absolute right-0 mt-4 w-72 bg-neutral-900 border border-neutral-700 rounded-3xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className="p-4 border-b border-neutral-800 bg-neutral-950/50">
+                                <h3 className="font-bold text-sm text-white">Compartilhar Loja</h3>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const text = `✨ *${store.name}* ✨\n\n${store.storeSlug}\n\n🔗 ${storeUrl}`
+                                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+                                    setShowShareMenu(false)
+                                }}
+                                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-neutral-800 transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                                    <MessageCircle className="w-5 h-5 text-green-500" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold text-white uppercase tracking-wider">WhatsApp</p>
+                                    <p className="text-xs text-neutral-500">Enviar convite no chat</p>
+                                </div>
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    await navigator.clipboard.writeText(storeUrl)
+                                    setCopied(true)
+                                    setTimeout(() => setCopied(false), 2000)
+                                    setTimeout(() => setShowShareMenu(false), 1500)
+                                }}
+                                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-neutral-800 transition-colors border-t border-neutral-800"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-neutral-800 flex items-center justify-center">
+                                    {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-neutral-400" />}
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold text-white uppercase tracking-wider">{copied ? 'Copiado!' : 'Copiar Link'}</p>
+                                    <p className="text-xs text-neutral-500">{copied ? 'Endereço pronto para colar' : 'Copiar URL única da loja'}</p>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </header>
+
+            <main className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-10">
+                {/* Hero Section */}
+                <section className="relative flex flex-col md:flex-row items-center md:items-start gap-8 p-8 md:p-12 rounded-[40px] border border-white/5 bg-gradient-to-br from-neutral-900/40 to-neutral-900/10 backdrop-blur-md shadow-2xl overflow-hidden group">
+                    {/* Floating Glow */}
+                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/5 blur-3xl rounded-full group-hover:bg-white/10 transition-colors duration-700" />
+                    
+                    <div className="w-40 h-40 md:w-56 md:h-56 rounded-[32px] bg-black p-1 flex items-center justify-center border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0 relative">
+                        {store.logo_url ? (
+                            <img src={store.logo_url} className="w-full h-full object-cover rounded-[28px]" alt={`Logo ${store.name}`} />
+                        ) : (
+                            <span className="text-neutral-700 text-6xl font-black italic">{store.name?.charAt(0)}</span>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                    </div>
+
+                    <div className="flex flex-col gap-6 text-center md:text-left flex-1 items-center md:items-start">
+                        <div className="space-y-3">
+                            <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-white uppercase italic">{store.name}</h2>
+                            {store.description && <p className="text-neutral-400 text-base md:text-lg leading-relaxed max-w-2xl">{store.description}</p>}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-6">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                    <RatingStars value={Number(store.ratings_avg || 0)} size={16} />
+                                    <span className="text-xl font-black text-white">{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                                </div>
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
+                                    className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:text-white transition-colors text-left"
+                                >
+                                    {store.ratings_count ?? 0} Avaliações &rarr;
+                                </button>
+                            </div>
+
+                            <div className="h-10 w-px bg-white/10 hidden sm:block" />
+
+                            <div className="flex items-center gap-3">
+                                <div className="flex -space-x-3 overflow-hidden">
+                                    {ratings.slice(0, 3).map((r, i) => (
+                                        <div key={i} className="inline-block h-10 w-10 rounded-full ring-4 ring-neutral-900 border border-white/10 bg-neutral-800 overflow-hidden">
+                                            {r.profiles?.avatar_url ? (
+                                                <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-[10px] font-bold text-neutral-500">
+                                                    {r.profiles?.name?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs font-bold uppercase tracking-tight text-neutral-400">Pessoas que <br/> amam esta loja</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                            <button
+                                onClick={isOwner ? toggleStoreStatus : undefined}
+                                className={`group px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${
+                                    store.is_open 
+                                        ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20' 
+                                        : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
+                                } ${isOwner ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
+                            >
+                                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${store.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                                {store.is_open ? 'Aberta no Momento' : 'Temporariamente Fechada'}
+                            </button>
+
+                            {store.prep_time_min != null && store.prep_time_max != null && (
+                                <div className="px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-neutral-300">
+                                    {store.prep_time_min}-{store.prep_time_max} min. espera
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Agenda & Action Section */}
+                <div className="flex flex-col gap-6">
+                    <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
+                        <button
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="group relative px-8 py-5 bg-white text-black font-black rounded-3xl hover:bg-neutral-200 transition-all duration-500 active:scale-95 shadow-[0_20px_40px_rgba(255,255,255,0.1)] overflow-hidden"
+                        >
+                            <div className="relative z-10 flex items-center gap-3">
+                                <Calendar className="w-6 h-6" />
+                                <span className="text-lg uppercase tracking-tight">Agendar Horário</span>
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                         </button>
 
-                        {store.prep_time_min != null && store.prep_time_max != null && (
-                            <span className="px-3 py-1.5 rounded-full text-xs border border-neutral-700 text-neutral-300 bg-neutral-900/50">
-                                ⏱ {store.prep_time_min}–{store.prep_time_max} min
-                            </span>
-                        )}
-
-                        {store.price_min != null && store.price_max != null && (
-                            <span className="px-3 py-1.5 rounded-full text-xs border border-neutral-700 text-green-400 bg-neutral-900/50">
-                                💰 R${store.price_min} – R${store.price_max}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* OWNER ACTION */}
-            {isOwner && (
-                <div className="flex justify-end mt-[-10px]">
-                    <button
-                        onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                        className="px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 active:bg-neutral-300 transition shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-2"
-                    >
-                        <Plus className="w-5 h-5" /> Adicionar Produto ou Serviço
-                    </button>
-                </div>
-            )}
-
-            {/* CARRINHO SUMMARY AQUI EM CIMA DO MENU */}
-            {mounted && totalItems > 0 && (
-                <div 
-                    className="relative p-[2px] rounded-2xl overflow-hidden group cursor-pointer w-full mb-2"
-                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
-                >
-                    <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
-                    <div className="relative bg-black w-full py-4 px-6 rounded-2xl flex items-center justify-between z-10 transition-colors group-hover:bg-neutral-950">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-white text-black w-8 h-8 rounded-full flex items-center justify-center font-extrabold shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-                                {totalItems}
-                            </div>
-                            <span className="font-extrabold text-white text-lg">Ver Meu Carrinho</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-white">
-                            <span className="font-black text-lg">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            <ShoppingCart className="w-6 h-6" />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* PRODUTOS */}
-            <div className="mt-2">
-                <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                    <span className="w-2 h-8 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
-                    Menu ({products.length})
-                </h3>
-
-                {products.length === 0 ? (
-                    <div className="text-center py-16 bg-neutral-900/30 rounded-2xl border border-neutral-800 border-dashed flex flex-col items-center">
-                        <p className="text-neutral-400 text-lg font-medium">Nenhum produto disponível no momento.</p>
                         {isOwner && (
                             <button
                                 onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                                className="mt-4 text-white text-sm hover:underline flex items-center gap-1"
+                                className="group px-8 py-5 bg-neutral-900 border border-neutral-700 text-white font-black rounded-3xl hover:border-white transition-all duration-300 active:scale-95 flex items-center gap-3"
                             >
-                                Adicionar seu primeiro produto <ArrowLeft className="w-4 h-4 rotate-180" />
+                                <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                <span className="text-lg uppercase tracking-tight">Novo Item</span>
                             </button>
                         )}
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map(product => (
-                            <div
-                                key={product.id}
-                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                                className="bg-neutral-900/60 rounded-2xl overflow-hidden shadow-xl border border-neutral-800 group hover:border-white/50 hover:shadow-[0_10px_30px_rgba(255,255,255,0.1)] hover:-translate-y-1 transition-all duration-300 flex flex-col cursor-pointer backdrop-blur-sm"
-                            >
-                                <div className="w-full h-48 bg-neutral-950 flex items-center justify-center border-b border-neutral-800 overflow-hidden relative">
-                                    {product.image_url ? (
-                                        <img
-                                            src={product.image_url}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            alt={product.name}
-                                        />
+
+                    {/* Upcoming Appointments Row (Social Proof) */}
+                    <div className="flex items-center justify-center md:justify-end gap-3 mt-1 px-2">
+                        <div className="flex -space-x-2.5 overflow-hidden">
+                            {upcomingAppointments.length > 0 ? upcomingAppointments.map((appt, i) => (
+                                <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-black border border-white/10 bg-neutral-900 overflow-hidden">
+                                    {appt.profiles?.avatar_url ? (
+                                        <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
                                     ) : (
-                                        <span className="text-neutral-600 font-medium text-sm">Sem Imagem</span>
+                                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-neutral-600 uppercase">
+                                            {appt.profiles?.name?.charAt(0) || 'U'}
+                                        </div>
                                     )}
                                 </div>
+                            )) : (
+                                <div className="h-8 w-8 rounded-full border border-white/5 bg-white/5 flex items-center justify-center">
+                                    <Clock className="w-3 h-3 text-neutral-600" />
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide">
+                            {upcomingAppointments.length > 0 
+                                ? `${upcomingAppointments.length}+ pessoas com horários marcados hoje`
+                                : "Seja o primeiro a agendar para hoje!"}
+                        </p>
+                    </div>
+                </div>
 
-                                <div className="p-5 flex flex-col gap-3 flex-1">
-                                    <div className="flex justify-between items-start gap-2">
-                                        <h4 className="font-bold text-lg line-clamp-1 text-white">{product.name}</h4>
-                                        {(product.type || product.category) && (
-                                            <span className="text-xs bg-neutral-800 text-neutral-300 px-2 py-1 rounded-md whitespace-nowrap">
-                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : (product.type || product.category)}
-                                            </span>
-                                        )}
+                {/* Cart Status Bar (High Premium) */}
+                {mounted && totalItems > 0 && (
+                    <div 
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
+                        className="group relative cursor-pointer"
+                    >
+                        <div className="absolute inset-[-1px] rounded-[32px] bg-gradient-to-r from-blue-600 via-purple-600 to-white animate-gradient-xy blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative bg-neutral-950 px-8 py-6 rounded-[30px] flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden z-10 transition-all group-hover:bg-black">
+                            {/* Inner Glow */}
+                            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                            
+                            <div className="flex items-center gap-6">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-white/20 blur-xl rounded-full" />
+                                    <div className="relative h-14 w-14 rounded-2xl bg-white flex items-center justify-center shadow-2xl">
+                                        <ShoppingCart className="w-7 h-7 text-black" />
+                                        <div className="absolute -top-2 -right-2 h-7 w-7 bg-blue-600 text-white text-[11px] font-black rounded-full flex items-center justify-center ring-4 ring-neutral-950">
+                                            {totalItems}
+                                        </div>
                                     </div>
-
-                                    {product.description && (
-                                        <p className="text-neutral-400 text-sm line-clamp-2 leading-relaxed">
-                                            {product.description}
-                                        </p>
-                                    )}
-
-                                    <div className="flex flex-col gap-3 mt-auto pt-4 border-t border-neutral-800">
-                                        <p className="text-white font-extrabold text-xl">
-                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </p>
-                                        
-                                        {isOwner ? (
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                }}
-                                                className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                                            >
-                                                <span>✏️ Editar</span>
-                                            </button>
-                                        ) : (
-                                            mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                <div className="flex gap-2 w-full">
-                                                    <div 
-                                                        className="relative p-[2px] rounded-xl overflow-hidden group cursor-pointer flex-1"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
-                                                        }}
-                                                    >
-                                                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-yellow-400 via-orange-500 to-white animate-spin-slow group-hover:animate-spin-fast" style={{ backgroundSize: '200% 200%' }} />
-                                                        <button className="relative w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-black text-white z-10 group-hover:bg-neutral-900">
-                                                            <CheckCircle2 className="w-4 h-4 text-white" />
-                                                            <span className="truncate">Adicionado</span>
-                                                        </button>
-                                                    </div>
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            removeItem(storeSlug as string, product.id)
-                                                        }}
-                                                        className="py-2.5 px-3 rounded-xl font-bold transition-all flex items-center justify-center bg-red-500 text-black hover:bg-red-600 shadow-md hover:scale-[1.05] active:scale-[0.95] shrink-0"
-                                                        title="Remover"
-                                                    >
-                                                        <Trash2 className="w-5 h-5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button 
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
-                                                    }}
-                                                    className="w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-neutral-800 hover:bg-white hover:text-black text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-                                                >
-                                                    <Plus className="w-5 h-5" />
-                                                    Adicionar
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
+                                </div>
+                                <div className="text-center sm:text-left">
+                                    <h4 className="text-2xl font-black italic tracking-tighter uppercase">Ver Meu Carrinho</h4>
+                                    <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest">{totalItems} {totalItems === 1 ? 'item' : 'itens selecionados'}</p>
                                 </div>
                             </div>
-                        ))}
+                            
+                            <div className="flex flex-col items-center sm:items-end">
+                                <span className="text-3xl font-black text-white italic tracking-tighter">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-[10px] font-black uppercase text-blue-500 tracking-widest flex items-center gap-1">Finalizar Compra <ArrowLeft className="w-3 h-3 rotate-180" /></span>
+                            </div>
+                        </div>
                     </div>
                 )}
-            </div>
+
+                {/* Products Grid */}
+                <div className="space-y-10">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-6">
+                        <h3 className="text-3xl font-black italic uppercase tracking-tighter">Nosso Catálogo</h3>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-black italic text-neutral-500">{products.length} Items</span>
+                        </div>
+                    </div>
+
+                    {products.length === 0 ? (
+                        <div className="py-32 text-center rounded-[40px] border border-dashed border-white/5 bg-white/[0.02]">
+                            <Search className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
+                            <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Aguardando novos produtos...</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {products.map((product) => (
+                                <div
+                                    key={product.id}
+                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
+                                    className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[36px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl hover:shadow-[0_40px_80px_rgba(0,0,0,0.4)]"
+                                >
+                                    <div className="relative w-full aspect-square bg-neutral-950 overflow-hidden">
+                                        {product.image_url ? (
+                                            <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-neutral-800 font-medium italic text-sm uppercase">Imagem Pendente</div>
+                                        )}
+                                        {/* Overlay Gradient */}
+                                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                        
+                                        <div className="absolute top-5 right-5 z-10">
+                                             <div className="bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-2xl">
+                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-7 flex flex-col gap-4 flex-1">
+                                        <div className="space-y-1">
+                                            <h4 className="text-2xl font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors line-clamp-1">{product.name}</h4>
+                                            <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest line-clamp-2 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
+                                        </div>
+
+                                        <div className="flex flex-col gap-4 mt-auto pt-6 border-t border-white/5">
+                                            <p className="text-3xl font-black italic tracking-tighter text-white">R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+
+                                            {isOwner ? (
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.stopPropagation()
+                                                        router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                    }}
+                                                    className="w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest bg-neutral-800 hover:bg-white hover:text-black transition-all duration-300"
+                                                >
+                                                    Gerenciar Item
+                                                </button>
+                                            ) : (
+                                                mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                                    <div className="flex gap-2 w-full">
+                                                        <button 
+                                                            onClick={(event) => {
+                                                                event.stopPropagation()
+                                                                router.push(`/${profileSlug}/${storeSlug}/carrinho`)
+                                                            }}
+                                                            className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 flex items-center justify-center gap-2"
+                                                        >
+                                                            <CheckCircle2 className="w-4 h-4" /> No Carrinho
+                                                        </button>
+                                                        <button
+                                                            onClick={(event) => {
+                                                                event.stopPropagation()
+                                                                removeItem(storeSlug as string, product.id)
+                                                            }}
+                                                            className="h-12 w-12 rounded-2xl flex items-center justify-center bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-black transition-all border border-red-500/20"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation()
+                                                            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                        }}
+                                                        className="w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest bg-neutral-800 hover:bg-white hover:text-black transition-all duration-500 active:scale-95 flex items-center justify-center gap-3 border border-white/5"
+                                                    >
+                                                        <Plus className="w-5 h-5" /> Adicionar ao Carrinho
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </main>
         </div>
     )
 }

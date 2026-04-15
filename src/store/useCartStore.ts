@@ -37,18 +37,18 @@ export const useCartStore = create<CartState>()(
             addItem: (storeSlug, storeInfo, product) => set((state) => {
                 const storeItems = state.itemsByStore[storeSlug] || []
                 const existingItem = storeItems.find(item => item.product.id === product.id)
-                
+
                 let newStoreItems;
                 if (existingItem) {
-                    newStoreItems = storeItems.map(item => 
-                        item.product.id === product.id 
-                            ? { ...item, quantity: item.quantity + 1 } 
+                    newStoreItems = storeItems.map(item =>
+                        item.product.id === product.id
+                            ? { ...item, quantity: item.quantity + 1 }
                             : item
                     )
                 } else {
                     newStoreItems = [...storeItems, { product, quantity: 1 }]
                 }
-                
+
                 return {
                     itemsByStore: {
                         ...state.itemsByStore,
@@ -63,14 +63,14 @@ export const useCartStore = create<CartState>()(
             removeItem: (storeSlug, productId) => set((state) => {
                 const storeItems = state.itemsByStore[storeSlug] || []
                 const newStoreItems = storeItems.filter(item => item.product.id !== productId)
-                
+
                 const newItemsByStore = { ...state.itemsByStore }
                 if (newStoreItems.length === 0) {
                     delete newItemsByStore[storeSlug]
                 } else {
                     newItemsByStore[storeSlug] = newStoreItems
                 }
-                
+
                 return { itemsByStore: newItemsByStore }
             }),
             updateQuantity: (storeSlug, productId, delta) => set((state) => {
@@ -103,7 +103,7 @@ export const useCartStore = create<CartState>()(
 
                 const state = set((state) => state) // get current state
                 const { itemsByStore, storeDetails } = useCartStore.getState()
-                
+
                 try {
                     // Tenta atualizar no supabase uma coluna cart_data (assumindo que o usuario vai criar)
                     await supabase.from('profiles').update({
@@ -145,6 +145,6 @@ export const useCartStore = create<CartState>()(
 useCartStore.subscribe((state, prevState) => {
     // se o carrinho mudou, envia
     if (state.itemsByStore !== prevState.itemsByStore) {
-        state.syncToDatabase().catch(()=> {})
+        state.syncToDatabase().catch(() => { })
     }
 })

@@ -61,15 +61,15 @@ export default function EditarProduto() {
             }
 
             const decodedSlug = decodeURIComponent(productSlug || '')
-            
+
             let q = supabase.from('products').select('*').eq('store_id', store.id)
-            
+
             if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decodedSlug)) {
                 q = q.eq('id', decodedSlug)
             } else {
                 q = q.eq('slug', decodedSlug)
             }
-            
+
             const { data, error } = await q.limit(1).maybeSingle()
 
             if (error || !data) {

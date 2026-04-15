@@ -43,14 +43,14 @@ export default function TesteVendaPage() {
         <Link href="/dashboard" className="flex items-center justify-center gap-2 text-neutral-400 hover:text-white transition mb-8">
           <ArrowLeft className="w-5 h-5" /> Voltar
         </Link>
-        
+
         <div className="w-20 h-20 bg-neutral-900 border border-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
-           <ShoppingCart className="w-10 h-10 text-white" />
+          <ShoppingCart className="w-10 h-10 text-white" />
         </div>
 
         <h1 className="text-2xl font-bold mb-4">Simulador de Transação</h1>
         <p className="text-neutral-400 mb-8 leading-relaxed">
-          Para testar o comissionamento multinível, clique no botão abaixo. 
+          Para testar o comissionamento multinível, clique no botão abaixo.
           O sistema criará uma venda falsa em seu nome, disparando as regras e comissionando seus "uplines" em 5 níveis se existirem.
         </p>
 
@@ -60,8 +60,8 @@ export default function TesteVendaPage() {
           </div>
         )}
 
-        <button 
-          onClick={simulateSale} 
+        <button
+          onClick={simulateSale}
           disabled={loading}
           className="w-full bg-white text-black py-4 rounded-xl font-bold text-lg hover:bg-neutral-200 transition-all disabled:opacity-50"
         >
