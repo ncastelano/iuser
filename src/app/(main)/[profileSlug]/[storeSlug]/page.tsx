@@ -83,7 +83,10 @@ export default function StorePage() {
             return
         }
 
-        const rows = (data || []) as RatingRow[]
+        const rows = (data || []).map((r: any) => ({
+            ...r,
+            profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+        })) as RatingRow[]
         setRatings(rows)
 
         const activeUserId = userId ?? currentUserId

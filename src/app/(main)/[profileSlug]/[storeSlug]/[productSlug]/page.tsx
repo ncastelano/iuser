@@ -103,7 +103,10 @@ export default function ProductPage() {
             return
         }
 
-        const rows = (data || []) as RatingRow[]
+        const rows = (data || []).map((r: any) => ({
+            ...r,
+            profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+        })) as RatingRow[]
         setRatings(rows)
         const activeUserId = userId ?? currentUserId
         setMyRating(rows.find((rating) => rating.profile_id === activeUserId)?.rating ?? 0)

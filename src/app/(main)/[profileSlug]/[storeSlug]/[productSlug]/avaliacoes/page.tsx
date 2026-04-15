@@ -58,7 +58,11 @@ export default function ProductRatingsPage() {
                 .order('created_at', { ascending: false })
 
             setProduct({ ...productData, image_url: imageUrl })
-            setRatings((ratingsData || []) as RatingRow[])
+            const rows = (ratingsData || []).map((r: any) => ({
+                ...r,
+                profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+            })) as RatingRow[]
+            setRatings(rows)
             setLoading(false)
         }
 

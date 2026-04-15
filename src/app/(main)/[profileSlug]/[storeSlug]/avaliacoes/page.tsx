@@ -45,7 +45,11 @@ export default function StoreRatingsPage() {
                 .order('created_at', { ascending: false })
 
             setStore({ ...storeData, logo_url: logoUrl })
-            setRatings((ratingsData || []) as RatingRow[])
+            const rows = (ratingsData || []).map((r: any) => ({
+                ...r,
+                profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+            })) as RatingRow[]
+            setRatings(rows)
             setLoading(false)
         }
 
