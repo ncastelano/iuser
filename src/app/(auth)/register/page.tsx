@@ -111,7 +111,10 @@ export default function Register() {
       setError(err.message)
     } finally {
       setLoading(false)
-    }  return (
+    }
+  }
+
+  return (
     <div className="relative flex items-center justify-center min-h-screen bg-black px-4 py-12 overflow-hidden selection:bg-white selection:text-black">
       {/* Background Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
@@ -217,8 +220,5 @@ export default function Register() {
         </p>
       </form>
     </div>
-  )
-}
-v>
   )
 }
