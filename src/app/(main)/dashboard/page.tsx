@@ -157,7 +157,7 @@ export default function DashboardPage() {
         logoPath ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl : ''
 
     const getAvatarUrl = (avatarPath: string | null) => {
-        if (!avatarPath) return null
+        if (!avatarPath) return undefined
         if (avatarPath.startsWith('http')) return avatarPath
         return supabase.storage.from('avatars').getPublicUrl(avatarPath).data.publicUrl
     }

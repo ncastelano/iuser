@@ -65,7 +65,7 @@ export default function ProfilePage() {
     }
 
     const getAvatarUrl = (avatarPath: string | null) => {
-        if (!avatarPath) return null
+        if (!avatarPath) return undefined
         if (avatarPath.startsWith('http')) return avatarPath
         const supabase = createClient()
         return supabase.storage.from('avatars').getPublicUrl(avatarPath).data.publicUrl

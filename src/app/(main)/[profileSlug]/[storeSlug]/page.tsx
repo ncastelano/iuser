@@ -16,6 +16,11 @@ import {
     Share2,
     ShoppingCart,
     Trash2,
+    Clock,
+    Star,
+    MapPin,
+    ExternalLink,
+    Settings
 } from 'lucide-react'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
