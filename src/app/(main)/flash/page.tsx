@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Zap, Clock, ArrowUpRight, ShoppingBag } from 'lucide-react'
+import { Zap, Clock, ArrowUpRight, ShoppingBag, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 
 export default function FlashPage() {
@@ -50,7 +50,7 @@ export default function FlashPage() {
                     </div>
                     <div>
                         <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white leading-none">Flash<span className="text-yellow-500">.</span></h1>
-                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-yellow-500/80 mt-0.5">Live Marketplace</p>
+                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-yellow-500/80 mt-0.5">Promoções temporárias, aproveite!</p>
                     </div>
                 </div>
             </div>
@@ -66,15 +66,15 @@ export default function FlashPage() {
             ) : (
                 <main className="flex-1 overflow-y-auto snap-y snap-mandatory scrollbar-hide">
                     {posts.map((post) => (
-                        <section 
-                            key={post.id} 
+                        <section
+                            key={post.id}
                             className="relative h-full w-full snap-start overflow-hidden flex flex-col"
                         >
                             {/* Background Image (Product) */}
                             <div className="absolute inset-0 bg-neutral-900">
                                 {post.image_url ? (
-                                    <img 
-                                        src={supabase.storage.from('product-images').getPublicUrl(post.image_url).data.publicUrl} 
+                                    <img
+                                        src={supabase.storage.from('product-images').getPublicUrl(post.image_url).data.publicUrl}
                                         className="w-full h-full object-cover opacity-80"
                                         alt={post.title}
                                     />
@@ -91,11 +91,10 @@ export default function FlashPage() {
                             <div className="mt-auto p-6 pb-24 space-y-4 relative z-10">
                                 {/* Tag */}
                                 <div className="flex items-center gap-2">
-                                    <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                        post.type === 'new_product' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' :
+                                    <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${post.type === 'new_product' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' :
                                         post.type === 'price_change' ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.5)]' :
-                                        'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.5)]'
-                                    }`}>
+                                            'bg-yellow-500 text-black shadow-[0_0_15px_rgba(234,179,8,0.5)]'
+                                        }`}>
                                         {post.type === 'new_product' ? 'Novo' : post.type === 'price_change' ? 'Editado' : 'Aviso'}
                                     </div>
                                     <div className="flex items-center gap-1.5 text-white/50 text-[10px] font-black uppercase tracking-widest bg-black/40 backdrop-blur-md px-3 py-1 rounded-lg border border-white/5">
@@ -120,7 +119,7 @@ export default function FlashPage() {
                                                 {post.content}
                                             </p>
                                         )}
-                                        
+
                                         {post.new_price && (
                                             <div className="mt-4 flex flex-col">
                                                 {post.old_price && (
@@ -136,17 +135,17 @@ export default function FlashPage() {
                                     </div>
 
                                     {/* Small Store Logo in Bottom Right (for edited/all) */}
-                                    <Link 
+                                    <Link
                                         href={`/${post.profileSlug}/${post.storeSlug}`}
                                         className="relative group shrink-0"
                                     >
                                         <div className="w-16 h-16 rounded-2xl p-[2px] bg-gradient-to-tr from-yellow-500 to-yellow-200 rotate-3 group-hover:rotate-0 transition-transform duration-500 shadow-2xl">
                                             <div className="w-full h-full rounded-[14px] overflow-hidden bg-black border border-white/10">
                                                 {post.store_logo ? (
-                                                    <img 
-                                                        src={supabase.storage.from('store-logos').getPublicUrl(post.store_logo).data.publicUrl} 
-                                                        className="w-full h-full object-cover" 
-                                                        alt={post.store_name} 
+                                                    <img
+                                                        src={supabase.storage.from('store-logos').getPublicUrl(post.store_logo).data.publicUrl}
+                                                        className="w-full h-full object-cover"
+                                                        alt={post.store_name}
                                                     />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-white text-xl font-black italic">
@@ -163,13 +162,13 @@ export default function FlashPage() {
 
                             {/* View Details Button Overlay */}
                             <div className="absolute bottom-6 left-6 right-6 flex gap-3 z-20">
-                                <Link 
+                                <Link
                                     href={`/${post.profileSlug}/${post.storeSlug}${post.product_slug ? `/${post.product_slug}` : ''}`}
                                     className="flex-1 flex items-center justify-center gap-2 py-4 bg-white hover:bg-yellow-500 text-black rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] transition-all transform active:scale-95 shadow-xl shadow-black/20 group"
                                 >
-                                    Abrir Produto <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                                    Comprar <ShoppingCart className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                 </Link>
-                                <button 
+                                <button
                                     className="w-14 h-14 bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center rounded-2xl text-white hover:bg-white/20 transition-all"
                                     onClick={() => {
                                         if (navigator.share) {
@@ -194,7 +193,7 @@ export default function FlashPage() {
 
             {/* Bottom Nav Spacer for Mobile Browsers */}
             <div className="h-[72px] bg-black shrink-0" />
-            
+
             <style jsx global>{`
                 .scrollbar-hide::-webkit-scrollbar {
                     display: none;
