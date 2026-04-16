@@ -3,7 +3,7 @@ import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 type Props = {
-    params: Promise<{ storeSlug: string }>
+    params: Promise<{ storeSlug: string; profileSlug: string }>
 }
 
 export async function generateMetadata(
@@ -12,6 +12,7 @@ export async function generateMetadata(
 ): Promise<Metadata> {
     const resolvedParams = await params
     const storeSlug = Array.isArray(resolvedParams.storeSlug) ? resolvedParams.storeSlug[0] : resolvedParams.storeSlug
+    const profileSlug = Array.isArray(resolvedParams.profileSlug) ? resolvedParams.profileSlug[0] : resolvedParams.profileSlug
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -43,9 +44,15 @@ export async function generateMetadata(
         openGraph: {
             title: `${storeData.name} | iuser`,
             description: storeData.description || `Confira a loja ${storeData.name} no iuser!`,
-            url: `https://iuser.com.br/${storeSlug}`,
+            url: `https://iuser.com.br/${profileSlug}/${storeSlug}`,
             siteName: storeData.name,
-            images: imageUrl ? [{ url: imageUrl }] : [],
+            images: imageUrl ? [{ 
+                url: imageUrl,
+                width: 800,
+                height: 600,
+                alt: storeData.name 
+            }] : [],
+            type: 'website',
         },
         twitter: {
             card: 'summary_large_image',

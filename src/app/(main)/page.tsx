@@ -555,25 +555,25 @@ export default function Vitrine() {
             <h1 className="text-6xl md:text-8xl font-black tracking-tighter italic uppercase text-white leading-[0.8]">
               iUser<span className="text-blue-500">.</span>
             </h1>
-            <p className="text-neutral-500 text-lg font-bold uppercase tracking-[0.2em] ml-2">Vitrine Digital de Alta Performance</p>
+
           </div>
-          
+
           <div className="flex flex-col gap-4 w-full md:w-auto">
-             <div className="relative group">
-                <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-neutral-600 group-focus-within:text-white transition-all duration-300" />
-                <input
-                  type="text"
-                  placeholder="O que você está procurando hoje?"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full md:w-[400px] pl-14 pr-12 py-5 bg-neutral-900/40 backdrop-blur-xl border border-white/5 rounded-[32px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-             </div>
+            <div className="relative group">
+              <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-neutral-600 group-focus-within:text-white transition-all duration-300" />
+              <input
+                type="text"
+                placeholder="O que você está procurando hoje?"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full md:w-[400px] pl-14 pr-12 py-5 bg-neutral-900/40 backdrop-blur-xl border border-white/5 rounded-[32px] text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/20 focus:ring-4 focus:ring-white/5 transition-all duration-500"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -587,11 +587,10 @@ export default function Vitrine() {
                 <button
                   key={option.value}
                   onClick={() => setSortBy(option.value as any)}
-                  className={`flex-shrink-0 flex items-center gap-3 px-8 py-4 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-500 ${
-                    isActive 
-                      ? 'bg-white text-black border-white shadow-[0_15px_30px_rgba(255,255,255,0.15)] active:scale-95' 
-                      : 'bg-neutral-950/50 text-neutral-500 border-white/5 hover:border-white/20 hover:text-white'
-                  }`}
+                  className={`flex-shrink-0 flex items-center gap-3 px-8 py-4 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-500 ${isActive
+                    ? 'bg-white text-black border-white shadow-[0_15px_30px_rgba(255,255,255,0.15)] active:scale-95'
+                    : 'bg-neutral-950/50 text-neutral-500 border-white/5 hover:border-white/20 hover:text-white'
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   {option.label}
@@ -612,7 +611,7 @@ export default function Vitrine() {
               </div>
             </div>
             {hasMoreStores && (
-              <button 
+              <button
                 onClick={() => setShowAllStores(!showAllStores)}
                 className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >
@@ -645,16 +644,16 @@ export default function Vitrine() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-neutral-800 text-6xl font-black italic">{store.name?.charAt(0)}</div>
                       )}
-                      
+
                       <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl z-20">
-                         <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white">{store.is_open ? 'Aberta' : 'Fechada'}</span>
+                        <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white">{store.is_open ? 'Aberta' : 'Fechada'}</span>
                       </div>
 
                       {distanceFormatted && (
                         <div className="absolute top-6 right-6 px-4 py-2 bg-white text-black font-black rounded-2xl z-20 shadow-2xl flex items-center gap-1.5 grayscale group-hover:grayscale-0 transition-all">
-                           <MapPin className="w-3.5 h-3.5" />
-                           <span className="text-[10px] uppercase tracking-tighter">{distanceFormatted}</span>
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span className="text-[10px] uppercase tracking-tighter">{distanceFormatted}</span>
                         </div>
                       )}
                     </div>
@@ -672,10 +671,21 @@ export default function Vitrine() {
                       </div>
 
                       <div className="flex items-center justify-between pt-6 border-t border-white/5">
-                        <div className="flex -space-x-3">
-                           {[1,2,3].map(i => (
-                             <div key={i} className="w-10 h-10 rounded-full bg-neutral-800 border-4 border-neutral-950 ring-1 ring-white/5" />
-                           ))}
+                        <div className="flex -space-x-4">
+                          {allProducts.filter(p => p.store_id === store.id).slice(0, 4).map(p => (
+                            <div key={p.id} className="w-12 h-12 rounded-2xl bg-neutral-800 border-4 border-neutral-950 ring-1 ring-white/5 overflow-hidden shadow-2xl">
+                              {p.image_url ? (
+                                <img src={p.image_url} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-600 font-black italic">{p.name.charAt(0)}</div>
+                              )}
+                            </div>
+                          ))}
+                          {allProducts.filter(p => p.store_id === store.id).length > 4 && (
+                            <div className="w-12 h-12 rounded-2xl bg-neutral-900 border-4 border-neutral-950 ring-1 ring-white/5 flex items-center justify-center text-[10px] font-black italic text-neutral-500">
+                              +{allProducts.filter(p => p.store_id === store.id).length - 4}
+                            </div>
+                          )}
                         </div>
                         <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-white transition-colors">Visitar Vitrine &rarr;</div>
                       </div>
@@ -691,14 +701,14 @@ export default function Vitrine() {
         <section className="pb-20">
           <div className="flex items-end justify-between mb-10 gap-4">
             <div className="space-y-2">
-              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Trending Items</h2>
+              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Produtos ou serviços</h2>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">{sortedProducts.length} itens disponíveis</p>
               </div>
             </div>
             {hasMoreProducts && (
-              <button 
+              <button
                 onClick={() => setShowAllProducts(!showAllProducts)}
                 className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-neutral-400 hover:text-white transition-colors"
               >
@@ -715,30 +725,39 @@ export default function Vitrine() {
               const distanceFormatted = formatDistance(distance)
               const price = typeof product.price === 'number' ? product.price : 0
               const typeLabel = translateType(product.type) || product.category || 'Item'
-              
+
               return (
                 <div
                   key={product.id + idx}
                   onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug}`)}
                   className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[36px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl"
                 >
-                  <div className="relative aspect-[4/5] bg-neutral-950 overflow-hidden">
-                    {product.image_url ? (
-                      <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-neutral-800 text-4xl font-black italic">ITEM</div>
-                    )}
-                    
+                    <div className="relative aspect-[4/5] bg-neutral-950 overflow-hidden">
+                      {product.image_url ? (
+                        <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-neutral-900 overflow-hidden group-hover:scale-110 transition-all duration-700 relative">
+                           {store?.logo_url ? (
+                            <img src={store.logo_url} className="w-[60%] h-[60%] object-contain opacity-40 blur-sm" alt="" />
+                           ) : (
+                            <div className="text-neutral-800 text-4xl font-black italic">ITEM</div>
+                           )}
+                           <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                              <span className="text-white/60 text-sm font-black italic uppercase tracking-widest">{product.name.slice(0, 10)}...</span>
+                           </div>
+                        </div>
+                      )}
+
                     <div className="absolute top-5 left-5 z-10">
-                       <div className="bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white">
-                          {typeLabel}
+                      <div className="bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white">
+                        {typeLabel}
                       </div>
                     </div>
 
                     {distanceFormatted && (
                       <div className="absolute bottom-5 right-5 z-10">
                         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-xl border border-white/10 rounded-xl text-[10px] font-black uppercase text-white">
-                           <MapPin className="w-3 h-3" /> {distanceFormatted}
+                          <MapPin className="w-3 h-3" /> {distanceFormatted}
                         </div>
                       </div>
                     )}
@@ -746,10 +765,10 @@ export default function Vitrine() {
 
                   <div className="p-7 space-y-4">
                     <div className="space-y-1">
-                      <h4 className="text-xl font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors truncate">{product.name}</h4>
+                      <h4 className="text-lg font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors truncate">{product.name}</h4>
                       <p className="text-[10px] font-black uppercase tracking-widest text-neutral-600 truncate">{store?.name || 'Loja Parceira'}</p>
                     </div>
-                    
+
                     <div className="flex items-center justify-between pt-4 border-t border-white/5">
                       <span className="text-2xl font-black italic tracking-tighter text-white">R$ {price.toFixed(2).replace('.', ',')}</span>
                       <div className="w-10 h-10 rounded-2xl bg-white text-black flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:scale-110">

@@ -61,11 +61,23 @@ export default function StorePage() {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
     const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
 
+    const [searchQuery, setSearchQuery] = useState('')
     const { itemsByStore, addItem, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
     const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
     const totalPrice = cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
     const [supabase] = useState(() => createClient())
+
+    // Product filtering
+    const filteredProducts = useMemo(() => {
+        if (!searchQuery.trim()) return products
+        const query = searchQuery.toLowerCase()
+        return products.filter((p) => 
+            p.name?.toLowerCase().includes(query) || 
+            p.description?.toLowerCase().includes(query)
+        )
+    }, [products, searchQuery])
+
 
     useEffect(() => {
         setMounted(true)
@@ -538,52 +550,48 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Products Grid */}
-                <div className="space-y-10">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-6">
-                        <h3 className="text-3xl font-black italic uppercase tracking-tighter">Nosso Catálogo</h3>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-black italic text-neutral-500">{products.length} Items</span>
+                {/* Products Section */}
+                <div className="space-y-8">
+                    <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                            <h3 className="text-2xl font-black italic tracking-tighter">Cardápio / Catálogo</h3>
+                            <span className="text-sm font-black text-neutral-500">{filteredProducts.length} Items</span>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                            <input
+                                type="text"
+                                placeholder="O que você está procurando?"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full bg-neutral-900 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-white/30 transition-colors"
+                            />
                         </div>
                     </div>
 
-                    {products.length === 0 ? (
-                        <div className="py-32 text-center rounded-[40px] border border-dashed border-white/5 bg-white/[0.02]">
-                            <Search className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
-                            <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Aguardando novos produtos...</p>
+                    {filteredProducts.length === 0 ? (
+                        <div className="py-20 text-center rounded-[32px] border border-dashed border-white/5 bg-white/[0.02]">
+                            <Search className="w-12 h-12 text-neutral-800 mx-auto mb-4" />
+                            <p className="text-neutral-500 font-bold uppercase italic text-sm">Nenhum produto encontrado</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {products.map((product) => (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {filteredProducts.map((product) => (
                                 <div
                                     key={product.id}
                                     onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                                    className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[36px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl hover:shadow-[0_40px_80px_rgba(0,0,0,0.4)]"
+                                    className="group relative flex bg-neutral-900/40 border border-white/5 rounded-[24px] overflow-hidden transition-all duration-300 hover:border-white/10 hover:bg-neutral-900/80 cursor-pointer p-4 gap-4 items-stretch shadow-md hover:shadow-xl"
                                 >
-                                    <div className="relative w-full aspect-square bg-neutral-950 overflow-hidden">
-                                        {product.image_url ? (
-                                            <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-neutral-800 font-medium italic text-sm uppercase">Imagem Pendente</div>
-                                        )}
-                                        {/* Overlay Gradient */}
-                                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                    <div className="flex-1 flex flex-col min-w-0 py-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <h4 className="text-[17px] leading-tight font-bold text-white truncate line-clamp-2">{product.name}</h4>
+                                        </div>
+                                        <p className="text-neutral-500 text-xs font-medium line-clamp-2 mt-1 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
                                         
-                                        <div className="absolute top-5 right-5 z-10">
-                                             <div className="bg-black/60 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white shadow-2xl">
-                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-7 flex flex-col gap-4 flex-1">
-                                        <div className="space-y-1">
-                                            <h4 className="text-2xl font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors line-clamp-1">{product.name}</h4>
-                                            <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest line-clamp-2 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
-                                        </div>
-
-                                        <div className="flex flex-col gap-4 mt-auto pt-6 border-t border-white/5">
-                                            <p className="text-3xl font-black italic tracking-tighter text-white">R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        <div className="mt-auto pt-3 flex flex-wrap items-center gap-3">
+                                            <p className="text-lg font-black italic tracking-tighter text-white mr-auto">
+                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </p>
 
                                             {isOwner ? (
                                                 <button
@@ -591,30 +599,30 @@ export default function StorePage() {
                                                         event.stopPropagation()
                                                         router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
                                                     }}
-                                                    className="w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest bg-neutral-800 hover:bg-white hover:text-black transition-all duration-300"
+                                                    className="px-4 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest bg-neutral-800 text-white hover:bg-white hover:text-black transition-all border border-white/5"
                                                 >
-                                                    Gerenciar Item
+                                                    Editar
                                                 </button>
                                             ) : (
                                                 mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                    <div className="flex gap-2 w-full">
+                                                    <div className="flex gap-1.5">
                                                         <button 
                                                             onClick={(event) => {
                                                                 event.stopPropagation()
                                                                 router.push(`/${profileSlug}/${storeSlug}/carrinho`)
                                                             }}
-                                                            className="flex-1 py-4 bg-white text-black font-black uppercase text-[10px] tracking-[0.2em] rounded-2xl transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 flex items-center justify-center gap-2"
+                                                            className="h-9 px-3 bg-white text-black font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
                                                         >
-                                                            <CheckCircle2 className="w-4 h-4" /> No Carrinho
+                                                            <CheckCircle2 className="w-3.5 h-3.5" /> OK
                                                         </button>
                                                         <button
                                                             onClick={(event) => {
                                                                 event.stopPropagation()
                                                                 removeItem(storeSlug as string, product.id)
                                                             }}
-                                                            className="h-12 w-12 rounded-2xl flex items-center justify-center bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-black transition-all border border-red-500/20"
+                                                            className="h-9 w-9 rounded-xl flex items-center justify-center bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-black transition-all border border-red-500/20"
                                                         >
-                                                            <Trash2 className="w-5 h-5" />
+                                                            <Trash2 className="w-4 h-4" />
                                                         </button>
                                                     </div>
                                                 ) : (
@@ -623,13 +631,30 @@ export default function StorePage() {
                                                             event.stopPropagation()
                                                             addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
                                                         }}
-                                                        className="w-full py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest bg-neutral-800 hover:bg-white hover:text-black transition-all duration-500 active:scale-95 flex items-center justify-center gap-3 border border-white/5"
+                                                        className="h-9 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-white/5 hover:bg-white hover:text-black text-white transition-all flex items-center justify-center gap-1.5 border border-white/10"
                                                     >
-                                                        <Plus className="w-5 h-5" /> Adicionar ao Carrinho
+                                                        <Plus className="w-4 h-4" /> ADD
                                                     </button>
                                                 )
                                             )}
                                         </div>
+                                    </div>
+
+                                    <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-neutral-950 overflow-hidden flex-shrink-0 border border-white/5 group-hover:border-white/10 transition-colors">
+                                        {product.image_url ? (
+                                            <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-neutral-900/50">
+                                                <span className="text-neutral-700 font-bold italic text-sm">Sem Foto</span>
+                                            </div>
+                                        )}
+                                        {product.type && (
+                                            <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded border border-white/10">
+                                                <span className="text-[8px] font-bold uppercase tracking-wider text-white">
+                                                    {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil, Trash2 } from 'lucide-react'
+import { FlashPostModal } from '@/components/FlashPostModal'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
@@ -34,6 +35,11 @@ export default function EditarProduto() {
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
+
+    const [originalPrice, setOriginalPrice] = useState<number | null>(null)
+    const [showFlashModal, setShowFlashModal] = useState(false)
+    const [lastUpdatedProduct, setLastUpdatedProduct] = useState<any>(null)
+    const [storeId, setStoreId] = useState<string | null>(null)
 
     useEffect(() => {
         const fetchProductData = async () => {
@@ -103,6 +109,8 @@ export default function EditarProduto() {
                 }
             }
 
+            setStoreId(store.id)
+            setOriginalPrice(data.price)
             setPageLoading(false)
         }
 
@@ -221,7 +229,18 @@ export default function EditarProduto() {
             return
         }
 
-        router.push(`/${profileSlug}/${storeSlug}`)
+        const currentPrice = parseFloat(price.replace(',', '.'))
+        if (originalPrice !== null && originalPrice !== currentPrice) {
+            setLastUpdatedProduct({
+                name,
+                image_url: imagePath || null,
+                oldPrice: originalPrice,
+                newPrice: currentPrice
+            })
+            setShowFlashModal(true)
+        } else {
+            router.push(`/${profileSlug}/${storeSlug}`)
+        }
     }
 
     const handleDelete = async () => {
@@ -443,9 +462,23 @@ export default function EditarProduto() {
                             Deletar Produto
                         </button>
                     </div>
-
                 </div>
             </div>
+
+            {showFlashModal && lastUpdatedProduct && (
+                <FlashPostModal
+                    isOpen={showFlashModal}
+                    onClose={() => router.push(`/${profileSlug}/${storeSlug}`)}
+                    storeId={storeId!}
+                    productId={productId!}
+                    type="price_change"
+                    title={lastUpdatedProduct.name}
+                    content={`O preço do produto ${lastUpdatedProduct.name} mudou! De R$ ${lastUpdatedProduct.oldPrice.toFixed(2).replace('.', ',')} para R$ ${lastUpdatedProduct.newPrice.toFixed(2).replace('.', ',')}. Aproveite!`}
+                    oldPrice={lastUpdatedProduct.oldPrice}
+                    newPrice={lastUpdatedProduct.newPrice}
+                    imageUrl={lastUpdatedProduct.image_url}
+                />
+            )}
         </div>
     )
 }

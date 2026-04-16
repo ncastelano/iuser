@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil } from 'lucide-react'
+import { FlashPostModal } from '@/components/FlashPostModal'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
@@ -38,6 +39,9 @@ export default function CriarProduto() {
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
+
+    const [showFlashModal, setShowFlashModal] = useState(false)
+    const [lastCreatedProduct, setLastCreatedProduct] = useState<any>(null)
 
     // 🔥 buscar loja
     useEffect(() => {
@@ -172,7 +176,15 @@ export default function CriarProduto() {
             return
         }
 
-        router.push(`/${profileSlug}/${storeSlug}`)
+        // Instead of redirecting, show the modal
+        setLastCreatedProduct({
+            id: '', // We don't have the ID easily here unless we select it back, but we can pass names
+            storeId: storeId,
+            name: name,
+            image_url: imagePath,
+            price: parseFloat(price.replace(',', '.'))
+        })
+        setShowFlashModal(true)
     }
 
     const typeOptions = [
@@ -352,6 +364,19 @@ export default function CriarProduto() {
                     </button>
                 </div>
             </div>
+
+            {showFlashModal && lastCreatedProduct && (
+                <FlashPostModal
+                    isOpen={showFlashModal}
+                    onClose={() => router.push(`/${profileSlug}/${storeSlug}`)}
+                    storeId={storeId!}
+                    type="new_product"
+                    title={lastCreatedProduct.name}
+                    content={`Acabamos de adicionar um novo produto: ${lastCreatedProduct.name}! Venha conferir.`}
+                    newPrice={lastCreatedProduct.price}
+                    imageUrl={lastCreatedProduct.image_url}
+                />
+            )}
         </div>
     )
 }

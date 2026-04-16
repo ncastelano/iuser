@@ -9,7 +9,8 @@ import {
     Store,
     User,
     LogOut,
-    MapPinned
+    MapPinned,
+    Zap
 } from 'lucide-react'
 
 export default function MainLayout({ children }: { children: ReactNode }) {
@@ -67,8 +68,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </main>
 
             {/* Premium Floating Bottom Navbar */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] sm:w-[500px] z-50">
-                <nav className="bg-neutral-900/40 backdrop-blur-2xl border border-white/10 rounded-[32px] p-2 shadow-2xl overflow-hidden relative group">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] sm:w-[500px] z-50">
+                <nav className="bg-black border border-white/20 rounded-[32px] p-2 shadow-[0_0_30px_rgba(0,0,0,0.8)] overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                     
                     <div className="relative flex justify-around items-center h-16">
@@ -84,6 +85,13 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                                 <MapPinned size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                              <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100' : 'opacity-0'}`}>Mapa</span>
+                        </Link>
+
+                        <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
+                                <Zap size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                            </div>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/flash' ? 'opacity-100' : 'opacity-0'}`}>Flash</span>
                         </Link>
 
                         <Link href="/dashboard" className="relative flex flex-col items-center justify-center gap-1 group/item">

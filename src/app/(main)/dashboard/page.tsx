@@ -6,21 +6,21 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { CopyLinkButton } from './CopyLinkButton'
 import { useCartStore } from '@/store/useCartStore'
-import { 
-    Users, 
-    DollarSign, 
-    Network, 
-    ShoppingBag, 
-    Plus, 
-    Star, 
-    User as UserIcon, 
-    Settings, 
-    Camera, 
-    X, 
-    Loader2, 
-    ShoppingCart, 
-    ArrowRight, 
-    Eye, 
+import {
+    Users,
+    DollarSign,
+    Network,
+    ShoppingBag,
+    Plus,
+    Star,
+    User as UserIcon,
+    Settings,
+    Camera,
+    X,
+    Loader2,
+    ShoppingCart,
+    ArrowRight,
+    Eye,
     Clock,
     CheckCircle2,
     Download,
@@ -294,7 +294,7 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-                            
+
                             <div className="flex flex-col gap-3 pt-4">
                                 <button onClick={() => fileInputRef.current?.click()} className="w-full py-4 rounded-2xl bg-white text-black font-black uppercase text-[10px] tracking-widest hover:bg-neutral-200 transition-all flex items-center justify-center gap-2">
                                     <Camera className="w-4 h-4" /> Selecionar Nova Foto
@@ -345,10 +345,10 @@ export default function DashboardPage() {
 
                     <div className="flex items-center gap-3">
                         <button className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all flex items-center gap-2 shadow-[0_10px_30px_rgba(37,99,235,0.3)]">
-                             Baixar App <Download className="w-4 h-4" />
+                            Baixar App <Download className="w-4 h-4" />
                         </button>
                         <button onClick={() => router.push('/configuracoes')} className="px-6 py-3 bg-neutral-900 border border-neutral-800 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:border-white transition-all flex items-center gap-2">
-                             Configs <Settings className="w-4 h-4" />
+                            Configs <Settings className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -472,11 +472,10 @@ export default function DashboardPage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                                                appt.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
+                                            <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${appt.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' :
                                                 appt.status === 'accepted' ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
-                                                'bg-red-500/10 text-red-500 border border-red-500/20'
-                                            }`}>
+                                                    'bg-red-500/10 text-red-500 border border-red-500/20'
+                                                }`}>
                                                 {appt.status === 'pending' ? 'Pendente' : appt.status === 'accepted' ? 'Confirmado' : 'Recusado'}
                                             </div>
                                         </div>
@@ -485,22 +484,23 @@ export default function DashboardPage() {
                             </div>
                         )}
                     </div>
-                )}                {/* My Stores Grid */}
+                )}
+                {/* My Stores Grid */}
                 <section className="mb-24">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12">
                         <div className="space-y-1">
-                            <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Minhas Stores</h2>
+                            <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white">Minhas Lojas</h2>
                             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">{stores.length} Unidades Gerenciadas</p>
                         </div>
                         <button onClick={() => router.push('/criar-loja')} className="group px-8 py-5 bg-white text-black font-black uppercase text-[11px] tracking-widest rounded-3xl hover:bg-neutral-200 shadow-2xl transition-all active:scale-95 flex items-center gap-3">
-                             Novo Workspace <Plus className="w-5 h-5" />
+                            Criar loja <Plus className="w-5 h-5" />
                         </button>
                     </div>
 
                     {stores.length === 0 ? (
                         <div className="py-24 text-center rounded-[40px] border border-dashed border-white/5 bg-white/[0.01]">
-                             <ShoppingBag className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
-                             <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Inicie sua jornada global criando sua primeira loja</p>
+                            <ShoppingBag className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
+                            <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Inicie sua jornada global criando sua primeira loja</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -508,7 +508,7 @@ export default function DashboardPage() {
                                 <div key={store.id} onClick={() => router.push(`/${profile?.profileSlug || 'store'}/${store.storeSlug}`)} className="group relative flex flex-col bg-neutral-900/20 border border-white/5 rounded-[40px] overflow-hidden transition-all duration-500 hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl">
                                     <div className="relative h-44 bg-neutral-950 overflow-hidden">
                                         {store.logo_url ? <img src={getLogoUrl(store.logo_url)} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" /> : <div className="w-full h-full flex items-center justify-center text-neutral-800 text-4xl font-black italic">!</div>}
-                                        
+
                                         <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl z-20">
                                             <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
                                             <span className="text-[10px] font-black uppercase tracking-widest text-white">{store.is_open ? 'Aberta' : 'Fechada'}</span>
