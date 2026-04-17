@@ -19,8 +19,9 @@ export default function FinanceiroPage() {
     const supabase = createClient()
     const router = useRouter()
     const [sales, setSales] = useState<any[]>([])
+    const [purchases, setPurchases] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
-    const [tab, setTab] = useState<'all' | 'pending' | 'paid'>('all')
+    const [tab, setTab] = useState<'all' | 'pending' | 'paid' | 'spent'>('all')
 
     useEffect(() => {
         const fetchSales = async () => {
@@ -46,6 +47,16 @@ export default function FinanceiroPage() {
 
                 if (salesData) setSales(salesData)
             }
+
+            // 3. Get my purchases (where I am buyer)
+            const { data: purchasesData } = await supabase
+                .from('store_sales')
+                .select('*, stores:store_id(name, logo_url, storeSlug)')
+                .eq('buyer_id', user.id)
+                .order('created_at', { ascending: false })
+            
+            if (purchasesData) setPurchases(purchasesData)
+
             setLoading(false)
         }
 
@@ -143,83 +154,138 @@ export default function FinanceiroPage() {
                     >
                         Recebidos
                     </button>
+                    <button
+                        onClick={() => setTab('spent')}
+                        className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'spent' ? 'bg-white text-black shadow-2xl' : 'text-neutral-500 hover:text-white'}`}
+                    >
+                        Gastei
+                    </button>
                 </div>
 
-                {/* Sales List */}
+                {/* List Container */}
                 <div className="space-y-6">
-                    {groupedCheckouts.length === 0 ? (
-                        <div className="py-32 text-center rounded-[48px] border border-dashed border-white/5 bg-white/[0.01]">
-                            <CreditCard className="w-12 h-12 text-neutral-800 mx-auto mb-6 opacity-20" />
-                            <p className="text-neutral-600 font-bold uppercase tracking-widest italic">Nenhum extrato encontrado nesta categoria.</p>
-                        </div>
-                    ) : groupedCheckouts.map((checkout) => (
-                        <div key={checkout.id} className="group relative bg-neutral-900/20 backdrop-blur-md border border-white/5 rounded-[40px] overflow-hidden hover:border-white/10 transition-all shadow-xl">
-                            <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8">
-                                {/* Buyer Info */}
-                                <div className="flex items-center gap-6 md:w-1/3">
-                                    <div className="w-16 h-16 rounded-3xl bg-black border border-white/5 overflow-hidden flex-shrink-0">
-                                        {checkout.buyer?.avatar_url ? (
-                                            <img src={getAvatarUrl(checkout.buyer.avatar_url)!} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-neutral-800 font-black text-2xl italic">{checkout.buyerName?.charAt(0) || '?'}</div>
-                                        )}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Comprador</p>
-                                        <h3 className="text-xl font-black italic uppercase tracking-tighter">{checkout.buyerName}</h3>
-                                        <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">/{checkout.buyerSlug || 'anonimo'}</p>
-                                    </div>
-                                </div>
-
-                                {/* Order Details */}
-                                <div className="flex-1 space-y-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${checkout.status === 'paid' ? 'bg-green-500 text-black' : 'bg-yellow-500 text-black'}`}>
-                                            {checkout.status === 'paid' ? 'Pago' : 'Pendente'}
+                    {tab === 'spent' ? (
+                        purchases.length === 0 ? (
+                            <div className="py-32 text-center rounded-[48px] border border-dashed border-white/5 bg-white/[0.01]">
+                                <ShoppingBag className="w-12 h-12 text-neutral-800 mx-auto mb-6 opacity-20" />
+                                <p className="text-neutral-600 font-bold uppercase tracking-widest italic">Nenhuma compra encontrada.</p>
+                            </div>
+                        ) : purchases.map((purchase) => (
+                            <div key={purchase.id} className="group relative bg-neutral-900/20 backdrop-blur-md border border-white/5 rounded-[40px] overflow-hidden hover:border-white/10 transition-all shadow-xl">
+                                <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8">
+                                    <div className="flex items-center gap-6 md:w-1/3">
+                                        <div className="w-16 h-16 rounded-3xl bg-black border border-white/5 overflow-hidden flex-shrink-0">
+                                            {purchase.stores?.logo_url ? (
+                                                <img src={getAvatarUrl(purchase.stores.logo_url)!} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-neutral-800 font-black text-2xl italic">{purchase.stores?.name?.charAt(0) || '?'}</div>
+                                            )}
                                         </div>
-                                        <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">
-                                            {new Date(checkout.createdAt).toLocaleDateString('pt-BR')} às {new Date(checkout.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-purple-500 tracking-widest">Loja Vendedora</p>
+                                            <h3 className="text-xl font-black italic uppercase tracking-tighter">{purchase.stores?.name}</h3>
+                                            <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">/{purchase.stores?.storeSlug}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        {checkout.items.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between text-xs text-neutral-400 border-b border-white/[0.02] pb-2 last:border-0">
-                                                <span>{item.quantity}x {item.product_name}</span>
-                                                <span className="font-mono">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                    <div className="flex-1 space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-white/10 text-white">
+                                                Compra Realizada
                                             </div>
-                                        ))}
+                                            <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">
+                                                {new Date(purchase.created_at).toLocaleDateString('pt-BR')} às {new Date(purchase.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-sm font-bold text-neutral-400">{purchase.quantity}x {purchase.product_name}</p>
+                                            <p className="text-2xl font-black italic tracking-tighter text-white">R$ {purchase.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4">
-                                        <p className="text-[10px] font-black uppercase text-neutral-600 tracking-widest">Total do Pedido</p>
-                                        <p className="text-2xl font-black italic tracking-tighter text-white">R$ {checkout.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    </div>
-                                </div>
-
-                                <div className="md:w-px bg-white/5" />
-
-                                {/* Store Info & Action */}
-                                <div className="md:w-1/4 flex flex-col justify-between items-center md:items-end text-center md:text-right gap-6">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase text-purple-500 tracking-widest">Loja</p>
-                                        <p className="text-sm font-bold uppercase italic tracking-tighter">/{checkout.storeSlug}</p>
-                                    </div>
-
-                                    <div className="w-full flex flex-col gap-2">
-                                        {checkout.status === 'pending' && (
-                                            <button className="w-full py-4 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-all flex items-center justify-center gap-2">
-                                                <CheckCircle2 size={16} /> Confirmar Pagamento
-                                            </button>
-                                        )}
-                                        <button className="w-full py-4 bg-neutral-900 border border-white/5 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:border-white transition-all">
-                                            Imprimir Extrato
+                                    <div className="md:w-1/4 flex flex-col justify-center items-center md:items-end">
+                                        <button className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">
+                                            Ver Pedido
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        ))
+                    ) : (
+                        groupedCheckouts.length === 0 ? (
+                            <div className="py-32 text-center rounded-[48px] border border-dashed border-white/5 bg-white/[0.01]">
+                                <CreditCard className="w-12 h-12 text-neutral-800 mx-auto mb-6 opacity-20" />
+                                <p className="text-neutral-600 font-bold uppercase tracking-widest italic">Nenhum extrato encontrado nesta categoria.</p>
+                            </div>
+                        ) : groupedCheckouts.map((checkout) => (
+                            <div key={checkout.id} className="group relative bg-neutral-900/20 backdrop-blur-md border border-white/5 rounded-[40px] overflow-hidden hover:border-white/10 transition-all shadow-xl">
+                                <div className="p-8 md:p-10 flex flex-col md:flex-row gap-8">
+                                    {/* Buyer Info */}
+                                    <div className="flex items-center gap-6 md:w-1/3">
+                                        <div className="w-16 h-16 rounded-3xl bg-black border border-white/5 overflow-hidden flex-shrink-0">
+                                            {checkout.buyer?.avatar_url ? (
+                                                <img src={getAvatarUrl(checkout.buyer.avatar_url)!} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-neutral-800 font-black text-2xl italic">{checkout.buyerName?.charAt(0) || '?'}</div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Comprador</p>
+                                            <h3 className="text-xl font-black italic uppercase tracking-tighter">{checkout.buyerName}</h3>
+                                            <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">/{checkout.buyerSlug || 'anonimo'}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Order Details */}
+                                    <div className="flex-1 space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${checkout.status === 'paid' ? 'bg-green-500 text-black' : 'bg-yellow-500 text-black'}`}>
+                                                {checkout.status === 'paid' ? 'Pago' : 'Pendente'}
+                                            </div>
+                                            <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">
+                                                {new Date(checkout.createdAt).toLocaleDateString('pt-BR')} às {new Date(checkout.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {checkout.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between text-xs text-neutral-400 border-b border-white/[0.02] pb-2 last:border-0">
+                                                    <span>{item.quantity}x {item.product_name}</span>
+                                                    <span className="font-mono">R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-4">
+                                            <p className="text-[10px] font-black uppercase text-neutral-600 tracking-widest">Total do Pedido</p>
+                                            <p className="text-2xl font-black italic tracking-tighter text-white">R$ {checkout.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="md:w-px bg-white/5" />
+
+                                    {/* Store Info & Action */}
+                                    <div className="md:w-1/4 flex flex-col justify-between items-center md:items-end text-center md:text-right gap-6">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-purple-500 tracking-widest">Loja</p>
+                                            <p className="text-sm font-bold uppercase italic tracking-tighter">/{checkout.storeSlug}</p>
+                                        </div>
+
+                                        <div className="w-full flex flex-col gap-2">
+                                            {checkout.status === 'pending' && (
+                                                <button className="w-full py-4 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-all flex items-center justify-center gap-2">
+                                                    <CheckCircle2 size={16} /> Confirmar Pagamento
+                                                </button>
+                                            )}
+                                            <button className="w-full py-4 bg-neutral-900 border border-white/5 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:border-white transition-all">
+                                                Imprimir Extrato
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

@@ -27,7 +27,12 @@ import {
     Pencil,
     ChevronDown,
     ChevronUp,
-    ArrowLeft
+    ArrowLeft,
+    Heart,
+    MessageCircle,
+    UserPlus,
+    MapPin,
+    MapPinned
 } from 'lucide-react'
 import { CopyLinkButton } from './CopyLinkButton'
 
@@ -50,6 +55,9 @@ interface UserProfile {
     name: string | null
     id?: string
     profileSlug?: string
+    address?: string | null
+    location?: any
+    show_location?: boolean
 }
 
 export default function DashboardPage() {
@@ -73,8 +81,22 @@ export default function DashboardPage() {
     const [receivedAppointments, setReceivedAppointments] = useState<any[]>([])
     const [myAppointments, setMyAppointments] = useState<any[]>([])
     const [storeSales, setStoreSales] = useState<any[]>([])
-    const [activeFinancialTab, setActiveFinancialTab] = useState<'pending' | 'paid'>('pending')
+    const [myPurchases, setMyPurchases] = useState<any[]>([])
+    const [activeFinancialTab, setActiveFinancialTab] = useState<'pending' | 'paid' | 'spent'>('pending')
     const [selectedCheckoutDetail, setSelectedCheckoutDetail] = useState<string | null>(null)
+
+    // Profile stats
+    const [profileViews, setProfileViews] = useState<any[]>([])
+    const [muralInteractions, setMuralInteractions] = useState({ likes: 0, comments: 0 })
+    const [muralActivity, setMuralActivity] = useState<any[]>([])
+    const [newFollowers, setNewFollowers] = useState<any[]>([])
+
+    // Location Modal States
+    const [showLocationModal, setShowLocationModal] = useState(false)
+    const [manualAddress, setManualAddress] = useState('')
+    const [suggestions, setSuggestions] = useState<any[]>([])
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number } | null>(null)
+    const [tempAddress, setTempAddress] = useState('')
 
     const { itemsByStore, storeDetails } = useCartStore()
 
@@ -87,84 +109,170 @@ export default function DashboardPage() {
                 return
             }
 
-            // Load profile
-            const { data: profileData } = await supabase
-                .from('profiles')
-                .select('avatar_url, name, id, profileSlug')
-                .eq('id', user.id)
-                .single()
-            setProfile(profileData)
-
-            // Load stores
-            const { data: storesData } = await supabase
-                .from('stores')
-                .select(`*`)
-                .eq('owner_id', user.id)
-
-            const mappedStores = (storesData || []).map(store => ({
-                ...store,
-                store_stats: {
-                    ratings_count: store.ratings_count || 0,
-                    ratings_avg: store.ratings_avg || 0
+            try {
+                // Load profile - robust fallback if location columns are missing
+                let { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('avatar_url, name, id, profileSlug, address, location, show_location')
+                    .eq('id', user.id)
+                    .single()
+                
+                if (profileError) {
+                    console.warn('[Dashboard] Error load profile with location columns:', profileError)
+                    // Fallback sem focar nas colunas de localização (pode ser erro de schema)
+                    const fallback = await supabase
+                        .from('profiles')
+                        .select('avatar_url, name, id, profileSlug, address')
+                        .eq('id', user.id)
+                        .single()
+                    profileData = fallback.data
                 }
-            }))
-            setStores(mappedStores)
+                
+                if (profileData) {
+                    setProfile(profileData)
+                }
 
-            // Fetch recent store views
-            if (mappedStores.length > 0) {
-                const { data: viewsData } = await supabase
-                    .from('store_views')
-                    .select('created_at, store_id, profiles!inner(name), stores!inner(name)')
-                    .in('store_id', mappedStores.map(s => s.id))
-                    .order('created_at', { ascending: false })
-                    .limit(5)
-                if (viewsData) setRecentViews(viewsData)
-            }
+                // Load stores
+                const { data: storesData } = await supabase
+                    .from('stores')
+                    .select(`*`)
+                    .eq('owner_id', user.id)
 
-            // Fetch affiliate commissions
-            const { data: commTotal, error: commError } = await supabase.rpc('get_total_commissions', { user_id: user.id })
-            if (!commError && commTotal !== null) {
-                setTotalCommissions(commTotal)
-            }
+                const mappedStores = (storesData || []).map(store => ({
+                    ...store,
+                    store_stats: {
+                        ratings_count: store.ratings_count || 0,
+                        ratings_avg: store.ratings_avg || 0
+                    }
+                }))
+                setStores(mappedStores)
 
-            // Fetch network counts
-            const { data: netCounts, error: netError } = await supabase.rpc('get_network_counts', { p_user_id: user.id })
-            if (!netError && netCounts) {
-                const total = netCounts.reduce((acc: number, item: any) => acc + parseInt(item.count), 0)
-                setNetworkCount(total)
-            }
+                // Fetch recent store views
+                if (mappedStores.length > 0) {
+                    const { data: viewsData } = await supabase
+                        .from('store_views')
+                        .select('created_at, store_id, profiles!inner(name), stores!inner(name)')
+                        .in('store_id', mappedStores.map(s => s.id))
+                        .order('created_at', { ascending: false })
+                        .limit(5)
+                    if (viewsData) setRecentViews(viewsData)
+                }
 
-            // Fetch received appointments (as store owner)
-            if (mappedStores.length > 0) {
-                const { data: receivedData } = await supabase
+                // Fetch affiliate commissions (RPCs might fail if not defined)
+                try {
+                    const { data: commTotal, error: commError } = await supabase.rpc('get_total_commissions', { user_id: user.id })
+                    if (!commError && commTotal !== null) setTotalCommissions(commTotal)
+
+                    const { data: netCounts, error: netError } = await supabase.rpc('get_network_counts', { p_user_id: user.id })
+                    if (!netError && netCounts) {
+                        const total = netCounts.reduce((acc: number, item: any) => acc + parseInt(item.count), 0)
+                        setNetworkCount(total)
+                    }
+                } catch (rpcErr) {
+                    console.warn('Affiliate RPCs failed')
+                }
+
+                // Fetch received appointments (as store owner)
+                if (mappedStores.length > 0) {
+                    const { data: receivedData } = await supabase
+                        .from('appointments')
+                        .select('*, profiles:client_id(name, "profileSlug", avatar_url), stores:store_id(name, storeSlug)')
+                        .in('store_id', mappedStores.map(s => s.id))
+                        .gte('start_time', new Date().toISOString())
+                        .order('start_time', { ascending: true })
+                    if (receivedData) setReceivedAppointments(receivedData)
+                }
+
+                // Fetch my appointments (async client)
+                const { data: myData } = await supabase
                     .from('appointments')
-                    .select('*, profiles:client_id(name, "profileSlug", avatar_url), stores:store_id(name, storeSlug)')
-                    .in('store_id', mappedStores.map(s => s.id))
+                    .select('*, stores:store_id(name, storeSlug, owner_id, profiles:owner_id("profileSlug"))')
+                    .eq('client_id', user.id)
                     .gte('start_time', new Date().toISOString())
                     .order('start_time', { ascending: true })
-                if (receivedData) setReceivedAppointments(receivedData)
-            }
+                if (myData) setMyAppointments(myData)
 
-            // Fetch my appointments (async client)
-            const { data: myData } = await supabase
-                .from('appointments')
-                .select('*, stores:store_id(name, storeSlug, owner_id, profiles:owner_id("profileSlug"))')
-                .eq('client_id', user.id)
-                .gte('start_time', new Date().toISOString())
-                .order('start_time', { ascending: true })
-            if (myData) setMyAppointments(myData)
+                // Fetch store sales (as store owner)
+                if (mappedStores.length > 0) {
+                    const { data: salesData } = await supabase
+                        .from('store_sales')
+                        .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
+                        .in('store_id', mappedStores.map(s => s.id))
+                        .order('created_at', { ascending: false })
+                    if (salesData) setStoreSales(salesData)
+                }
 
-            // Fetch store sales (as store owner)
-            if (mappedStores.length > 0) {
-                const { data: salesData } = await supabase
+                // Fetch my purchases (spent)
+                const { data: purchasesData } = await supabase
                     .from('store_sales')
-                    .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
-                    .in('store_id', mappedStores.map(s => s.id))
+                    .select('*, stores:store_id(name, logo_url, storeSlug)')
+                    .eq('buyer_id', user.id)
                     .order('created_at', { ascending: false })
-                if (salesData) setStoreSales(salesData)
-            }
+                if (purchasesData) setMyPurchases(purchasesData)
 
-            setLoading(false)
+                // Fetch profile views
+                const { data: profViewsData } = await supabase
+                    .from('profile_views')
+                    .select('created_at, visitor_id, profiles:visitor_id(name, "profileSlug", avatar_url)')
+                    .eq('profile_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5)
+                if (profViewsData) setProfileViews(profViewsData.filter(v => v.profiles))
+
+                // Fetch Mural Interactions (Likes e Comentários seguros)
+                try {
+                    const { data: myPosts } = await supabase.from('mural_posts').select('id').eq('profile_id', user.id)
+                    const postIds = myPosts?.map(p => p.id) || []
+
+                    if (postIds.length > 0) {
+                        const { count: likesCount } = await supabase.from('mural_likes').select('*', { count: 'exact', head: true }).in('post_id', postIds)
+                        const { count: commentsCount } = await supabase.from('mural_comments').select('*', { count: 'exact', head: true }).in('post_id', postIds)
+                        
+                        setMuralInteractions({ likes: likesCount || 0, comments: commentsCount || 0 })
+
+                        const { data: recentLikes } = await supabase
+                            .from('mural_likes')
+                            .select('created_at, profile_id, profiles!inner(name, profileSlug, avatar_url)')
+                            .in('post_id', postIds)
+                            .order('created_at', { ascending: false })
+                            .limit(5)
+
+                        const { data: recentComments } = await supabase
+                            .from('mural_comments')
+                            .select('created_at, profile_id, profiles!inner(name, profileSlug, avatar_url)')
+                            .in('post_id', postIds)
+                            .order('created_at', { ascending: false })
+                            .limit(5)
+
+                        const activities = [
+                            ...(recentLikes || []).map(l => ({ type: 'like', ...l })),
+                            ...(recentComments || []).map(c => ({ type: 'comment', ...c }))
+                        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                         .slice(0, 5)
+
+                        setMuralActivity(activities)
+                    } else {
+                        setMuralInteractions({ likes: 0, comments: 0 })
+                    }
+                } catch (e) {
+                    console.warn('[Dashboard] Configuração das tabelas de mural ainda pendente', e)
+                    setMuralInteractions({ likes: 0, comments: 0 })
+                }
+
+                // Fetch new followers
+                const { data: followersData } = await supabase
+                    .from('follows')
+                    .select('created_at, follower_id, profiles:follower_id(name, "profileSlug", avatar_url)')
+                    .eq('following_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(5)
+                if (followersData) setNewFollowers(followersData.filter(f => f.profiles))
+
+            } catch (error) {
+                console.error('Fatal Dashboard fetch error:', error)
+            } finally {
+                setLoading(false)
+            }
         }
 
         fetchMyDashboard()
@@ -356,6 +464,63 @@ export default function DashboardPage() {
         }
     }
 
+    // Location functions
+    const fetchSuggestions = async (query: string) => {
+        try {
+            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&autocomplete=true&country=BR&limit=5`
+            )
+            const data = await res.json()
+            setSuggestions(data.features || [])
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    useEffect(() => {
+        const delay = setTimeout(() => {
+            if (manualAddress.length < 4) return
+            fetchSuggestions(manualAddress)
+        }, 500)
+        return () => clearTimeout(delay)
+    }, [manualAddress])
+
+    const selectLocationSuggestion = (feature: any) => {
+        const [lng, lat] = feature.center
+        setSelectedLocation({ lat, lng })
+        setTempAddress(feature.place_name)
+        setManualAddress(feature.place_name)
+        setSuggestions([])
+    }
+
+    const saveLocation = async () => {
+        if (!tempAddress || !selectedLocation || !profile?.id) return
+        const { error } = await supabase.from('profiles').update({
+            address: tempAddress,
+            location: `POINT(${selectedLocation.lng} ${selectedLocation.lat})`,
+            show_location: true
+        }).eq('id', profile.id)
+
+        if (!error) {
+            setProfile({ ...profile, address: tempAddress, show_location: true })
+            setShowLocationModal(false)
+            alert('Endereço atualizado com sucesso!')
+        } else {
+            alert('Erro ao salvar endereço')
+        }
+    }
+
+    const toggleLocationVisibility = async () => {
+        if (!profile || !profile.id) return
+        const nextValue = !profile.show_location
+
+        const { error } = await supabase.from('profiles').update({ show_location: nextValue }).eq('id', profile.id)
+        if (!error) {
+            setProfile({ ...profile, show_location: nextValue })
+        }
+    }
+
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground font-sans">Carregando painel...</div>
 
     const referralLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/${profile?.profileSlug}/convite`
@@ -407,6 +572,66 @@ export default function DashboardPage() {
                 </div>
             )}
 
+            {/* Location Modal */}
+            {showLocationModal && (
+                <div className="fixed inset-0 bg-background/90 backdrop-blur-2xl z-[100] flex items-center justify-center p-4">
+                    <div className="bg-card/60 backdrop-blur-2xl w-full max-w-xl rounded-[40px] border border-border p-8 shadow-2xl space-y-8 animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-3xl font-black italic uppercase tracking-tighter">Sua Localidade</h2>
+                            <button onClick={() => setShowLocationModal(false)} className="w-12 h-12 bg-secondary/50 rounded-2xl flex items-center justify-center hover:bg-foreground hover:text-background transition-all border border-border">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="relative group">
+                                <input
+                                    type="text"
+                                    placeholder="Digite seu endereço comercial ou residencial"
+                                    value={manualAddress}
+                                    onChange={(e) => setManualAddress(e.target.value)}
+                                    className="w-full bg-background/50 border border-border rounded-[24px] py-6 px-8 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all"
+                                />
+                                {suggestions.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-4 bg-card border border-border rounded-[32px] overflow-hidden z-[110] shadow-2xl backdrop-blur-xl">
+                                        {suggestions.map((s, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => selectLocationSuggestion(s)}
+                                                className="p-5 hover:bg-primary/5 cursor-pointer border-b border-border last:border-0 transition-colors"
+                                            >
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Local Sugerido</p>
+                                                <p className="text-sm font-bold text-foreground">{s.place_name}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-4 space-y-4">
+                                <button
+                                    onClick={saveLocation}
+                                    disabled={!tempAddress}
+                                    className="w-full py-6 bg-foreground text-background rounded-[28px] font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all disabled:opacity-20"
+                                >
+                                    Confirmar Endereço
+                                </button>
+                                {profile?.address && (
+                                    <button
+                                        onClick={toggleLocationVisibility}
+                                        className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${profile.show_location ? 'bg-destructive/10 border-destructive/20 text-destructive hover:bg-destructive/20' : 'bg-green-500/10 border-green-500/20 text-green-500 hover:bg-green-500/20'}`}
+                                    >
+                                        {profile.show_location ? 'Ocultar Localização do Mapa' : 'Mostrar Localização no Mapa'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground text-center">Isso ajudará outras pessoas a te encontrarem no mapa iUser</p>
+                    </div>
+                </div>
+            )}
+
             <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-10">
                 {/* User Profile Header */}
                 <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-8 mb-16 pb-12 border-b border-border">
@@ -430,17 +655,32 @@ export default function DashboardPage() {
                             <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none">{profile?.name || 'Dashboard'}</h1>
                             <div className="flex items-center justify-center md:justify-start gap-3">
                                 <span className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest text-primary">Verificado iUser</span>
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">/{profile?.profileSlug || 'user'}</span>
+                                <Link href={`/${profile?.profileSlug}`} className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] hover:text-primary transition-colors hover:underline decoration-primary">/{profile?.profileSlug || 'user'}</Link>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button className="px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-[0_10px_30px_rgba(var(--primary),0.3)]">
+                        {profile?.address ? (
+                            <button
+                                onClick={() => setShowLocationModal(true)}
+                                className="px-6 py-4 bg-red-600/10 border border-red-600/20 text-red-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-red-600 hover:text-white transition-all flex items-center gap-2"
+                            >
+                                <MapPin className="w-4 h-4" /> Sua Localidade
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setShowLocationModal(true)}
+                                className="px-6 py-4 bg-secondary/30 border border-border rounded-2xl font-black uppercase text-[10px] tracking-widest hover:border-white transition-all flex items-center gap-2"
+                            >
+                                <MapPinned className="w-4 h-4 text-muted-foreground" /> Localização
+                            </button>
+                        )}
+                        <button className="hidden md:flex px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all items-center gap-2 shadow-[0_10px_30px_rgba(var(--primary),0.3)]">
                             Baixar iUser <Download className="w-4 h-4" />
                         </button>
                         <button onClick={() => router.push('/configuracoes')} className="px-6 py-4 bg-secondary/50 border border-border rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-secondary transition-all flex items-center gap-2">
-                            Configurações <Settings className="w-4 h-4" />
+                            <Settings className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -499,6 +739,12 @@ export default function DashboardPage() {
                                         >
                                             Recebidos
                                         </button>
+                                        <button
+                                            onClick={() => setActiveFinancialTab('spent')}
+                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'spent' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
+                                        >
+                                            Gastei
+                                        </button>
                                     </div>
                                 </div>
 
@@ -513,71 +759,93 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
-                                        <div className="py-10 text-center space-y-2">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
-                                        </div>
+                                    {activeFinancialTab === 'spent' ? (
+                                        myPurchases.length === 0 ? (
+                                            <div className="py-10 text-center space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Você ainda não fez compras.</p>
+                                            </div>
+                                        ) : myPurchases.map((purchase, idx) => (
+                                            <div key={idx} className="p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-background overflow-hidden border border-white/5 flex-shrink-0">
+                                                    {purchase.stores?.logo_url ? (
+                                                        <img src={getLogoUrl(purchase.stores.logo_url)} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-black bg-neutral-900">{purchase.stores?.name?.charAt(0)}</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[9px] font-black text-white truncate">Loja: /{purchase.stores?.storeSlug}</p>
+                                                    <p className="text-[8px] font-bold text-neutral-500 uppercase">R$ {purchase.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} &bull; {new Date(purchase.created_at).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        ))
                                     ) : (
-                                        Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
-                                            const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
-                                            const firstItem = items[0]
-                                            const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
-                                            const itemNames = items.slice(0, 2).map(i => i.product_name).join(', ') + (items.length > 2 ? ` e mais ${items.length - 2}` : '')
+                                        storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
+                                            <div className="py-10 text-center space-y-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
+                                            </div>
+                                        ) : (
+                                            Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
+                                                const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
+                                                const firstItem = items[0]
+                                                const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
+                                                const itemNames = items.slice(0, 2).map(i => i.product_name).join(', ') + (items.length > 2 ? ` e mais ${items.length - 2}` : '')
 
-                                            return (
-                                                <div
-                                                    key={checkoutId}
-                                                    className={`p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3 cursor-pointer group/sale ${selectedCheckoutDetail === checkoutId ? 'bg-white/[0.05] border-white/20' : ''}`}
-                                                    onClick={() => setSelectedCheckoutDetail(selectedCheckoutDetail === checkoutId ? null : checkoutId)}
-                                                >
-                                                    <div className="flex flex-col gap-1 min-w-0">
-                                                        <div className="flex items-start justify-between">
-                                                            <p className="text-[9px] font-black text-white uppercase italic leading-tight">
-                                                                /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
+                                                return (
+                                                    <div
+                                                        key={checkoutId}
+                                                        className={`p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3 cursor-pointer group/sale ${selectedCheckoutDetail === checkoutId ? 'bg-white/[0.05] border-white/20' : ''}`}
+                                                        onClick={() => setSelectedCheckoutDetail(selectedCheckoutDetail === checkoutId ? null : checkoutId)}
+                                                    >
+                                                        <div className="flex flex-col gap-1 min-w-0">
+                                                            <div className="flex items-start justify-between">
+                                                                <p className="text-[9px] font-black text-white uppercase italic leading-tight">
+                                                                    /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
+                                                                </p>
+                                                                {selectedCheckoutDetail !== checkoutId ? (
+                                                                    <ChevronDown className="w-3 h-3 text-neutral-600 group-hover/sale:text-white transition-colors" />
+                                                                ) : (
+                                                                    <ChevronUp className="w-3 h-3 text-white" />
+                                                                )}
+                                                            </div>
+
+                                                            <p className="text-[8px] font-bold text-neutral-500 uppercase tracking-tight">
+                                                                {items.length} {items.length === 1 ? 'item' : 'itens'} {selectedCheckoutDetail !== checkoutId && <>: <span className="text-white/60">{itemNames}</span></>}
                                                             </p>
-                                                            {selectedCheckoutDetail !== checkoutId ? (
-                                                                <ChevronDown className="w-3 h-3 text-neutral-600 group-hover/sale:text-white transition-colors" />
-                                                            ) : (
-                                                                <ChevronUp className="w-3 h-3 text-white" />
+
+                                                            {selectedCheckoutDetail === checkoutId && (
+                                                                <div className="py-2 space-y-1.5 border-t border-white/5 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                    {items.map((it, idx) => (
+                                                                        <div key={idx} className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
+                                                                            <span className="text-neutral-400">{it.quantity}x {it.product_name}</span>
+                                                                            <span className="text-white italic">R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
                                                             )}
-                                                        </div>
 
-                                                        <p className="text-[8px] font-bold text-neutral-500 uppercase tracking-tight">
-                                                            {items.length} {items.length === 1 ? 'item' : 'itens'} {selectedCheckoutDetail !== checkoutId && <>: <span className="text-white/60">{itemNames}</span></>}
-                                                        </p>
-
-                                                        {selectedCheckoutDetail === checkoutId && (
-                                                            <div className="py-2 space-y-1.5 border-t border-white/5 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                                {items.map((it, idx) => (
-                                                                    <div key={idx} className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
-                                                                        <span className="text-neutral-400">{it.quantity}x {it.product_name}</span>
-                                                                        <span className="text-white italic">R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                                                    </div>
-                                                                ))}
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <div>
+                                                                    {activeFinancialTab === 'pending' && <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest italic">Pendente: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                                    {activeFinancialTab === 'paid' && <p className="text-[8px] font-black text-green-500 uppercase tracking-widest italic">Recebido: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                                </div>
+                                                                {activeFinancialTab === 'pending' && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation()
+                                                                            updateSaleStatus(firstItem.id, 'paid')
+                                                                        }}
+                                                                        className="px-6 py-1.5 rounded-full bg-green-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_4px_12px_rgba(34,197,94,0.3)] active:scale-95"
+                                                                    >
+                                                                        Sim
+                                                                    </button>
+                                                                )}
                                                             </div>
-                                                        )}
-
-                                                        <div className="flex items-center justify-between mt-1">
-                                                            <div>
-                                                                {activeFinancialTab === 'pending' && <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest italic">Pendente: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                                                                {activeFinancialTab === 'paid' && <p className="text-[8px] font-black text-green-500 uppercase tracking-widest italic">Recebido: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                                                            </div>
-                                                            {activeFinancialTab === 'pending' && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        updateSaleStatus(firstItem.id, 'paid')
-                                                                    }}
-                                                                    className="px-6 py-1.5 rounded-full bg-green-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_4px_12px_rgba(34,197,94,0.3)] active:scale-95"
-                                                                >
-                                                                    Sim
-                                                                </button>
-                                                            )}
                                                         </div>
                                                     </div>
-                                                </div>
-                                            )
-                                        })
+                                                )
+                                            })
+                                        )
                                     )}
                                 </div>
                                 <button onClick={() => router.push('/dashboard/financeiro')} className="mt-auto pt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center justify-center gap-1 border-t border-white/5">
@@ -770,6 +1038,132 @@ export default function DashboardPage() {
                         </div>
                     </section>
                 )}
+
+                {/* Meu Perfil Section */}
+                <section className="pb-32">
+                    <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-8 flex items-center gap-4">
+                        Meu Perfil <div className="h-px flex-1 bg-border" />
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Profile Visitors */}
+                        <div className="p-8 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl flex flex-col gap-6 group">
+                            <div className="flex items-center justify-between">
+                                <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
+                                    <Eye className="w-6 h-6" />
+                                </div>
+                                <span className="text-xs font-black italic text-muted-foreground uppercase tracking-widest">Visitantes Recentes</span>
+                            </div>
+                            <div className="space-y-4">
+                                {profileViews.length === 0 ? (
+                                    <p className="text-muted-foreground text-[10px] uppercase font-bold text-center py-10 tracking-widest italic opacity-40">Ainda não recebeu visitas.</p>
+                                ) : profileViews.map((view, i) => (
+                                    <Link key={i} href={`/${view.profiles?.profileSlug}`} className="flex items-center gap-4 p-4 rounded-3xl bg-secondary/30 border border-border hover:border-primary/20 transition-all group">
+                                        <div className="w-10 h-10 rounded-2xl overflow-hidden bg-background border border-border group-hover:bg-primary/10 transition-colors shrink-0">
+                                            {view.profiles?.avatar_url ? (
+                                                <img src={getAvatarUrl(view.profiles.avatar_url)!} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xs font-black italic">{view.profiles?.name?.charAt(0)}</div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            <p className="text-xs font-bold text-foreground tracking-tight">{view.profiles?.name}</p>
+                                            <p className="text-[10px] uppercase tracking-widest text-primary">/{view.profiles?.profileSlug}</p>
+                                        </div>
+                                        <div className="ml-auto text-[9px] font-black text-muted-foreground/30">{new Date(view.created_at).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}</div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Social Interactions & Followers */}
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-6 rounded-[32px] border border-border bg-card/40 backdrop-blur-md shadow-xl space-y-4 group hover:border-red-500/20 transition-all cursor-pointer" onClick={() => router.push('/mural')}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <Heart className="w-5 h-5 fill-current" />
+                                        </div>
+                                        <span className="text-2xl font-black italic tracking-tighter text-white">{muralInteractions.likes}</span>
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-red-500/80 transition-colors">Curtidas no Mural</p>
+                                </div>
+                                <div className="p-6 rounded-[32px] border border-border bg-card/40 backdrop-blur-md shadow-xl space-y-4 group hover:border-primary/20 transition-all cursor-pointer" onClick={() => router.push('/mural')}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <MessageCircle className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-2xl font-black italic tracking-tighter text-white">{muralInteractions.comments}</span>
+                                    </div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 group-hover:text-primary transition-colors">Comentários</p>
+                                </div>
+                            </div>
+
+                            {/* Mural Activity Activity Notifications */}
+                            <div className="p-8 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl flex flex-col gap-6 group">
+                                <div className="flex items-center justify-between">
+                                    <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
+                                        <Heart className="w-6 h-6 text-red-500 fill-current" />
+                                    </div>
+                                    <span className="text-xs font-black italic text-muted-foreground uppercase tracking-widest">Interações Recentes</span>
+                                </div>
+                                <div className="space-y-3 pb-4">
+                                    {muralActivity.length === 0 ? (
+                                        <p className="text-muted-foreground text-[10px] uppercase font-bold text-center py-10 tracking-widest italic opacity-40">Sem notificações ainda.</p>
+                                    ) : muralActivity.map((act, i) => (
+                                        <Link key={i} href={`/${act.profiles?.profileSlug}`} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all group">
+                                            <div className="w-8 h-8 rounded-xl overflow-hidden bg-background border border-border shrink-0">
+                                                {act.profiles?.avatar_url ? (
+                                                    <img src={getAvatarUrl(act.profiles.avatar_url)!} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-[10px] font-black italic">{act.profiles?.name?.charAt(0)}</div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-[10px] font-bold text-foreground leading-tight">{act.profiles?.name}</p>
+                                                <p className="text-[8px] uppercase tracking-widest text-neutral-500">
+                                                    {act.type === 'like' ? <span className="text-red-500">Curtiu seu post</span> : <span className="text-primary">Comentou no seu post</span>}
+                                                </p>
+                                            </div>
+                                            <div className="ml-auto text-[8px] font-black text-neutral-600 italic">
+                                                {new Date(act.created_at).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="p-8 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl flex flex-col gap-6 group">
+                                <div className="flex items-center justify-between">
+                                    <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
+                                        <UserPlus className="w-6 h-6" />
+                                    </div>
+                                    <span className="text-xs font-black italic text-muted-foreground uppercase tracking-widest">Novos Seguidores</span>
+                                </div>
+                                <div className="space-y-3 pb-4">
+                                    {newFollowers.length === 0 ? (
+                                        <p className="text-muted-foreground text-[10px] uppercase font-bold text-center py-10 tracking-widest italic opacity-40">Nenhum seguidor recente.</p>
+                                    ) : newFollowers.map((follow, i) => (
+                                        <Link key={i} href={`/${follow.profiles?.profileSlug}`} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all group">
+                                            <div className="w-8 h-8 rounded-xl overflow-hidden bg-background border border-border shrink-0">
+                                                {follow.profiles?.avatar_url ? (
+                                                    <img src={getAvatarUrl(follow.profiles.avatar_url)!} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-[10px] font-black italic">{follow.profiles?.name?.charAt(0)}</div>
+                                                )}
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-[10px] font-bold text-foreground leading-tight">{follow.profiles?.name}</p>
+                                                <p className="text-[8px] uppercase tracking-widest text-neutral-500">/{follow.profiles?.profileSlug}</p>
+                                            </div>
+                                            <div className="ml-auto text-[8px] font-black text-neutral-600 italic">{new Date(follow.created_at).toLocaleDateString()}</div>
+                                        </Link>
+                                    ))}
+                                </div>
+                                <button onClick={() => router.push('/dashboard/seguidores')} className="w-full py-4 rounded-2xl bg-secondary/30 text-[9px] font-black uppercase tracking-[0.2em] hover:bg-foreground hover:text-background transition-all">Ver Todos Seguidores</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     )

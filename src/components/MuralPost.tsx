@@ -51,6 +51,7 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
     const [newComment, setNewComment] = useState('')
     const [submittingComment, setSubmittingComment] = useState(false)
     const [loadingComments, setLoadingComments] = useState(false)
+    const [commentInputRef, setCommentInputRef] = useState<HTMLInputElement | null>(null)
 
     useEffect(() => {
         fetchInteractionCounts()
@@ -60,29 +61,37 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
     }, [post.id, currentUserId])
 
     const fetchInteractionCounts = async () => {
-        const { count: likes } = await supabase
-            .from('mural_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id)
-        
-        const { count: comments } = await supabase
-            .from('mural_comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id)
+        try {
+            const { count: likes } = await supabase
+                .from('mural_likes')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', post.id)
+            
+            const { count: comments } = await supabase
+                .from('mural_comments')
+                .select('*', { count: 'exact', head: true })
+                .eq('post_id', post.id)
 
-        setLikesCount(likes || 0)
-        setCommentsCount(comments || 0)
+            setLikesCount(likes || 0)
+            setCommentsCount(comments || 0)
+        } catch (e) {
+            console.warn('[MuralPost] Erro ao carregar contadores (tabelas podem estar faltando)')
+        }
     }
 
     const checkIfLiked = async () => {
-        const { data } = await supabase
-            .from('mural_likes')
-            .select('*')
-            .eq('post_id', post.id)
-            .eq('profile_id', currentUserId)
-            .single()
-        
-        setLiked(!!data)
+        try {
+            const { data } = await supabase
+                .from('mural_likes')
+                .select('*')
+                .eq('post_id', post.id)
+                .eq('profile_id', currentUserId)
+                .single()
+            
+            setLiked(!!data)
+        } catch (e) {
+            // Ignore if table missing
+        }
     }
 
     const handleLike = async () => {
@@ -101,14 +110,18 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
 
     const fetchComments = async () => {
         setLoadingComments(true)
-        const { data, error } = await supabase
-            .from('mural_comments')
-            .select('*, profiles(name, profileSlug, avatar_url)')
-            .eq('post_id', post.id)
-            .order('created_at', { ascending: true })
-        
-        if (!error && data) {
-            setComments(data)
+        try {
+            const { data, error } = await supabase
+                .from('mural_comments')
+                .select('*, profiles(name, profileSlug, avatar_url)')
+                .eq('post_id', post.id)
+                .order('created_at', { ascending: true })
+            
+            if (!error && data) {
+                setComments(data)
+            }
+        } catch (e) {
+            console.error('[MuralPost] Erro ao buscar comentários:', e)
         }
         setLoadingComments(false)
     }
@@ -118,6 +131,9 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
         setShowComments(nextState)
         if (nextState) {
             fetchComments()
+            setTimeout(() => {
+                commentInputRef?.focus()
+            }, 100)
         }
     }
 
@@ -139,6 +155,9 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
             setComments([...comments, data])
             setCommentsCount(prev => prev + 1)
             setNewComment('')
+        } else {
+            console.error('[MuralPost] Erro ao comentar:', error)
+            alert('Erro ao enviar comentário. Verifique sua conexão.')
         }
         setSubmittingComment(false)
     }
@@ -249,11 +268,17 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
                             <div className="flex gap-3 pt-4 border-t border-border">
                                 <div className="flex-1 relative">
                                     <input 
+                                        ref={setCommentInputRef}
                                         value={newComment}
                                         onChange={(e) => setNewComment(e.target.value)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleSubmitComment()}
-                                        placeholder="Escreva um comentário..."
-                                        className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-primary/50 transition-all"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault()
+                                                handleSubmitComment()
+                                            }
+                                        }}
+                                        placeholder="No que você está pensando?"
+                                        className="w-full bg-secondary/50 border border-border rounded-[20px] px-6 py-4 text-sm font-bold outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground/30"
                                     />
                                     <button 
                                         onClick={handleSubmitComment}

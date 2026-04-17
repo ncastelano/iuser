@@ -10,7 +10,7 @@ export default function ConfiguracoesPage() {
     const supabase = createClient()
 
     const [whatsapp, setWhatsapp] = useState('')
-    const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
+    const [themeMode, setThemeMode] = useState<'dark' | 'light' | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -35,6 +35,8 @@ export default function ConfiguracoesPage() {
 
                 if (data?.theme_mode) {
                     setThemeMode(data.theme_mode as 'dark' | 'light')
+                } else {
+                    setThemeMode('dark') // Default
                 }
             }
 
@@ -56,7 +58,7 @@ export default function ConfiguracoesPage() {
                 .from('profiles')
                 .update({
                     whatsapp: normalizedWhatsapp || null,
-                    theme_mode: themeMode
+                    theme_mode: themeMode || 'dark'
                 })
                 .eq('id', user.id)
 
