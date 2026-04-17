@@ -11,14 +11,17 @@ import {
     LogOut,
     MapPinned,
     Zap,
-    ShoppingCart
+    ShoppingCart,
+    BrickWall // 👈 NOVO ÍCONE
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
+import { useAppModeStore } from '@/store/useAppModeStore'
 
 export default function MainLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
     const { itemsByStore } = useCartStore()
+    const { mode } = useAppModeStore()
 
     const [message, setMessage] = useState<string | null>(null)
     const [type, setType] = useState<'success' | 'error'>('success')
@@ -64,7 +67,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 {children}
             </main>
 
-            {/* Floating Cart Button (Global) */}
+            {/* Floating Cart Button */}
             <Link
                 href="/todoscarrinhosdecompra"
                 className={`fixed bottom-28 right-6 z-50 p-5 bg-card/60 backdrop-blur-2xl text-foreground rounded-[28px] border border-border shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:scale-110 active:scale-95 transition-all duration-500 group ${totalCartItems === 0 ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100'}`}
@@ -79,17 +82,24 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 </div>
             </Link>
 
-            {/* Premium Floating Bottom Navbar */}
+            {/* Bottom Navbar */}
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] sm:w-[500px] z-50">
                 <nav className="bg-card/40 backdrop-blur-2xl border border-border rounded-[32px] p-2 shadow-2xl overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                     <div className="relative flex justify-around items-center h-16">
-                        <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
-                                <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                        <Link href={mode === 'commercial' ? '/' : '/mural'} className="relative flex flex-col items-center justify-center gap-1 group/item">
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${(mode === 'commercial' ? pathname === '/' : pathname === '/mural') ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
+
+                                {mode === 'commercial'
+                                    ? <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                                    : <BrickWall size={22} className="transition-transform duration-300 group-hover/item:scale-110" /> // 👈 AQUI
+                                }
+
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/' ? 'opacity-100' : 'opacity-0'}`}>Vitrine</span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${(mode === 'commercial' ? pathname === '/' : pathname === '/mural') ? 'opacity-100' : 'opacity-0'}`}>
+                                {mode === 'commercial' ? 'Vitrine' : 'Mural'}
+                            </span>
                         </Link>
 
                         <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-1 group/item">
@@ -116,7 +126,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 </nav>
             </div>
 
-            {/* Snackbar controlado */}
             {message && <Snackbar message={message} type={type} />}
         </div>
     )

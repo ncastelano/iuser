@@ -5,11 +5,12 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, UserCircle } from 'lucide-react'
+import { useAppModeStore } from '@/store/useAppModeStore'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-type Mode = 'lojas' | 'produtos'
+type Mode = 'lojas' | 'produtos' | 'pessoas'
 
 // Parseia location no formato WKT "POINT(lng lat)" OU GeoJSON {type:"Point", coordinates:[lng,lat]}
 function parseCoords(location: any): [number, number] | null {
@@ -48,6 +49,7 @@ export default function MapPage() {
     const [mode, setMode] = useState<Mode>('lojas')
     const [stores, setStores] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
+    const [people, setPeople] = useState<any[]>([])
     const [filtered, setFiltered] = useState<any[]>([])
     const [selectedItem, setSelectedItem] = useState<any | null>(null)
     const [search, setSearch] = useState('')
@@ -56,6 +58,16 @@ export default function MapPage() {
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
 
     const router = useRouter()
+    const { mode: appMode } = useAppModeStore()
+
+    // Sync app mode with map local mode
+    useEffect(() => {
+        if (appMode === 'personal') {
+            setMode('pessoas')
+        } else {
+            setMode('lojas')
+        }
+    }, [appMode])
 
     // ── INIT MAP ────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -96,7 +108,8 @@ export default function MapPage() {
                 if (mutation.attributeName === 'class') {
                     const isDarkNow = document.documentElement.classList.contains('dark')
                     const targetStyle = isDarkNow ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
-                    if (mapRef.current && mapRef.current.getStyle().sprite?.includes('dark') !== isDarkNow) {
+                    
+                    if (mapRef.current) {
                         mapRef.current.setStyle(targetStyle)
                     }
                 }
@@ -117,10 +130,10 @@ export default function MapPage() {
 
             const { data: storesData } = await supabase.from('stores_geo').select('*')
             const { data: productsData } = await supabase.from('products_geo').select('*')
-            const { data: profilesData } = await supabase.from('profiles').select('id, "profileSlug"')
+            const { data: profilesData } = await supabase.from('profiles').select('id, profileSlug, name, avatar_url, location')
 
             // Debug: log fetched counts
-            console.log('Fetched stores:', storesData?.length, 'products:', productsData?.length)
+            console.log('Fetched stores:', storesData?.length, 'products:', productsData?.length, 'people:', profilesData?.length)
 
             const mappedStores = (storesData || []).map(s => ({
                 ...s,
@@ -137,8 +150,18 @@ export default function MapPage() {
                     : null
             }))
 
+            const mappedPeople = (profilesData || []).filter(p => p.location).map(p => ({
+                id: p.id,
+                name: p.name || 'iUser',
+                profileSlug: p.profileSlug,
+                avatar_url: p.avatar_url,
+                location: p.location,
+                is_person: true
+            }))
+
             setStores(mappedStores)
             setProducts(mappedProducts)
+            setPeople(mappedPeople)
         }
 
         load()
@@ -150,10 +173,10 @@ export default function MapPage() {
             setFiltered(overrideList)
             return
         }
-        const items = mode === 'lojas' ? stores : products
+        const items = mode === 'lojas' ? stores : mode === 'produtos' ? products : people
         const q = search.toLowerCase()
         setFiltered(q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items)
-    }, [search, mode, stores, products, overrideList])
+    }, [search, mode, stores, products, people, overrideList])
 
     // ── MARKERS ─────────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -172,9 +195,11 @@ export default function MapPage() {
 
             if (mode === 'lojas') {
                 coords = parseCoords(item.location)
-            } else {
+            } else if (mode === 'produtos') {
                 const store = stores.find(s => s.id === item.store_id)
                 coords = parseCoords(store?.location)
+            } else {
+                coords = parseCoords(item.location)
             }
 
             if (!coords) return
@@ -196,7 +221,7 @@ export default function MapPage() {
                 // Deslocamento radial dinâmico removido por pedido
                 // lng lat permanecem iguais
 
-                const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
+                const imageUrl = mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url
 
                 // O wrapper base que o mapbox controla
                 const el = document.createElement('div')
@@ -227,17 +252,18 @@ export default function MapPage() {
                 }
 
                 const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-foreground"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
+                const userSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-foreground"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
 
                 if (imageUrl) {
                     const img = document.createElement('img')
                     img.src = imageUrl
                     img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
                     img.onerror = () => {
-                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${mode === 'pessoas' ? userSvg : storeSvg}</div>`
                     }
                     inner.appendChild(img)
                 } else {
-                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
+                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${mode === 'pessoas' ? userSvg : storeSvg}</div>`
                 }
 
                 el.appendChild(inner)
@@ -366,7 +392,7 @@ export default function MapPage() {
                             <input
                                 value={search}
                                 onChange={e => { setSearch(e.target.value); setOverrideList(null) }}
-                                placeholder={mode === 'lojas' ? 'EXPLORAR LOJAS...' : 'EXPLORAR PRODUTOS...'}
+                                placeholder={mode === 'lojas' ? 'EXPLORAR LOJAS...' : mode === 'produtos' ? 'EXPLORAR PRODUTOS...' : 'CONECTAR PESSOAS...'}
                                 className="flex-1 bg-transparent text-foreground text-sm font-black italic uppercase outline-none placeholder:text-muted-foreground/30 tracking-wider"
                             />
                             {search && (
@@ -378,7 +404,7 @@ export default function MapPage() {
 
                         {/* TABS */}
                         <div className="flex gap-2">
-                            {(['lojas', 'produtos'] as Mode[]).map(m => (
+                            {(['lojas', 'produtos', 'pessoas'] as Mode[]).map(m => (
                                 <button
                                     key={m}
                                     onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
@@ -387,7 +413,7 @@ export default function MapPage() {
                                         : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                                         }`}
                                 >
-                                    {m === 'lojas' ? <Store className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                                    {m === 'lojas' ? <Store className="w-4 h-4" /> : m === 'produtos' ? <ShoppingBag className="w-4 h-4" /> : <UserCircle className="w-4 h-4" />}
                                     {m}
                                 </button>
                             ))}
@@ -422,8 +448,8 @@ export default function MapPage() {
                                     }`}
                                 >
                                     <div className="aspect-square bg-neutral-900 flex items-center justify-center p-0.5">
-                                        {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
-                                            <img src={mode === 'lojas' ? item.logo_url : item.image_url} className="w-full h-full object-cover rounded-xl" alt="" />
+                                        {(mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url) ? (
+                                            <img src={mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url} className="w-full h-full object-cover rounded-xl" alt="" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-xs font-black italic">{item.name.charAt(0)}</div>
                                         )}
@@ -448,8 +474,8 @@ export default function MapPage() {
 
                         <div className="flex gap-6 items-center">
                             <div className="w-28 h-28 rounded-[32px] overflow-hidden bg-background p-1 border border-border flex-shrink-0 shadow-2xl">
-                                {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
-                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-[28px]" alt="" />
+                                {(mode === 'lojas' ? selectedItem.logo_url : mode === 'produtos' ? selectedItem.image_url : selectedItem.avatar_url) ? (
+                                    <img src={mode === 'lojas' ? selectedItem.logo_url : mode === 'produtos' ? selectedItem.image_url : selectedItem.avatar_url} className="w-full h-full object-cover rounded-[28px]" alt="" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-4xl font-black italic text-muted-foreground/30">!</div>
                                 )}
@@ -475,14 +501,16 @@ export default function MapPage() {
                         <button
                             onClick={() => {
                                 if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
-                                else {
+                                else if (mode === 'produtos') {
                                     const store = stores.find(s => s.id === selectedItem.store_id)
                                     if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                } else {
+                                    router.push(`/${selectedItem.profileSlug}`)
                                 }
                             }}
                             className="mt-6 w-full py-5 bg-foreground text-background rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] transition-all hover:opacity-90 shadow-2xl active:scale-[0.98]"
                         >
-                            Ver Detalhes &rarr;
+                            {mode === 'pessoas' ? 'Ver Perfil' : 'Ver Detalhes'} &rarr;
                         </button>
                     </div>
                 </div>
@@ -493,7 +521,7 @@ export default function MapPage() {
                 <div className="bg-background/60 backdrop-blur-xl border border-border rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {filtered.length} {mode === 'lojas' ? 'Centros de Distribuição' : 'Itens Disponíveis'}
+                        {filtered.length} {mode === 'lojas' ? 'Centros de Distribuição' : mode === 'produtos' ? 'Itens Disponíveis' : 'Pessoas no Mural'}
                     </span>
                 </div>
             </div>

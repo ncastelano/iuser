@@ -11,10 +11,11 @@ import {
     ShoppingCart,
     Store,
     Heart,
-    CheckCircle2,
     Users,
-    Plus
+    Plus,
+    ChevronRight
 } from 'lucide-react'
+
 import { useCartStore } from '@/store/useCartStore'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -139,7 +140,7 @@ export default function ProductPage() {
                 .select('whatsapp')
                 .eq('id', storeData.owner_id)
                 .single()
-            
+
             if (ownerProfile?.whatsapp) {
                 setOwnerWhatsapp(ownerProfile.whatsapp)
             }
@@ -176,7 +177,7 @@ export default function ProductPage() {
         const { data: { user } } = await supabase.auth.getUser()
         const userId = user?.id ?? null
         setCurrentUserId(userId)
-        
+
         if (user) {
             const { data: userProfile } = await supabase.from('profiles').select('name').eq('id', user.id).single()
             if (userProfile?.name) setBuyerName(userProfile.name)
@@ -194,7 +195,7 @@ export default function ProductPage() {
             .eq('product_id', productData.id)
             .order('created_at', { ascending: false })
             .limit(5)
-        
+
         setRecentBuyers(buyers || [])
 
         setLoading(false)
@@ -243,7 +244,7 @@ export default function ProductPage() {
         }
 
         setBuyLoading(true)
-        
+
         const finalBuyerName = buyerName || 'Cliente iUser'
 
         // Record the sale for the "Social Proof / Micro Extrato"
@@ -270,7 +271,7 @@ export default function ProductPage() {
         })
 
         const link = getWhatsAppLink(ownerWhatsapp, message)
-        
+
         setBuyLoading(false)
         window.open(link, '_blank')
     }
