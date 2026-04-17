@@ -589,7 +589,7 @@ export default function DashboardPage() {
 
                     <div className="space-y-6">
                         <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
-                            Visitas Recentes <div className="h-px flex-1 bg-border" />
+                            Visitantes das lojas <div className="h-px flex-1 bg-border" />
                         </h2>
                         <div className="p-6 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl space-y-4">
                             {recentViews.length === 0 ? (
