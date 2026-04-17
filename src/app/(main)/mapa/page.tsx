@@ -68,9 +68,12 @@ export default function MapPage() {
             )
         }
 
+        const isDark = document.documentElement.classList.contains('dark')
+        const initialStyle = isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
+
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
-            style: 'mapbox://styles/mapbox/dark-v11',
+            style: initialStyle,
             center: [-63.9004, -8.7612], // Porto Velho, RO
             zoom: 12,
             attributionControl: false
@@ -86,7 +89,25 @@ export default function MapPage() {
         map.on('load', () => setMapReady(true))
 
         mapRef.current = map
-        return () => map.remove()
+
+        // Monitor theme changes to update map style
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    const isDarkNow = document.documentElement.classList.contains('dark')
+                    const targetStyle = isDarkNow ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
+                    if (mapRef.current && mapRef.current.getStyle().sprite?.includes('dark') !== isDarkNow) {
+                        mapRef.current.setStyle(targetStyle)
+                    }
+                }
+            })
+        })
+        observer.observe(document.documentElement, { attributes: true })
+
+        return () => {
+            map.remove()
+            observer.disconnect()
+        }
     }, [])
 
     // ── LOAD DATA ───────────────────────────────────────────────────────────────
@@ -189,9 +210,9 @@ export default function MapPage() {
                     height: 48px;
                     border-radius: 12px;
                     overflow: hidden;
-                    border: 2px solid ${index === 0 ? '#ffaa00' : '#ffffff'};
+                    border: 2px solid ${index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--foreground)/0.2)'};
                     cursor: pointer;
-                    background: #1a1a1a;
+                    background: hsl(var(--card));
                     transition: transform 0.2s ease;
                 `
 
@@ -205,7 +226,7 @@ export default function MapPage() {
                     el.style.zIndex = (100 - index).toString()
                 }
 
-                const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
+                const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-foreground"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
 
                 if (imageUrl) {
                     const img = document.createElement('img')
@@ -229,13 +250,13 @@ export default function MapPage() {
                         position: absolute;
                         bottom: -5px;
                         right: -5px;
-                        background: #ffaa00;
-                        color: black;
+                        background: hsl(var(--primary));
+                        color: hsl(var(--primary-foreground));
                         font-size: 10px;
                         font-weight: 900;
                         padding: 2px 6px;
                         border-radius: 10px;
-                        border: 2px solid #000;
+                        border: 2px solid hsl(var(--background));
                         z-index: 10;
                         cursor: pointer;
                     `
@@ -273,9 +294,9 @@ export default function MapPage() {
             width: 22px;
             height: 22px;
             border-radius: 999px;
-            background: #ef4444;
-            border: 4px solid #ffffff;
-            box-shadow: 0 0 0 6px rgba(239,68,68,0.25);
+            background: hsl(var(--primary));
+            border: 4px solid hsl(var(--background));
+            box-shadow: 0 0 0 6px hsla(var(--primary)/0.2);
         `
 
         userMarkerRef.current = new mapboxgl.Marker({ element: pin })
@@ -335,22 +356,22 @@ export default function MapPage() {
 
             {/* TOP BAR UI */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-xl z-20 space-y-4">
-                <div className="backdrop-blur-3xl bg-black/40 border border-white/5 rounded-[32px] p-2.5 shadow-2xl overflow-hidden relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="backdrop-blur-3xl bg-background/60 border border-border rounded-[32px] p-2.5 shadow-2xl overflow-hidden relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     
                     <div className="relative flex flex-col gap-2.5">
                         {/* SEARCH INPUT */}
-                        <div className="flex items-center gap-3 bg-white/5 rounded-2xl px-5 py-4 border border-white/5 focus-within:border-white/20 transition-all">
-                            <Search className="w-5 h-5 text-neutral-500" />
+                        <div className="flex items-center gap-3 bg-secondary/50 rounded-2xl px-5 py-4 border border-border focus-within:border-primary/20 transition-all">
+                            <Search className="w-5 h-5 text-muted-foreground" />
                             <input
                                 value={search}
                                 onChange={e => { setSearch(e.target.value); setOverrideList(null) }}
                                 placeholder={mode === 'lojas' ? 'EXPLORAR LOJAS...' : 'EXPLORAR PRODUTOS...'}
-                                className="flex-1 bg-transparent text-white text-sm font-black italic uppercase outline-none placeholder:text-neutral-700 tracking-wider"
+                                className="flex-1 bg-transparent text-foreground text-sm font-black italic uppercase outline-none placeholder:text-muted-foreground/30 tracking-wider"
                             />
                             {search && (
-                                <button onClick={() => setSearch('')} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 transition">
-                                    <X className="w-4 h-4 text-neutral-400" />
+                                <button onClick={() => setSearch('')} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/80 hover:bg-secondary transition">
+                                    <X className="w-4 h-4 text-muted-foreground" />
                                 </button>
                             )}
                         </div>
@@ -362,8 +383,8 @@ export default function MapPage() {
                                     key={m}
                                     onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
                                     className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase italic tracking-[0.2em] transition-all flex items-center justify-center gap-3 ${mode === m
-                                        ? 'bg-white text-black shadow-2xl'
-                                        : 'bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10'
+                                        ? 'bg-foreground text-background shadow-2xl'
+                                        : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                                         }`}
                                 >
                                     {m === 'lojas' ? <Store className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
@@ -420,33 +441,33 @@ export default function MapPage() {
             {/* SELECTED ITEM CARD */}
             {selectedItem && (
                 <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-30 animate-in slide-in-from-bottom-5 duration-500">
-                    <div className="backdrop-blur-3xl bg-neutral-900/40 border border-white/10 rounded-[40px] p-6 shadow-[0_40px_80px_rgba(0,0,0,0.6)] relative group">
-                        <button onClick={() => setSelectedItem(null)} className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 hover:bg-white hover:text-black transition-all shadow-xl z-10">
+                    <div className="backdrop-blur-3xl bg-card border border-border rounded-[40px] p-6 shadow-[0_40px_80px_rgba(0,0,0,0.6)] relative group">
+                        <button onClick={() => setSelectedItem(null)} className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-2xl bg-secondary/80 hover:bg-foreground hover:text-background transition-all shadow-xl z-10">
                             <X className="w-5 h-5" />
                         </button>
 
                         <div className="flex gap-6 items-center">
-                            <div className="w-28 h-28 rounded-[32px] overflow-hidden bg-black p-1 border border-white/5 flex-shrink-0 shadow-2xl">
+                            <div className="w-28 h-28 rounded-[32px] overflow-hidden bg-background p-1 border border-border flex-shrink-0 shadow-2xl">
                                 {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
                                     <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-[28px]" alt="" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-4xl font-black italic">!</div>
+                                    <div className="w-full h-full flex items-center justify-center text-4xl font-black italic text-muted-foreground/30">!</div>
                                 )}
                             </div>
 
                             <div className="flex-1 min-w-0 space-y-2">
                                 <div className="space-y-0.5">
-                                     <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white truncate leading-tight">{selectedItem.name}</h3>
+                                     <h3 className="text-2xl font-black italic uppercase tracking-tighter text-foreground truncate leading-tight">{selectedItem.name}</h3>
                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">{distanceFormatted || 'Local Remoto'}</span>
+                                        <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">{distanceFormatted || 'Local Remoto'}</span>
                                      </div>
                                 </div>
                                 {mode === 'produtos' && (
-                                    <p className="text-2xl font-black italic tracking-tighter text-white">R$ {(selectedItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    <p className="text-2xl font-black italic tracking-tighter text-foreground">R$ {(selectedItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                 )}
                                 {mode === 'lojas' && selectedItem.description && (
-                                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest line-clamp-1">{selectedItem.description}</p>
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{selectedItem.description}</p>
                                 )}
                             </div>
                         </div>
@@ -459,7 +480,7 @@ export default function MapPage() {
                                     if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
                                 }
                             }}
-                            className="mt-6 w-full py-5 bg-white text-black rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] transition-all hover:bg-neutral-200 shadow-2xl active:scale-[0.98]"
+                            className="mt-6 w-full py-5 bg-foreground text-background rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] transition-all hover:opacity-90 shadow-2xl active:scale-[0.98]"
                         >
                             Ver Detalhes &rarr;
                         </button>
@@ -469,9 +490,9 @@ export default function MapPage() {
 
             {/* TOTALS BADGE */}
             <div className="absolute bottom-24 left-6 z-10 pointer-events-none sm:block hidden">
-                <div className="bg-black/40 backdrop-blur-xl border border-white/5 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400">
+                <div className="bg-background/60 backdrop-blur-xl border border-border rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {filtered.length} {mode === 'lojas' ? 'Centros de Distribuição' : 'Itens Disponíveis'}
                     </span>
                 </div>

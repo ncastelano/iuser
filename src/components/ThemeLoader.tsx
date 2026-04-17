@@ -13,7 +13,7 @@ export function ThemeLoader() {
         .from('profiles')
         .select('theme_mode')
         .eq('id', user.id)
-        .single()).data?.theme_mode : 'dark' // Default to dark for 'premium' feel
+        .single()).data?.theme_mode : 'light' // Default to light mode for visitors
 
       if (theme === 'light') {
         document.documentElement.classList.add('light')

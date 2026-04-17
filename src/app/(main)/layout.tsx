@@ -51,12 +51,12 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     const isFlashRoute = pathname === '/flash'
 
     return (
-        <div className="relative flex flex-col min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black overflow-x-hidden">
+        <div className="relative flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground overflow-x-hidden">
             {/* Background Glows */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-                <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/5 blur-[130px] rounded-full animate-pulse" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/5 blur-[120px] rounded-full" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-[size:40px_40px]" />
+                <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-primary/5 blur-[130px] rounded-full animate-pulse" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/5 blur-[120px] rounded-full" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,hsla(var(--foreground)/0.01)_1px,transparent_1px)] bg-[size:40px_40px]" />
             </div>
 
             {/* Conteúdo */}
@@ -67,12 +67,12 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             {/* Floating Cart Button (Global) */}
             <Link
                 href="/todoscarrinhosdecompra"
-                className={`fixed bottom-28 right-6 z-50 p-6 bg-black text-white rounded-[32px] border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:scale-110 active:scale-95 transition-all duration-500 group ${totalCartItems === 0 ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100'}`}
+                className={`fixed bottom-28 right-6 z-50 p-5 bg-card/60 backdrop-blur-2xl text-foreground rounded-[28px] border border-border shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:scale-110 active:scale-95 transition-all duration-500 group ${totalCartItems === 0 ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100'}`}
             >
                 <div className="relative">
-                    <ShoppingCart size={28} className="transition-transform group-hover:rotate-12 text-white" />
+                    <ShoppingCart size={24} className="transition-transform group-hover:rotate-12 text-foreground" />
                     {totalCartItems > 0 && (
-                        <div className="absolute -top-2 -right-2 min-w-[22px] h-[22px] bg-white text-black rounded-full flex items-center justify-center text-[10px] font-black shadow-lg px-1">
+                        <div className="absolute -top-3 -right-3 min-w-[20px] h-[20px] bg-primary text-primary-foreground rounded-full flex items-center justify-center text-[9px] font-black shadow-lg px-1">
                             {totalCartItems > 99 ? '99+' : totalCartItems}
                         </div>
                     )}
@@ -81,33 +81,33 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
             {/* Premium Floating Bottom Navbar */}
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] sm:w-[500px] z-50">
-                <nav className="bg-black border border-white/20 rounded-[32px] p-2 shadow-[0_0_30px_rgba(0,0,0,0.8)] overflow-hidden relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <nav className="bg-card/40 backdrop-blur-2xl border border-border rounded-[32px] p-2 shadow-2xl overflow-hidden relative group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                     <div className="relative flex justify-around items-center h-16">
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
                                 <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/' ? 'opacity-100' : 'opacity-0'}`}>Vitrine</span>
                         </Link>
 
                         <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mapa' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mapa' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
                                 <MapPinned size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100' : 'opacity-0'}`}>Mapa</span>
                         </Link>
 
                         <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
                                 <Zap size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/flash' ? 'opacity-100' : 'opacity-0'}`}>Flash</span>
                         </Link>
 
                         <Link href="/dashboard" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/dashboard' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/dashboard' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
                                 <User size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/dashboard' ? 'opacity-100' : 'opacity-0'}`}>Dashboard</span>

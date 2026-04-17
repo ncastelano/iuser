@@ -62,6 +62,7 @@ export default function StorePage() {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
     const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
     const [recentSales, setRecentSales] = useState<any[]>([])
+    const [cartAnimating, setCartAnimating] = useState(false)
 
     const [searchQuery, setSearchQuery] = useState('')
     const { itemsByStore, addItem, removeItem } = useCartStore()
@@ -328,8 +329,8 @@ export default function StorePage() {
         <div className="relative min-h-screen pb-20 overflow-hidden bg-background text-foreground font-sans selection:bg-primary selection:text-white">
             {/* Background Effects */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 dark:bg-blue-600/10 blur-[120px] rounded-full animate-pulse" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-secondary/20 dark:bg-purple-600/10 blur-[100px] rounded-full" />
+                <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/10 blur-[120px] rounded-full animate-pulse" />
+                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-secondary/20 blur-[100px] rounded-full" />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,hsl(var(--foreground)/0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
             </div>
 
@@ -491,8 +492,8 @@ export default function StorePage() {
                             <button
                                 onClick={isOwner ? toggleStoreStatus : undefined}
                                 className={`group px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${store.is_open
-                                        ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20'
-                                        : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
+                                    ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20'
+                                    : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
                                     } ${isOwner ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
                             >
                                 <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${store.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
@@ -619,32 +620,19 @@ export default function StorePage() {
                 {mounted && totalItems > 0 && (
                     <div
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
-                        className="group relative cursor-pointer"
+                        className={`group fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] cursor-pointer transition-all duration-300 ${cartAnimating ? 'scale-110' : 'scale-100'}`}
                     >
-                        <div className="absolute inset-[-1px] rounded-[32px] bg-gradient-to-r from-blue-600 via-purple-600 to-primary animate-gradient-xy blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative bg-card px-8 py-6 rounded-[30px] flex flex-col sm:flex-row items-center justify-between gap-6 overflow-hidden z-10 transition-all group-hover:bg-background shadow-2xl shadow-black/10 dark:shadow-none">
-                            {/* Inner Glow */}
-                            <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
-
-                            <div className="flex items-center gap-6">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
-                                    <div className="relative h-14 w-14 rounded-2xl bg-foreground flex items-center justify-center shadow-2xl">
-                                        <ShoppingCart className="w-7 h-7 text-background" />
-                                        <div className="absolute -top-2 -right-2 h-7 w-7 bg-primary text-primary-foreground text-[11px] font-black rounded-full flex items-center justify-center ring-4 ring-card">
-                                            {totalItems}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-center sm:text-left">
-                                    <h4 className="text-2xl font-black italic tracking-tighter uppercase text-foreground">Ver Meu Carrinho</h4>
-                                    <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest">{totalItems} {totalItems === 1 ? 'item' : 'itens selecionados'}</p>
+                        <div className="absolute inset-[-1px] rounded-full bg-gradient-to-r from-primary via-secondary to-primary animate-gradient-xy blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative bg-card px-5 py-3 rounded-full flex items-center gap-4 overflow-hidden z-10 transition-all group-hover:bg-background shadow-2xl shadow-black/20 dark:shadow-none border border-border/50">
+                            <div className="relative h-10 w-10 rounded-full bg-foreground flex items-center justify-center shadow-xl">
+                                <ShoppingCart className="w-5 h-5 text-background" />
+                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-primary text-primary-foreground text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-card animate-bounce">
+                                    {totalItems}
                                 </div>
                             </div>
-
-                            <div className="flex flex-col items-center sm:items-end">
-                                <span className="text-3xl font-black text-foreground italic tracking-tighter">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                <span className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-1">Finalizar Compra <ArrowLeft className="w-3 h-3 rotate-180" /></span>
+                            <div className="flex flex-col pr-2">
+                                <span className="text-sm font-black text-foreground italic tracking-tight">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-[9px] font-black uppercase text-primary tracking-widest leading-none">Ver Carrinho</span>
                             </div>
                         </div>
                     </div>
@@ -655,13 +643,13 @@ export default function StorePage() {
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between border-b border-border pb-4">
                             <h3 className="text-2xl font-black italic tracking-tighter">Cardápio / Catálogo</h3>
-                            <span className="text-sm font-black text-muted-foreground">{filteredProducts.length} Items</span>
+                            <span className="text-sm font-black text-muted-foreground">{filteredProducts.length} Produtos</span>
                         </div>
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <input
                                 type="text"
-                                placeholder="O que você está procurando?"
+                                placeholder="procurar..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full bg-secondary border border-border rounded-2xl py-4 pl-12 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/30 transition-colors"
@@ -730,6 +718,8 @@ export default function StorePage() {
                                                         onClick={(event) => {
                                                             event.stopPropagation()
                                                             addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                            setCartAnimating(true)
+                                                            setTimeout(() => setCartAnimating(false), 500)
                                                         }}
                                                         className="h-9 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1.5 border border-border"
                                                     >
@@ -746,6 +736,20 @@ export default function StorePage() {
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-muted/50">
                                                 <span className="text-muted-foreground font-bold italic text-sm">Sem Foto</span>
+                                            </div>
+                                        )}
+                                        {/* Floating + Button over image */}
+                                        {!isOwner && (
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                    setCartAnimating(true)
+                                                    setTimeout(() => setCartAnimating(false), 500)
+                                                }}
+                                                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-lg z-20"
+                                            >
+                                                <Plus className="w-5 h-5" />
                                             </div>
                                         )}
                                         {product.type && (

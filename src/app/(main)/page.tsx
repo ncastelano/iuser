@@ -544,32 +544,37 @@ export default function Vitrine() {
       {/* Background Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-primary/10 blur-[130px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[10%] right-[-10%] w-[50%] h-[50%] bg-secondary/10 dark:bg-purple-600/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[10%] right-[-10%] w-[50%] h-[50%] bg-secondary/10 blur-[120px] rounded-full" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,hsl(var(--foreground)/0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Header Section */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12 sm:mb-20">
-          <div className="space-y-4">
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter italic uppercase text-foreground leading-[0.8]">
-              iUser<span className="text-primary">.</span>
-            </h1>
-
+        {/* Flash-style Header Section */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 sm:mb-24">
+          <div className="flex items-center gap-5 pointer-events-auto">
+            <div className="w-16 h-16 bg-primary text-primary-foreground rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.3)] rotate-3">
+              <ShoppingBag className="w-9 h-9" />
+            </div>
+            <div>
+              <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-foreground leading-[0.8]">
+                Vitrine<span className="text-primary">.</span>
+              </h1>
+              <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-primary/80 mt-1">Veja o que tem ao seu redor!</p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-4 w-full md:w-auto">
-            <div className="relative group">
-              <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground group-focus-within:text-foreground transition-all duration-300" />
+          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <div className="relative group flex-1 min-w-[300px]">
+              <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground group-focus-within:text-foreground transition-all duration-300" />
               <input
                 type="text"
-                placeholder="O que você está procurando hoje?"
+                placeholder="procurar produtos ou serviços..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full md:w-[400px] pl-14 pr-12 py-5 bg-card dark:bg-neutral-900/40 backdrop-blur-xl border border-border dark:border-white/5 rounded-[32px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/20 focus:ring-4 focus:ring-foreground/5 transition-all duration-500 appearance-none shadow-xl shadow-black/5 dark:shadow-none"
+                className="w-full pl-16 pr-12 py-5 bg-card border border-border rounded-full text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 appearance-none shadow-2xl shadow-black/5 dark:shadow-none"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                <button onClick={() => setSearch('')} className="absolute right-6 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               )}
@@ -578,8 +583,8 @@ export default function Vitrine() {
         </header>
 
         {/* Categories / Filters Bar */}
-        <nav className="mb-16 overflow-x-auto no-scrollbar scroll-smooth">
-          <div className="flex items-center gap-3 pb-4">
+        <nav className="mb-20 overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex items-center gap-4 pb-4">
             {filters.map((option) => {
               const Icon = option.icon
               const isActive = sortBy === option.value
@@ -587,9 +592,9 @@ export default function Vitrine() {
                 <button
                   key={option.value}
                   onClick={() => setSortBy(option.value as any)}
-                  className={`flex-shrink-0 flex items-center gap-3 px-8 py-4 rounded-full text-xs font-black uppercase tracking-widest border transition-all duration-500 shadow-xl dark:shadow-none ${isActive
-                    ? 'bg-card dark:bg-white text-foreground dark:text-black border-foreground dark:border-white shadow-[0_15px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_15px_30px_rgba(255,255,255,0.15)] active:scale-95'
-                    : 'bg-card dark:bg-neutral-950/50 text-muted-foreground border-transparent dark:border-white/5 hover:border-foreground/20 dark:hover:border-white/20 hover:text-foreground dark:hover:text-white'
+                  className={`flex-shrink-0 flex items-center gap-3 px-10 py-5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-500 shadow-xl dark:shadow-none ${isActive
+                    ? 'bg-foreground text-background border-foreground shadow-[0_15px_30px_rgba(0,0,0,0.1)] active:scale-95'
+                    : 'bg-card text-muted-foreground border-border hover:border-primary/20 hover:text-foreground'
                     }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -687,7 +692,7 @@ export default function Vitrine() {
                             </div>
                           )}
                         </div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">Visitar Vitrine &rarr;</div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">Visitar Loja &rarr;</div>
                       </div>
                     </div>
                   </div>
@@ -704,7 +709,7 @@ export default function Vitrine() {
               <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">Produtos ou serviços</h2>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{sortedProducts.length} itens disponíveis</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{sortedProducts.length} produtos disponíveis</p>
               </div>
             </div>
             {hasMoreProducts && (
@@ -724,7 +729,7 @@ export default function Vitrine() {
               const distance = store ? calcDistanceKm(store.location) : null
               const distanceFormatted = formatDistance(distance)
               const price = typeof product.price === 'number' ? product.price : 0
-              const typeLabel = translateType(product.type) || product.category || 'Item'
+              const typeLabel = translateType(product.type) || product.category || 'Produto'
 
               return (
                 <div
@@ -740,7 +745,7 @@ export default function Vitrine() {
                         {store?.logo_url ? (
                           <img src={store.logo_url} className="w-[60%] h-[60%] object-contain opacity-40 blur-sm" alt="" />
                         ) : (
-                          <div className="text-muted-foreground/20 text-4xl font-black italic">ITEM</div>
+                          <div className="text-muted-foreground/20 text-4xl font-black italic">PRODUTO</div>
                         )}
                         <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 dark:bg-black/40">
                           <span className="text-foreground/40 dark:text-white/60 text-sm font-black italic uppercase tracking-widest">{product.name.slice(0, 10)}...</span>

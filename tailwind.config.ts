@@ -44,6 +44,10 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        sans: ["'Microsoft PhagsPa'", "sans-serif"],
+        iuser: ["'Microsoft PhagsPa'", "sans-serif"],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

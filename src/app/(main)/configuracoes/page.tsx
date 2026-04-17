@@ -8,6 +8,7 @@ import { ArrowLeft, Save, LogOut } from 'lucide-react'
 export default function ConfiguracoesPage() {
     const router = useRouter()
     const supabase = createClient()
+
     const [whatsapp, setWhatsapp] = useState('')
     const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
     const [loading, setLoading] = useState(true)
@@ -16,32 +17,49 @@ export default function ConfiguracoesPage() {
     useEffect(() => {
         async function loadProfile() {
             const { data: { user } } = await supabase.auth.getUser()
+
             if (user) {
-                const { data, error } = await supabase.from('profiles').select('whatsapp, theme_mode').eq('id', user.id).single()
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('whatsapp, theme_mode')
+                    .eq('id', user.id)
+                    .single()
+
                 if (error) {
-                    console.error('[Configuracoes] Erro ao carregar WhatsApp:', error)
+                    console.error('[Configuracoes] Erro ao carregar:', error)
                 }
+
                 if (data?.whatsapp) {
                     setWhatsapp(data.whatsapp)
                 }
+
                 if (data?.theme_mode) {
                     setThemeMode(data.theme_mode as 'dark' | 'light')
                 }
             }
+
             setLoading(false)
         }
+
         loadProfile()
     }, [])
 
     const handleSave = async () => {
         setSaving(true)
+
         const normalizedWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim()
+
         const { data: { user } } = await supabase.auth.getUser()
+
         if (user) {
-            const { error } = await supabase.from('profiles').update({ 
-                whatsapp: normalizedWhatsapp || null,
-                theme_mode: themeMode
-            }).eq('id', user.id)
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    whatsapp: normalizedWhatsapp || null,
+                    theme_mode: themeMode
+                })
+                .eq('id', user.id)
+
             if (error) {
                 console.error('[Configuracoes] Erro ao salvar:', error)
                 alert(`Erro ao salvar: ${error.message}`)
@@ -50,82 +68,136 @@ export default function ConfiguracoesPage() {
                 alert('Configurações salvas com sucesso!')
             }
         }
+
         setSaving(false)
     }
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
         router.replace('/login')
+
         setTimeout(() => {
             window.location.href = '/login'
         }, 100)
     }
 
-    if (loading) return <div className="min-h-screen bg-black flex justify-center items-center">Carregando...</div>
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-background flex justify-center items-center text-foreground font-sans">
+                Carregando...
+            </div>
+        )
+    }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8">
-            <div className="max-w-2xl mx-auto space-y-6 mt-6">
-                <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                    <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center bg-neutral-900 border border-neutral-800 rounded-xl hover:bg-neutral-800 transition">
-                        <ArrowLeft className="w-5 h-5" />
+        <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans selection:bg-primary selection:text-primary-foreground">
+            <div className="max-w-2xl mx-auto space-y-10 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                {/* Header */}
+                <div className="flex items-center gap-6 border-b border-border pb-8">
+                    <button
+                        onClick={() => router.back()}
+                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border rounded-2xl hover:bg-secondary transition-all active:scale-95"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
                     </button>
-                    <h1 className="text-2xl font-bold">Configurações</h1>
+
+                    <div>
+                        <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
+                            Configurações<span className="text-primary">.</span>
+                        </h1>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">
+                            Configure sua experiência no iUser
+                        </p>
+                    </div>
                 </div>
 
-                <div className="bg-neutral-900/60 p-6 rounded-2xl border border-neutral-800 space-y-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-neutral-300 mb-2">Seu WhatsApp</label>
-                        <p className="text-xs text-neutral-500 mb-2 font-medium">Cadastre seu número para receber <span className="text-white">extratos de vendas</span> e avisos de pedidos em tempo real diretamente no seu celular.</p>
-                        <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl mb-4">
-                            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Atenção Logista:</p>
-                            <p className="text-[11px] text-neutral-400 mt-1 leading-tight">Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número. Mantenha-o sempre atualizado!</p>
+                {/* Card */}
+                <div className="bg-card/40 backdrop-blur-xl p-8 rounded-[40px] border border-border shadow-2xl space-y-8">
+
+                    {/* WhatsApp */}
+                    <div className="space-y-4">
+                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                            Seu WhatsApp
+                        </label>
+
+                        <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
+                            Cadastre seu número para receber extratos de vendas e avisos de pedidos em tempo real diretamente no seu celular.
+                        </p>
+
+                        <div className="bg-primary/5 border border-primary/20 p-5 rounded-3xl">
+                            <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">
+                                Atenção Lojista:
+                            </p>
+                            <p className="text-[11px] text-muted-foreground font-medium leading-normal">
+                                Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número. Mantenha-o sempre atualizado!
+                            </p>
                         </div>
+
                         <input
                             type="text"
                             placeholder="(00) 00000-0000"
                             value={whatsapp}
                             onChange={(e) => setWhatsapp(e.target.value)}
                             inputMode="tel"
-                            className="w-full bg-neutral-950 border border-neutral-700 px-4 py-3 rounded-xl text-white outline-none focus:border-white transition"
+                            className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
                         />
                     </div>
 
-                    <div className="bg-neutral-900/40 p-5 rounded-2xl border border-white/5 space-y-4">
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500 mb-3">Preferência Visual</p>
-                            <div className="flex bg-black/60 p-1 rounded-xl border border-white/5">
-                                <button 
-                                    onClick={() => setThemeMode('dark')}
-                                    className={`flex-1 py-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${themeMode === 'dark' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
-                                >
-                                    Dark Mode
-                                </button>
-                                <button 
-                                    onClick={() => setThemeMode('light')}
-                                    className={`flex-1 py-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${themeMode === 'light' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
-                                >
-                                    Light Mode
-                                </button>
-                            </div>
+                    {/* Tema */}
+                    <div className="space-y-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                            Preferência Visual
+                        </p>
+
+                        <div className="flex bg-secondary/50 p-1.5 rounded-2xl border border-border">
+                            <button
+                                onClick={() => setThemeMode('dark')}
+                                className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'dark'
+                                    ? 'bg-foreground text-background shadow-xl'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                            >
+                                Dark Mode
+                            </button>
+
+                            <button
+                                onClick={() => setThemeMode('light')}
+                                className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'light'
+                                    ? 'bg-foreground text-background shadow-xl'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                            >
+                                Light Mode
+                            </button>
                         </div>
                     </div>
 
+                    {/* Save */}
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="py-3 px-6 bg-white text-black font-bold flex items-center justify-center gap-2 rounded-xl hover:bg-neutral-200 transition disabled:opacity-50"
+                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3 rounded-[24px] hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl"
                     >
-                        {saving ? 'Salvando...' : <><Save className="w-4 h-4" /> Salvar Alterações</>}
+                        {saving ? (
+                            'Guardando...'
+                        ) : (
+                            <>
+                                <Save className="w-5 h-5" />
+                                Salvar Alterações
+                            </>
+                        )}
                     </button>
                 </div>
 
-                <div className="pt-8">
+                {/* Logout */}
+                <div className="pt-4 px-4">
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-2 px-6 py-3 bg-red-600/20 text-red-500 hover:bg-red-600/30 border border-red-600/30 rounded-xl font-bold transition-all w-full justify-center"
+                        className="flex items-center gap-3 px-8 py-5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 rounded-[28px] font-black uppercase text-[10px] tracking-[0.3em] transition-all w-full justify-center group"
                     >
-                        <LogOut className="w-5 h-5" /> Sair da conta
+                        <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                        Sair da conta
                     </button>
                 </div>
             </div>
