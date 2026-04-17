@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, ArrowRight } from 'lucide-react'
+import { Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, ArrowRight, CheckCircle2 } from 'lucide-react'
 
 export default function Register() {
   const router = useRouter()
