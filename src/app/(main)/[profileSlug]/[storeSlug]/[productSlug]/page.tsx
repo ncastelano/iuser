@@ -2,23 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
     ArrowLeft,
     Briefcase,
-    Check,
     CheckCircle2,
     ChevronRight,
-    Copy,
-    MessageCircle,
-    Share2,
     ShoppingCart,
     Store,
-    Tag,
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
+
+import { formatOrderMessage, getWhatsAppLink } from '@/lib/whatsapp'
 
 type Product = {
     id: string
@@ -43,6 +41,7 @@ type StoreData = {
     is_open: boolean | null
     ratings_avg: number | null
     ratings_count: number | null
+    owner_id: string
 }
 
 type RatingRow = {
@@ -71,12 +70,13 @@ export default function ProductPage() {
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [image, setImage] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
-    const [showShareMenu, setShowShareMenu] = useState(false)
-    const [copied, setCopied] = useState(false)
     const [mounted, setMounted] = useState(false)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [buyerName, setBuyerName] = useState<string>('')
+    const [ownerWhatsapp, setOwnerWhatsapp] = useState<string | null>(null)
     const [myRating, setMyRating] = useState(0)
     const [ratingLoading, setRatingLoading] = useState(false)
+    const [buyLoading, setBuyLoading] = useState(false)
 
     const { itemsByStore, addItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
@@ -90,6 +90,8 @@ export default function ProductPage() {
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
         return `${baseUrl}/${profileSlug}/${storeSlug}/${productSlug}`
     }, [productSlug, profileSlug, storeSlug])
+
+    const [otherProducts, setOtherProducts] = useState<Product[]>([])
 
     const loadRatings = useCallback(async (productId: string, userId?: string | null) => {
         const { data, error } = await supabase
@@ -117,13 +119,26 @@ export default function ProductPage() {
 
         const { data: storeData } = await supabase
             .from('stores')
-            .select('id, name, storeSlug, logo_url, description, is_open, ratings_avg, ratings_count')
+            .select('id, name, storeSlug, logo_url, description, is_open, ratings_avg, ratings_count, owner_id')
             .ilike('storeSlug', storeSlug || '')
             .maybeSingle()
 
         if (!storeData) {
             router.push('/')
             return
+        }
+
+        // Fetch owner whatsapp
+        if (storeData.owner_id) {
+            const { data: ownerProfile } = await supabase
+                .from('profiles')
+                .select('whatsapp')
+                .eq('id', storeData.owner_id)
+                .single()
+            
+            if (ownerProfile?.whatsapp) {
+                setOwnerWhatsapp(ownerProfile.whatsapp)
+            }
         }
 
         const logoUrl = storeData.logo_url
@@ -142,9 +157,26 @@ export default function ProductPage() {
             return
         }
 
+        // Carregar outros produtos da loja
+        const { data: others } = await supabase
+            .from('products')
+            .select('*')
+            .eq('store_id', storeData.id)
+            .neq('id', productData.id)
+            .limit(4)
+
+        if (others) {
+            setOtherProducts(others as Product[])
+        }
+
         const { data: { user } } = await supabase.auth.getUser()
         const userId = user?.id ?? null
         setCurrentUserId(userId)
+        
+        if (user) {
+            const { data: userProfile } = await supabase.from('profiles').select('name').eq('id', user.id).single()
+            if (userProfile?.name) setBuyerName(userProfile.name)
+        }
 
         setStore({ ...storeData, logo_url: logoUrl })
         setProduct(productData as Product)
@@ -188,6 +220,46 @@ export default function ProductPage() {
         setRatingLoading(false)
     }
 
+    const handleBuyNow = async () => {
+        if (!product || !store) return
+        if (!ownerWhatsapp) {
+            alert('Esta loja ainda não configurou o WhatsApp para vendas.')
+            return
+        }
+
+        setBuyLoading(true)
+        
+        const finalBuyerName = buyerName || 'Cliente iUser'
+
+        // Record the sale for the "Social Proof / Micro Extrato"
+        // We Use a common table or just fire and forget if it fails
+        try {
+            await supabase.from('store_sales').insert({
+                store_id: store.id,
+                buyer_id: currentUserId,
+                buyer_name: finalBuyerName,
+                product_name: product.name,
+                price: product.price,
+                product_id: product.id
+            })
+        } catch (e) {
+            console.error('[BuyNow] Erro ao registrar venda:', e)
+        }
+
+        const message = formatOrderMessage({
+            storeName: store.name,
+            productName: product.name,
+            price: product.price,
+            buyerName: finalBuyerName,
+            storeUrl: productUrl
+        })
+
+        const link = getWhatsAppLink(ownerWhatsapp, message)
+        
+        setBuyLoading(false)
+        window.open(link, '_blank')
+    }
+
     if (loading || !product || !store) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -201,12 +273,12 @@ export default function ProductPage() {
 
     const isService = ['service', 'serviço', 'servico'].includes((product.type || product.category || '').toLowerCase())
     const typeLabel = product.type === 'service' ? 'Serviço' : product.type === 'physical' ? 'Produto Físico' : (product.type || product.category || 'Produto')
-    const reviewersPreview = ratings.slice(0, 5)
 
     return (
         <div className="relative w-full max-w-6xl mx-auto py-8 md:py-16 animate-fade-in text-white selection:bg-white selection:text-black">
             <div className="flex flex-col md:flex-row items-start gap-12">
-                {/* Product Visual */}
+                {/* Visual - skipping for brevity in thought, but replaced in file */}
+                {/* Info - skipping for brevity in thought, but replaced in file */}
                 <div className="w-full md:w-1/2 space-y-8">
                     <div className="relative group">
                         <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-[48px] blur-2xl opacity-0 group-hover:opacity-100 transition duration-1000" />
@@ -222,12 +294,11 @@ export default function ProductPage() {
                         </div>
                     </div>
 
-                    {/* Vendedor Profile */}
-                    <div 
+                    <div
                         onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
                         className="group bg-neutral-900/20 backdrop-blur-3xl border border-white/5 rounded-[40px] p-8 cursor-pointer transition-all duration-500 hover:border-white/10 hover:-translate-y-1 shadow-xl"
                     >
-                         <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-6">
                             <div className="w-16 h-16 rounded-2xl bg-black border border-white/5 overflow-hidden shadow-2xl">
                                 {store.logo_url ? (
                                     <img src={store.logo_url} className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all" alt={store.name} />
@@ -242,11 +313,10 @@ export default function ProductPage() {
                             <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
                                 <ChevronRight className="w-6 h-6" />
                             </div>
-                         </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Info & Actions */}
                 <div className="w-full md:w-1/2 space-y-12">
                     <div className="space-y-6">
                         <div className="flex items-center gap-4">
@@ -272,23 +342,21 @@ export default function ProductPage() {
                         </div>
 
                         <div className="relative group inline-block">
-                             <div className="absolute -inset-4 bg-white/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                             <div className="relative text-5xl md:text-6xl font-black italic text-white flex items-start gap-2">
+                            <div className="absolute -inset-4 bg-white/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="relative text-5xl md:text-6xl font-black italic text-white flex items-start gap-2">
                                 <span className="text-xl md:text-2xl mt-2">R$</span>
                                 {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                             </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Description */}
                     <div className="bg-neutral-900/10 border border-white/5 rounded-[40px] p-8 space-y-4">
                         <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-600">Especificações / Descrição</h3>
                         <p className="text-neutral-400 leading-relaxed text-base italic">{product.description || "Nenhuma descrição adicional informada pelo representante."}</p>
                     </div>
 
-                    {/* My Rating */}
                     <div className="bg-neutral-900/10 border border-white/5 rounded-[40px] p-8">
-                         <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center justify-between gap-4">
                             <div className="space-y-1">
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Sua Experiência</h4>
                                 <p className="text-[10px] text-neutral-600 uppercase font-bold tracking-widest">Avalie este item no ecossistema</p>
@@ -297,13 +365,12 @@ export default function ProductPage() {
                                 <RatingStars value={myRating} onChange={(v) => submitRating(v)} disabled={ratingLoading} size={24} />
                                 {ratingLoading && <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
                             </div>
-                         </div>
+                        </div>
                     </div>
 
-                    {/* Actions */}
                     <div className="space-y-4 pt-10">
                         {mounted && (
-                            <button 
+                            <button
                                 onClick={() => {
                                     if (isInCart) {
                                         router.push(`/${profileSlug}/${storeSlug}/carrinho`)
@@ -323,16 +390,19 @@ export default function ProductPage() {
                             </button>
                         )}
 
-                        <button className="w-full py-6 rounded-[32px] bg-neutral-900 border border-white/5 font-black uppercase text-sm tracking-[0.3em] text-neutral-400 hover:text-white hover:border-white/20 transition-all flex items-center justify-center gap-4">
-                            {isService ? <Briefcase className="w-6 h-6" /> : <ShoppingCart className="w-6 h-6" />}
-                            {isService ? 'Contratar Agora' : 'Comprar Agora'}
-                        </button>
-
-                        <button 
-                            onClick={() => navigator.share ? navigator.share({ title: product.name, text: `Confira ${product.name} na loja ${store.name}!`, url: productUrl }).catch(() => { }) : setShowShareMenu(true)}
-                            className="w-full py-4 text-[10px] font-black uppercase tracking-[0.4em] text-neutral-600 hover:text-white transition-colors"
+                        <button
+                            onClick={handleBuyNow}
+                            disabled={buyLoading}
+                            className="w-full py-6 rounded-[32px] bg-neutral-900 border border-white/5 font-black uppercase text-sm tracking-[0.3em] text-neutral-400 hover:text-white hover:border-white/20 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
                         >
-                            Compartilhar Acesso &rarr;
+                            {buyLoading ? (
+                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    {isService ? <Briefcase className="w-6 h-6" /> : <ShoppingCart className="w-6 h-6" />}
+                                    {isService ? 'Contratar Agora' : 'Comprar Agora'}
+                                </>
+                            )}
                         </button>
                     </div>
 
@@ -347,7 +417,7 @@ export default function ProductPage() {
                                             {r.profiles?.avatar_url ? (
                                                 <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover grayscale-[0.3]" alt={r.profiles.name || ""} />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic">{r.profiles?.name?.charAt(0)}</div>
+                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic">{r.profiles?.name?.charAt(0) || "?"}</div>
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -361,7 +431,50 @@ export default function ProductPage() {
                     )}
                 </div>
             </div>
-            
+
+            {/* Other products from same store */}
+            {otherProducts.length > 0 && (
+                <div className="mt-20 space-y-8">
+                    <div className="flex items-end justify-between px-4">
+                        <div className="space-y-2">
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-600">Mais do Representante</h3>
+                            <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white leading-none">Explorar mais nesta loja</h2>
+                        </div>
+                        <Link href={`/${profileSlug}/${storeSlug}`} className="text-[10px] font-black uppercase tracking-widest text-neutral-400 hover:text-white transition-colors">
+                            Ver Vitrine Completa &rarr;
+                        </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+                        {otherProducts.map((other) => (
+                            <div
+                                key={other.id}
+                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/${other.slug}`)}
+                                className="group bg-neutral-900/40 border border-white/5 rounded-[32px] overflow-hidden cursor-pointer transition-all duration-500 hover:border-white/10 hover:-translate-y-1 shadow-xl"
+                            >
+                                <div className="aspect-square bg-neutral-950 overflow-hidden relative">
+                                    {other.image_url ? (
+                                        <img
+                                            src={supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl}
+                                            className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110"
+                                            alt={other.name}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-neutral-800 text-2xl font-black italic">ITEM</div>
+                                    )}
+                                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 to-transparent pt-12">
+                                        <div className="text-white font-black italic uppercase text-xs tracking-tighter truncate">{other.name}</div>
+                                        <div className="text-green-400 font-black text-sm mt-1">
+                                            R$ {(other.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="pb-32" />
         </div>
     )

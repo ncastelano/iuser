@@ -69,7 +69,11 @@ export default function ConfiguracoesPage() {
                 <div className="bg-neutral-900/60 p-6 rounded-2xl border border-neutral-800 space-y-4">
                     <div>
                         <label className="block text-sm font-semibold text-neutral-300 mb-2">Seu WhatsApp</label>
-                        <p className="text-xs text-neutral-500 mb-4">Iremos trabalhar depois com o seu WhatsApp para mandar extratos ou avisos da plataforma.</p>
+                        <p className="text-xs text-neutral-500 mb-2 font-medium">Cadastre seu número para receber <span className="text-white">extratos de vendas</span> e avisos de pedidos em tempo real diretamente no seu celular.</p>
+                        <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-xl mb-4">
+                            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Atenção Logista:</p>
+                            <p className="text-[11px] text-neutral-400 mt-1 leading-tight">Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número. Mantenha-o sempre atualizado!</p>
+                        </div>
                         <input
                             type="text"
                             placeholder="(00) 00000-0000"

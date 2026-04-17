@@ -39,25 +39,25 @@ export async function generateMetadata(
     }
 
     return {
-        title: `${storeData.name} | iuser`,
-        description: storeData.description || `Confira a loja ${storeData.name} no iuser!`,
+        title: storeData.name,
+        description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
         openGraph: {
-            title: `${storeData.name} | iuser`,
-            description: storeData.description || `Confira a loja ${storeData.name} no iuser!`,
+            title: storeData.name,
+            description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
             url: `https://iuser.com.br/${profileSlug}/${storeSlug}`,
-            siteName: storeData.name,
+            siteName: 'iuser.com.br',
             images: imageUrl ? [{ 
                 url: imageUrl,
-                width: 800,
-                height: 600,
+                width: 400,
+                height: 400,
                 alt: storeData.name 
             }] : [],
             type: 'website',
         },
         twitter: {
-            card: 'summary_large_image',
-            title: `${storeData.name} | iuser`,
-            description: storeData.description || `Confira a loja ${storeData.name} no iuser!`,
+            card: 'summary',
+            title: storeData.name,
+            description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
             images: imageUrl ? [imageUrl] : [],
         }
     }

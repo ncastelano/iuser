@@ -20,7 +20,8 @@ import {
     Star,
     MapPin,
     ExternalLink,
-    Settings
+    Settings,
+    Pencil
 } from 'lucide-react'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
@@ -60,6 +61,7 @@ export default function StorePage() {
     const [ratingLoading, setRatingLoading] = useState(false)
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
     const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
+    const [recentSales, setRecentSales] = useState<any[]>([])
 
     const [searchQuery, setSearchQuery] = useState('')
     const { itemsByStore, addItem, removeItem } = useCartStore()
@@ -168,7 +170,14 @@ export default function StorePage() {
                 : null,
         }))
 
-        setStore({ ...foundStore, logo_url: logoUrl })
+        // Fetch owner WhatsApp as fallback if store doesn't have one
+        let storeWhatsapp = foundStore.whatsapp
+        if (!storeWhatsapp && foundStore.owner_id) {
+            const { data: profile } = await supabase.from('profiles').select('whatsapp').eq('id', foundStore.owner_id).single()
+            storeWhatsapp = profile?.whatsapp
+        }
+
+        setStore({ ...foundStore, logo_url: logoUrl, final_whatsapp: storeWhatsapp })
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
@@ -182,7 +191,40 @@ export default function StorePage() {
             .limit(5)
         
         setUpcomingAppointments(upcomingData || [])
+
+        // Load recent sales
+        const { data: salesData } = await supabase
+            .from('store_sales')
+            .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .order('created_at', { ascending: false })
+            .limit(10)
+
+        setRecentSales(salesData || [])
+
+        // Subscribe to real-time sales
+        const salesChannel = supabase
+            .channel(`public:store_sales:store_id=eq.${foundStore.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'store_sales',
+                    filter: `store_id=eq.${foundStore.id}`
+                },
+                (payload) => {
+                    console.log('Nova venda detectada!', payload.new)
+                    setRecentSales(prev => [payload.new, ...prev].slice(0, 10))
+                }
+            )
+            .subscribe()
+
         setLoading(false)
+
+        return () => {
+            supabase.removeChannel(salesChannel)
+        }
     }, [loadRatings, storeSlug, supabase])
 
     useEffect(() => {
@@ -325,6 +367,14 @@ export default function StorePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {isOwner && (
+                            <button
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
+                                className="flex w-11 h-11 items-center justify-center bg-neutral-900 border border-neutral-800 rounded-2xl hover:border-white transition-all duration-300 group"
+                            >
+                                <Settings className="w-5 h-5 text-neutral-400 group-hover:text-white" />
+                            </button>
+                        )}
                         <button
                             onClick={() => {
                                 if (navigator.share) {
@@ -340,7 +390,7 @@ export default function StorePage() {
                     </div>
                 </div>
 
-                {/* Share Menu Portal */}
+                {/* Share Menu */}
                 {showShareMenu && (
                     <div className="max-w-7xl mx-auto relative h-0">
                         <div className="fixed inset-0 z-40" onClick={() => setShowShareMenu(false)} />
@@ -389,9 +439,7 @@ export default function StorePage() {
             <main className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-10">
                 {/* Hero Section */}
                 <section className="relative flex flex-col md:flex-row items-center md:items-start gap-8 p-8 md:p-12 rounded-[40px] border border-white/5 bg-gradient-to-br from-neutral-900/40 to-neutral-900/10 backdrop-blur-md shadow-2xl overflow-hidden group">
-                    {/* Floating Glow */}
                     <div className="absolute -top-24 -right-24 w-64 h-64 bg-white/5 blur-3xl rounded-full group-hover:bg-white/10 transition-colors duration-700" />
-                    
                     <div className="w-40 h-40 md:w-56 md:h-56 rounded-[32px] bg-black p-1 flex items-center justify-center border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0 relative">
                         {store.logo_url ? (
                             <img src={store.logo_url} className="w-full h-full object-cover rounded-[28px]" alt={`Logo ${store.name}`} />
@@ -420,9 +468,7 @@ export default function StorePage() {
                                     {store.ratings_count ?? 0} Avaliações &rarr;
                                 </button>
                             </div>
-
                             <div className="h-10 w-px bg-white/10 hidden sm:block" />
-
                             <div className="flex items-center gap-3">
                                 <div className="flex -space-x-3 overflow-hidden">
                                     {ratings.slice(0, 3).map((r, i) => (
@@ -454,10 +500,13 @@ export default function StorePage() {
                                 {store.is_open ? 'Aberta no Momento' : 'Temporariamente Fechada'}
                             </button>
 
-                            {store.prep_time_min != null && store.prep_time_max != null && (
-                                <div className="px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest bg-white/5 border border-white/10 text-neutral-300">
-                                    {store.prep_time_min}-{store.prep_time_max} min. espera
-                                </div>
+                            {store.final_whatsapp && (
+                                <button
+                                    onClick={() => window.open(`https://wa.me/${store.final_whatsapp}`, '_blank')}
+                                    className="px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest bg-green-500 text-black hover:bg-green-400 transition-all duration-300 flex items-center gap-2"
+                                >
+                                    <MessageCircle className="w-3.5 h-3.5" /> Falar com Consultor
+                                </button>
                             )}
                         </div>
                     </div>
@@ -465,6 +514,7 @@ export default function StorePage() {
 
                 {/* Agenda & Action Section */}
                 <div className="flex flex-col gap-6">
+                    {/* ... (Buttons as before) ... */}
                     <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
@@ -478,40 +528,91 @@ export default function StorePage() {
                         </button>
 
                         {isOwner && (
-                            <button
-                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                                className="group px-8 py-5 bg-neutral-900 border border-neutral-700 text-white font-black rounded-3xl hover:border-white transition-all duration-300 active:scale-95 flex items-center gap-3"
-                            >
-                                <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                <span className="text-lg uppercase tracking-tight">Novo Item</span>
-                            </button>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
+                                    className="group px-8 py-5 bg-white/5 border border-white/10 text-white font-black rounded-3xl hover:bg-white hover:text-black transition-all duration-300 active:scale-95 flex items-center gap-3"
+                                >
+                                    <Pencil className="w-6 h-6" />
+                                    <span className="text-lg uppercase tracking-tight">Editar Loja</span>
+                                </button>
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
+                                    className="group px-8 py-5 bg-neutral-900 border border-neutral-700 text-white font-black rounded-3xl hover:border-white transition-all duration-300 active:scale-95 flex items-center gap-3"
+                                >
+                                    <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                    <span className="text-lg uppercase tracking-tight">Novo Item</span>
+                                </button>
+                            </div>
                         )}
                     </div>
 
-                    {/* Upcoming Appointments Row (Social Proof) */}
-                    <div className="flex items-center justify-center md:justify-end gap-3 mt-1 px-2">
-                        <div className="flex -space-x-2.5 overflow-hidden">
-                            {upcomingAppointments.length > 0 ? upcomingAppointments.map((appt, i) => (
-                                <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-black border border-white/10 bg-neutral-900 overflow-hidden">
-                                    {appt.profiles?.avatar_url ? (
-                                        <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
-                                    ) : (
-                                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-neutral-600 uppercase">
-                                            {appt.profiles?.name?.charAt(0) || 'U'}
-                                        </div>
-                                    )}
+                    {/* MICRO EXTRATO / SOCIAL PROOF */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-4 px-2">
+                            <div className="h-px flex-1 bg-white/5" />
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 whitespace-nowrap">Micro Extrato / Movimentação</h3>
+                            <div className="h-px flex-1 bg-white/5" />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {recentSales.length > 0 ? recentSales.map((sale, i) => (
+                                <div key={sale.id || i} className="bg-neutral-900/30 border border-white/5 rounded-3xl p-5 flex items-center gap-4 group hover:bg-white/5 transition-all">
+                                    <div className="w-12 h-12 rounded-2xl bg-black border border-white/5 overflow-hidden flex-shrink-0">
+                                        {sale.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-neutral-700">
+                                                {sale.buyer_name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest leading-none">NOVA COMPRA!</p>
+                                        <p className="text-[11px] font-bold text-white uppercase italic truncate mt-1">
+                                            {sale.buyer_name || 'Alguém'} <span className="text-neutral-500 font-normal">comprou</span>
+                                        </p>
+                                        <p className="text-[10px] text-neutral-400 font-bold truncate">
+                                            {sale.product_name}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[8px] text-neutral-600 font-black uppercase">Obrigado!</p>
+                                    </div>
                                 </div>
                             )) : (
-                                <div className="h-8 w-8 rounded-full border border-white/5 bg-white/5 flex items-center justify-center">
-                                    <Clock className="w-3 h-3 text-neutral-600" />
+                                <div className="col-span-full py-12 text-center rounded-[32px] border border-dashed border-white/5 bg-white/[0.01]">
+                                    <ShoppingCart className="w-8 h-8 text-neutral-800 mx-auto mb-3 opacity-20" />
+                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-neutral-600 italic">Aguardando próximas movimentações...</p>
                                 </div>
                             )}
                         </div>
-                        <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide">
-                            {upcomingAppointments.length > 0 
-                                ? `${upcomingAppointments.length}+ pessoas com horários marcados hoje`
-                                : "Seja o primeiro a agendar para hoje!"}
-                        </p>
+
+                        {/* Upcoming Appointments Row (Social Proof) */}
+                        <div className="flex items-center justify-center md:justify-end gap-3 mt-4 px-2">
+                            <div className="flex -space-x-2.5 overflow-hidden">
+                                {upcomingAppointments.length > 0 ? upcomingAppointments.map((appt, i) => (
+                                    <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-black border border-white/10 bg-neutral-900 overflow-hidden">
+                                        {appt.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-neutral-600 uppercase">
+                                                {appt.profiles?.name?.charAt(0) || 'U'}
+                                            </div>
+                                        )}
+                                    </div>
+                                )) : (
+                                    <div className="h-8 w-8 rounded-full border border-white/5 bg-white/5 flex items-center justify-center">
+                                        <Clock className="w-3 h-3 text-neutral-600" />
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-[11px] font-bold text-neutral-500 uppercase tracking-wide">
+                                {upcomingAppointments.length > 0 
+                                    ? `${upcomingAppointments.length}+ pessoas com horários marcados hoje`
+                                    : "Seja o primeiro a agendar para hoje!"}
+                            </p>
+                        </div>
                     </div>
                 </div>
 

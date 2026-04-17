@@ -9,8 +9,27 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://iuser.com.br'),
-  title: 'iUser',
-  description: 'Catálogo de Lojas e Produtos',
+  title: 'iUser | Catálogo Digital Inteligente',
+  description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
+  openGraph: {
+    title: 'iUser | Catálogo Digital Inteligente',
+    description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
+    url: 'https://iuser.com.br',
+    siteName: 'iuser.com.br',
+    images: [{
+      url: '/logo-preview.png', // Fallback for the app image
+      width: 1200,
+      height: 630,
+      alt: 'iUser'
+    }],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'iUser | Catálogo Digital Inteligente',
+    description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
+    images: ['/logo-preview.png'],
+  }
 }
 
 export default function RootLayout({

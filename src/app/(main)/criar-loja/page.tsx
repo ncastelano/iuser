@@ -185,7 +185,7 @@ export default function CriarLoja() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 flex justify-center pb-24">
+        <div className="min-h-screen bg-black text-white p-4 flex justify-center pb-40">
             <div className="w-full max-w-lg mt-8">
 
                 <h1 className="text-3xl font-extrabold mb-6">

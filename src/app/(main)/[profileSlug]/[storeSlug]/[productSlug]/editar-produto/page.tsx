@@ -277,7 +277,7 @@ export default function EditarProduto() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-24">
+        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-40">
             <div className="w-full max-w-lg mt-8">
                 <div className="flex justify-between items-end mb-8">
                     <div>

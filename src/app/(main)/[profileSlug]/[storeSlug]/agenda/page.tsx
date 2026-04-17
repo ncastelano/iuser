@@ -79,7 +79,7 @@ export default function StoreAgendaPage() {
     if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Carregando agenda...</div>
 
     return (
-        <div className="min-h-screen bg-black text-white px-4 py-8">
+        <div className="min-h-screen bg-black text-white px-4 pt-8 pb-40 uppercase tracking-tighter">
             <div className="max-w-3xl mx-auto">
                 <div className="flex items-center gap-4 mb-8">
                     <button onClick={() => router.back()} className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">

@@ -1,19 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, ShoppingCart, Minus, Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
+import { createClient } from '@/lib/supabase/client'
+import { formatCartMessage, getWhatsAppLink } from '@/lib/whatsapp'
 
 export default function CarrinhoPage() {
     const params = useParams()
     const router = useRouter()
+    const [supabase] = useState(() => createClient())
 
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
 
     const { itemsByStore, updateQuantity, removeItem, storeDetails } = useCartStore()
     const [mounted, setMounted] = useState(false)
+    const [ownerWhatsapp, setOwnerWhatsapp] = useState<string | null>(null)
+    const [buyerName, setBuyerName] = useState<string>('')
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [checkoutLoading, setCheckoutLoading] = useState(false)
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -23,22 +30,110 @@ export default function CarrinhoPage() {
     const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
     const totalPrice = cartItems.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
 
-    // Se precisar criar um texto pro WhatsApp
-    const handleFinalizarCompra = () => {
-        if (!storeInfo) return
+    const storeUrl = useMemo(() => {
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
+        return `${baseUrl}/${profileSlug}/${storeSlug}`
+    }, [profileSlug, storeSlug])
 
-        let texto = `*Novo Pedido - ${storeInfo.name}*\n\n`
-        cartItems.forEach(item => {
-            texto += `${item.quantity}x ${item.product.name} - R$ ${(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`
+    useEffect(() => {
+        const loadInfo = async () => {
+            if (!storeSlug) return
+
+            // 1. Fetch store owner to get WhatsApp
+            const { data: storeData } = await supabase
+                .from('stores')
+                .select('id, owner_id, whatsapp')
+                .ilike('storeSlug', storeSlug)
+                .single()
+
+            if (storeData) {
+                if (storeData.whatsapp) {
+                    setOwnerWhatsapp(storeData.whatsapp)
+                } else if (storeData.owner_id) {
+                    const { data: profileData } = await supabase
+                        .from('profiles')
+                        .select('whatsapp')
+                        .eq('id', storeData.owner_id)
+                        .single()
+                    
+                    if (profileData?.whatsapp) setOwnerWhatsapp(profileData.whatsapp)
+                }
+            }
+
+            // 2. Fetch current user info
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                setCurrentUserId(user.id)
+                const { data: userProfile } = await supabase
+                    .from('profiles')
+                    .select('name')
+                    .eq('id', user.id)
+                    .single()
+                if (userProfile?.name) setBuyerName(userProfile.name)
+            }
+        }
+
+        loadInfo()
+    }, [storeSlug, supabase])
+
+    const handleFinalizarCompra = async () => {
+        if (!storeInfo || !storeSlug) return
+        if (!ownerWhatsapp) {
+            alert('Esta loja ainda não configurou o WhatsApp para vendas.')
+            return
+        }
+
+        setCheckoutLoading(true)
+        
+        const finalBuyerName = buyerName || 'Cliente iUser'
+
+        // Record the sales in database
+        try {
+            const { data: storeData } = await supabase
+                .from('stores')
+                .select('id, storeSlug')
+                .ilike('storeSlug', storeSlug)
+                .single()
+
+            if (storeData) {
+                const checkout_id = crypto.randomUUID()
+                const salesToInsert = cartItems.map(item => ({
+                    store_id: storeData.id,
+                    checkout_id: checkout_id,
+                    buyer_id: currentUserId,
+                    buyer_name: finalBuyerName,
+                    buyer_profile_slug: profileSlug,
+                    store_slug: storeData.storeSlug,
+                    product_id: item.product.id,
+                    product_name: item.product.name,
+                    price: item.product.price * item.quantity,
+                    quantity: item.quantity,
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                }))
+
+                await supabase.from('store_sales').insert(salesToInsert)
+            }
+        } catch (e) {
+            console.error('[Cart Checkout] Erro ao registrar vendas:', e)
+        }
+
+        const message = formatCartMessage({
+            storeName: storeInfo.name,
+            items: cartItems,
+            totalPrice: totalPrice,
+            buyerName: finalBuyerName,
+            storeUrl: storeUrl
         })
-        texto += `\n*TOTAL: R$ ${totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}*`
 
-        const url = `https://wa.me/?text=${encodeURIComponent(texto)}`
-        window.open(url, '_blank')
+        const link = getWhatsAppLink(ownerWhatsapp, message)
+        
+        setCheckoutLoading(false)
+        window.open(link, '_blank')
     }
 
     if (!mounted) {
-        return <div className="min-h-screen bg-black flex items-center justify-center text-white">Carregando...</div>
+        return <div className="min-h-screen bg-black flex items-center justify-center text-white font-sans">Carregando Vitrine de Exclusão...</div>
     }
 
     return (
@@ -164,10 +259,17 @@ export default function CarrinhoPage() {
                         <div className="flex flex-col gap-4">
                             <button
                                 onClick={handleFinalizarCompra}
-                                className="w-full py-7 bg-white text-black rounded-[32px] font-black uppercase text-sm tracking-[0.4em] transition-all hover:bg-neutral-200 active:scale-[0.98] shadow-2xl hover:shadow-white/10 flex items-center justify-center gap-4 group/btn"
+                                disabled={checkoutLoading}
+                                className="w-full py-7 bg-white text-black rounded-[32px] font-black uppercase text-sm tracking-[0.4em] transition-all hover:bg-neutral-200 active:scale-[0.98] shadow-2xl hover:shadow-white/10 flex items-center justify-center gap-4 group/btn disabled:opacity-50"
                             >
-                                <CheckCircle2 className="w-6 h-6" />
-                                Finalizar via WhatsApp
+                                {checkoutLoading ? (
+                                    <div className="w-6 h-6 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <CheckCircle2 className="w-6 h-6" />
+                                        Finalizar via WhatsApp
+                                    </>
+                                )}
                             </button>
                             <p className="text-center text-[9px] font-black uppercase tracking-[0.3em] text-neutral-700">Ao clicar em finalizar você será redirecionado para o atendimento exclusivo do representante.</p>
                         </div>

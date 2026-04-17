@@ -59,12 +59,8 @@ export async function generateMetadata(
         }
     }
 
-    const formattedPrice = productData.price != null
-        ? `R$ ${productData.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-        : ''
-
-    const titleStr = formattedPrice ? `${productData.name} - ${formattedPrice}` : productData.name
-    const descStr = `Loja: ${storeData.name}`
+    const titleStr = productData.name
+    const descStr = storeData.name
 
     return {
         title: titleStr,
@@ -73,11 +69,12 @@ export async function generateMetadata(
             title: titleStr,
             description: descStr,
             url: `https://iuser.com.br/${storeSlug}/${productSlug}`,
-            siteName: storeData.name,
-            images: imageUrl ? [{ url: imageUrl }] : [],
+            siteName: 'iuser.com.br',
+            images: imageUrl ? [{ url: imageUrl, width: 400, height: 400 }] : [],
+            type: 'article',
         },
         twitter: {
-            card: 'summary_large_image',
+            card: 'summary',
             title: titleStr,
             description: descStr,
             images: imageUrl ? [imageUrl] : [],

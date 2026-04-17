@@ -24,7 +24,8 @@ import {
     Clock,
     CheckCircle2,
     Download,
-    Calendar
+    Calendar,
+    Pencil
 } from 'lucide-react'
 
 interface StoreStats {
@@ -68,6 +69,8 @@ export default function DashboardPage() {
     const [recentViews, setRecentViews] = useState<any[]>([])
     const [receivedAppointments, setReceivedAppointments] = useState<any[]>([])
     const [myAppointments, setMyAppointments] = useState<any[]>([])
+    const [storeSales, setStoreSales] = useState<any[]>([])
+    const [activeFinancialTab, setActiveFinancialTab] = useState<'pending' | 'paid'>('pending')
 
     const { itemsByStore, storeDetails } = useCartStore()
 
@@ -147,6 +150,16 @@ export default function DashboardPage() {
                 .order('start_time', { ascending: true })
             if (myData) setMyAppointments(myData)
 
+            // Fetch store sales (as store owner)
+            if (mappedStores.length > 0) {
+                const { data: salesData } = await supabase
+                    .from('store_sales')
+                    .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
+                    .in('store_id', mappedStores.map(s => s.id))
+                    .order('created_at', { ascending: false })
+                if (salesData) setStoreSales(salesData)
+            }
+
             setLoading(false)
         }
 
@@ -186,6 +199,36 @@ export default function DashboardPage() {
 
         if (!error) {
             setReceivedAppointments(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a))
+        }
+    }
+
+    const updateSaleStatus = async (saleId: string, newStatus: string) => {
+        // Find if we should update a whole checkout or just one item
+        // For simplicity and matching user request "ele já pagou?", we update the whole checkout
+        const sale = storeSales.find(s => s.id === saleId)
+        if (!sale) return
+
+        const checkoutId = sale.checkout_id
+        
+        let query = supabase.from('store_sales').update({ status: newStatus })
+        
+        if (checkoutId) {
+            query = query.eq('checkout_id', checkoutId)
+        } else {
+            query = query.eq('id', saleId)
+        }
+
+        const { error } = await query
+
+        if (!error) {
+            setStoreSales(prev => prev.map(s => {
+                if (checkoutId && s.checkout_id === checkoutId) return { ...s, status: newStatus }
+                if (!checkoutId && s.id === saleId) return { ...s, status: newStatus }
+                return s
+            }))
+        } else {
+            console.error('[Dashboard] Erro ao atualizar status da venda:', error)
+            alert('Não foi possível atualizar o status do pagamento.')
         }
     }
 
@@ -371,16 +414,6 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="p-8 rounded-[40px] border border-white/5 bg-gradient-to-br from-green-500/10 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-6 group hover:translate-y-[-4px] transition-all duration-500">
-                                <div className="w-12 h-12 rounded-2xl bg-green-500 text-black flex items-center justify-center shadow-lg transform group-hover:rotate-12 transition-transform">
-                                    <DollarSign className="w-6 h-6" />
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">Ganhos em Comissões</p>
-                                    <p className="text-4xl font-black italic tracking-tighter text-white">R$ {totalCommissions.toFixed(2).replace('.', ',')}</p>
-                                </div>
-                                <button onClick={() => router.push('/dashboard/comissoes')} className="text-[10px] font-black uppercase tracking-widest text-green-500 hover:text-white transition-colors flex items-center gap-1">Ver Extrato Completo &rarr;</button>
-                            </div>
                             <div className="p-8 rounded-[40px] border border-white/5 bg-gradient-to-br from-blue-500/10 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-6 group hover:translate-y-[-4px] transition-all duration-500">
                                 <div className="w-12 h-12 rounded-2xl bg-blue-500 text-white flex items-center justify-center shadow-lg transform group-hover:rotate-12 transition-transform">
                                     <Network className="w-6 h-6" />
@@ -389,7 +422,95 @@ export default function DashboardPage() {
                                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">Pessoas Conectadas</p>
                                     <p className="text-4xl font-black italic tracking-tighter text-white">{networkCount}</p>
                                 </div>
-                                <button onClick={() => router.push('/dashboard/rede')} className="text-[10px] font-black uppercase tracking-widest text-blue-500 hover:text-white transition-colors flex items-center gap-1">Visualizar Rede &rarr;</button>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => router.push('/dashboard/rede')} className="text-[10px] font-black uppercase tracking-widest text-blue-500 hover:text-white transition-colors flex items-center gap-1">Visualizar Rede &rarr;</button>
+                                    <div className="h-px w-full bg-white/5 my-2" />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Ganhos em Comissões:</span>
+                                        <span className="text-sm font-black text-green-500 italic">R$ {totalCommissions.toFixed(2).replace('.', ',')}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="p-8 rounded-[40px] border border-white/5 bg-gradient-to-br from-purple-500/10 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-4 group">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-purple-500 text-white flex items-center justify-center shadow-lg">
+                                        <ShoppingBag className="w-6 h-6" />
+                                    </div>
+                                    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                                        <button 
+                                            onClick={() => setActiveFinancialTab('pending')}
+                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'pending' ? 'bg-white text-black' : 'text-neutral-500 hover:text-white'}`}
+                                        >
+                                            Falta Pagar
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveFinancialTab('paid')}
+                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'paid' ? 'bg-white text-black' : 'text-neutral-500 hover:text-white'}`}
+                                        >
+                                            Recebidos
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-400">Financeiro / Vendas</h3>
+                                
+                                <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
+                                        <div className="py-10 text-center space-y-2">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
+                                        </div>
+                                    ) : (
+                                        // Group by checkout_id to show as single orders
+                                        Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
+                                            const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
+                                            const firstItem = items[0]
+                                            const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
+                                            
+                                            return (
+                                                <div key={checkoutId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="space-y-1 min-w-0">
+                                                            <p className="text-[9px] font-black text-white uppercase italic truncate">
+                                                                /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
+                                                            </p>
+                                                            {activeFinancialTab === 'pending' && <p className="text-[8px] font-bold text-neutral-600 uppercase">Ele já pagou?</p>}
+                                                            {activeFinancialTab === 'paid' && <p className="text-[8px] font-bold text-green-500 uppercase">Pagamento Confirmado</p>}
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <p className="text-xs font-black text-white italic">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex gap-2">
+                                                        <button 
+                                                            onClick={() => router.push(`/dashboard/financeiro`)}
+                                                            className="flex-1 py-1.5 rounded-lg bg-white/5 text-[8px] font-black uppercase tracking-widest text-neutral-400 hover:bg-white hover:text-black transition-all"
+                                                        >
+                                                            Ver Extrato
+                                                        </button>
+                                                        {activeFinancialTab === 'pending' && (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => updateSaleStatus(firstItem.id, 'paid')}
+                                                                    className="px-3 py-1.5 rounded-lg bg-green-500 text-black text-[8px] font-black uppercase tracking-widest hover:bg-green-400 transition-all"
+                                                                >
+                                                                    Sim
+                                                                </button>
+                                                                <button 
+                                                                    className="px-3 py-1.5 rounded-lg bg-neutral-800 text-white text-[8px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                                                                >
+                                                                    Não
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                                <button onClick={() => router.push('/dashboard/financeiro')} className="mt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center gap-1">Ver Todos os Extratos &rarr;</button>
                             </div>
                         </div>
                     </div>
@@ -526,7 +647,10 @@ export default function DashboardPage() {
 
                                         <div className="flex flex-col gap-2 pt-6 border-t border-white/5">
                                             <div className="flex gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }} className="flex-1 py-3 px-4 bg-neutral-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">Alternar Status</button>
+                                                <button onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }} className="flex-1 py-3 px-4 bg-neutral-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all">abrir ou fechar loja</button>
+                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`); }} className="p-3 bg-white/5 border border-white/10 text-white rounded-2xl hover:bg-white hover:text-black shadow-xl transition-all">
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
                                                 <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/agenda`); }} className="p-3 bg-white text-black rounded-2xl hover:bg-neutral-200 shadow-xl transition-all">
                                                     <Calendar className="w-5 h-5" />
                                                 </button>

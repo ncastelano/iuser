@@ -2,31 +2,67 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Zap, Clock, ArrowUpRight, ShoppingBag, ShoppingCart } from 'lucide-react'
+import { Zap, Clock, ArrowUpRight, ShoppingBag, ShoppingCart, Share2, MapPin } from 'lucide-react'
 import Link from 'next/link'
+import { calcDistanceKm, formatDistance } from '@/lib/geo'
 
 export default function FlashPage() {
     const [posts, setPosts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [activeId, setActiveId] = useState<string | null>(null)
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const supabase = createClient()
+
+    useEffect(() => {
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    setUserLocation({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    })
+                },
+                (err) => console.log('Erro ao obter localização:', err),
+                { enableHighAccuracy: true }
+            )
+        }
+    }, [])
 
     useEffect(() => {
         const fetchPosts = async () => {
             const { data, error } = await supabase
-                .from('flash_posts_with_stores')
-                .select('*')
+                .from('flash_posts')
+                .select(`
+                    *,
+                    stores (
+                        name, 
+                        storeSlug, 
+                        logo_url, 
+                        location,
+                        profiles (profileSlug)
+                    ),
+                    products (slug)
+                `)
                 .order('created_at', { ascending: false })
 
             if (!error && data) {
-                setPosts(data)
+                const formattedData = data.map((item: any) => ({
+                    ...item,
+                    store_name: item.stores?.name,
+                    storeSlug: item.stores?.storeSlug,
+                    store_logo: item.stores?.logo_url,
+                    store_location: item.stores?.location,
+                    profileSlug: item.stores?.profiles?.profileSlug,
+                    product_slug: item.products?.slug
+                }))
+                setPosts(formattedData)
                 if (data.length > 0) setActiveId(data[0].id)
             }
             setLoading(false)
         }
 
         fetchPosts()
-    }, [])
+    }, [supabase])
 
     if (loading) {
         return (
@@ -87,9 +123,26 @@ export default function FlashPage() {
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-black/40" />
                             </div>
 
+                            {/* Share Button - Top Right */}
+                            <button
+                                className="absolute top-20 right-6 z-20 w-12 h-12 bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center rounded-2xl text-white hover:bg-white/20 transition-all"
+                                onClick={() => {
+                                    if (navigator.share) {
+                                        const productPath = `/${post.profileSlug}/${post.storeSlug}/${post.product_slug || ''}`
+                                        navigator.share({
+                                            title: post.title,
+                                            text: `Confira este post de ${post.store_name} no iUser!`,
+                                            url: window.location.origin + productPath,
+                                        }).catch(() => { })
+                                    }
+                                }}
+                            >
+                                <Share2 className="w-5 h-5" />
+                            </button>
+
                             {/* Content Bottom Area */}
-                            <div className="mt-auto p-6 pb-24 space-y-4 relative z-10">
-                                {/* Tag */}
+                            <div className="mt-auto p-6 pb-40 space-y-4 relative z-10">
+                                {/* Tag and Time Row */}
                                 <div className="flex items-center gap-2">
                                     <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${post.type === 'new_product' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' :
                                         post.type === 'price_change' ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.5)]' :
@@ -103,96 +156,103 @@ export default function FlashPage() {
                                     </div>
                                 </div>
 
-                                {/* Information */}
-                                <div className="flex items-end justify-between gap-4">
-                                    <div className="flex-1 space-y-1">
-                                        <Link href={`/${post.profileSlug}/${post.storeSlug}`} className="inline-flex items-center group">
-                                            <span className="text-white font-black text-sm uppercase tracking-tighter opacity-70 group-hover:opacity-100 transition-opacity">
-                                                @{post.storeSlug}
-                                            </span>
-                                        </Link>
-                                        <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white leading-[0.9] drop-shadow-2xl">
-                                            {post.title}
-                                        </h2>
-                                        {post.content && (
-                                            <p className="text-neutral-300 text-xs font-medium max-w-[80%] line-clamp-2 mt-2 leading-relaxed">
-                                                {post.content}
-                                            </p>
-                                        )}
-
-                                        {post.new_price && (
-                                            <div className="mt-4 flex flex-col">
-                                                {post.old_price && (
-                                                    <span className="text-[10px] font-bold text-neutral-500 line-through tracking-wider">
-                                                        De R$ {post.old_price.toFixed(2).replace('.', ',')}
-                                                    </span>
-                                                )}
-                                                <span className="text-3xl font-black italic tracking-tighter text-yellow-500 shadow-black drop-shadow-lg">
-                                                    R$ {post.new_price.toFixed(2).replace('.', ',')}
-                                                </span>
+                                {/* Store Info - Avatar + Name together */}
+                                <Link
+                                    href={`/${post.profileSlug}/${post.storeSlug}`}
+                                    className="inline-flex items-center gap-3 group"
+                                >
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-black border border-white/10 shadow-lg">
+                                        {post.store_logo ? (
+                                            <img
+                                                src={supabase.storage.from('store-logos').getPublicUrl(post.store_logo).data.publicUrl}
+                                                className="w-full h-full object-cover"
+                                                alt={post.store_name}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-white text-lg font-black italic">
+                                                {post.store_name?.charAt(0) || '?'}
                                             </div>
                                         )}
                                     </div>
-
-                                    {/* Small Store Logo in Bottom Right (for edited/all) */}
-                                    <Link
-                                        href={`/${post.profileSlug}/${post.storeSlug}`}
-                                        className="relative group shrink-0"
-                                    >
-                                        <div className="w-16 h-16 rounded-2xl p-[2px] bg-gradient-to-tr from-yellow-500 to-yellow-200 rotate-3 group-hover:rotate-0 transition-transform duration-500 shadow-2xl">
-                                            <div className="w-full h-full rounded-[14px] overflow-hidden bg-black border border-white/10">
-                                                {post.store_logo ? (
-                                                    <img
-                                                        src={supabase.storage.from('store-logos').getPublicUrl(post.store_logo).data.publicUrl}
-                                                        className="w-full h-full object-cover"
-                                                        alt={post.store_name}
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-white text-xl font-black italic">
-                                                        {post.store_name?.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
+                                    <div>
+                                        <span className="text-white font-black text-sm uppercase tracking-tighter opacity-70 group-hover:opacity-100 transition-opacity">
+                                            @{post.storeSlug}
+                                        </span>
+                                        <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.2em] text-yellow-500/60">
+                                            {userLocation && post.store_location ? (
+                                                <>
+                                                    <MapPin className="w-2.5 h-2.5" />
+                                                    {formatDistance(calcDistanceKm(userLocation.lat, userLocation.lng, post.store_location))}
+                                                </>
+                                            ) : (
+                                                <span>{post.store_name}</span>
+                                            )}
                                         </div>
-                                        {/* Activity dot */}
-                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-4 border-black rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
-                                    </Link>
-                                </div>
+                                    </div>
+                                </Link>
+
+                                {/* Product Title */}
+                                <h2 className="text-4xl font-black italic uppercase tracking-tighter text-white leading-[0.9] drop-shadow-2xl">
+                                    {post.title}
+                                </h2>
+
+                                {/* Content */}
+                                {post.content && (
+                                    <p className="text-neutral-300 text-xs font-medium max-w-[80%] line-clamp-2 mt-2 leading-relaxed">
+                                        {post.content}
+                                    </p>
+                                )}
+
+                                {/* Price */}
+                                {post.new_price && (
+                                    <div className="mt-4 flex flex-col">
+                                        {post.old_price && (
+                                            <span className="text-[10px] font-bold text-neutral-500 line-through tracking-wider">
+                                                De R$ {post.old_price.toFixed(2).replace('.', ',')}
+                                            </span>
+                                        )}
+                                        <span className="text-3xl font-black italic tracking-tighter text-yellow-500 shadow-black drop-shadow-lg">
+                                            R$ {post.new_price.toFixed(2).replace('.', ',')}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* View Details Button Overlay */}
-                            <div className="absolute bottom-6 left-6 right-6 flex gap-3 z-20">
+                            {/* Small Store Logo Bottom Right - User request */}
+                            <div className="absolute bottom-40 right-6 z-20 group">
+                                <Link href={`/${post.profileSlug}/${post.storeSlug}`} className="block">
+                                    <div className="w-14 h-14 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 p-1 shadow-2xl transition-all group-hover:scale-110 group-hover:border-yellow-500/50">
+                                        {post.store_logo ? (
+                                            <img
+                                                src={supabase.storage.from('store-logos').getPublicUrl(post.store_logo).data.publicUrl}
+                                                className="w-full h-full object-cover rounded-xl grayscale-[0.5] group-hover:grayscale-0 transition-all"
+                                                alt={post.store_name}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-white/40 text-sm font-black italic">
+                                                {post.store_name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mt-1 text-right">
+                                        <span className="text-[7px] font-black uppercase tracking-widest text-white/30 bg-black/40 px-2 py-0.5 rounded-full border border-white/5">iUser Verified</span>
+                                    </div>
+                                </Link>
+                            </div>
+
+                            {/* View Details Button */}
+                            <div className="absolute bottom-28 left-6 right-6 z-20">
                                 <Link
-                                    href={`/${post.profileSlug}/${post.storeSlug}${post.product_slug ? `/${post.product_slug}` : ''}`}
-                                    className="flex-1 flex items-center justify-center gap-2 py-4 bg-white hover:bg-yellow-500 text-black rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] transition-all transform active:scale-95 shadow-xl shadow-black/20 group"
+                                    href={`/${post.profileSlug}/${post.storeSlug}/${post.product_slug || ''}`}
+                                    className="w-full flex items-center justify-center gap-2 py-4 bg-white hover:bg-yellow-500 text-black rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] transition-all transform active:scale-95 shadow-xl shadow-black/20 group"
                                 >
                                     Comprar <ShoppingCart className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                                 </Link>
-                                <button
-                                    className="w-14 h-14 bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center rounded-2xl text-white hover:bg-white/20 transition-all"
-                                    onClick={() => {
-                                        if (navigator.share) {
-                                            navigator.share({
-                                                title: post.title,
-                                                text: `Confira este produto de ${post.store_name} no Flash!`,
-                                                url: window.location.origin + `/${post.profileSlug}/${post.storeSlug}${post.product_slug ? `/${post.product_slug}` : ''}`,
-                                            })
-                                        }
-                                    }}
-                                >
-                                    <svg viewBox="0 0 24 24" className="w-6 h-6 fill-current" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M12 2C10.89 2 10 2.89 10 4V12H4C2.89 12 2 12.89 2 14V20C2 21.11 2.89 22 4 22H20C21.11 22 22 21.11 22 20V4C22 2.89 21.11 2 20 2H12ZM12 4H20V20H4V14H12V4ZM12 4V12H14V4H12Z" style={{ display: 'none' }} />
-                                        <path d="M18 16.08C17.24 16.08 16.56 16.38 16.04 16.85L8.91 12.7C8.97 12.48 9 12.24 9 12C9 11.76 8.97 11.52 8.91 11.3L15.96 7.19C16.5 7.69 17.21 8 18 8C19.66 8 21 6.66 21 5C21 3.34 19.66 2 18 2C16.34 2 15 3.34 15 5C15 5.24 15.03 5.48 15.09 5.7L8.04 9.81C7.5 9.31 6.79 9 6 9C4.34 9 3 10.34 3 12C3 13.66 4.34 15 6 15C6.79 15 7.5 14.69 8.04 14.19L15.16 18.35C15.11 18.53 15.09 18.73 15.09 18.92C15.09 20.48 16.44 21.84 18 21.84C19.56 21.84 20.91 20.48 20.91 18.92C20.91 17.36 19.56 16.08 18 16.08Z" />
-                                    </svg>
-                                </button>
                             </div>
                         </section>
                     ))}
                 </main>
             )}
-
-            {/* Bottom Nav Spacer for Mobile Browsers */}
-            <div className="h-[72px] bg-black shrink-0" />
 
             <style jsx global>{`
                 .scrollbar-hide::-webkit-scrollbar {

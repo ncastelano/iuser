@@ -472,12 +472,12 @@ export default function Vitrine() {
 
           {store && (
             <div className="flex items-center gap-2 pt-3 border-t border-neutral-800/60">
-              <div className="hidden">
+              <div className="w-8 h-8 rounded-lg border border-neutral-800 bg-black overflow-hidden shadow-sm flex-shrink-0">
                 {store.logo_url ? (
-                  <img src={store.logo_url} className="w-full h-full object-cover" />
+                  <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-500">
-                    <Store className="w-3 h-3" />
+                    <Store className="w-4 h-4" />
                   </div>
                 )}
               </div>
@@ -490,7 +490,7 @@ export default function Vitrine() {
 
                   {/* DISTÂNCIA NA LINHA DA LOJA */}
                   {distanceFormatted && (
-                    <span className="hidden text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
+                    <span className="text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
                       <MapPin className="w-2.5 h-2.5" />
                       {distanceFormatted}
                     </span>
@@ -766,7 +766,16 @@ export default function Vitrine() {
                   <div className="p-7 space-y-4">
                     <div className="space-y-1">
                       <h4 className="text-lg font-black italic uppercase tracking-tighter text-white group-hover:text-neutral-200 transition-colors truncate">{product.name}</h4>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-600 truncate">{store?.name || 'Loja Parceira'}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-md overflow-hidden bg-black border border-white/5 flex-shrink-0">
+                          {store?.logo_url ? (
+                            <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-neutral-900"><Store className="w-3 h-3 text-neutral-700" /></div>
+                          )}
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-600 truncate">{store?.name || 'Loja Parceira'}</p>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t border-white/5">

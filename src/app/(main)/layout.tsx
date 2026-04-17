@@ -10,19 +10,26 @@ import {
     User,
     LogOut,
     MapPinned,
-    Zap
+    Zap,
+    ShoppingCart
 } from 'lucide-react'
+import { useCartStore } from '@/store/useCartStore'
 
 export default function MainLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
     const router = useRouter()
+    const { itemsByStore } = useCartStore()
 
     const [message, setMessage] = useState<string | null>(null)
     const [type, setType] = useState<'success' | 'error'>('success')
 
+    const totalCartItems = Object.values(itemsByStore).reduce(
+        (acc, items) => acc + items.reduce((sum, item) => sum + item.quantity, 0),
+        0
+    )
+
     const handleLogout = async () => {
         const supabase = createClient()
-
         const { error } = await supabase.auth.signOut()
 
         if (error) {
@@ -34,24 +41,14 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
         setType('success')
         setMessage('Logout realizado com sucesso')
-
-        // pequeno delay pra dar tempo do usuário ver
         setTimeout(() => {
             router.refresh()
             router.push('/login')
         }, 1000)
     }
 
-    const linkClass = (path: string) => {
-        const isActive = pathname === path
-
-        return `flex flex-col items-center gap-1 text-xs transition-all font-medium ${isActive
-            ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]'
-            : 'text-neutral-500 hover:text-neutral-300'
-            }`
-    }
-
     const isMapRoute = pathname === '/mapa'
+    const isFlashRoute = pathname === '/flash'
 
     return (
         <div className="relative flex flex-col min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black overflow-x-hidden">
@@ -63,15 +60,30 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </div>
 
             {/* Conteúdo */}
-            <main className={`relative z-10 flex-1 w-full flex flex-col ${isMapRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-32'}`}>
+            <main className={`relative z-10 flex-1 w-full flex flex-col ${isMapRoute || isFlashRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-32'}`}>
                 {children}
             </main>
+
+            {/* Floating Cart Button (Global) */}
+            <Link
+                href="/todoscarrinhosdecompra"
+                className={`fixed bottom-28 right-6 z-50 p-6 bg-black text-white rounded-[32px] border border-white/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:scale-110 active:scale-95 transition-all duration-500 group ${totalCartItems === 0 ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100'}`}
+            >
+                <div className="relative">
+                    <ShoppingCart size={28} className="transition-transform group-hover:rotate-12 text-white" />
+                    {totalCartItems > 0 && (
+                        <div className="absolute -top-2 -right-2 min-w-[22px] h-[22px] bg-white text-black rounded-full flex items-center justify-center text-[10px] font-black shadow-lg px-1">
+                            {totalCartItems > 99 ? '99+' : totalCartItems}
+                        </div>
+                    )}
+                </div>
+            </Link>
 
             {/* Premium Floating Bottom Navbar */}
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] sm:w-[500px] z-50">
                 <nav className="bg-black border border-white/20 rounded-[32px] p-2 shadow-[0_0_30px_rgba(0,0,0,0.8)] overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-transparent to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                    
+
                     <div className="relative flex justify-around items-center h-16">
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item">
                             <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
@@ -84,7 +96,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                             <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mapa' ? 'bg-white text-black shadow-xl shadow-white/10' : 'text-neutral-500 hover:text-white'}`}>
                                 <MapPinned size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
-                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100' : 'opacity-0'}`}>Mapa</span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100' : 'opacity-0'}`}>Mapa</span>
                         </Link>
 
                         <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
