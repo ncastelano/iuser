@@ -9,18 +9,18 @@ export function ThemeLoader() {
   useEffect(() => {
     async function applyTheme() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('theme_mode')
-          .eq('id', user.id)
-          .single()
+      const theme = user ? (await supabase
+        .from('profiles')
+        .select('theme_mode')
+        .eq('id', user.id)
+        .single()).data?.theme_mode : 'dark' // Default to dark for 'premium' feel
 
-        if (data?.theme_mode === 'light') {
-          document.body.classList.add('light')
-        } else {
-          document.body.classList.remove('light')
-        }
+      if (theme === 'light') {
+        document.documentElement.classList.add('light')
+        document.documentElement.classList.remove('dark')
+      } else {
+        document.documentElement.classList.add('dark')
+        document.documentElement.classList.remove('light')
       }
     }
 
@@ -35,9 +35,11 @@ export function ThemeLoader() {
         table: 'profiles' 
       }, (payload) => {
         if (payload.new.theme_mode === 'light') {
-          document.body.classList.add('light')
+          document.documentElement.classList.add('light')
+          document.documentElement.classList.remove('dark')
         } else {
-          document.body.classList.remove('light')
+          document.documentElement.classList.add('dark')
+          document.documentElement.classList.remove('light')
         }
       })
       .subscribe()

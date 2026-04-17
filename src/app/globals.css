@@ -3,34 +3,33 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
+  :root, .light {
+    --background: 0 0% 95%; /* Meio cinza, mas não muito */
     --foreground: 222.2 84% 4.9%;
 
-    --card: 0 0% 100%;
+    --card: 0 0% 100%; /* Cinza branco / Branco puro */
     --card-foreground: 222.2 84% 4.9%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
     --primary: 262.1 83.3% 57.8%;
-    /* Vivid Purple */
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
+    --secondary: 0 0% 90%; /* Cinza um pouco mais escuro para elementos secundários */
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 96.1%;
+    --muted: 0 0% 90%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
+    --accent: 0 0% 90%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
     --ring: 262.1 83.3% 57.8%;
 
     --radius: 0.75rem;
@@ -76,23 +75,12 @@
     @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
   }
 
-  /* Light Mode Overrides for explicit classes */
-  body.light {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --border: 214.3 31.8% 91.4%;
-  }
-
+  /* Automatic inversion for legacy hardcoded dark classes in light mode */
   .light .bg-black {
     @apply bg-white text-black !important;
   }
-  .light .bg-neutral-950, .light .bg-neutral-900 {
-    @apply bg-neutral-50 border-neutral-200 !important;
-  }
-  .light .bg-neutral-800 {
-    @apply bg-neutral-200 !important;
+  .light .bg-neutral-950, .light .bg-neutral-900, .light .bg-neutral-800 {
+    @apply bg-neutral-50 border-neutral-200 text-black !important;
   }
   .light .text-white {
     @apply text-black !important;
@@ -105,6 +93,9 @@
   }
   .light .bg-white\/5, .light .bg-white\/10 {
     @apply bg-neutral-200/50 !important;
+  }
+  .light .glass {
+    @apply bg-white/80 border-neutral-200/50 shadow-md backdrop-blur-md !important;
   }
 }
 
