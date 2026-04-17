@@ -68,11 +68,12 @@ function LoginContent() {
         onSubmit={handleLogin}
         className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700"
       >
-        <div className="text-center space-y-4 mb-12">
-          <h1 className="text-6xl md:text-7xl font-black italic uppercase tracking-tighter text-foreground leading-none">
-            <span className="font-iuser">iUser</span><span className="text-primary">.</span>
-          </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic">Mostre o que você tem de melhor</p>
+        <div className="text-center space-y-4 mb-12 flex flex-col items-center">
+          <div className="flex justify-center mb-2">
+            <img src="/iuser_preta.png" alt="iUser Logo" className="h-16 md:h-20 block dark:hidden object-contain" />
+            <img src="/iuser_branca.png" alt="iUser Logo" className="h-16 md:h-20 hidden dark:block object-contain" />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic mt-4">Mostre o que você tem de melhor</p>
         </div>
 
         {error && (

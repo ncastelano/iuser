@@ -130,7 +130,7 @@ export default function MapPage() {
 
             const { data: storesData } = await supabase.from('stores_geo').select('*')
             const { data: productsData } = await supabase.from('products_geo').select('*')
-            const { data: profilesData } = await supabase.from('profiles').select('id, profileSlug, name, avatar_url, location, show_location')
+            const { data: profilesData } = await supabase.from('profiles_geo').select('id, profileSlug, name, avatar_url, location, show_location')
 
             // Debug: log fetched counts
             console.log('Fetched stores:', storesData?.length, 'products:', productsData?.length, 'people:', profilesData?.length)
@@ -150,16 +150,30 @@ export default function MapPage() {
                     : null
             }))
 
+            const { data: followsData } = await supabase.from('follows').select('follower_id, following_id')
+
             const mappedPeople = (profilesData || [])
                 .filter(p => p.location && p.show_location)
-                .map(p => ({
-                    id: p.id,
-                    name: p.name || 'iUser',
-                    profileSlug: p.profileSlug,
-                    avatar_url: p.avatar_url,
-                    location: p.location,
-                    is_person: true
-                }))
+                .map(p => {
+                    const followsList = followsData || []
+                    const followersCount = followsList.filter(f => f.following_id === p.id).length
+                    const followingCount = followsList.filter(f => f.follower_id === p.id).length
+                    const personStores = mappedStores.filter(s => s.owner_id === p.id)
+
+                    return {
+                        id: p.id,
+                        name: p.name || 'iUser',
+                        profileSlug: p.profileSlug,
+                        avatar_url: p.avatar_url
+                            ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
+                            : null,
+                        location: p.location,
+                        is_person: true,
+                        followersCount,
+                        followingCount,
+                        stores: personStores
+                    }
+                })
 
             setStores(mappedStores)
             setProducts(mappedProducts)
@@ -483,19 +497,55 @@ export default function MapPage() {
                                 )}
                             </div>
 
-                            <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex-1 min-w-0 space-y-2 relative">
                                 <div className="space-y-0.5">
                                      <h3 className="text-2xl font-black italic uppercase tracking-tighter text-foreground truncate leading-tight">{selectedItem.name}</h3>
-                                     <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
-                                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">{distanceFormatted || 'Local Remoto'}</span>
-                                     </div>
+                                     {distanceFormatted && (
+                                         <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">{distanceFormatted}</span>
+                                         </div>
+                                     )}
                                 </div>
                                 {mode === 'produtos' && (
                                     <p className="text-2xl font-black italic tracking-tighter text-foreground">R$ {(selectedItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                 )}
                                 {mode === 'lojas' && selectedItem.description && (
                                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{selectedItem.description}</p>
+                                )}
+                                {mode === 'pessoas' && (
+                                    <div className="pt-2 space-y-3">
+                                        <div className="flex gap-4 items-center">
+                                            <div className="text-center">
+                                                <p className="text-xl font-black italic tracking-tighter leading-none">{selectedItem.followersCount}</p>
+                                                <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Seguidores</p>
+                                            </div>
+                                            <div className="w-px h-6 bg-border" />
+                                            <div className="text-center">
+                                                <p className="text-xl font-black italic tracking-tighter leading-none">{selectedItem.followingCount}</p>
+                                                <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Seguindo</p>
+                                            </div>
+                                        </div>
+                                        {selectedItem.stores?.length > 0 && (
+                                            <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                                                <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Lojas que gerencia:</span>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedItem.stores.map((store: any) => (
+                                                        <div key={store.id} className="flex items-center gap-2 p-1.5 pr-3 rounded-full bg-secondary/30 border border-white/5 group-hover:border-primary/20 transition-all cursor-pointer" onClick={(e) => { e.stopPropagation(); router.push(`/${store.profileSlug}/${store.storeSlug}`) }}>
+                                                            <div className="w-5 h-5 rounded-full overflow-hidden bg-background">
+                                                                {store.logo_url ? (
+                                                                    <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black">{store.name?.charAt(0)}</div>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[9px] font-bold text-foreground uppercase truncate max-w-[100px]">{store.name}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>

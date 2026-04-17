@@ -128,11 +128,12 @@ export default function Register() {
       </div>
 
       <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700">
-        <div className="text-center space-y-4 mb-10">
-          <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground leading-none">
-            Bem-vindo ao <span className="font-iuser">iUser</span><span className="text-primary">.</span>
-          </h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic">Inicie sua Jornada Digital</p>
+        <div className="text-center space-y-4 mb-10 flex flex-col items-center">
+          <div className="flex justify-center mb-2">
+            <img src="/iuser_preta.png" alt="iUser Logo" className="h-14 md:h-16 block dark:hidden object-contain" />
+            <img src="/iuser_branca.png" alt="iUser Logo" className="h-14 md:h-16 hidden dark:block object-contain" />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic mt-2">Inicie sua Jornada Digital</p>
         </div>
 
         {registered ? (
@@ -141,7 +142,10 @@ export default function Register() {
               <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
                 <CheckCircle2 className="w-10 h-10 text-primary" />
               </div>
-              <h2 className="text-2xl font-black text-foreground uppercase italic tracking-tighter">Bem-vindo ao <span className="font-iuser">iUser</span>!</h2>
+              <div className="flex justify-center mb-2">
+                <img src="/iuser_preta.png" alt="iUser Logo" className="h-8 md:h-12 block dark:hidden object-contain" />
+                <img src="/iuser_branca.png" alt="iUser Logo" className="h-8 md:h-12 hidden dark:block object-contain" />
+              </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Sua jornada começou! Enviamos um link de <span className="text-foreground font-bold">ativação</span> para o seu e-mail.
                 Por favor, verifique sua caixa de entrada (e a pasta de spam) para confirmar sua conta.
