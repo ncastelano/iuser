@@ -362,6 +362,7 @@ export default function EditarLoja() {
                                     {loadingLocation ? <Loader2 className="w-5 h-5 animate-spin" /> : <Globe className="w-5 h-5" />}
                                     {loadingLocation ? 'Sincronizando...' : 'Adicionar Localização da Sede'}
                                 </button>
+                            )}
                         </div>
 
                         {/* WHATSAPP */}
