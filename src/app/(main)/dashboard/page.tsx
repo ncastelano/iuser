@@ -111,23 +111,33 @@ export default function DashboardPage() {
 
             try {
                 // Load profile - robust fallback if location columns are missing
-                let { data: profileData, error: profileError } = await supabase
+                let profileData: UserProfile | null = null
+                let { data: dataWithLocation, error: profileError } = await supabase
                     .from('profiles')
                     .select('avatar_url, name, id, profileSlug, address, location, show_location')
                     .eq('id', user.id)
                     .single()
-                
+
                 if (profileError) {
-                    console.warn('[Dashboard] Error load profile with location columns:', profileError)
-                    // Fallback sem focar nas colunas de localização (pode ser erro de schema)
-                    const fallback = await supabase
+                    console.warn('[Dashboard] Error loading profile with location columns:', profileError)
+                    // Fallback without location columns
+                    const { data: fallbackData, error: fallbackError } = await supabase
                         .from('profiles')
                         .select('avatar_url, name, id, profileSlug, address')
                         .eq('id', user.id)
                         .single()
-                    profileData = fallback.data
+
+                    if (!fallbackError && fallbackData) {
+                        profileData = {
+                            ...fallbackData,
+                            location: null,
+                            show_location: false
+                        }
+                    }
+                } else if (dataWithLocation) {
+                    profileData = dataWithLocation
                 }
-                
+
                 if (profileData) {
                     setProfile(profileData)
                 }
@@ -227,7 +237,7 @@ export default function DashboardPage() {
                     if (postIds.length > 0) {
                         const { count: likesCount } = await supabase.from('mural_likes').select('*', { count: 'exact', head: true }).in('post_id', postIds)
                         const { count: commentsCount } = await supabase.from('mural_comments').select('*', { count: 'exact', head: true }).in('post_id', postIds)
-                        
+
                         setMuralInteractions({ likes: likesCount || 0, comments: commentsCount || 0 })
 
                         const { data: recentLikes } = await supabase
@@ -248,7 +258,7 @@ export default function DashboardPage() {
                             ...(recentLikes || []).map(l => ({ type: 'like', ...l })),
                             ...(recentComments || []).map(c => ({ type: 'comment', ...c }))
                         ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                         .slice(0, 5)
+                            .slice(0, 5)
 
                         setMuralActivity(activities)
                     } else {
