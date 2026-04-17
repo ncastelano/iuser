@@ -73,7 +73,38 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
+  }
+
+  /* Light Mode Overrides for explicit classes */
+  body.light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --border: 214.3 31.8% 91.4%;
+  }
+
+  .light .bg-black {
+    @apply bg-white text-black !important;
+  }
+  .light .bg-neutral-950, .light .bg-neutral-900 {
+    @apply bg-neutral-50 border-neutral-200 !important;
+  }
+  .light .bg-neutral-800 {
+    @apply bg-neutral-200 !important;
+  }
+  .light .text-white {
+    @apply text-black !important;
+  }
+  .light .text-neutral-400, .light .text-neutral-500 {
+    @apply text-neutral-600 !important;
+  }
+  .light .border-white\/5, .light .border-white\/10 {
+    @apply border-neutral-200 !important;
+  }
+  .light .bg-white\/5, .light .bg-white\/10 {
+    @apply bg-neutral-200/50 !important;
   }
 }
 

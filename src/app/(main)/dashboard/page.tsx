@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -25,7 +25,10 @@ import {
     CheckCircle2,
     Download,
     Calendar,
-    Pencil
+    Pencil,
+    ChevronDown,
+    ChevronUp,
+    ArrowLeft
 } from 'lucide-react'
 
 interface StoreStats {
@@ -71,6 +74,7 @@ export default function DashboardPage() {
     const [myAppointments, setMyAppointments] = useState<any[]>([])
     const [storeSales, setStoreSales] = useState<any[]>([])
     const [activeFinancialTab, setActiveFinancialTab] = useState<'pending' | 'paid'>('pending')
+    const [selectedCheckoutDetail, setSelectedCheckoutDetail] = useState<string | null>(null)
 
     const { itemsByStore, storeDetails } = useCartStore()
 
@@ -164,6 +168,37 @@ export default function DashboardPage() {
         }
 
         fetchMyDashboard()
+
+        // Realtime subscription for sales
+        const salesChannel = supabase
+            .channel('dashboard_sales')
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'store_sales' 
+            }, async (payload) => {
+                // If the new sale belongs to one of the user's stores, refresh the list
+                // We could just add the single sale, but re-fetching ensures we have all associations
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
+                
+                const { data: userStores } = await supabase.from('stores').select('id').eq('owner_id', user.id)
+                const storeIds = userStores?.map(s => s.id) || []
+                
+                if (storeIds.includes(payload.new.store_id)) {
+                    const { data: salesData } = await supabase
+                        .from('store_sales')
+                        .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
+                        .in('store_id', storeIds)
+                        .order('created_at', { ascending: false })
+                    if (salesData) setStoreSales(salesData)
+                }
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(salesChannel)
+        }
     }, [])
 
     const getLogoUrl = (logoPath: string | null) =>
@@ -203,8 +238,6 @@ export default function DashboardPage() {
     }
 
     const updateSaleStatus = async (saleId: string, newStatus: string) => {
-        // Find if we should update a whole checkout or just one item
-        // For simplicity and matching user request "ele já pagou?", we update the whole checkout
         const sale = storeSales.find(s => s.id === saleId)
         if (!sale) return
 
@@ -226,10 +259,26 @@ export default function DashboardPage() {
                 if (!checkoutId && s.id === saleId) return { ...s, status: newStatus }
                 return s
             }))
+            // Success feedback could be added here
         } else {
             console.error('[Dashboard] Erro ao atualizar status da venda:', error)
-            alert('Não foi possível atualizar o status do pagamento.')
         }
+    }
+
+    const totalPaidSales = useMemo(() => {
+        return storeSales
+            .filter(s => s.status === 'paid')
+            .reduce((acc, curr) => acc + (curr.price || 0), 0)
+    }, [storeSales])
+
+    const totalPendingSales = useMemo(() => {
+        return storeSales
+            .filter(s => s.status === 'pending')
+            .reduce((acc, curr) => acc + (curr.price || 0), 0)
+    }, [storeSales])
+
+    const getCheckoutItems = (checkoutId: string) => {
+        return storeSales.filter(s => s.checkout_id === checkoutId || s.id === checkoutId)
     }
 
     // Avatar handlers
@@ -453,7 +502,15 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
                                 
-                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-neutral-400">Financeiro / Vendas</h3>
+                                <div className="flex items-center justify-between mb-1">
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Financeiro / Extrato</h3>
+                                    <div className="text-right">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-neutral-600">Total {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebido'}</p>
+                                        <p className={`text-sm font-black italic ${activeFinancialTab === 'pending' ? 'text-yellow-500' : 'text-green-500'}`}>
+                                            R$ {(activeFinancialTab === 'pending' ? totalPendingSales : totalPaidSales).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
+                                </div>
                                 
                                 <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
                                     {storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
@@ -461,56 +518,71 @@ export default function DashboardPage() {
                                             <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
                                         </div>
                                     ) : (
-                                        // Group by checkout_id to show as single orders
                                         Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
                                             const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
                                             const firstItem = items[0]
                                             const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
+                                            const itemNames = items.slice(0, 2).map(i => i.product_name).join(', ') + (items.length > 2 ? ` e mais ${items.length - 2}` : '')
                                             
                                             return (
-                                                <div key={checkoutId} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="space-y-1 min-w-0">
-                                                            <p className="text-[9px] font-black text-white uppercase italic truncate">
+                                                <div 
+                                                    key={checkoutId} 
+                                                    className={`p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3 cursor-pointer group/sale ${selectedCheckoutDetail === checkoutId ? 'bg-white/[0.05] border-white/20' : ''}`}
+                                                    onClick={() => setSelectedCheckoutDetail(selectedCheckoutDetail === checkoutId ? null : checkoutId)}
+                                                >
+                                                    <div className="flex flex-col gap-1 min-w-0">
+                                                        <div className="flex items-start justify-between">
+                                                            <p className="text-[9px] font-black text-white uppercase italic leading-tight">
                                                                 /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
                                                             </p>
-                                                            {activeFinancialTab === 'pending' && <p className="text-[8px] font-bold text-neutral-600 uppercase">Ele já pagou?</p>}
-                                                            {activeFinancialTab === 'paid' && <p className="text-[8px] font-bold text-green-500 uppercase">Pagamento Confirmado</p>}
+                                                            {selectedCheckoutDetail !== checkoutId ? (
+                                                                <ChevronDown className="w-3 h-3 text-neutral-600 group-hover/sale:text-white transition-colors" />
+                                                            ) : (
+                                                                <ChevronUp className="w-3 h-3 text-white" />
+                                                            )}
                                                         </div>
-                                                        <div className="text-right shrink-0">
-                                                            <p className="text-xs font-black text-white italic">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="flex gap-2">
-                                                        <button 
-                                                            onClick={() => router.push(`/dashboard/financeiro`)}
-                                                            className="flex-1 py-1.5 rounded-lg bg-white/5 text-[8px] font-black uppercase tracking-widest text-neutral-400 hover:bg-white hover:text-black transition-all"
-                                                        >
-                                                            Ver Extrato
-                                                        </button>
-                                                        {activeFinancialTab === 'pending' && (
-                                                            <>
+
+                                                        <p className="text-[8px] font-bold text-neutral-500 uppercase tracking-tight">
+                                                            {items.length} {items.length === 1 ? 'item' : 'itens'} {selectedCheckoutDetail !== checkoutId && <>: <span className="text-white/60">{itemNames}</span></>}
+                                                        </p>
+
+                                                        {selectedCheckoutDetail === checkoutId && (
+                                                            <div className="py-2 space-y-1.5 border-t border-white/5 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                {items.map((it, idx) => (
+                                                                    <div key={idx} className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
+                                                                        <span className="text-neutral-400">{it.quantity}x {it.product_name}</span>
+                                                                        <span className="text-white italic">R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <div>
+                                                                {activeFinancialTab === 'pending' && <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest italic">Pendente: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                                {activeFinancialTab === 'paid' && <p className="text-[8px] font-black text-green-500 uppercase tracking-widest italic">Recebido: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                            </div>
+                                                            {activeFinancialTab === 'pending' && (
                                                                 <button 
-                                                                    onClick={() => updateSaleStatus(firstItem.id, 'paid')}
-                                                                    className="px-3 py-1.5 rounded-lg bg-green-500 text-black text-[8px] font-black uppercase tracking-widest hover:bg-green-400 transition-all"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        updateSaleStatus(firstItem.id, 'paid')
+                                                                    }}
+                                                                    className="px-6 py-1.5 rounded-full bg-green-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_4px_12px_rgba(34,197,94,0.3)] active:scale-95"
                                                                 >
                                                                     Sim
                                                                 </button>
-                                                                <button 
-                                                                    className="px-3 py-1.5 rounded-lg bg-neutral-800 text-white text-[8px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
-                                                                >
-                                                                    Não
-                                                                </button>
-                                                            </>
-                                                        )}
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )
                                         })
                                     )}
                                 </div>
-                                <button onClick={() => router.push('/dashboard/financeiro')} className="mt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center gap-1">Ver Todos os Extratos &rarr;</button>
+                                <button onClick={() => router.push('/dashboard/financeiro')} className="mt-auto pt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center justify-center gap-1 border-t border-white/5">
+                                    Histórico Financeiro Completo &rarr;
+                                </button>
                             </div>
                         </div>
                     </div>

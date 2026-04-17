@@ -20,6 +20,7 @@ export default function CarrinhoPage() {
     const [ownerWhatsapp, setOwnerWhatsapp] = useState<string | null>(null)
     const [buyerName, setBuyerName] = useState<string>('')
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
 
     useEffect(() => { setMounted(true) }, [])
@@ -66,10 +67,11 @@ export default function CarrinhoPage() {
                 setCurrentUserId(user.id)
                 const { data: userProfile } = await supabase
                     .from('profiles')
-                    .select('name')
+                    .select('name, profileSlug')
                     .eq('id', user.id)
                     .single()
                 if (userProfile?.name) setBuyerName(userProfile.name)
+                if (userProfile?.profileSlug) setCurrentUserSlug(userProfile.profileSlug)
             }
         }
 
@@ -102,7 +104,7 @@ export default function CarrinhoPage() {
                     checkout_id: checkout_id,
                     buyer_id: currentUserId,
                     buyer_name: finalBuyerName,
-                    buyer_profile_slug: profileSlug,
+                    buyer_profile_slug: currentUserSlug || 'anonimo',
                     store_slug: storeData.storeSlug,
                     product_id: item.product.id,
                     product_name: item.product.name,
@@ -112,7 +114,8 @@ export default function CarrinhoPage() {
                     created_at: new Date().toISOString()
                 }))
 
-                await supabase.from('store_sales').insert(salesToInsert)
+                const { error: insertError } = await supabase.from('store_sales').insert(salesToInsert)
+                if (insertError) console.error('[Cart Checkout] Erro ao inserir vendas:', insertError)
             }
         } catch (e) {
             console.error('[Cart Checkout] Erro ao registrar vendas:', e)

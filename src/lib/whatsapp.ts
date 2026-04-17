@@ -1,6 +1,3 @@
-/**
- * Formats a professional and pretty WhatsApp message for orders.
- */
 export function formatOrderMessage(params: {
     storeName: string;
     productName: string;
@@ -9,11 +6,11 @@ export function formatOrderMessage(params: {
     storeUrl: string;
 }) {
     const { storeName, productName, price, buyerName, storeUrl } = params;
-    
-    const priceStr = price !== null 
-        ? `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+
+    const priceStr = price !== null
+        ? `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         : 'Combinar';
-    
+
     // Using some emojis for a "pretty" look
     const text = `
 ✨ *NOVO PEDIDO NO iUser!* ✨
@@ -40,11 +37,11 @@ export function formatCartMessage(params: {
     storeUrl: string;
 }) {
     const { storeName, items, totalPrice, buyerName, storeUrl } = params;
-    
-    const itemsList = items.map(item => 
+
+    const itemsList = items.map(item =>
         `• ${item.quantity}x ${item.product.name} (_R$ ${(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })})_`
     ).join('\n');
-    
+
     const text = `
 ✨ *NOVO PEDIDO NO Carrinho iUser!* ✨
 -----------------------------
@@ -70,6 +67,6 @@ export function getWhatsAppLink(phone: string, message: string) {
     const cleanPhone = phone.replace(/\D/g, '');
     // Ensure it has country code (BR: 55)
     const phoneWithCountry = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone;
-    
+
     return `https://wa.me/${phoneWithCountry}?text=${message}`;
 }

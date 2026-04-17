@@ -9,6 +9,7 @@ export default function ConfiguracoesPage() {
     const router = useRouter()
     const supabase = createClient()
     const [whatsapp, setWhatsapp] = useState('')
+    const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -16,12 +17,15 @@ export default function ConfiguracoesPage() {
         async function loadProfile() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                const { data, error } = await supabase.from('profiles').select('whatsapp').eq('id', user.id).single()
+                const { data, error } = await supabase.from('profiles').select('whatsapp, theme_mode').eq('id', user.id).single()
                 if (error) {
                     console.error('[Configuracoes] Erro ao carregar WhatsApp:', error)
                 }
                 if (data?.whatsapp) {
                     setWhatsapp(data.whatsapp)
+                }
+                if (data?.theme_mode) {
+                    setThemeMode(data.theme_mode as 'dark' | 'light')
                 }
             }
             setLoading(false)
@@ -34,13 +38,16 @@ export default function ConfiguracoesPage() {
         const normalizedWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim()
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
-            const { error } = await supabase.from('profiles').update({ whatsapp: normalizedWhatsapp || null }).eq('id', user.id)
+            const { error } = await supabase.from('profiles').update({ 
+                whatsapp: normalizedWhatsapp || null,
+                theme_mode: themeMode
+            }).eq('id', user.id)
             if (error) {
-                console.error('[Configuracoes] Erro ao salvar WhatsApp:', error)
-                alert(`Erro ao salvar WhatsApp: ${error.message}`)
+                console.error('[Configuracoes] Erro ao salvar:', error)
+                alert(`Erro ao salvar: ${error.message}`)
             } else {
                 setWhatsapp(normalizedWhatsapp)
-                alert('Salvo com sucesso!')
+                alert('Configurações salvas com sucesso!')
             }
         }
         setSaving(false)
@@ -83,6 +90,27 @@ export default function ConfiguracoesPage() {
                             className="w-full bg-neutral-950 border border-neutral-700 px-4 py-3 rounded-xl text-white outline-none focus:border-white transition"
                         />
                     </div>
+
+                    <div className="bg-neutral-900/40 p-5 rounded-2xl border border-white/5 space-y-4">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500 mb-3">Preferência Visual</p>
+                            <div className="flex bg-black/60 p-1 rounded-xl border border-white/5">
+                                <button 
+                                    onClick={() => setThemeMode('dark')}
+                                    className={`flex-1 py-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${themeMode === 'dark' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                                >
+                                    Dark Mode
+                                </button>
+                                <button 
+                                    onClick={() => setThemeMode('light')}
+                                    className={`flex-1 py-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${themeMode === 'light' ? 'bg-white text-black shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+                                >
+                                    Light Mode
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <button
                         onClick={handleSave}
                         disabled={saving}
