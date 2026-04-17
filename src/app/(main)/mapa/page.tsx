@@ -130,7 +130,7 @@ export default function MapPage() {
 
             const { data: storesData } = await supabase.from('stores_geo').select('*')
             const { data: productsData } = await supabase.from('products_geo').select('*')
-            const { data: profilesData } = await supabase.from('profiles').select('id, profileSlug, name, avatar_url, location')
+            const { data: profilesData } = await supabase.from('profiles').select('id, profileSlug, name, avatar_url, location, show_location')
 
             // Debug: log fetched counts
             console.log('Fetched stores:', storesData?.length, 'products:', productsData?.length, 'people:', profilesData?.length)
@@ -150,14 +150,16 @@ export default function MapPage() {
                     : null
             }))
 
-            const mappedPeople = (profilesData || []).filter(p => p.location).map(p => ({
-                id: p.id,
-                name: p.name || 'iUser',
-                profileSlug: p.profileSlug,
-                avatar_url: p.avatar_url,
-                location: p.location,
-                is_person: true
-            }))
+            const mappedPeople = (profilesData || [])
+                .filter(p => p.location && p.show_location)
+                .map(p => ({
+                    id: p.id,
+                    name: p.name || 'iUser',
+                    profileSlug: p.profileSlug,
+                    avatar_url: p.avatar_url,
+                    location: p.location,
+                    is_person: true
+                }))
 
             setStores(mappedStores)
             setProducts(mappedProducts)

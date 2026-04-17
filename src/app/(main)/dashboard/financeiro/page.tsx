@@ -3,13 +3,13 @@
 import React, { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { 
-    ArrowLeft, 
-    TrendingUp, 
-    CreditCard, 
-    ChevronRight, 
-    Clock, 
-    CheckCircle2, 
+import {
+    ArrowLeft,
+    TrendingUp,
+    CreditCard,
+    ChevronRight,
+    Clock,
+    CheckCircle2,
     AlertCircle,
     User,
     ShoppingBag
@@ -125,19 +125,19 @@ export default function FinanceiroPage() {
 
                 {/* Tabs */}
                 <div className="flex bg-neutral-900/30 p-1.5 rounded-[24px] border border-white/5 w-fit mx-auto md:mx-0">
-                    <button 
+                    <button
                         onClick={() => setTab('all')}
                         className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'all' ? 'bg-white text-black shadow-2xl' : 'text-neutral-500 hover:text-white'}`}
                     >
                         Todos
                     </button>
-                    <button 
+                    <button
                         onClick={() => setTab('pending')}
                         className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'pending' ? 'bg-white text-black shadow-2xl' : 'text-neutral-500 hover:text-white'}`}
                     >
                         Faltam Pagar
                     </button>
-                    <button 
+                    <button
                         onClick={() => setTab('paid')}
                         className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'paid' ? 'bg-white text-black shadow-2xl' : 'text-neutral-500 hover:text-white'}`}
                     >
@@ -190,22 +190,22 @@ export default function FinanceiroPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    
+
                                     <div className="flex items-center justify-between pt-4">
                                         <p className="text-[10px] font-black uppercase text-neutral-600 tracking-widest">Total do Pedido</p>
                                         <p className="text-2xl font-black italic tracking-tighter text-white">R$ {checkout.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     </div>
                                 </div>
-                                
+
                                 <div className="md:w-px bg-white/5" />
-                                
+
                                 {/* Store Info & Action */}
                                 <div className="md:w-1/4 flex flex-col justify-between items-center md:items-end text-center md:text-right gap-6">
                                     <div className="space-y-1">
                                         <p className="text-[10px] font-black uppercase text-purple-500 tracking-widest">Loja</p>
                                         <p className="text-sm font-bold uppercase italic tracking-tighter">/{checkout.storeSlug}</p>
                                     </div>
-                                    
+
                                     <div className="w-full flex flex-col gap-2">
                                         {checkout.status === 'pending' && (
                                             <button className="w-full py-4 bg-white text-black rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-neutral-200 transition-all flex items-center justify-center gap-2">

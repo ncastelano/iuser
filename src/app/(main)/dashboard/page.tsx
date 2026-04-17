@@ -4,10 +4,9 @@ import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CopyLinkButton } from './CopyLinkButton'
 import { useCartStore } from '@/store/useCartStore'
 import {
-    Users as UsersIcon,
+    Users,
     DollarSign,
     Network,
     ShoppingBag,
@@ -28,12 +27,9 @@ import {
     Pencil,
     ChevronDown,
     ChevronUp,
-    ArrowLeft,
-    Globe,
-    UserCircle,
-    ShoppingBag as ShoppingBagIcon
+    ArrowLeft
 } from 'lucide-react'
-import { useAppModeStore } from '@/store/useAppModeStore'
+import { CopyLinkButton } from './CopyLinkButton'
 
 interface StoreStats {
     ratings_count: number
@@ -62,8 +58,6 @@ export default function DashboardPage() {
 
     const [stores, setStores] = useState<Store[]>([])
     const [profile, setProfile] = useState<UserProfile | null>(null)
-    const { mode, toggleMode } = useAppModeStore()
-    const [isAppInstalled, setIsAppInstalled] = useState(false)
     const [loading, setLoading] = useState(true)
     const [uploading, setUploading] = useState(false)
     const [showUploadModal, setShowUploadModal] = useState(false)
@@ -79,10 +73,6 @@ export default function DashboardPage() {
     const [receivedAppointments, setReceivedAppointments] = useState<any[]>([])
     const [myAppointments, setMyAppointments] = useState<any[]>([])
     const [storeSales, setStoreSales] = useState<any[]>([])
-    const [myPurchases, setMyPurchases] = useState<any[]>([])
-    const [personalRatingsCount, setPersonalRatingsCount] = useState(0)
-    const [personalProfileViews, setPersonalProfileViews] = useState(0)
-    const [personalMuralPostsCount, setPersonalMuralPostsCount] = useState(0)
     const [activeFinancialTab, setActiveFinancialTab] = useState<'pending' | 'paid'>('pending')
     const [selectedCheckoutDetail, setSelectedCheckoutDetail] = useState<string | null>(null)
 
@@ -90,13 +80,6 @@ export default function DashboardPage() {
 
     useEffect(() => {
         setMounted(true)
-        
-        // Check if PWA is installed
-        if (typeof window !== 'undefined') {
-            const isInstalled = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true
-            setIsAppInstalled(isInstalled)
-        }
-
         const fetchMyDashboard = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
@@ -180,41 +163,6 @@ export default function DashboardPage() {
                     .order('created_at', { ascending: false })
                 if (salesData) setStoreSales(salesData)
             }
-
-            // Fetch my purchases (as buyer)
-            const { data: purchasesData } = await supabase
-                .from('store_sales')
-                .select('*, stores:store_id(name, logo_url)')
-                .eq('buyer_id', user.id)
-                .order('created_at', { ascending: false })
-            if (purchasesData) setMyPurchases(purchasesData)
-
-            // Fetch my ratings count
-            const { count: storeRatingsCount } = await supabase
-                .from('store_ratings')
-                .select('*', { count: 'exact', head: true })
-                .eq('profile_id', user.id)
-            
-            const { count: productRatingsCount } = await supabase
-                .from('product_ratings')
-                .select('*', { count: 'exact', head: true })
-                .eq('profile_id', user.id)
-            
-            setPersonalRatingsCount((storeRatingsCount || 0) + (productRatingsCount || 0))
-
-            // Fetch my profile views
-            const { count: viewsCount } = await supabase
-                .from('profile_views')
-                .select('*', { count: 'exact', head: true })
-                .eq('profile_id', user.id)
-            setPersonalProfileViews(viewsCount || 0)
-
-            // Fetch my mural posts count
-            const { count: muralCount } = await supabase
-                .from('mural_posts')
-                .select('*', { count: 'exact', head: true })
-                .eq('profile_id', user.id)
-            setPersonalMuralPostsCount(muralCount || 0)
 
             setLoading(false)
         }
@@ -479,458 +427,313 @@ export default function DashboardPage() {
                             </div>
                         </div>
                         <div className="text-center md:text-left space-y-2">
-                            <div 
-                                onClick={() => profile?.profileSlug && router.push(`/${profile.profileSlug}`)}
-                                className="cursor-pointer group/name"
-                            >
-                                <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none group-hover/name:text-primary transition-colors">{profile?.name || 'Dashboard'}</h1>
-                            </div>
-                            <div className="flex flex-col items-center md:items-start gap-3">
-                                <div className="flex items-center gap-3">
-                                    <span className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest text-primary">Verificado iUser</span>
-                                    <span 
-                                        onClick={() => profile?.profileSlug && router.push(`/${profile.profileSlug}`)}
-                                        className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] cursor-pointer hover:text-foreground transition-colors"
-                                    >
-                                        /{profile?.profileSlug || 'user'}
-                                    </span>
-                                </div>
-                                
-                                {/* Mode Toggle Button */}
-                                <button 
-                                    onClick={toggleMode}
-                                    className="flex items-center gap-2 px-4 py-2 bg-secondary/30 border border-border rounded-xl hover:bg-secondary transition-all group/mode"
-                                >
-                                    <div className={`w-3 h-3 rounded-full ${mode === 'commercial' ? 'bg-primary' : 'bg-blue-500'} shadow-lg`} />
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-foreground">
-                                        Modo {mode === 'commercial' ? 'Comercial' : 'Pessoal'}
-                                    </span>
-                                </button>
+                            <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none">{profile?.name || 'Dashboard'}</h1>
+                            <div className="flex items-center justify-center md:justify-start gap-3">
+                                <span className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest text-primary">Verificado iUser</span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">/{profile?.profileSlug || 'user'}</span>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => profile?.profileSlug && router.push(`/${profile.profileSlug}`)}
-                            className="px-6 py-4 bg-secondary/50 border border-border rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-secondary transition-all flex items-center gap-2"
-                        >
-                            Perfil <UserCircle className="w-4 h-4" />
+                        <button className="px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-[0_10px_30px_rgba(var(--primary),0.3)]">
+                            Baixar iUser <Download className="w-4 h-4" />
                         </button>
-                        {!isAppInstalled && (
-                            <button className="px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-[0_10px_30px_rgba(var(--primary),0.3)]">
-                                Baixar iUser <Download className="w-4 h-4" />
-                            </button>
-                        )}
                         <button onClick={() => router.push('/configuracoes')} className="px-6 py-4 bg-secondary/50 border border-border rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-secondary transition-all flex items-center gap-2">
                             Configurações <Settings className="w-4 h-4" />
                         </button>
                     </div>
-                </div>                {mode === 'commercial' ? (
-                    <>
-                        {/* Affiliate Stats Grid */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-20">
-                            <div className="lg:col-span-2 space-y-4">
-                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
-                                    Sua Rede <div className="h-px flex-1 bg-border" />
-                                </h2>
-                                <div className="relative group p-8 rounded-[40px] border border-border bg-card/10 backdrop-blur-md shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full" />
-                                    <div className="space-y-2 relative z-10 w-full md:w-auto text-center md:text-left">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Link de Convite Ativo</p>
-                                        <p className="text-xl font-bold truncate text-foreground max-w-md">{referralLink}</p>
-                                    </div>
-                                    <div className="relative z-10 shadow-2xl">
-                                        <CopyLinkButton link={referralLink} />
-                                    </div>
-                                </div>
+                </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                    <div className="p-8 rounded-[40px] border border-border bg-gradient-to-br from-primary/10 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-6 group hover:translate-y-[-4px] transition-all duration-500">
-                                        <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg transform group-hover:rotate-12 transition-transform">
-                                            <Network className="w-6 h-6" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Pessoas Conectadas</p>
-                                            <p className="text-4xl font-black italic tracking-tighter text-foreground">{networkCount}</p>
-                                        </div>
-                                        <div className="flex flex-col gap-2">
-                                            <button onClick={() => router.push('/dashboard/rede')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-foreground transition-colors flex items-center gap-1">Visualizar Rede &rarr;</button>
-                                            <div className="h-px w-full bg-border my-2" />
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Ganhos em Comissões:</span>
-                                                <span className="text-sm font-black text-primary italic">R$ {totalCommissions.toFixed(2).replace('.', ',')}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-8 rounded-[40px] border border-border bg-gradient-to-br from-secondary/50 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-4 group">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
-                                                <ShoppingBag className="w-6 h-6" />
-                                            </div>
-                                            <div className="flex bg-secondary/50 p-1.5 rounded-xl border border-border">
-                                                <button
-                                                    onClick={() => setActiveFinancialTab('pending')}
-                                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'pending' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
-                                                >
-                                                    Falta Pagar
-                                                </button>
-                                                <button
-                                                    onClick={() => setActiveFinancialTab('paid')}
-                                                    className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'paid' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
-                                                >
-                                                    Recebidos
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between mb-1">
-                                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Financeiro / Extrato</h3>
-                                            <div className="text-right">
-                                                <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/40">Total {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebido'}</p>
-                                                <p className={`text-sm font-black italic ${activeFinancialTab === 'pending' ? 'text-primary' : 'text-primary'}`}>
-                                                    R$ {(activeFinancialTab === 'pending' ? totalPendingSales : totalPaidSales).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
-                                                <div className="py-10 text-center space-y-2">
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
-                                                </div>
-                                            ) : (
-                                                Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
-                                                    const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
-                                                    const firstItem = items[0]
-                                                    const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
-                                                    const itemNames = items.slice(0, 2).map(i => i.product_name).join(', ') + (items.length > 2 ? ` e mais ${items.length - 2}` : '')
-
-                                                    return (
-                                                        <div
-                                                            key={checkoutId}
-                                                            className={`p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3 cursor-pointer group/sale ${selectedCheckoutDetail === checkoutId ? 'bg-white/[0.05] border-white/20' : ''}`}
-                                                            onClick={() => setSelectedCheckoutDetail(selectedCheckoutDetail === checkoutId ? null : checkoutId)}
-                                                        >
-                                                            <div className="flex flex-col gap-1 min-w-0">
-                                                                <div className="flex items-start justify-between">
-                                                                    <p className="text-[9px] font-black text-white uppercase italic leading-tight">
-                                                                        /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
-                                                                    </p>
-                                                                    {selectedCheckoutDetail !== checkoutId ? (
-                                                                        <ChevronDown className="w-3 h-3 text-neutral-600 group-hover/sale:text-white transition-colors" />
-                                                                    ) : (
-                                                                        <ChevronUp className="w-3 h-3 text-white" />
-                                                                    )}
-                                                                </div>
-
-                                                                <p className="text-[8px] font-bold text-neutral-500 uppercase tracking-tight">
-                                                                    {items.length} {items.length === 1 ? 'item' : 'itens'} {selectedCheckoutDetail !== checkoutId && <>: <span className="text-white/60">{itemNames}</span></>}
-                                                                </p>
-
-                                                                {selectedCheckoutDetail === checkoutId && (
-                                                                    <div className="py-2 space-y-1.5 border-t border-white/5 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                                        {items.map((it, idx) => (
-                                                                            <div key={idx} className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
-                                                                                <span className="text-neutral-400">{it.quantity}x {it.product_name}</span>
-                                                                                <span className="text-white italic">R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="flex items-center justify-between mt-1">
-                                                                    <div>
-                                                                        {activeFinancialTab === 'pending' && <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest italic">Pendente: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                                                                        {activeFinancialTab === 'paid' && <p className="text-[8px] font-black text-green-500 uppercase tracking-widest italic">Recebido: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
-                                                                    </div>
-                                                                    {activeFinancialTab === 'pending' && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation()
-                                                                                updateSaleStatus(firstItem.id, 'paid')
-                                                                            }}
-                                                                            className="px-6 py-1.5 rounded-full bg-green-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_4px_12px_rgba(34,197,94,0.3)] active:scale-95"
-                                                                        >
-                                                                            Sim
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })
-                                            )}
-                                        </div>
-                                        <button onClick={() => router.push('/dashboard/financeiro')} className="mt-auto pt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center justify-center gap-1 border-t border-white/5">
-                                            Histórico Financeiro Completo &rarr;
-                                        </button>
-                                    </div>
-                                </div>
+                {/* Affiliate Stats Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-20">
+                    <div className="lg:col-span-2 space-y-4">
+                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
+                            Sua Rede <div className="h-px flex-1 bg-border" />
+                        </h2>
+                        <div className="relative group p-8 rounded-[40px] border border-border bg-card/10 backdrop-blur-md shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full" />
+                            <div className="space-y-2 relative z-10 w-full md:w-auto text-center md:text-left">
+                                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Link de Convite Ativo</p>
+                                <p className="text-xl font-bold truncate text-foreground max-w-md">{referralLink}</p>
                             </div>
-
-                            <div className="space-y-6">
-                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
-                                    Visitas Recentes <div className="h-px flex-1 bg-border" />
-                                </h2>
-                                <div className="p-6 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl space-y-4">
-                                    {recentViews.length === 0 ? (
-                                        <p className="text-muted-foreground text-[10px] uppercase font-bold text-center py-10 tracking-widest">Aguardando visitantes...</p>
-                                    ) : recentViews.map((view, i) => (
-                                        <div key={i} className="flex items-center gap-4 p-4 rounded-3xl bg-secondary/30 border border-border hover:border-primary/20 transition-all group">
-                                            <div className="w-10 h-10 bg-background rounded-2xl flex items-center justify-center border border-border group-hover:bg-primary/10 transition-colors">
-                                                <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs font-bold text-foreground tracking-tight">{view.profiles?.name || 'Cliente'}</p>
-                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Acessou {view.stores?.name}</p>
-                                            </div>
-                                            <div className="ml-auto text-[9px] font-black text-muted-foreground/30">{new Date(view.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                            <div className="relative z-10 shadow-2xl">
+                                <CopyLinkButton link={referralLink} />
                             </div>
                         </div>
 
-                        {/* Scheduling Sections */}
-                        {(receivedAppointments.filter(a => a.status === 'pending').length > 0 || myAppointments.length > 0) && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
-                                {receivedAppointments.filter(a => a.status === 'pending').length > 0 && (
-                                    <div className="space-y-6">
-                                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-4">
-                                            Novos Pedidos <div className="h-px flex-1 bg-border" />
-                                        </h2>
-                                        <div className="space-y-4">
-                                            {receivedAppointments.filter(a => a.status === 'pending').map((appt) => (
-                                                <div key={appt.id} className="group relative p-6 rounded-[40px] border border-primary/10 bg-primary/[0.02] flex items-center justify-between gap-6 overflow-hidden">
-                                                    <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-3xl rounded-full" />
-                                                    <div className="flex items-center gap-6 relative z-10">
-                                                        <div className="w-16 h-16 bg-background rounded-3xl flex flex-col items-center justify-center border border-border shadow-2xl">
-                                                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">{new Date(appt.start_time).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
-                                                            <span className="text-lg font-black italic text-foreground leading-none">{new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <h4 className="text-lg font-black uppercase italic tracking-tighter text-foreground">{appt.service_name}</h4>
-                                                            <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">Solicitado por <span className="text-primary">/{appt.profiles.profileSlug}</span></p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-2 relative z-10 shrink-0">
-                                                        <button onClick={() => handleAppointmentStatus(appt.id, 'accepted')} className="w-12 h-12 bg-foreground text-background rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all">
-                                                            <CheckCircle2 size={24} />
-                                                        </button>
-                                                        <button onClick={() => handleAppointmentStatus(appt.id, 'declined')} className="w-12 h-12 bg-secondary/50 border border-border text-destructive rounded-2xl flex items-center justify-center shadow-lg hover:border-destructive transition-all">
-                                                            <X size={24} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {myAppointments.length > 0 && (
-                                    <div className="space-y-6">
-                                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-4">
-                                            Minha Agenda <div className="h-px flex-1 bg-border" />
-                                        </h2>
-                                        <div className="space-y-4">
-                                            {myAppointments.map((appt) => (
-                                                <div key={appt.id} className="flex items-center justify-between p-6 rounded-[40px] border border-border bg-card/40 backdrop-blur-md group hover:border-primary/20 transition-all">
-                                                    <div className="flex items-center gap-6">
-                                                        <div className="w-12 h-12 bg-background rounded-2xl flex items-center justify-center border border-border group-hover:bg-foreground text-muted-foreground group-hover:text-background transition-all">
-                                                            <Clock className="w-6 h-6" />
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <h4 className="text-base font-black uppercase tracking-tight text-foreground">{appt.service_name}</h4>
-                                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                                                {new Date(appt.start_time).toLocaleDateString('pt-BR')} &bull; {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${appt.status === 'pending' ? 'bg-primary/10 text-primary border border-primary/20' :
-                                                        appt.status === 'accepted' ? 'bg-primary/10 text-primary border border-primary/20' :
-                                                            'bg-destructive/10 text-destructive border border-destructive/20'
-                                                        }`}>
-                                                        {appt.status === 'pending' ? 'Pendente' : appt.status === 'accepted' ? 'Confirmado' : 'Recusado'}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {/* My Stores Grid */}
-                        <section className="mb-24">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="p-8 rounded-[40px] border border-border bg-gradient-to-br from-primary/10 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-6 group hover:translate-y-[-4px] transition-all duration-500">
+                                <div className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg transform group-hover:rotate-12 transition-transform">
+                                    <Network className="w-6 h-6" />
+                                </div>
                                 <div className="space-y-1">
-                                    <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">Minhas Lojas</h2>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{stores.length} Unidades Gerenciadas</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Pessoas Conectadas</p>
+                                    <p className="text-4xl font-black italic tracking-tighter text-foreground">{networkCount}</p>
                                 </div>
-                                <button onClick={() => router.push('/criar-loja')} className="group px-8 py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-widest rounded-3xl hover:opacity-90 shadow-2xl transition-all active:scale-95 flex items-center gap-3">
-                                    Criar loja <Plus className="w-5 h-5 shadow-2xl" />
-                                </button>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => router.push('/dashboard/rede')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:text-foreground transition-colors flex items-center gap-1">Visualizar Rede &rarr;</button>
+                                    <div className="h-px w-full bg-border my-2" />
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Ganhos em Comissões:</span>
+                                        <span className="text-sm font-black text-primary italic">R$ {totalCommissions.toFixed(2).replace('.', ',')}</span>
+                                    </div>
+                                </div>
                             </div>
 
-                            {stores.length === 0 ? (
-                                <div className="py-24 text-center rounded-[40px] border border-dashed border-border bg-card/10">
-                                    <ShoppingBag className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
-                                    <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">Inicie sua jornada global criando sua primeira loja</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                                    {stores.map(store => (
-                                        <div key={store.id} onClick={() => router.push(`/${profile?.profileSlug || 'store'}/${store.storeSlug}`)} className="group relative flex flex-col bg-card/40 border border-border rounded-[40px] overflow-hidden transition-all duration-500 hover:border-primary/30 hover:-translate-y-2 cursor-pointer shadow-xl">
-                                            <div className="relative h-44 bg-background overflow-hidden border-b border-border">
-                                                {store.logo_url ? <img src={getLogoUrl(store.logo_url)} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-4xl font-black italic">!</div>}
-
-                                                <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-xl border border-border rounded-2xl z-20">
-                                                    <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-primary' : 'bg-destructive'}`} />
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-foreground">{store.is_open ? 'Aberta' : 'Fechada'}</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="p-8 space-y-6">
-                                                <div className="space-y-1">
-                                                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-foreground truncate">{store.name}</h3>
-                                                    <div className="flex items-center gap-2">
-                                                        <Star className="w-3.5 h-3.5 text-primary fill-primary" />
-                                                        <span className="text-sm font-black text-foreground italic">{store.store_stats.ratings_avg.toFixed(1)}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col gap-2 pt-6 border-t border-border">
-                                                    <div className="flex gap-2">
-                                                        <button onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }} className="flex-1 py-4 px-4 bg-secondary text-foreground rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-foreground hover:text-background transition-all">abrir ou fechar</button>
-                                                        <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`); }} className="p-4 bg-background border border-border text-foreground rounded-2xl hover:bg-foreground hover:text-background shadow-xl transition-all">
-                                                            <Pencil className="w-5 h-5" />
-                                                        </button>
-                                                        <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/agenda`); }} className="p-4 bg-foreground text-background rounded-2xl hover:opacity-90 shadow-xl transition-all">
-                                                            <Calendar className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </section>
-                    </>
-                ) : (
-                    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                        {/* Personal Mode Experience */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                            <div className="lg:col-span-2 space-y-8">
-                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
-                                    Minha Atividade <div className="h-px flex-1 bg-border" />
-                                </h2>
-                                
-                                <div className="p-10 rounded-[48px] border border-border bg-gradient-to-br from-blue-500/5 to-transparent backdrop-blur-md shadow-2xl flex flex-col gap-8 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full" />
-                                    <div className="flex items-center gap-6 relative z-10">
-                                        <div className="w-20 h-20 bg-blue-500 text-white rounded-[28px] flex items-center justify-center shadow-lg transform rotate-3">
-                                            <ShoppingBagIcon className="w-10 h-10" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400">Minhas Compras</p>
-                                            <h3 className="text-4xl font-black italic tracking-tighter text-foreground uppercase">Extrato Pessoal</h3>
-                                        </div>
+                            <div className="p-8 rounded-[40px] border border-border bg-gradient-to-br from-secondary/50 to-transparent backdrop-blur-md shadow-xl flex flex-col gap-4 group">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="w-12 h-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
+                                        <ShoppingBag className="w-6 h-6" />
                                     </div>
-                                    
-                                    <div className="space-y-4 relative z-10">
-                                        {/* This will show purchases made by the user */}
-                                        <p className="text-[11px] text-muted-foreground font-medium max-w-md leading-relaxed">Visualize o que você comprou e onde comprou dentro do ecossistema iUser.</p>
-                                        
-                                        {myPurchases.length > 0 ? (
-                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                                {myPurchases.slice(0, 3).map((purchase, idx) => (
-                                                    <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-4 group/item">
-                                                        <div className="w-12 h-12 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0">
-                                                            {purchase.stores?.logo_url ? (
-                                                                <img src={getLogoUrl(purchase.stores.logo_url)} className="w-full h-full object-cover" alt="" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-black italic">{purchase.store_slug?.charAt(0)}</div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-[10px] font-black uppercase text-foreground truncate">{purchase.product_name}</p>
-                                                            <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">{purchase.stores?.name || purchase.store_slug}</p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-xs font-black italic text-foreground">R$ {purchase.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                            <p className="text-[8px] font-bold text-primary uppercase tracking-widest">{purchase.status === 'paid' ? 'Recebido' : 'Pendente'}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Você ainda não realizou compras.</p>
-                                        )}
-
-                                        <button 
-                                            onClick={() => router.push(`/${profile?.profileSlug}?tab=compras`)}
-                                            className="px-8 py-4 bg-foreground text-background rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all self-start flex items-center gap-2 mt-4"
+                                    <div className="flex bg-secondary/50 p-1.5 rounded-xl border border-border">
+                                        <button
+                                            onClick={() => setActiveFinancialTab('pending')}
+                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'pending' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                                         >
-                                            Ver Histórico Completo <ArrowRight className="w-4 h-4" />
+                                            Falta Pagar
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveFinancialTab('paid')}
+                                            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all ${activeFinancialTab === 'paid' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
+                                        >
+                                            Recebidos
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <div className="p-8 rounded-[40px] border border-border bg-card/40 backdrop-blur-md shadow-xl space-y-6 group hover:border-blue-500/20 transition-all">
-                                        <div className="w-14 h-14 bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center border border-blue-500/20 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                                            <UsersIcon className="w-7 h-7" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Quem Visitou</p>
-                                            <p className="text-3xl font-black italic text-foreground tracking-tighter">{personalProfileViews} Vizualizações</p>
-                                        </div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Financeiro / Extrato</h3>
+                                    <div className="text-right">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/40">Total {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebido'}</p>
+                                        <p className={`text-sm font-black italic ${activeFinancialTab === 'pending' ? 'text-primary' : 'text-primary'}`}>
+                                            R$ {(activeFinancialTab === 'pending' ? totalPendingSales : totalPaidSales).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
                                     </div>
-                                    
-                                    <div className="p-8 rounded-[40px] border border-border bg-card/40 backdrop-blur-md shadow-xl space-y-6 group hover:border-purple-500/20 transition-all">
-                                        <div className="w-14 h-14 bg-purple-500/10 text-purple-500 rounded-2xl flex items-center justify-center border border-purple-500/20 group-hover:bg-purple-500 group-hover:text-white transition-all">
-                                            <Star className="w-7 h-7" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Avaliações Feitas</p>
-                                            <p className="text-3xl font-black italic text-foreground tracking-tighter">{personalRatingsCount} {personalRatingsCount === 1 ? 'Avaliação' : 'Avaliações'}</p>
-                                        </div>
-                                    </div>
+                                </div>
 
-                                    <div className="p-8 rounded-[40px] border border-border bg-card/40 backdrop-blur-md shadow-xl space-y-6 group hover:border-orange-500/20 transition-all">
-                                        <div className="w-14 h-14 bg-orange-500/10 text-orange-500 rounded-2xl flex items-center justify-center border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-white transition-all">
-                                            <Globe className="w-7 h-7" />
+                                <div className="space-y-3 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {storeSales.filter(s => s.status === activeFinancialTab).length === 0 ? (
+                                        <div className="py-10 text-center space-y-2">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 italic">Sem movimentações em {activeFinancialTab === 'pending' ? 'Pendente' : 'Recebidos'}</p>
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Postagens no Mural</p>
-                                            <p className="text-3xl font-black italic text-foreground tracking-tighter">{personalMuralPostsCount} Posts</p>
-                                        </div>
-                                    </div>
+                                    ) : (
+                                        Array.from(new Set(storeSales.filter(s => s.status === activeFinancialTab).map(s => s.checkout_id || s.id))).map(checkoutId => {
+                                            const items = storeSales.filter(s => (s.checkout_id === checkoutId || s.id === checkoutId))
+                                            const firstItem = items[0]
+                                            const totalPrice = items.reduce((acc, curr) => acc + (curr.price || 0), 0)
+                                            const itemNames = items.slice(0, 2).map(i => i.product_name).join(', ') + (items.length > 2 ? ` e mais ${items.length - 2}` : '')
+
+                                            return (
+                                                <div
+                                                    key={checkoutId}
+                                                    className={`p-4 rounded-[24px] bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all space-y-3 cursor-pointer group/sale ${selectedCheckoutDetail === checkoutId ? 'bg-white/[0.05] border-white/20' : ''}`}
+                                                    onClick={() => setSelectedCheckoutDetail(selectedCheckoutDetail === checkoutId ? null : checkoutId)}
+                                                >
+                                                    <div className="flex flex-col gap-1 min-w-0">
+                                                        <div className="flex items-start justify-between">
+                                                            <p className="text-[9px] font-black text-white uppercase italic leading-tight">
+                                                                /{firstItem.buyer_profile_slug || 'anonimo'} <span className="text-neutral-500 font-normal">comprou na</span> /{firstItem.store_slug || 'loja'}
+                                                            </p>
+                                                            {selectedCheckoutDetail !== checkoutId ? (
+                                                                <ChevronDown className="w-3 h-3 text-neutral-600 group-hover/sale:text-white transition-colors" />
+                                                            ) : (
+                                                                <ChevronUp className="w-3 h-3 text-white" />
+                                                            )}
+                                                        </div>
+
+                                                        <p className="text-[8px] font-bold text-neutral-500 uppercase tracking-tight">
+                                                            {items.length} {items.length === 1 ? 'item' : 'itens'} {selectedCheckoutDetail !== checkoutId && <>: <span className="text-white/60">{itemNames}</span></>}
+                                                        </p>
+
+                                                        {selectedCheckoutDetail === checkoutId && (
+                                                            <div className="py-2 space-y-1.5 border-t border-white/5 mt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                {items.map((it, idx) => (
+                                                                    <div key={idx} className="flex justify-between items-center text-[8px] font-bold uppercase tracking-tight">
+                                                                        <span className="text-neutral-400">{it.quantity}x {it.product_name}</span>
+                                                                        <span className="text-white italic">R$ {it.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <div>
+                                                                {activeFinancialTab === 'pending' && <p className="text-[8px] font-black text-yellow-500 uppercase tracking-widest italic">Pendente: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                                {activeFinancialTab === 'paid' && <p className="text-[8px] font-black text-green-500 uppercase tracking-widest italic">Recebido: R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>}
+                                                            </div>
+                                                            {activeFinancialTab === 'pending' && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        updateSaleStatus(firstItem.id, 'paid')
+                                                                    }}
+                                                                    className="px-6 py-1.5 rounded-full bg-green-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-[0_4px_12px_rgba(34,197,94,0.3)] active:scale-95"
+                                                                >
+                                                                    Sim
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
                                 </div>
-                            </div>
-                            
-                            <div className="space-y-6">
-                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
-                                    Explorar Mural <div className="h-px flex-1 bg-border" />
-                                </h2>
-                                <div onClick={() => router.push('/mural')} className="group p-8 rounded-[48px] border border-border bg-gradient-to-br from-foreground/5 to-transparent cursor-pointer hover:border-primary/30 transition-all relative overflow-hidden">
-                                    <div className="space-y-4 relative z-10">
-                                        <div className="w-16 h-16 bg-foreground text-background rounded-3xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-                                            <Globe className="w-8 h-8" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h3 className="text-2xl font-black uppercase italic tracking-tighter text-foreground decoration-primary group-hover:underline">Conectar iUser</h3>
-                                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-[0.2em] leading-relaxed">Veja o que as pessoas estão postando agora no ecossistema.</p>
-                                        </div>
-                                    </div>
-                                    <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-foreground/5 blur-[50px] rounded-full" />
-                                </div>
+                                <button onClick={() => router.push('/dashboard/financeiro')} className="mt-auto pt-2 text-[8px] font-black uppercase tracking-widest text-purple-400 hover:text-white transition-colors flex items-center justify-center gap-1 border-t border-white/5">
+                                    Histórico Financeiro Completo &rarr;
+                                </button>
                             </div>
                         </div>
                     </div>
+
+                    <div className="space-y-6">
+                        <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-4">
+                            Visitas Recentes <div className="h-px flex-1 bg-border" />
+                        </h2>
+                        <div className="p-6 rounded-[40px] border border-border bg-card/60 backdrop-blur-md shadow-2xl space-y-4">
+                            {recentViews.length === 0 ? (
+                                <p className="text-muted-foreground text-[10px] uppercase font-bold text-center py-10 tracking-widest">Aguardando visitantes...</p>
+                            ) : recentViews.map((view, i) => (
+                                <div key={i} className="flex items-center gap-4 p-4 rounded-3xl bg-secondary/30 border border-border hover:border-primary/20 transition-all group">
+                                    <div className="w-10 h-10 bg-background rounded-2xl flex items-center justify-center border border-border group-hover:bg-primary/10 transition-colors">
+                                        <Eye className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <p className="text-xs font-bold text-foreground tracking-tight">{view.profiles?.name || 'Cliente'}</p>
+                                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Acessou {view.stores?.name}</p>
+                                    </div>
+                                    <div className="ml-auto text-[9px] font-black text-muted-foreground/30">{new Date(view.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Scheduling Sections */}
+                {(receivedAppointments.filter(a => a.status === 'pending').length > 0 || myAppointments.length > 0) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
+                        {receivedAppointments.filter(a => a.status === 'pending').length > 0 && (
+                            <div className="space-y-6">
+                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-4">
+                                    Novos Pedidos <div className="h-px flex-1 bg-border" />
+                                </h2>
+                                <div className="space-y-4">
+                                    {receivedAppointments.filter(a => a.status === 'pending').map((appt) => (
+                                        <div key={appt.id} className="group relative p-6 rounded-[40px] border border-primary/10 bg-primary/[0.02] flex items-center justify-between gap-6 overflow-hidden">
+                                            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-3xl rounded-full" />
+                                            <div className="flex items-center gap-6 relative z-10">
+                                                <div className="w-16 h-16 bg-background rounded-3xl flex flex-col items-center justify-center border border-border shadow-2xl">
+                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-tighter">{new Date(appt.start_time).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                                                    <span className="text-lg font-black italic text-foreground leading-none">{new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h4 className="text-lg font-black uppercase italic tracking-tighter text-foreground">{appt.service_name}</h4>
+                                                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">Solicitado por <span className="text-primary">/{appt.profiles.profileSlug}</span></p>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2 relative z-10 shrink-0">
+                                                <button onClick={() => handleAppointmentStatus(appt.id, 'accepted')} className="w-12 h-12 bg-foreground text-background rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all">
+                                                    <CheckCircle2 size={24} />
+                                                </button>
+                                                <button onClick={() => handleAppointmentStatus(appt.id, 'declined')} className="w-12 h-12 bg-secondary/50 border border-border text-destructive rounded-2xl flex items-center justify-center shadow-lg hover:border-destructive transition-all">
+                                                    <X size={24} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {myAppointments.length > 0 && (
+                            <div className="space-y-6">
+                                <h2 className="text-xs font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-4">
+                                    Minha Agenda <div className="h-px flex-1 bg-border" />
+                                </h2>
+                                <div className="space-y-4">
+                                    {myAppointments.map((appt) => (
+                                        <div key={appt.id} className="flex items-center justify-between p-6 rounded-[40px] border border-border bg-card/40 backdrop-blur-md group hover:border-primary/20 transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-12 h-12 bg-background rounded-2xl flex items-center justify-center border border-border group-hover:bg-foreground text-muted-foreground group-hover:text-background transition-all">
+                                                    <Clock className="w-6 h-6" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <h4 className="text-base font-black uppercase tracking-tight text-foreground">{appt.service_name}</h4>
+                                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                                        {new Date(appt.start_time).toLocaleDateString('pt-BR')} &bull; {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${appt.status === 'pending' ? 'bg-primary/10 text-primary border border-primary/20' :
+                                                appt.status === 'accepted' ? 'bg-primary/10 text-primary border border-primary/20' :
+                                                    'bg-destructive/10 text-destructive border border-destructive/20'
+                                                }`}>
+                                                {appt.status === 'pending' ? 'Pendente' : appt.status === 'accepted' ? 'Confirmado' : 'Recusado'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 )}
+                {/* My Stores Grid */}
+                <section className="mb-24">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6 mb-12">
+                        <div className="space-y-1">
+                            <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">Minhas Lojas</h2>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{stores.length} Unidades Gerenciadas</p>
+                        </div>
+                        <button onClick={() => router.push('/criar-loja')} className="group px-8 py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-widest rounded-3xl hover:opacity-90 shadow-2xl transition-all active:scale-95 flex items-center gap-3">
+                            Criar loja <Plus className="w-5 h-5 shadow-2xl" />
+                        </button>
+                    </div>
+
+                    {stores.length === 0 ? (
+                        <div className="py-24 text-center rounded-[40px] border border-dashed border-border bg-card/10">
+                            <ShoppingBag className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
+                            <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">Inicie sua jornada global criando sua primeira loja</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                            {stores.map(store => (
+                                <div key={store.id} onClick={() => router.push(`/${profile?.profileSlug || 'store'}/${store.storeSlug}`)} className="group relative flex flex-col bg-card/40 border border-border rounded-[40px] overflow-hidden transition-all duration-500 hover:border-primary/30 hover:-translate-y-2 cursor-pointer shadow-xl">
+                                    <div className="relative h-44 bg-background overflow-hidden border-b border-border">
+                                        {store.logo_url ? <img src={getLogoUrl(store.logo_url)} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-4xl font-black italic">!</div>}
+
+                                        <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-background/80 backdrop-blur-xl border border-border rounded-2xl z-20">
+                                            <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-primary' : 'bg-destructive'}`} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-foreground">{store.is_open ? 'Aberta' : 'Fechada'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-8 space-y-6">
+                                        <div className="space-y-1">
+                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter text-foreground truncate">{store.name}</h3>
+                                            <div className="flex items-center gap-2">
+                                                <Star className="w-3.5 h-3.5 text-primary fill-primary" />
+                                                <span className="text-sm font-black text-foreground italic">{store.store_stats.ratings_avg.toFixed(1)}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-2 pt-6 border-t border-border">
+                                            <div className="flex gap-2">
+                                                <button onClick={(e) => { e.stopPropagation(); toggleStoreStatus(store.id, store.is_open, store.name); }} className="flex-1 py-4 px-4 bg-secondary text-foreground rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-foreground hover:text-background transition-all">abrir ou fechar</button>
+                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`); }} className="p-4 bg-background border border-border text-foreground rounded-2xl hover:bg-foreground hover:text-background shadow-xl transition-all">
+                                                    <Pencil className="w-5 h-5" />
+                                                </button>
+                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/${profile?.profileSlug}/${store.storeSlug}/agenda`); }} className="p-4 bg-foreground text-background rounded-2xl hover:opacity-90 shadow-xl transition-all">
+                                                    <Calendar className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
 
                 {/* Cart Section Redesign */}
                 {mounted && Object.keys(itemsByStore).length > 0 && (

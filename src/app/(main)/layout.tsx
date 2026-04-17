@@ -83,23 +83,16 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </Link>
 
             {/* Bottom Navbar */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] sm:w-[500px] z-50">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[98%] sm:w-[600px] z-50">
                 <nav className="bg-card/40 backdrop-blur-2xl border border-border rounded-[32px] p-2 shadow-2xl overflow-hidden relative group">
                     <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                     <div className="relative flex justify-around items-center h-16">
-                        <Link href={mode === 'commercial' ? '/' : '/mural'} className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${(mode === 'commercial' ? pathname === '/' : pathname === '/mural') ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
-
-                                {mode === 'commercial'
-                                    ? <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
-                                    : <BrickWall size={22} className="transition-transform duration-300 group-hover/item:scale-110" /> // 👈 AQUI
-                                }
-
+                        <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item">
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
+                                <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${(mode === 'commercial' ? pathname === '/' : pathname === '/mural') ? 'opacity-100' : 'opacity-0'}`}>
-                                {mode === 'commercial' ? 'Vitrine' : 'Mural'}
-                            </span>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/' ? 'opacity-100' : 'opacity-0'}`}>Vitrine</span>
                         </Link>
 
                         <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-1 group/item">
@@ -109,18 +102,25 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100' : 'opacity-0'}`}>Mapa</span>
                         </Link>
 
-                        <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
-                                <Zap size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
-                            </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/flash' ? 'opacity-100' : 'opacity-0'}`}>Flash</span>
-                        </Link>
-
                         <Link href="/dashboard" className="relative flex flex-col items-center justify-center gap-1 group/item">
                             <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/dashboard' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
                                 <User size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/dashboard' ? 'opacity-100' : 'opacity-0'}`}>Dashboard</span>
+                        </Link>
+
+                        <Link href="/mural" className="relative flex flex-col items-center justify-center gap-1 group/item">
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mural' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
+                                <BrickWall size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                            </div>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mural' ? 'opacity-100' : 'opacity-0'}`}>Mural</span>
+                        </Link>
+
+                        <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
+                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
+                                <Zap size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                            </div>
+                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/flash' ? 'opacity-100' : 'opacity-0'}`}>Flash</span>
                         </Link>
                     </div>
                 </nav>

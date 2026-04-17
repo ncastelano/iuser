@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle } from 'lucide-react'
+import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
 import { MuralPost } from '@/components/MuralPost'
 
@@ -23,6 +23,20 @@ export default function ProfilePage() {
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [activeTab, setActiveTab] = useState<Tab>('lojas')
     const [loading, setLoading] = useState(true)
+
+    // Social States
+    const [followersCount, setFollowersCount] = useState(0)
+    const [followingCount, setFollowingCount] = useState(0)
+    const [isFollowing, setIsFollowing] = useState(false)
+    const [isOwner, setIsOwner] = useState(false)
+
+    // Location Modal States
+    const [showLocationModal, setShowLocationModal] = useState(false)
+    const [manualAddress, setManualAddress] = useState('')
+    const [suggestions, setSuggestions] = useState<any[]>([])
+    const [loadingLocation, setLoadingLocation] = useState(false)
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number } | null>(null)
+    const [tempAddress, setTempAddress] = useState('')
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -45,16 +59,23 @@ export default function ProfilePage() {
             }
 
             setProfile(profileData)
+            setIsOwner(user?.id === profileData.id)
 
             // 3. Fetch all related data in parallel
-            const [storesRes, muralRes, salesRes] = await Promise.all([
+            const [storesRes, muralRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('stores').select('*').eq('owner_id', profileData.id),
                 supabase.from('mural_posts').select('*, profiles(name, profileSlug, avatar_url)').eq('profile_id', profileData.id).order('created_at', { ascending: false }),
-                supabase.from('store_sales').select('*, stores(name, logo_url, storeSlug)').eq('buyer_id', profileData.id).order('created_at', { ascending: false })
+                supabase.from('store_sales').select('*, stores(name, logo_url, storeSlug)').eq('buyer_id', profileData.id).order('created_at', { ascending: false }),
+                supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileData.id),
+                supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileData.id),
+                user ? supabase.from('follows').select('*').eq('follower_id', user.id).eq('following_id', profileData.id).maybeSingle() : Promise.resolve({ data: null, error: null })
             ])
 
             setStores(storesRes.data || [])
             setMuralPosts(muralRes.data || [])
+            setFollowersCount(followersRes.count || 0)
+            setFollowingCount(followingRes.count || 0)
+            setIsFollowing(!!checkFollowRes.data)
             
             // Filter unique stores from purchases
             const uniqueStorePurchases = (salesRes.data || []).reduce((acc: any[], current: any) => {
@@ -83,6 +104,76 @@ export default function ProfilePage() {
             loadInitialData()
         }
     }, [profileSlug])
+
+    const handleFollowToggle = async () => {
+        if (!currentUser || !profile) return
+        const supabase = createClient()
+
+        if (isFollowing) {
+            setIsFollowing(false)
+            setFollowersCount(prev => prev - 1)
+            await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id)
+        } else {
+            setIsFollowing(true)
+            setFollowersCount(prev => prev + 1)
+            await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id })
+        }
+    }
+
+    // MAPBOX SUGGESTIONS
+    const fetchSuggestions = async (query: string) => {
+        try {
+            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&autocomplete=true&country=BR&limit=5`
+            )
+            const data = await res.json()
+            setSuggestions(data.features || [])
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    useEffect(() => {
+        const delay = setTimeout(() => {
+            if (manualAddress.length < 4) return
+            fetchSuggestions(manualAddress)
+        }, 500)
+        return () => clearTimeout(delay)
+    }, [manualAddress])
+
+    const selectLocationSuggestion = (feature: any) => {
+        const [lng, lat] = feature.center
+        setSelectedLocation({ lat, lng })
+        setTempAddress(feature.place_name)
+        setManualAddress(feature.place_name)
+        setSuggestions([])
+    }
+
+    const saveLocation = async () => {
+        if (!tempAddress || !selectedLocation) return
+        const supabase = createClient()
+        const { error } = await supabase.from('profiles').update({
+            address: tempAddress,
+            location: `POINT(${selectedLocation.lng} ${selectedLocation.lat})`,
+            show_location: true
+        }).eq('id', profile.id)
+
+        if (!error) {
+            setProfile({ ...profile, address: tempAddress, show_location: true })
+            setShowLocationModal(false)
+        }
+    }
+
+    const toggleLocationVisibility = async () => {
+        if (!profile || !isOwner) return
+        const supabase = createClient()
+        const nextValue = !profile.show_location
+        
+        setProfile({ ...profile, show_location: nextValue })
+        
+        await supabase.from('profiles').update({ show_location: nextValue }).eq('id', profile.id)
+    }
 
     useEffect(() => {
         if (profile?.id) {
@@ -169,17 +260,67 @@ export default function ProfilePage() {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-                    <button
-                        onClick={() => setReferralCookieAndRedirect(profile.profileSlug)}
-                        className="px-10 py-5 bg-white text-black rounded-[24px] font-black uppercase text-xs tracking-[0.2em] transition-all hover:bg-neutral-200 active:scale-95 shadow-2xl hover:shadow-white/20 flex items-center gap-3"
-                    >
-                        <Users className="w-5 h-5" />
-                        Fazer Parte da Rede
-                    </button>
-                    <button onClick={() => router.push('/')} className="px-10 py-5 bg-neutral-900 border border-neutral-800 rounded-[24px] font-black uppercase text-xs tracking-[0.2em] text-neutral-400 hover:text-white hover:border-white/20 transition-all flex items-center gap-2">
-                        <ArrowLeft className="w-4 h-4" /> Vitrine
-                    </button>
+                <div className="flex flex-col items-center gap-8 w-full">
+                    {/* Social Stats */}
+                    <div className="flex items-center gap-12">
+                        <div className="text-center group cursor-pointer">
+                            <p className="text-3xl font-black italic tracking-tighter text-white group-hover:text-primary transition-colors">{followersCount}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600">Seguidores</p>
+                        </div>
+                        <div className="w-px h-8 bg-white/10" />
+                        <div className="text-center group cursor-pointer">
+                            <p className="text-3xl font-black italic tracking-tighter text-white group-hover:text-primary transition-colors">{followingCount}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600">Seguindo</p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {currentUser?.id !== profile.id ? (
+                            <button
+                                onClick={handleFollowToggle}
+                                className={`px-12 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-3 ${
+                                    isFollowing 
+                                    ? 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white/20' 
+                                    : 'bg-white text-black hover:bg-neutral-200 shadow-white/10'
+                                }`}
+                            >
+                                {isFollowing ? 'Seguindo' : 'Seguir Perfil'}
+                            </button>
+                        ) : (
+                            <div className="flex flex-col items-center gap-4">
+                                {profile.address ? (
+                                    <div className="flex items-center gap-3 px-8 py-4 bg-red-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest shadow-xl">
+                                        <MapPin size={16} /> {profile.address}
+                                        <button 
+                                            onClick={toggleLocationVisibility}
+                                            className="ml-4 px-4 py-1.5 bg-black/20 hover:bg-black/40 rounded-xl transition-all border border-white/10"
+                                        >
+                                            {profile.show_location ? 'Ocultar' : 'Mostrar'}
+                                        </button>
+                                        <button 
+                                            onClick={() => setShowLocationModal(true)}
+                                            className="ml-2 p-1.5 hover:bg-black/20 rounded-xl transition-all"
+                                        >
+                                            <Pencil size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => setShowLocationModal(true)}
+                                        className="flex items-center gap-3 px-8 py-4 bg-neutral-900 text-neutral-400 border border-white/10 rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:border-white transition-all shadow-xl"
+                                    >
+                                        <MapPinned size={16} /> Localização não definida
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {!isOwner && profile.show_location && profile.address && (
+                        <div className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900/50 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                            <MapPin size={14} className="text-red-600" /> {profile.address}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -336,6 +477,58 @@ export default function ProfilePage() {
             </div>
             
             <div className="pb-24" />
+
+            {/* Location Modal */}
+            {showLocationModal && (
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-2xl z-[100] flex items-center justify-center p-4">
+                    <div className="bg-neutral-900 w-full max-w-xl rounded-[40px] border border-white/10 p-8 shadow-2xl space-y-8 animate-in zoom-in duration-300">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-3xl font-black italic uppercase tracking-tighter">Sua Localidade</h2>
+                            <button onClick={() => setShowLocationModal(false)} className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center hover:bg-white/10 transition-all border border-white/5">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="relative group">
+                                <input 
+                                    type="text"
+                                    placeholder="Digite seu endereço comercial ou residencial"
+                                    value={manualAddress}
+                                    onChange={(e) => setManualAddress(e.target.value)}
+                                    className="w-full bg-neutral-950 border border-white/10 rounded-[24px] py-6 px-8 text-sm font-bold focus:outline-none focus:border-white/20 transition-all"
+                                />
+                                {suggestions.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-4 bg-neutral-900 border border-white/10 rounded-[32px] overflow-hidden z-[110] shadow-2xl">
+                                        {suggestions.map((s, i) => (
+                                            <div 
+                                                key={i} 
+                                                onClick={() => selectLocationSuggestion(s)}
+                                                className="p-5 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 transition-colors"
+                                            >
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-1">Local Sugerido</p>
+                                                <p className="text-sm font-bold text-white">{s.place_name}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-4">
+                                <button 
+                                    onClick={saveLocation}
+                                    disabled={!tempAddress}
+                                    className="w-full py-6 bg-white text-black rounded-[28px] font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all disabled:opacity-20"
+                                >
+                                    Confirmar Endereço
+                                </button>
+                            </div>
+                        </div>
+
+                        <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 text-center">Isso ajudará outras pessoas a te encontrarem no mapa iUser</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

@@ -488,26 +488,27 @@ export default function StorePage() {
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                            <button
-                                onClick={isOwner ? toggleStoreStatus : undefined}
-                                className={`group px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${store.is_open
-                                    ? 'bg-green-500/10 border-green-500/30 text-green-500 hover:bg-green-500/20'
-                                    : 'bg-red-500/10 border-red-500/30 text-red-500 hover:bg-red-500/20'
-                                    } ${isOwner ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
+                            <div
+                                className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border-2 transition-all duration-300 ${store.is_open
+                                    ? 'bg-neutral-900 border-neutral-800 text-white'
+                                    : 'bg-red-600 border-red-700 text-white'
+                                    }`}
                             >
-                                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${store.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${store.is_open ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-white'}`} />
                                 {store.is_open ? 'Aberta no Momento' : 'Temporariamente Fechada'}
-                            </button>
+                            </div>
 
-                            {store.final_whatsapp && (
-                                <button
-                                    onClick={() => window.open(`https://wa.me/${store.final_whatsapp}`, '_blank')}
-                                    className="px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest bg-green-500 text-black hover:bg-green-400 transition-all duration-300 flex items-center gap-2"
-                                >
-                                    <MessageCircle className="w-3.5 h-3.5" /> Falar com Consultor
-                                </button>
-                            )}
+                            <button
+                                onClick={() => {
+                                    if (store.address) {
+                                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`, '_blank')
+                                    }
+                                }}
+                                className="px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-red-600 text-white hover:bg-neutral-900 transition-all duration-300 flex items-center gap-3 shadow-xl active:scale-95"
+                            >
+                                <MapPin className="w-4 h-4" /> {store.address || 'Rua tal, numero tal'}
+                            </button>
                         </div>
                     </div>
                 </section>
