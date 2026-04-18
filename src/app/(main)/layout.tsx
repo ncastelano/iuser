@@ -12,7 +12,8 @@ import {
     MapPinned,
     Zap,
     ShoppingCart,
-    BrickWall // 👈 NOVO ÍCONE
+    ChartBarStacked,
+    BrickWall
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
@@ -119,7 +120,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                         </Link>
                         <Link href="/dashboard" className="relative flex flex-col items-center justify-center gap-1 group/item">
                             <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/dashboard' ? 'bg-foreground text-background shadow-xl' : 'text-muted-foreground hover:text-foreground'}`}>
-                                <User size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                                <ChartBarStacked size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/dashboard' ? 'opacity-100' : 'opacity-0'}`}>Dashboard</span>
                         </Link>

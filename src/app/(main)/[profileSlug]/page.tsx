@@ -9,6 +9,7 @@ import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
 import { MuralPost } from '@/components/MuralPost'
 
 type Tab = 'lojas' | 'mural' | 'compras' | 'flash'
+type MuralFilter = 'mundo' | 'cidade' | 'sigo'
 
 export default function ProfilePage() {
     const params = useParams()
@@ -23,6 +24,12 @@ export default function ProfilePage() {
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [activeTab, setActiveTab] = useState<Tab>('lojas')
     const [loading, setLoading] = useState(true)
+
+    // Mural Filtering
+    const [muralFilter, setMuralFilter] = useState<MuralFilter>('mundo')
+    const [allMuralPosts, setAllMuralPosts] = useState<any[]>([])
+    const [followingIds, setFollowingIds] = useState<string[]>([])
+    const [loadingMural, setLoadingMural] = useState(false)
 
     // Social States
     const [followersCount, setFollowersCount] = useState(0)
@@ -97,6 +104,15 @@ export default function ProfilePage() {
                 setFlashPosts(flashData || [])
             }
 
+            // 5. Fetch following list for "Sigo" filter if user logged in
+            if (user) {
+                const { data: followingData } = await supabase
+                    .from('follows')
+                    .select('following_id')
+                    .eq('follower_id', user.id)
+                setFollowingIds((followingData || []).map(f => f.following_id))
+            }
+
             setLoading(false)
         }
 
@@ -104,6 +120,29 @@ export default function ProfilePage() {
             loadInitialData()
         }
     }, [profileSlug])
+
+    // Fetch mural posts based on filter
+    useEffect(() => {
+        const fetchMural = async () => {
+            if (activeTab !== 'mural') return
+            
+            setLoadingMural(true)
+            const supabase = createClient()
+            
+            // "Mundo" fetches everyone's posts
+            const { data, error } = await supabase
+                .from('mural_posts')
+                .select('*, profiles(name, profileSlug, avatar_url, address)')
+                .order('created_at', { ascending: false })
+            
+            if (!error && data) {
+                setAllMuralPosts(data)
+            }
+            setLoadingMural(false)
+        }
+
+        fetchMural()
+    }, [activeTab, muralFilter])
 
     const handleFollowToggle = async () => {
         if (!currentUser || !profile) return
@@ -209,6 +248,53 @@ export default function ProfilePage() {
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
 
+    const formatAddressShort = (addr: string) => {
+        if (!addr) return ''
+        const parts = addr.split(',')
+        const street = parts[0]?.trim() || ''
+        
+        // Try to get number from second part
+        const secondPart = parts[1]?.trim() || ''
+        const number = secondPart.split('-')[0]?.trim() || ''
+        
+        // Try to get city from third part
+        const thirdPart = parts[2]?.trim() || ''
+        const city = thirdPart.split('-')[0]?.trim() || ''
+
+        return `${street}${number ? `, ${number}` : ''}${city ? `, ${city}` : ''}`
+    }
+
+    const openInGoogleMaps = (loc: any) => {
+        if (!loc) return
+        // Formato POINT(-63.9004 -8.7612)
+        const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+        if (match) {
+            const lng = match[1]
+            const lat = match[2]
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
+        }
+    }
+
+    const getFilteredMuralPosts = () => {
+        if (muralFilter === 'mundo') return allMuralPosts
+
+        if (muralFilter === 'cidade') {
+            const profileCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
+            if (!profileCity) return []
+            
+            return allMuralPosts.filter(post => {
+                const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
+                return postCity === profileCity
+            })
+        }
+
+        if (muralFilter === 'sigo') {
+            return allMuralPosts.filter(post => followingIds.includes(post.profile_id))
+        }
+
+        return []
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
@@ -289,16 +375,19 @@ export default function ProfilePage() {
                         ) : (
                             <div className="flex flex-col items-center gap-4">
                                 {profile.address ? (
-                                    <div className="flex items-center gap-3 px-8 py-4 bg-red-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest shadow-xl">
-                                        <MapPin size={16} /> {profile.address}
+                                    <div 
+                                        onClick={() => !isOwner && openInGoogleMaps(profile.location)}
+                                        className={`flex items-center gap-3 px-8 py-4 bg-red-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest shadow-xl ${!isOwner ? 'cursor-pointer hover:bg-red-700 transition-colors' : ''}`}
+                                    >
+                                        <MapPin size={16} /> {formatAddressShort(profile.address)}
                                         <button 
-                                            onClick={toggleLocationVisibility}
+                                            onClick={(e) => { e.stopPropagation(); toggleLocationVisibility() }}
                                             className="ml-4 px-4 py-1.5 bg-black/20 hover:bg-black/40 rounded-xl transition-all border border-white/10"
                                         >
                                             {profile.show_location ? 'Ocultar' : 'Mostrar'}
                                         </button>
                                         <button 
-                                            onClick={() => setShowLocationModal(true)}
+                                            onClick={(e) => { e.stopPropagation(); setShowLocationModal(true) }}
                                             className="ml-2 p-1.5 hover:bg-black/20 rounded-xl transition-all"
                                         >
                                             <Pencil size={14} />
@@ -317,8 +406,11 @@ export default function ProfilePage() {
                     </div>
 
                     {!isOwner && profile.show_location && profile.address && (
-                        <div className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900/50 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-neutral-500">
-                            <MapPin size={14} className="text-red-600" /> {profile.address}
+                        <div 
+                            onClick={() => openInGoogleMaps(profile.location)}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900/50 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-neutral-500 cursor-pointer hover:bg-neutral-900 transition-colors"
+                        >
+                            <MapPin size={14} className="text-red-600" /> {formatAddressShort(profile.address)}
                         </div>
                     )}
                 </div>
@@ -391,13 +483,37 @@ export default function ProfilePage() {
 
                 {activeTab === 'mural' && (
                     <div className="max-w-2xl mx-auto space-y-8">
-                        {muralPosts.length === 0 ? (
+                        {/* Mural Filter Buttons */}
+                        <div className="flex justify-center flex-wrap gap-2 pb-4">
+                            {(['mundo', 'cidade', 'sigo'] as MuralFilter[]).map(filter => {
+                                let label = filter === 'cidade' 
+                                    ? (profile?.address?.split(',')[2]?.trim() || 'Cidade')
+                                    : filter.charAt(0).toUpperCase() + filter.slice(1)
+
+                                return (
+                                    <button
+                                        key={filter}
+                                        onClick={() => setMuralFilter(filter)}
+                                        className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${muralFilter === filter ? 'bg-primary text-background' : 'bg-white/5 text-neutral-500 hover:text-white'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {loadingMural ? (
+                             <div className="py-24 text-center">
+                                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 italic">Filtrando Mural...</p>
+                            </div>
+                        ) : getFilteredMuralPosts().length === 0 ? (
                             <div className="py-24 text-center rounded-[40px] border border-dashed border-white/5">
                                 <Globe className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
-                                <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Ainda não postou no mural</p>
+                                <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Nada encontrado com este filtro</p>
                             </div>
                         ) : (
-                            muralPosts.map(post => (
+                            getFilteredMuralPosts().map(post => (
                                 <MuralPost key={post.id} post={post} currentUserId={currentUser?.id} />
                             ))
                         )}

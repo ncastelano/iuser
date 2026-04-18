@@ -20,6 +20,8 @@ import Link from 'next/link'
 
 import { MuralPost } from '@/components/MuralPost'
 
+type MuralFilter = 'mundo' | 'cidade' | 'sigo'
+
 export default function MuralPage() {
     const supabase = createClient()
     const router = useRouter()
@@ -33,6 +35,11 @@ export default function MuralPage() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Filtering
+    const [muralFilter, setMuralFilter] = useState<MuralFilter>('mundo')
+    const [followingIds, setFollowingIds] = useState<string[]>([])
+    const [loadingFilter, setLoadingFilter] = useState(false)
 
     useEffect(() => {
         const fetchMuralData = async () => {
@@ -55,7 +62,8 @@ export default function MuralPage() {
                     profiles (
                         name,
                         profileSlug,
-                        avatar_url
+                        avatar_url,
+                        address
                     )
                 `)
                 .order('created_at', { ascending: false })
@@ -63,6 +71,16 @@ export default function MuralPage() {
             if (!error && postsData) {
                 setPosts(postsData)
             }
+
+            // Fetch following list
+            if (user) {
+                const { data: followingData } = await supabase
+                    .from('follows')
+                    .select('following_id')
+                    .eq('follower_id', user.id)
+                setFollowingIds((followingData || []).map(f => f.following_id))
+            }
+
             setLoading(false)
         }
 
@@ -108,7 +126,8 @@ export default function MuralPage() {
                     profiles (
                         name,
                         profileSlug,
-                        avatar_url
+                        avatar_url,
+                        address
                     )
                 `)
                 .single()
@@ -138,6 +157,26 @@ export default function MuralPage() {
         if (!path) return null
         if (path.startsWith('http')) return path
         return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
+    }
+
+    const getFilteredPosts = () => {
+        if (muralFilter === 'mundo') return posts
+
+        if (muralFilter === 'cidade') {
+            const userCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
+            if (!userCity) return []
+            
+            return posts.filter(post => {
+                const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
+                return postCity === userCity
+            })
+        }
+
+        if (muralFilter === 'sigo') {
+            return posts.filter(post => followingIds.includes(post.profile_id))
+        }
+
+        return []
     }
 
     if (loading) {
@@ -219,15 +258,36 @@ export default function MuralPage() {
                     </div>
                 )}
 
+                {/* Feed Filtering */}
+                <div className="flex justify-center flex-wrap gap-4">
+                    {(['mundo', 'cidade', 'sigo'] as MuralFilter[]).map(f => {
+                        let label = f === 'cidade'
+                            ? (profile?.address?.split(',')[2]?.trim() || 'Cidade')
+                            : f.charAt(0).toUpperCase() + f.slice(1)
+
+                        return (
+                            <button
+                                key={f}
+                                onClick={() => setMuralFilter(f)}
+                                className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${muralFilter === f ? 'bg-primary text-background shadow-lg shadow-primary/20 scale-105' : 'bg-card/40 border border-border text-muted-foreground hover:text-foreground'}`}
+                            >
+                                {label}
+                            </button>
+                        )
+                    })}
+                </div>
+
                 {/* Feed Section */}
                 <div className="space-y-8">
-                    {posts.length === 0 ? (
+                    {getFilteredPosts().length === 0 ? (
                         <div className="py-24 text-center rounded-[40px] border border-dashed border-border bg-card/10">
                             <Users className="w-16 h-16 text-muted-foreground/20 mx-auto mb-6" />
-                            <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">O Mural está vazio. Seja o primeiro a postar!</p>
+                            <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">
+                                {muralFilter === 'mundo' ? 'O Mural está vazio.' : 'Nada encontrado neste filtro.'}
+                            </p>
                         </div>
                     ) : (
-                        posts.map((post) => (
+                        getFilteredPosts().map((post) => (
                             <MuralPost 
                                 key={post.id} 
                                 post={post} 
