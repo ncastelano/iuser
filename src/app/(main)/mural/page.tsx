@@ -3,14 +3,14 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { 
-    Users, 
-    Image as ImageIcon, 
-    Send, 
-    MoreHorizontal, 
-    Heart, 
-    MessageCircle, 
-    Share2, 
+import {
+    Users,
+    Image as ImageIcon,
+    Send,
+    MoreHorizontal,
+    Heart,
+    MessageCircle,
+    Share2,
     Camera,
     X,
     Loader2,
@@ -25,7 +25,7 @@ type MuralFilter = 'mundo' | 'cidade' | 'sigo'
 export default function MuralPage() {
     const supabase = createClient()
     const router = useRouter()
-    
+
     const [posts, setPosts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [profile, setProfile] = useState<any>(null)
@@ -109,7 +109,7 @@ export default function MuralPage() {
                 const { error: uploadError } = await supabase.storage
                     .from('mural-images')
                     .upload(filePath, selectedFile)
-                
+
                 if (uploadError) throw uploadError
                 imageUrl = filePath
             }
@@ -165,7 +165,7 @@ export default function MuralPage() {
         if (muralFilter === 'cidade') {
             const userCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
             if (!userCity) return []
-            
+
             return posts.filter(post => {
                 const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
                 return postCity === userCity
@@ -196,8 +196,8 @@ export default function MuralPage() {
                 {/* Header Section */}
                 <header className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-foreground text-background rounded-2xl flex items-center justify-center shadow-2xl rotate-3">
-                            <Globe className="w-8 h-8" />
+                        <div className="w-16 h-16 bg-white/5 backdrop-blur-2xl p-3 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl rotate-3 group hover:rotate-0 transition-all duration-500">
+                            <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
                         </div>
                         <div>
                             <h1 className="text-4xl font-black italic uppercase tracking-tighter text-foreground leading-none">Mural<span className="text-primary">.</span></h1>
@@ -228,7 +228,7 @@ export default function MuralPage() {
                         {previewUrl && (
                             <div className="relative rounded-[32px] overflow-hidden border border-border bg-background group">
                                 <img src={previewUrl} className="w-full max-h-[400px] object-cover" />
-                                <button 
+                                <button
                                     onClick={() => { setSelectedFile(null); setPreviewUrl(null) }}
                                     className="absolute top-4 right-4 w-10 h-10 bg-background/80 backdrop-blur-md text-foreground rounded-2xl flex items-center justify-center border border-border hover:bg-foreground hover:text-background transition-all"
                                 >
@@ -238,7 +238,7 @@ export default function MuralPage() {
                         )}
 
                         <div className="flex items-center justify-between pt-4 border-t border-border">
-                            <button 
+                            <button
                                 onClick={() => fileInputRef.current?.click()}
                                 className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-secondary/50 text-muted-foreground hover:text-foreground transition-all group"
                             >
@@ -247,7 +247,7 @@ export default function MuralPage() {
                             </button>
                             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
 
-                            <button 
+                            <button
                                 onClick={handlePost}
                                 disabled={uploading || (!content.trim() && !selectedFile)}
                                 className="px-10 py-4 bg-foreground text-background rounded-2xl font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all flex items-center gap-2 disabled:opacity-30"
@@ -288,10 +288,10 @@ export default function MuralPage() {
                         </div>
                     ) : (
                         getFilteredPosts().map((post) => (
-                            <MuralPost 
-                                key={post.id} 
-                                post={post} 
-                                currentUserId={currentUser?.id} 
+                            <MuralPost
+                                key={post.id}
+                                post={post}
+                                currentUserId={currentUser?.id}
                                 onDelete={handleDeletePost}
                             />
                         ))

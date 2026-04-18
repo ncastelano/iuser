@@ -81,8 +81,8 @@ export default function FlashPage() {
             {/* Header Overlay */}
             <div className="absolute top-0 left-0 right-0 z-50 p-6 flex items-center justify-between bg-gradient-to-b from-background/90 via-background/40 to-transparent pointer-events-none">
                 <div className="flex items-center gap-3 pointer-events-auto">
-                    <div className="w-11 h-11 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary),0.3)] rotate-3">
-                        <Zap className="w-7 h-7 fill-current" />
+                    <div className="w-16 h-16 bg-white/5 backdrop-blur-2xl p-3 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl rotate-3 group hover:rotate-0 transition-all duration-500">
+                        <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
                     </div>
                     <div>
                         <h1 className="text-3xl font-black italic uppercase tracking-tighter text-foreground leading-none">Flash<span className="text-primary">.</span></h1>
