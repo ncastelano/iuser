@@ -224,7 +224,7 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
                             onClick={handleToggleComments}
                             className={`flex items-center gap-2 group/btn transition-colors ${showComments ? 'text-primary' : 'text-muted-foreground'}`}
                         >
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showComments ? 'bg-primary text-background shadow-[0_0_20px_rgba(var(--primary),0.4)]' : 'bg-secondary/30 group-hover/btn:bg-primary/10 group-hover/btn:text-primary'}`}>
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${showComments ? 'bg-primary text-white shadow-[0_0_20px_rgba(var(--primary),0.4)]' : 'bg-secondary/30 group-hover/btn:bg-primary/10 group-hover/btn:text-primary'}`}>
                                 <MessageCircle className="w-6 h-6" />
                             </div>
                             <span className="text-xs font-black italic">{commentsCount}</span>
@@ -283,9 +283,9 @@ export function MuralPost({ post, currentUserId, onDelete }: MuralPostProps) {
                                     <button 
                                         onClick={handleSubmitComment}
                                         disabled={submittingComment || !newComment.trim()}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-foreground text-background flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-all"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-white text-black flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-all font-black shadow-md"
                                     >
-                                        {submittingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                        {submittingComment ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Send className="w-4 h-4" />}
                                     </button>
                                 </div>
                             </div>

@@ -4,15 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Save, LogOut } from 'lucide-react'
+import { useThemeStore } from '@/store/useThemeStore'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
     const supabase = createClient()
 
-    const [whatsapp, setWhatsapp] = useState('')
-    const [themeMode, setThemeMode] = useState<'dark' | 'light' | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState(false)
+    const { theme, setTheme } = useThemeStore()
 
     useEffect(() => {
         async function loadProfile() {
@@ -67,6 +65,7 @@ export default function ConfiguracoesPage() {
                 alert(`Erro ao salvar: ${error.message}`)
             } else {
                 setWhatsapp(normalizedWhatsapp)
+                if (themeMode) setTheme(themeMode) // Sincroniza o estado global caso não tenha sincronizado
                 alert('Configurações salvas com sucesso!')
             }
         }
@@ -154,7 +153,10 @@ export default function ConfiguracoesPage() {
 
                         <div className="flex bg-secondary/50 p-1.5 rounded-2xl border border-border">
                             <button
-                                onClick={() => setThemeMode('dark')}
+                                onClick={() => {
+                                    setThemeMode('dark')
+                                    setTheme('dark')
+                                }}
                                 className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'dark'
                                     ? 'bg-foreground text-background shadow-xl'
                                     : 'text-muted-foreground hover:text-foreground'
@@ -164,7 +166,10 @@ export default function ConfiguracoesPage() {
                             </button>
 
                             <button
-                                onClick={() => setThemeMode('light')}
+                                onClick={() => {
+                                    setThemeMode('light')
+                                    setTheme('light')
+                                }}
                                 className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'light'
                                     ? 'bg-foreground text-background shadow-xl'
                                     : 'text-muted-foreground hover:text-foreground'

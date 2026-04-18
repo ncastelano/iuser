@@ -2,44 +2,40 @@
 
 import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useThemeStore } from '@/store/useThemeStore'
 
 export function ThemeLoader() {
   const supabase = createClient()
+  const { setTheme } = useThemeStore()
 
   useEffect(() => {
-    async function applyTheme() {
+    async function initTheme() {
       const { data: { user } } = await supabase.auth.getUser()
-      const theme = user ? (await supabase
-        .from('profiles')
-        .select('theme_mode')
-        .eq('id', user.id)
-        .single()).data?.theme_mode : 'light' // Default to light mode for visitors
-
-      if (theme === 'light') {
-        document.documentElement.classList.add('light')
-        document.documentElement.classList.remove('dark')
-      } else {
-        document.documentElement.classList.add('dark')
-        document.documentElement.classList.remove('light')
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('theme_mode')
+          .eq('id', user.id)
+          .single()
+        
+        if (profile?.theme_mode) {
+          setTheme(profile.theme_mode as 'light' | 'dark')
+        }
       }
     }
 
-    applyTheme()
+    initTheme()
     
-    // Also listen for changes in the same session (for ConfiguracoesPage immediate update)
+    // Listen for changes from other tabs/sessions
     const channel = supabase
-      .channel('theme_changes')
+      .channel('theme_global_sync')
       .on('postgres_changes', { 
         event: 'UPDATE', 
         schema: 'public', 
         table: 'profiles' 
       }, (payload) => {
-        if (payload.new.theme_mode === 'light') {
-          document.documentElement.classList.add('light')
-          document.documentElement.classList.remove('dark')
-        } else {
-          document.documentElement.classList.add('dark')
-          document.documentElement.classList.remove('light')
+        if (payload.new.theme_mode) {
+          setTheme(payload.new.theme_mode)
         }
       })
       .subscribe()
@@ -47,7 +43,7 @@ export function ThemeLoader() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, setTheme])
 
   return null
 }

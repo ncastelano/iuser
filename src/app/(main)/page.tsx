@@ -217,69 +217,79 @@ export default function Vitrine() {
   useEffect(() => {
     const init = async () => {
       setLoading(true)
+      try {
+        const supabase = createClient()
 
-      const supabase = createClient()
+        const [{ data: storesList, error: sErr }, { data: profilesList, error: prErr }, { data: productsList, error: pErr }] = await Promise.all([
+          supabase.from('stores_geo').select('*'),
+          supabase.from('profiles').select('id, "profileSlug"'),
+          supabase.from('products_geo').select('*')
+        ])
 
-      // Fetch usando as views _geo (idêntico ao MapPage) para trazer as coordenadas em formato legível
-      const { data: storesList } = await supabase
-        .from('stores_geo')
-        .select('*')
-
-      const { data: profilesList } = await supabase
-        .from('profiles')
-        .select('id, "profileSlug"')
-
-      const { data: productsList } = await supabase
-        .from('products_geo')
-        .select('*')
-
-      const mappedProducts = (productsList || []).map(product => ({
-        ...product,
-        image_url: product.image_url ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl : null,
-        price: typeof product.price === 'string' ? parseFloat(product.price) : typeof product.price === 'number' ? product.price : null
-      }))
-
-      const mappedStores = (storesList || []).map(store => {
-        const prof = (profilesList || []).find(p => p.id === store.owner_id)
-
-        // Verifica todos os produtos desta loja para calcular preço mínimo e máximo
-        const storeProducts = mappedProducts.filter(p => p.store_id === store.id)
-        const prices = storeProducts.map(p => p.price).filter(p => p !== null && !isNaN(p as number)) as number[]
-        const minPrice = prices.length > 0 ? Math.min(...prices) : null
-        const maxPrice = prices.length > 0 ? Math.max(...prices) : null
-
-        return {
-          ...store,
-          profileSlug: prof?.profileSlug || 'loja',
-          logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
-          is_open: store.is_open ?? true,
-          store_stats: {
-            ratings_count: store.ratings_count ?? 0,
-            ratings_avg: store.ratings_avg ?? 0,
-            prep_time_min: store.prep_time_min ?? null,
-            prep_time_max: store.prep_time_max ?? null,
-            price_min: minPrice,
-            price_max: maxPrice
-          }
+        if (sErr || prErr || pErr) {
+          console.error('[Vitrine] Erro ao carregar dados:', { sErr, prErr, pErr })
         }
-      })
 
-      setAllStores(mappedStores as any)
-      setAllProducts(mappedProducts as any)
+        const mappedProducts = (productsList || []).map(product => {
+          try {
+            return {
+              ...product,
+              image_url: product.image_url ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl : null,
+              price: typeof product.price === 'string' ? parseFloat(product.price) : typeof product.price === 'number' ? product.price : 0
+            }
+          } catch (e) {
+            console.error('[Vitrine] Erro ao mapear produto:', product.id, e)
+            return product
+          }
+        })
 
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            setUserLocation({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude
-            })
-          },
-          () => { }
-        )
+        const mappedStores = (storesList || []).map(store => {
+          try {
+            const prof = (profilesList || []).find(p => p.id === store.owner_id)
+            const storeProducts = mappedProducts.filter(p => p.store_id === store.id)
+            const prices = storeProducts.map(p => p.price).filter(p => p !== null && !isNaN(p as number)) as number[]
+            const minPrice = prices.length > 0 ? Math.min(...prices) : null
+            const maxPrice = prices.length > 0 ? Math.max(...prices) : null
+
+            return {
+              ...store,
+              profileSlug: prof?.profileSlug || 'loja',
+              logo_url: store.logo_url ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl : null,
+              is_open: store.is_open ?? true,
+              store_stats: {
+                ratings_count: store.ratings_count ?? 0,
+                ratings_avg: store.ratings_avg ?? 0,
+                prep_time_min: store.prep_time_min ?? null,
+                prep_time_max: store.prep_time_max ?? null,
+                price_min: minPrice,
+                price_max: maxPrice
+              }
+            }
+          } catch (e) {
+            console.error('[Vitrine] Erro ao mapear loja:', store.id, e)
+            return store
+          }
+        })
+
+        setAllStores(mappedStores as any)
+        setAllProducts(mappedProducts as any)
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              setUserLocation({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude
+              })
+            },
+            () => { console.warn('[Vitrine] Geolocalização negada ou falhou.') }
+          )
+        }
+      } catch (globalErr) {
+        console.error('[Vitrine] Erro global no init:', globalErr)
+      } finally {
+        setLoading(false)
       }
-
-      setLoading(false)
     }
 
     init()
@@ -291,241 +301,10 @@ export default function Vitrine() {
     setShowAllStores(false)
   }, [search, sortBy])
 
-  // 🧩 STORE CARD - COM DISTÂNCIA
-  const renderStoreCard = (store: StoreType, idx: number) => {
-    const stats = store.store_stats ?? {}
-    const distance = calcDistanceKm(store.location)
-    const distanceFormatted = formatDistance(distance)
-    const storeProducts = allProducts.filter(p => p.store_id === store.id).slice(0, 4)
-
-    return (
-      <div
-        key={store.id + idx}
-        onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-        className="group cursor-pointer relative overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
-      >
-        {/* Fundo banner da loja */}
-        <div className="relative h-48 overflow-hidden bg-neutral-900">
-          {store.logo_url ? (
-            <img
-              src={store.logo_url}
-              className="absolute inset-0 w-full h-full object-cover bg-white"
-              alt={store.name}
-            />
-          ) : (
-            <div className="w-full h-full bg-neutral-900" />
-          )}
-
-
-          {/* Status badge */}
-          <div className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full z-10 ${store.is_open
-            ? 'bg-green-600 text-white'
-            : 'bg-red-600 text-white'
-            }`}>
-            {store.is_open ? 'Aberto' : 'Fechado'}
-          </div>
-
-          {/* DISTÂNCIA - DESTAQUE */}
-          {distanceFormatted && (
-            <div className="absolute top-3 left-3 px-2.5 py-1.5 text-xs font-bold bg-black/70 backdrop-blur-md text-white rounded-full border border-white/20 z-10 flex items-center gap-1.5 shadow-lg">
-              <MapPin className="w-3 h-3 text-white" />
-              <span>{distanceFormatted}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Avatar da loja + info */}
-        <div className="px-5 pb-5 pt-5 flex flex-col gap-3 relative z-10">
-          <div className="hidden">
-            <div className="w-16 h-16 rounded-2xl border-2 border-neutral-700 bg-neutral-900 overflow-hidden shadow-xl flex-shrink-0">
-              {store.logo_url ? (
-                <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Store className="w-6 h-6 text-neutral-500" />
-                </div>
-              )}
-            </div>
-            <div className="mb-1 flex-1 min-w-0">
-              <h3 className="font-bold text-lg text-white leading-tight line-clamp-1">{store.name}</h3>
-              <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-0.5">
-                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                <span className="text-yellow-400 font-semibold">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
-                <span className="text-neutral-600">({stats.ratings_count ?? 0} avaliações)</span>
-
-                {/* DISTÂNCIA NA LINHA DE INFO TAMBÉM */}
-                {distanceFormatted && (
-                  <>
-                    <span className="text-neutral-600">•</span>
-                    <span className="text-neutral-400 flex items-center gap-0.5">
-                      <MapPin className="w-2.5 h-2.5" />
-                      {distanceFormatted}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-1 flex-1 min-w-0">
-            <h3 className="font-bold text-lg text-white leading-tight line-clamp-1">{store.name}</h3>
-            <div className="flex items-center gap-1.5 text-xs text-neutral-400 mt-0.5">
-              <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-              <span className="text-yellow-400 font-semibold">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
-              <span className="text-neutral-600">({stats.ratings_count ?? 0} avaliações)</span>
-            </div>
-          </div>
-
-          {store.description && (
-            <p className="text-xs text-neutral-500 line-clamp-2 leading-relaxed">{store.description}</p>
-          )}
-
-          {/* Mini produtos da loja */}
-          {storeProducts.length > 0 && (
-            <div className="flex gap-2 mt-1">
-              {storeProducts.map(p => (
-                <div key={p.id} className="w-12 h-12 rounded-xl border border-neutral-800 bg-neutral-900 overflow-hidden flex-shrink-0 shadow-md">
-                  {p.image_url ? (
-                    <img src={p.image_url} className="w-full h-full object-cover" alt={p.name} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-neutral-800 text-[7px] text-neutral-500 text-center leading-none p-1">
-                      {p.name.slice(0, 8)}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {allProducts.filter(p => p.store_id === store.id).length > 4 && (
-                <div className="w-12 h-12 rounded-xl border border-neutral-700 bg-neutral-900/50 flex items-center justify-center flex-shrink-0 text-xs text-neutral-500 font-bold">
-                  +{allProducts.filter(p => p.store_id === store.id).length - 4}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* CTA */}
-          <div className="flex items-center justify-between pt-2 border-t border-neutral-800/60 mt-1">
-            <span className="text-xs text-neutral-500">{allProducts.filter(p => p.store_id === store.id).length} produtos</span>
-            <div className="flex items-center gap-1 text-xs font-semibold text-white group-hover:gap-2 transition-all">
-              Visitar loja <ChevronRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // 🧩 PRODUCT CARD - COM DISTÂNCIA
-  const renderProductCard = (product: ProductType, idx: number) => {
-    const store = getStore(product.store_id)
-    const distance = store ? calcDistanceKm(store.location) : null
-    const distanceFormatted = formatDistance(distance)
-    const price = typeof product.price === 'number' ? product.price : 0
-    const typeLabel = translateType(product.type) || product.category || 'Produto'
-
-    return (
-      <div
-        key={product.id + idx}
-        onClick={() => {
-          if (store) {
-            router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug}`)
-          }
-        }}
-        className="group cursor-pointer relative isolate overflow-hidden rounded-3xl border border-neutral-700/60 bg-neutral-950 hover:border-white/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_8px_40px_rgba(255,255,255,0.08)] flex flex-col"
-      >
-        {/* IMAGEM */}
-        <div className="relative h-52 overflow-hidden bg-neutral-900">
-          {product.image_url ? (
-            <img
-              src={product.image_url}
-              className="absolute inset-0 w-full h-full object-cover transform-gpu will-change-transform group-hover:scale-110 transition-transform duration-700"
-              alt={product.name}
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-neutral-800 to-neutral-950 flex items-center justify-center text-neutral-600 text-sm">
-              Sem imagem
-            </div>
-          )}
-
-          {/* BADGE */}
-          <div className="absolute z-20 top-3 left-3 px-2.5 py-1 text-[11px] font-semibold bg-white/10 backdrop-blur-md text-white rounded-full border border-white/20">
-            {typeLabel}
-          </div>
-
-          {/* DISTÂNCIA */}
-          {distanceFormatted && (
-            <div className="absolute z-20 top-3 right-3 px-2.5 py-1 text-xs font-bold bg-black/70 backdrop-blur-md text-white rounded-full border border-white/20 flex items-center gap-1 shadow-lg">
-              <MapPin className="w-3 h-3" />
-              <span>{distanceFormatted}</span>
-            </div>
-          )}
-        </div>
-
-        {/* CONTEÚDO */}
-        <div className="px-5 pb-5 pt-4 flex flex-col flex-1 gap-3 bg-neutral-950">
-          <h3 className="font-bold text-base text-white leading-tight line-clamp-2 min-h-[40px]">
-            {product.name}
-          </h3>
-
-          <div className="text-green-400 font-extrabold text-xl tracking-tight">
-            R$ {price.toFixed(2).replace('.', ',')}
-          </div>
-
-          {store && (
-            <div className="flex items-center gap-2 pt-3 border-t border-neutral-800/60">
-              <div className="w-8 h-8 rounded-lg border border-neutral-800 bg-black overflow-hidden shadow-sm flex-shrink-0">
-                {store.logo_url ? (
-                  <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[10px] text-neutral-500">
-                    <Store className="w-4 h-4" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col overflow-hidden flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-neutral-300 truncate font-medium">
-                    {store.name}
-                  </span>
-
-                  {/* DISTÂNCIA NA LINHA DA LOJA */}
-                  {distanceFormatted && (
-                    <span className="text-[10px] text-neutral-400 flex items-center gap-0.5 ml-2">
-                      <MapPin className="w-2.5 h-2.5" />
-                      {distanceFormatted}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1 text-[11px] text-neutral-400">
-                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                  <span className="text-yellow-400 font-semibold">
-                    {store.store_stats.ratings_avg?.toFixed(1) ?? '0.0'}
-                  </span>
-
-                  {store.store_stats.prep_time_min && (
-                    <span className="text-neutral-500 ml-1">
-                      • {store.store_stats.prep_time_min}m
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* HOVER */}
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none">
-          <div className="absolute inset-0 bg-white/5" />
-        </div>
-      </div>
-    )
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 border-4 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -540,51 +319,40 @@ export default function Vitrine() {
   const hasMoreStores = sortedStores.length > PREVIEW_COUNT
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground font-sans selection:bg-primary selection:text-white overflow-x-hidden">
-      {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-primary/10 blur-[130px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[10%] right-[-10%] w-[50%] h-[50%] bg-secondary/10 blur-[120px] rounded-full" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,hsl(var(--foreground)/0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Flash-style Header Section */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 sm:mb-24">
-          <div className="flex items-center gap-5 pointer-events-auto">
-            <div className="w-16 h-16 bg-white/5 backdrop-blur-2xl p-3 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl rotate-3 group hover:rotate-0 transition-all duration-500">
-              <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+    <div className="min-h-screen bg-background font-sans">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Header Section */}
+        <header className="mb-12">
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              <div className="bg-gradient-to-br from-gray-800 to-gray-900 dark:from-neutral-800 dark:to-neutral-900 p-3 rounded-2xl shadow-lg">
+                <img src="/logo.png" alt="iUser" className="h-10 w-auto object-contain brightness-0 invert" />
+              </div>
             </div>
-            <div>
-              <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-foreground leading-[0.8]">
-                Vitrine<span className="text-primary">.</span>
-              </h1>
-              <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-primary/80 mt-1">Veja o que tem ao seu redor!</p>
-            </div>
-          </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <div className="relative group flex-1 min-w-[300px]">
-              <SearchIcon className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground group-focus-within:text-foreground transition-all duration-300" />
+            {/* Search Input */}
+            <div className="relative group flex-1 max-w-2xl">
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="procurar produtos ou serviços..."
+                placeholder="Procurar produtos ou serviços..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-16 pr-12 py-5 bg-card border border-border rounded-full text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 appearance-none shadow-2xl shadow-black/5 dark:shadow-none"
+                className="w-full pl-11 pr-10 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all duration-300 shadow-sm"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-6 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  <X className="w-5 h-5" />
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
           </div>
         </header>
 
-        {/* Categories / Filters Bar */}
-        <nav className="mb-20 overflow-x-auto no-scrollbar scroll-smooth">
-          <div className="flex items-center gap-4 pb-4">
+        {/* Filters Bar */}
+        <nav className="mb-12 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 pb-2">
             {filters.map((option) => {
               const Icon = option.icon
               const isActive = sortBy === option.value
@@ -592,12 +360,12 @@ export default function Vitrine() {
                 <button
                   key={option.value}
                   onClick={() => setSortBy(option.value as any)}
-                  className={`flex-shrink-0 flex items-center gap-3 px-10 py-5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-500 shadow-xl dark:shadow-none ${isActive
-                    ? 'bg-foreground text-background border-foreground shadow-[0_15px_30px_rgba(0,0,0,0.1)] active:scale-95'
-                    : 'bg-card text-muted-foreground border-border hover:border-primary/20 hover:text-foreground'
+                  className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${isActive
+                    ? 'bg-primary text-primary-foreground shadow-md'
+                    : 'bg-card text-muted-foreground hover:bg-muted border border-border shadow-sm'
                     }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
                   {option.label}
                 </button>
               )
@@ -606,33 +374,30 @@ export default function Vitrine() {
         </nav>
 
         {/* Lojas Section */}
-        <section className="mb-24">
-          <div className="flex items-end justify-between mb-10 gap-4">
-            <div className="space-y-2">
-              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">Próximos de Você</h2>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{sortedStores.length} lojas encontradas</p>
-              </div>
+        <section className="mb-16">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Próximos de Você</h2>
+              <p className="text-xs text-muted-foreground mt-1">{sortedStores.length} lojas encontradas</p>
             </div>
             {hasMoreStores && (
               <button
                 onClick={() => setShowAllStores(!showAllStores)}
-                className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
               >
                 {showAllStores ? 'Ver Menos' : `Ver Todas (${sortedStores.length})`}
-                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllStores ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
+                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllStores ? 'rotate-90' : ''}`} />
               </button>
             )}
           </div>
 
           {sortedStores.length === 0 ? (
-            <div className="py-24 text-center rounded-[40px] border border-dashed border-border bg-card/50">
-              <Store className="w-16 h-16 text-muted-foreground/30 mx-auto mb-6" />
-              <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">Nenhuma loja encontrada na sua região</p>
+            <div className="py-16 text-center bg-card rounded-2xl border border-border shadow-sm">
+              <Store className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+              <p className="text-muted-foreground">Nenhuma loja encontrada na sua região</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {visibleStores.map((store, idx) => {
                 const stats = store.store_stats ?? {}
                 const distance = calcDistanceKm(store.location)
@@ -641,58 +406,56 @@ export default function Vitrine() {
                   <div
                     key={store.id + idx}
                     onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-                    className="group relative flex flex-col bg-card border border-border dark:border-white/5 rounded-[40px] overflow-hidden transition-all duration-500 hover:border-foreground/10 dark:hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl shadow-black/5 dark:shadow-none"
+                    className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 border border-border/50"
                   >
-                    <div className="relative h-48 bg-muted dark:bg-neutral-950 overflow-hidden">
+                    <div className="relative h-40 bg-muted overflow-hidden">
                       {store.logo_url ? (
-                        <img src={store.logo_url} className="w-full h-full object-cover grayscale-[0.3] dark:grayscale-[0.5] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110" alt={store.name} />
+                        <img src={store.logo_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={store.name} />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-6xl font-black italic">{store.name?.charAt(0)}</div>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-4xl font-bold">{store.name?.charAt(0)}</div>
                       )}
 
-                      <div className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 bg-background/60 backdrop-blur-xl border border-border dark:border-white/10 rounded-2xl z-20">
-                        <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-foreground">{store.is_open ? 'Aberta' : 'Fechada'}</span>
+                      <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm">
+                        <div className={`w-1.5 h-1.5 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-[10px] font-medium text-foreground">{store.is_open ? 'Aberto' : 'Fechado'}</span>
                       </div>
 
                       {distanceFormatted && (
-                        <div className="absolute top-6 right-6 px-4 py-2 bg-foreground text-background font-black rounded-2xl z-20 shadow-2xl flex items-center gap-1.5 grayscale group-hover:grayscale-0 transition-all">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span className="text-[10px] uppercase tracking-tighter">{distanceFormatted}</span>
+                        <div className="absolute top-3 right-3 px-2.5 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-[10px] font-medium text-foreground">{distanceFormatted}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-8 space-y-6">
-                      <div className="space-y-2">
-                        <h3 className="text-3xl font-black italic uppercase tracking-tighter text-foreground group-hover:text-primary transition-colors truncate">{store.name}</h3>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                            <span className="text-sm font-black text-foreground italic">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
-                          </div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{stats.ratings_count ?? 0} Avaliações</div>
+                    <div className="p-5">
+                      <h3 className="text-xl font-bold text-foreground mb-1 truncate">{store.name}</h3>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                          <span className="text-sm font-bold text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
                         </div>
+                        <span className="text-xs text-muted-foreground font-medium">({stats.ratings_count ?? 0})</span>
                       </div>
 
-                      <div className="flex items-center justify-between pt-6 border-t border-border">
-                        <div className="flex -space-x-4">
-                          {allProducts.filter(p => p.store_id === store.id).slice(0, 4).map(p => (
-                            <div key={p.id} className="w-12 h-12 rounded-2xl bg-muted border-4 border-card ring-1 ring-border overflow-hidden shadow-2xl">
+                      <div className="flex items-center justify-between pt-4 border-t border-border">
+                        <div className="flex -space-x-2">
+                          {allProducts.filter(p => p.store_id === store.id).slice(0, 3).map(p => (
+                            <div key={p.id} className="w-8 h-8 rounded-lg bg-muted border-2 border-card overflow-hidden shadow-sm">
                               {p.image_url ? (
                                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground font-black italic">{p.name.charAt(0)}</div>
+                                <div className="w-full h-full flex items-center justify-center text-[8px] text-muted-foreground/40 font-bold">{p.name.charAt(0)}</div>
                               )}
                             </div>
                           ))}
-                          {allProducts.filter(p => p.store_id === store.id).length > 4 && (
-                            <div className="w-12 h-12 rounded-2xl bg-muted border-4 border-card ring-1 ring-border flex items-center justify-center text-[10px] font-black italic text-muted-foreground">
-                              +{allProducts.filter(p => p.store_id === store.id).length - 4}
+                          {allProducts.filter(p => p.store_id === store.id).length > 3 && (
+                            <div className="w-8 h-8 rounded-lg bg-primary border-2 border-card flex items-center justify-center text-[10px] font-bold text-primary-foreground">
+                              +{allProducts.filter(p => p.store_id === store.id).length - 3}
                             </div>
                           )}
                         </div>
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">Visitar Loja &rarr;</div>
+                        <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors italic uppercase tracking-widest text-[9px] font-black">Ver loja →</span>
                       </div>
                     </div>
                   </div>
@@ -703,27 +466,24 @@ export default function Vitrine() {
         </section>
 
         {/* Produtos Section */}
-        <section className="pb-20">
-          <div className="flex items-end justify-between mb-10 gap-4">
-            <div className="space-y-2">
-              <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">Produtos ou serviços</h2>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{sortedProducts.length} produtos disponíveis</p>
-              </div>
+        <section className="pb-12">
+          <div className="flex items-end justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Produtos e Serviços</h2>
+              <p className="text-xs text-muted-foreground mt-1">{sortedProducts.length} produtos disponíveis</p>
             </div>
             {hasMoreProducts && (
               <button
                 onClick={() => setShowAllProducts(!showAllProducts)}
-                className="group flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
               >
-                {showAllProducts ? 'Ver Menos' : `Ver Todos (${sortedProducts.length})`}
-                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
+                {showAllProducts ? 'Ver Menos' : `Ver Todas (${sortedProducts.length})`}
+                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : ''}`} />
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {visibleProducts.map((product, idx) => {
               const store = getStore(product.store_id)
               const distance = store ? calcDistanceKm(store.location) : null
@@ -734,59 +494,57 @@ export default function Vitrine() {
               return (
                 <div
                   key={product.id + idx}
-                  onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug}`)}
-                  className="group relative flex flex-col bg-card border border-border dark:border-white/5 rounded-[36px] overflow-hidden transition-all duration-500 hover:border-foreground/10 dark:hover:border-white/10 hover:-translate-y-2 cursor-pointer shadow-xl shadow-black/5 dark:shadow-none"
+                  onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
+                  className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 border border-border/50"
                 >
-                  <div className="relative aspect-[4/5] bg-muted dark:bg-neutral-950 overflow-hidden">
+                  <div className="relative aspect-[4/3] bg-muted overflow-hidden border-b border-border/50">
                     {product.image_url ? (
-                      <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={product.name} />
+                      <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={product.name} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-muted dark:bg-neutral-900 overflow-hidden group-hover:scale-110 transition-all duration-700 relative">
-                        {store?.logo_url ? (
-                          <img src={store.logo_url} className="w-[60%] h-[60%] object-contain opacity-40 blur-sm" alt="" />
-                        ) : (
-                          <div className="text-muted-foreground/20 text-4xl font-black italic">PRODUTO</div>
-                        )}
-                        <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 dark:bg-black/40">
-                          <span className="text-foreground/40 dark:text-white/60 text-sm font-black italic uppercase tracking-widest">{product.name.slice(0, 10)}...</span>
+                      <div className="w-full h-full flex items-center justify-center bg-muted">
+                        <div className="text-center opacity-30">
+                          <ShoppingBag className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
+                          <span className="text-xs text-muted-foreground">{product.name.slice(0, 15)}</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="absolute top-5 left-5 z-10">
-                      <div className="bg-background/60 backdrop-blur-md border border-border dark:border-white/10 px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest text-foreground">
+                    <div className="absolute top-3 left-3">
+                      <div className="bg-background/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-foreground shadow-sm">
                         {typeLabel}
                       </div>
                     </div>
 
                     {distanceFormatted && (
-                      <div className="absolute bottom-5 right-5 z-10">
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-foreground/10 dark:bg-white/10 backdrop-blur-xl border border-border dark:border-white/10 rounded-xl text-[10px] font-black uppercase text-foreground dark:text-white">
-                          <MapPin className="w-3 h-3" /> {distanceFormatted}
+                      <div className="absolute bottom-3 right-3">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm">
+                          <MapPin className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-[10px] font-medium text-foreground">{distanceFormatted}</span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="p-7 space-y-4">
-                    <div className="space-y-1">
-                      <h4 className="text-lg font-black italic uppercase tracking-tighter text-foreground group-hover:text-primary transition-colors truncate">{product.name}</h4>
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-md overflow-hidden bg-muted dark:bg-black border border-border dark:border-white/5 flex-shrink-0">
-                          {store?.logo_url ? (
+                  <div className="p-4">
+                    <h4 className="font-bold text-foreground mb-1 line-clamp-2 min-h-[48px] italic">{product.name}</h4>
+
+                    {store && (
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-5 h-5 rounded bg-muted overflow-hidden flex-shrink-0 border border-border/50">
+                          {store.logo_url ? (
                             <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-muted dark:bg-neutral-900"><Store className="w-3 h-3 text-muted-foreground/30" /></div>
+                            <Store className="w-3 h-3 text-muted-foreground/30 m-1" />
                           )}
                         </div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">{store?.name || 'Loja Parceira'}</p>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">{store.name}</span>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
-                      <span className="text-2xl font-black italic tracking-tighter text-foreground">R$ {price.toFixed(2).replace('.', ',')}</span>
-                      <div className="w-10 h-10 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-2xl transition-transform duration-300 group-hover:scale-110">
-                        <Plus className="w-5 h-5" />
+                    <div className="flex items-center justify-between pt-3 border-t border-border">
+                      <span className="text-xl font-black text-foreground italic">R$ {price.toFixed(2).replace('.', ',')}</span>
+                      <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-md">
+                        <Plus className="w-4 h-4" />
                       </div>
                     </div>
                   </div>

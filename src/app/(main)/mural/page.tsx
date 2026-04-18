@@ -276,7 +276,9 @@ export default function MuralPage() {
                             <button
                                 key={f}
                                 onClick={() => setMuralFilter(f)}
-                                className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${muralFilter === f ? 'bg-primary text-background shadow-lg shadow-primary/20 scale-105' : 'bg-card/40 border border-border text-muted-foreground hover:text-foreground'}`}
+                                className={`px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${muralFilter === f
+                                    ? 'bg-primary text-black shadow-lg shadow-primary/20 scale-105'
+                                    : 'bg-card/40 border border-border text-muted-foreground hover:text-foreground'}`}
                             >
                                 {label}
                             </button>

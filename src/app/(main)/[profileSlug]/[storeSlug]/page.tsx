@@ -493,18 +493,17 @@ export default function StorePage() {
 
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-6">
                             <div className="flex flex-col gap-1">
-                                <div 
-                                    className={`flex items-center gap-4 p-4 rounded-3xl transition-all duration-300 border ${
-                                        myRating > 0 
-                                        ? 'bg-neutral-900 border-primary/50 shadow-xl' 
+                                <div
+                                    className={`flex items-center gap-4 p-4 rounded-3xl transition-all duration-300 border ${myRating > 0
+                                        ? 'bg-neutral-900 border-primary/50 shadow-xl'
                                         : 'bg-secondary/40 border-border hover:border-foreground/10'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <RatingStars 
-                                                value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)} 
-                                                size={18} 
+                                            <RatingStars
+                                                value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
+                                                size={18}
                                                 onChange={!isOwner ? submitRating : undefined}
                                             />
                                             <span className="text-xl font-extrabold text-foreground">{Number(store.ratings_avg || 0).toFixed(1)}</span>
@@ -576,16 +575,16 @@ export default function StorePage() {
                     <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="group relative px-10 py-6 bg-white text-black font-black rounded-3xl hover:bg-neutral-200 transition-all duration-500 active:scale-95 shadow-[0_25px_50px_rgba(255,255,255,0.15)] overflow-hidden flex items-center gap-4"
+                            className="group relative px-10 py-6 bg-primary text-primary-foreground font-black rounded-3xl hover:scale-[1.02] transition-all duration-500 active:scale-95 shadow-[0_25px_50px_rgba(var(--primary),0.2)] overflow-hidden flex items-center gap-4 border border-primary/20"
                         >
                             <div className="relative z-10 flex items-center gap-3">
                                 <Calendar className="w-8 h-8" />
                                 <div className="flex flex-col items-start leading-tight">
                                     <span className="text-lg uppercase tracking-tight">Agendar Horário</span>
-                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Ver Agenda da Loja</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Ver Agenda da Loja</span>
                                 </div>
                             </div>
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                         </button>
 
                         {isOwner && (
@@ -663,8 +662,8 @@ export default function StorePage() {
                             <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
                                 {appointmentsToday.length > 0 ? (
                                     appointmentsToday.map((appt, i) => (
-                                        <div 
-                                            key={appt.id || i} 
+                                        <div
+                                            key={appt.id || i}
                                             onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
                                             className="flex-shrink-0 w-[240px] snap-start bg-card/40 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-card/80 transition-all shadow-xl cursor-pointer hover:-translate-y-1"
                                         >
@@ -680,7 +679,7 @@ export default function StorePage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none flex items-center gap-1.5">
-                                                    <Clock className="w-2.5 h-2.5" /> 
+                                                    <Clock className="w-2.5 h-2.5" />
                                                     {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                 </p>
                                                 <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
