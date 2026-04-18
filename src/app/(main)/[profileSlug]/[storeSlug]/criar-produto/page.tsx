@@ -36,6 +36,7 @@ export default function CriarProduto() {
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
     const [city, setCity] = useState('')
+    const [category, setCategory] = useState('')
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
@@ -166,7 +167,8 @@ export default function CriarProduto() {
             store_id: storeId,
             location: locationString,
             address: address || null,
-            city: city || null
+            city: city || null,
+            category: category || null
         })
 
         if (error) {
@@ -254,7 +256,7 @@ export default function CriarProduto() {
                         <div>
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Nome do Produto</label>
                             <input
-                                placeholder="Ex: Curso de Culinária"
+                                placeholder="Ex: Pastel de queijo"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
@@ -279,12 +281,24 @@ export default function CriarProduto() {
                         <div>
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Descrição</label>
                             <textarea
-                                placeholder="Detalhes do seu produto..."
+                                placeholder="Ex: massa de pastel e queijo."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={4}
                                 className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600 resize-none"
                             />
+                        </div>
+
+                        {/* CATEGORIA */}
+                        <div>
+                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Categoria da Loja (Opcional)</label>
+                            <input
+                                placeholder="Ex: Pasteis, Bebidas, Sobremesas..."
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
+                            />
+                            <p className="text-[10px] text-neutral-500 mt-2 ml-1">Isso criará uma seção separada na sua loja.</p>
                         </div>
 
                         <div>

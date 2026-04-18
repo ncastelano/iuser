@@ -61,6 +61,7 @@ export default function StorePage() {
     const [ratingLoading, setRatingLoading] = useState(false)
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
     const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
+    const [appointmentsToday, setAppointmentsToday] = useState<any[]>([])
     const [recentSales, setRecentSales] = useState<any[]>([])
     const [cartAnimating, setCartAnimating] = useState(false)
 
@@ -80,6 +81,16 @@ export default function StorePage() {
             p.description?.toLowerCase().includes(query)
         )
     }, [products, searchQuery])
+
+    const groupedProducts = useMemo(() => {
+        const groups: Record<string, any[]> = {}
+        filteredProducts.forEach(product => {
+            const cat = product.category || 'Geral'
+            if (!groups[cat]) groups[cat] = []
+            groups[cat].push(product)
+        })
+        return groups
+    }, [filteredProducts])
 
 
     useEffect(() => {
@@ -108,6 +119,13 @@ export default function StorePage() {
             profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
         })) as RatingRow[]
         setRatings(rows)
+
+        // Recalculate average manually to ensure immediate UI update
+        if (rows.length > 0) {
+            const sum = rows.reduce((acc, r) => acc + r.rating, 0)
+            const avg = sum / rows.length
+            setStore(prev => prev ? { ...prev, ratings_avg: avg, ratings_count: rows.length } : null)
+        }
 
         const activeUserId = userId ?? currentUserId
         setMyRating(rows.find((rating) => rating.profile_id === activeUserId)?.rating ?? 0)
@@ -182,7 +200,23 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
-        // Load upcoming appointments for social proof
+        // Load today's appointments for social proof
+        const today = new Date()
+        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+        const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+
+        const { data: todayData } = await supabase
+            .from('appointments')
+            .select('*, profiles:client_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .gte('start_time', startOfDay)
+            .lte('start_time', endOfDay)
+            .neq('status', 'declined')
+            .order('start_time', { ascending: true })
+
+        setAppointmentsToday(todayData || [])
+
+        // Keep upcoming logic if needed elsewhere, but today is the priority here
         const { data: upcomingData } = await supabase
             .from('appointments')
             .select('profiles:client_id(avatar_url, name, "profileSlug")')
@@ -338,6 +372,7 @@ export default function StorePage() {
                 <ScheduleModal
                     isOpen={isScheduleModalOpen}
                     onClose={() => setIsScheduleModalOpen(false)}
+                    onSuccess={loadStore}
                     store={{
                         id: store.id,
                         name: store.name,
@@ -351,7 +386,7 @@ export default function StorePage() {
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4 min-w-0">
                         <button
-                            onClick={() => window.history.length > 1 ? router.back() : router.push('/')}
+                            onClick={() => router.push('/')}
                             className="group flex w-11 h-11 items-center justify-center bg-secondary/50 border border-border rounded-2xl hover:bg-foreground hover:text-background transition-all duration-300"
                         >
                             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
@@ -458,16 +493,39 @@ export default function StorePage() {
 
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-6">
                             <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                    <RatingStars value={Number(store.ratings_avg || 0)} size={16} />
-                                    <span className="text-xl font-black text-foreground">{Number(store.ratings_avg || 0).toFixed(1)}</span>
-                                </div>
-                                <button
-                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
-                                    className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors text-left"
+                                <div 
+                                    className={`flex items-center gap-4 p-4 rounded-3xl transition-all duration-300 border ${
+                                        myRating > 0 
+                                        ? 'bg-neutral-900 border-primary/50 shadow-xl' 
+                                        : 'bg-secondary/40 border-border hover:border-foreground/10'
+                                    }`}
                                 >
-                                    {store.ratings_count ?? 0} Avaliações &rarr;
-                                </button>
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-2">
+                                            <RatingStars 
+                                                value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)} 
+                                                size={18} 
+                                                onChange={!isOwner ? submitRating : undefined}
+                                            />
+                                            <span className="text-xl font-extrabold text-foreground">{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)
+                                            }}
+                                            className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors text-left"
+                                        >
+                                            {store.ratings_count ?? 0} AVALIAÇÕES &rarr;
+                                        </button>
+                                    </div>
+                                    {myRating > 0 && (
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+                                            <CheckCircle2 className="w-3 h-3 text-primary" />
+                                            <span className="text-[9px] font-black text-primary uppercase tracking-widest">AVALIADO</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="h-10 w-px bg-border hidden sm:block" />
                             <div className="flex items-center gap-3">
@@ -515,15 +573,17 @@ export default function StorePage() {
 
                 {/* Agenda & Action Section */}
                 <div className="flex flex-col gap-6">
-                    {/* ... (Buttons as before) ... */}
                     <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="group relative px-8 py-5 bg-white text-black font-black rounded-3xl hover:bg-neutral-200 transition-all duration-500 active:scale-95 shadow-[0_20px_40px_rgba(255,255,255,0.1)] overflow-hidden"
+                            className="group relative px-10 py-6 bg-white text-black font-black rounded-3xl hover:bg-neutral-200 transition-all duration-500 active:scale-95 shadow-[0_25px_50px_rgba(255,255,255,0.15)] overflow-hidden flex items-center gap-4"
                         >
                             <div className="relative z-10 flex items-center gap-3">
-                                <Calendar className="w-6 h-6" />
-                                <span className="text-lg uppercase tracking-tight">Agendar Horário</span>
+                                <Calendar className="w-8 h-8" />
+                                <div className="flex flex-col items-start leading-tight">
+                                    <span className="text-lg uppercase tracking-tight">Agendar Horário</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Ver Agenda da Loja</span>
+                                </div>
                             </div>
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                         </button>
@@ -549,70 +609,99 @@ export default function StorePage() {
                     </div>
 
                     {/* MICRO EXTRATO / SOCIAL PROOF */}
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-4 px-2">
-                            <div className="h-px flex-1 bg-border" />
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">Compraram aqui:</h3>
-                            <div className="h-px flex-1 bg-border" />
-                        </div>
+                    <div className="space-y-10">
+                        {/* SALES SECTION */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 px-2">
+                                <div className="h-px flex-1 bg-border" />
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">Compraram aqui:</h3>
+                                <div className="h-px flex-1 bg-border" />
+                            </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            {recentSales.length > 0 ? recentSales.map((sale, i) => (
-                                <div key={sale.id || i} className="bg-muted/30 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-muted/50 transition-all shadow-lg shadow-black/5 dark:shadow-none hover:-translate-y-1">
-                                    <div className="w-12 h-12 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0">
-                                        {sale.profiles?.avatar_url ? (
-                                            <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-muted-foreground/30">
-                                                {sale.buyer_name?.charAt(0) || '?'}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none">NOVA COMPRA!</p>
-                                        <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
-                                            {sale.buyer_name || 'Alguém'} <span className="text-muted-foreground font-normal">comprou</span>
-                                        </p>
-                                        <p className="text-[10px] text-muted-foreground font-bold truncate">
-                                            {sale.product_name}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[8px] text-muted-foreground/50 font-black uppercase">Obrigado!</p>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="col-span-full py-12 text-center rounded-[32px] border border-dashed border-border bg-muted/10">
-                                    <ShoppingCart className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-20" />
-                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Aguardando próximas movimentações...</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Upcoming Appointments Row (Social Proof) */}
-                        <div className="flex items-center justify-center md:justify-end gap-3 mt-4 px-2">
-                            <div className="flex -space-x-2.5 overflow-hidden">
-                                {upcomingAppointments.length > 0 ? upcomingAppointments.map((appt, i) => (
-                                    <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-background border border-border bg-muted overflow-hidden">
-                                        {appt.profiles?.avatar_url ? (
-                                            <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-muted-foreground uppercase">
-                                                {appt.profiles?.name?.charAt(0) || 'U'}
-                                            </div>
-                                        )}
+                            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
+                                {recentSales.length > 0 ? recentSales.map((sale, i) => (
+                                    <div key={sale.id || i} className="flex-shrink-0 w-[280px] snap-start bg-muted/30 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-muted/50 transition-all shadow-lg shadow-black/5 dark:shadow-none hover:-translate-y-1">
+                                        <div className="w-12 h-12 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0">
+                                            {sale.profiles?.avatar_url ? (
+                                                <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-muted-foreground/30">
+                                                    {sale.buyer_name?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none">NOVA COMPRA!</p>
+                                            <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
+                                                {sale.buyer_name || 'Alguém'} <span className="text-muted-foreground font-normal">comprou</span>
+                                            </p>
+                                            <p className="text-[10px] text-muted-foreground font-bold truncate">
+                                                {sale.product_name}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] text-muted-foreground/50 font-black uppercase">🛒</p>
+                                        </div>
                                     </div>
                                 )) : (
-                                    <div className="h-8 w-8 rounded-full border border-border bg-muted flex items-center justify-center">
-                                        <Clock className="w-3 h-3 text-muted-foreground" />
+                                    <div className="w-full py-12 text-center rounded-[32px] border border-dashed border-border bg-muted/10">
+                                        <ShoppingCart className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-20" />
+                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Aguardando próximas movimentações...</p>
                                     </div>
                                 )}
                             </div>
-                            <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
-                                {upcomingAppointments.length > 0
-                                    ? `${upcomingAppointments.length}+ pessoas com horários marcados hoje`
-                                    : "Seja o primeiro a agendar para hoje!"}
-                            </p>
+                        </div>
+
+                        {/* APPOINTMENTS TODAY SECTION */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 px-2">
+                                <div className="h-px flex-1 bg-border" />
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">Agendados para Hoje:</h3>
+                                <div className="h-px flex-1 bg-border" />
+                            </div>
+
+                            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
+                                {appointmentsToday.length > 0 ? (
+                                    appointmentsToday.map((appt, i) => (
+                                        <div 
+                                            key={appt.id || i} 
+                                            onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
+                                            className="flex-shrink-0 w-[240px] snap-start bg-card/40 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-card/80 transition-all shadow-xl cursor-pointer hover:-translate-y-1"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0 relative">
+                                                {appt.profiles?.avatar_url ? (
+                                                    <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-muted-foreground/30">
+                                                        {appt.profiles?.name?.charAt(0) || 'U'}
+                                                    </div>
+                                                )}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none flex items-center gap-1.5">
+                                                    <Clock className="w-2.5 h-2.5" /> 
+                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                                <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
+                                                    {appt.profiles?.name || 'Cliente'}
+                                                </p>
+                                                <p className="text-[9px] text-muted-foreground font-bold truncate uppercase tracking-widest">
+                                                    {appt.service_name || 'Agendamento'}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse" />
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="w-full py-12 text-center rounded-[32px] border border-dashed border-border bg-muted/10">
+                                        <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-20" />
+                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Nenhum agendamento para hoje...</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -664,106 +753,115 @@ export default function StorePage() {
                             <p className="text-neutral-500 font-bold uppercase italic text-sm">Nenhum produto encontrado</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {filteredProducts.map((product) => (
-                                <div
-                                    key={product.id}
-                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                                    className="group relative flex bg-card/40 border border-border rounded-[24px] overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-4 gap-4 items-stretch shadow-xl shadow-black/5 dark:shadow-none hover:shadow-2xl hover:-translate-y-1"
-                                >
-                                    <div className="flex-1 flex flex-col min-w-0 py-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h4 className="text-[17px] leading-tight font-bold text-foreground truncate line-clamp-2">{product.name}</h4>
-                                        </div>
-                                        <p className="text-muted-foreground text-xs font-medium line-clamp-2 mt-1 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
-
-                                        <div className="mt-auto pt-3 flex flex-wrap items-center gap-3">
-                                            <p className="text-lg font-black italic tracking-tighter text-foreground mr-auto">
-                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                            </p>
-
-                                            {isOwner ? (
-                                                <button
-                                                    onClick={(event) => {
-                                                        event.stopPropagation()
-                                                        router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                    }}
-                                                    className="px-4 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
-                                                >
-                                                    Editar
-                                                </button>
-                                            ) : (
-                                                mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                    <div className="flex gap-1.5">
-                                                        <button
-                                                            onClick={(event) => {
-                                                                event.stopPropagation()
-                                                                router.push(`/${profileSlug}/${storeSlug}/carrinho`)
-                                                            }}
-                                                            className="h-9 px-3 bg-foreground text-background font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
-                                                        >
-                                                            <CheckCircle2 className="w-3.5 h-3.5" /> OK
-                                                        </button>
-                                                        <button
-                                                            onClick={(event) => {
-                                                                event.stopPropagation()
-                                                                removeItem(storeSlug as string, product.id)
-                                                            }}
-                                                            className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={(event) => {
-                                                            event.stopPropagation()
-                                                            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
-                                                            setCartAnimating(true)
-                                                            setTimeout(() => setCartAnimating(false), 500)
-                                                        }}
-                                                        className="h-9 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1.5 border border-border"
-                                                    >
-                                                        <Plus className="w-4 h-4" /> ADD
-                                                    </button>
-                                                )
-                                            )}
-                                        </div>
+                        <>
+                            {Object.entries(groupedProducts).map(([category, products]) => (
+                                <div key={category} className="space-y-6">
+                                    <div className="flex items-center gap-4">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
+                                        <div className="h-px flex-1 bg-border" />
                                     </div>
-
-                                    <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
-                                        {product.image_url ? (
-                                            <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                                                <span className="text-muted-foreground font-bold italic text-sm">Sem Foto</span>
-                                            </div>
-                                        )}
-                                        {/* Floating + Button over image */}
-                                        {!isOwner && (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        {products.map((product) => (
                                             <div
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
-                                                    setCartAnimating(true)
-                                                    setTimeout(() => setCartAnimating(false), 500)
-                                                }}
-                                                className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-lg z-20"
+                                                key={product.id}
+                                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
+                                                className="group relative flex bg-card/40 border border-border rounded-[24px] overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-4 gap-4 items-stretch shadow-xl shadow-black/5 dark:shadow-none hover:shadow-2xl hover:-translate-y-1"
                                             >
-                                                <Plus className="w-5 h-5" />
+                                                <div className="flex-1 flex flex-col min-w-0 py-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h4 className="text-[17px] leading-tight font-bold text-foreground truncate line-clamp-2">{product.name}</h4>
+                                                    </div>
+                                                    <p className="text-muted-foreground text-xs font-medium line-clamp-2 mt-1 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
+
+                                                    <div className="mt-auto pt-3 flex flex-wrap items-center gap-3">
+                                                        <p className="text-lg font-black italic tracking-tighter text-foreground mr-auto">
+                                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </p>
+
+                                                        {isOwner ? (
+                                                            <button
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation()
+                                                                    router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                                }}
+                                                                className="px-4 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
+                                                            >
+                                                                Editar
+                                                            </button>
+                                                        ) : (
+                                                            mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                                                <div className="flex gap-1.5">
+                                                                    <button
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation()
+                                                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
+                                                                        }}
+                                                                        className="h-9 px-3 bg-foreground text-background font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                                                                    >
+                                                                        <CheckCircle2 className="w-3.5 h-3.5" /> OK
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation()
+                                                                            removeItem(storeSlug as string, product.id)
+                                                                        }}
+                                                                        className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation()
+                                                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                                        setCartAnimating(true)
+                                                                        setTimeout(() => setCartAnimating(false), 500)
+                                                                    }}
+                                                                    className="h-9 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1.5 border border-border"
+                                                                >
+                                                                    <Plus className="w-4 h-4" /> ADD
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
+                                                    {product.image_url ? (
+                                                        <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                                            <span className="text-muted-foreground font-bold italic text-sm">Sem Foto</span>
+                                                        </div>
+                                                    )}
+                                                    {!isOwner && (
+                                                        <div
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                                setCartAnimating(true)
+                                                                setTimeout(() => setCartAnimating(false), 500)
+                                                            }}
+                                                            className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-lg z-20"
+                                                        >
+                                                            <Plus className="w-5 h-5" />
+                                                        </div>
+                                                    )}
+                                                    {product.type && (
+                                                        <div className="absolute top-2 right-2 bg-background/70 backdrop-blur-md px-2 py-0.5 rounded border border-border">
+                                                            <span className="text-[8px] font-bold uppercase tracking-wider text-foreground">
+                                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
-                                        {product.type && (
-                                            <div className="absolute top-2 right-2 bg-background/70 backdrop-blur-md px-2 py-0.5 rounded border border-border">
-                                                <span className="text-[8px] font-bold uppercase tracking-wider text-foreground">
-                                                    {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
-                                                </span>
-                                            </div>
-                                        )}
+                                        ))}
                                     </div>
                                 </div>
                             ))}
-                        </div>
+                        </>
                     )}
                 </div>
             </main>

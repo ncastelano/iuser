@@ -179,6 +179,7 @@ export default function EditarLoja() {
             storeSlug,
             description,
             location: locationString,
+            address: address,
             whatsapp: whatsapp.replace(/[^\d+]/g, '').trim() || null
         }
 

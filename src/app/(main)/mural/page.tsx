@@ -37,7 +37,7 @@ export default function MuralPage() {
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Filtering
-    const [muralFilter, setMuralFilter] = useState<MuralFilter>('mundo')
+    const [muralFilter, setMuralFilter] = useState<MuralFilter>('cidade')
     const [followingIds, setFollowingIds] = useState<string[]>([])
     const [loadingFilter, setLoadingFilter] = useState(false)
 
@@ -163,11 +163,18 @@ export default function MuralPage() {
         if (muralFilter === 'mundo') return posts
 
         if (muralFilter === 'cidade') {
-            const userCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
-            if (!userCity) return []
+            const getCity = (addr: string | null) => {
+                if (!addr) return null
+                const parts = addr.split(',')
+                if (parts.length < 3) return null
+                return parts[2]?.split('-')[0]?.trim()?.toLowerCase()
+            }
+
+            const userCity = getCity(profile?.address)
+            if (!userCity) return posts
 
             return posts.filter(post => {
-                const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
+                const postCity = getCity(post.profiles?.address)
                 return postCity === userCity
             })
         }

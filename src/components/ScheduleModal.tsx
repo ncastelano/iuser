@@ -7,6 +7,7 @@ import { X, Calendar, Clock, CheckCircle2, Loader2 } from 'lucide-react'
 interface ScheduleModalProps {
     isOpen: boolean
     onClose: () => void
+    onSuccess?: () => void
     store: {
         id: string
         name: string
@@ -14,11 +15,12 @@ interface ScheduleModalProps {
     }
 }
 
-export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
+export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleModalProps) {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
     const [serviceName, setServiceName] = useState('')
     const [loading, setLoading] = useState(false)
     const [slots, setSlots] = useState<{ time: string, isAvailable: boolean }[]>([])
+    const [bookedSlotsInfo, setBookedSlotsInfo] = useState<{ time: string, clientName: string, avatarUrl: string | null }[]>([])
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
 
@@ -38,16 +40,24 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
 
             const { data: existing } = await supabase
                 .from('appointments')
-                .select('start_time')
+                .select('start_time, profiles:client_id(name, avatar_url)')
                 .eq('store_id', store.id)
                 .gte('start_time', startOfDay)
                 .lte('start_time', endOfDay)
                 .neq('status', 'declined')
 
-            const bookedTimes = (existing || []).map(a => {
+            const bookedTimesMap: Record<string, { name: string, avatar: string | null }> = {}
+            
+            (existing || []).forEach(a => {
                 const date = new Date(a.start_time)
-                return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                const t = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                bookedTimesMap[t] = { 
+                    name: (a.profiles as any)?.name || 'Cliente', 
+                    avatar: (a.profiles as any)?.avatar_url 
+                }
             })
+
+            const bookedTimes = Object.keys(bookedTimesMap)
 
             const newSlots = times.map(t => ({
                 time: t,
@@ -55,6 +65,11 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
             }))
 
             setSlots(newSlots)
+            setBookedSlotsInfo(Object.entries(bookedTimesMap).map(([time, info]) => ({
+                time,
+                clientName: info.name,
+                avatarUrl: info.avatar
+            })))
         }
 
         generateSlots()
@@ -82,7 +97,7 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
                 store_id: store.id,
                 client_id: user.id,
                 start_time: startTime.toISOString(),
-                service_name: serviceName,
+                service_name: serviceName.trim() || 'Atendimento/Serviço',
                 status: 'pending'
             })
 
@@ -90,6 +105,7 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
             alert('Erro ao agendar: ' + error.message)
         } else {
             setSuccess(true)
+            onSuccess?.()
             setTimeout(() => {
                 onClose()
                 setSuccess(false)
@@ -167,7 +183,7 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
                                                 ? 'bg-white text-black border-white'
                                                 : slot.isAvailable
                                                 ? 'bg-neutral-800/50 text-white border-neutral-700 hover:border-neutral-500'
-                                                : 'bg-neutral-950 text-neutral-600 border-neutral-900 cursor-not-allowed'
+                                                : 'bg-neutral-950 text-neutral-600 border-neutral-900 cursor-not-allowed opacity-30'
                                         }`}
                                     >
                                         {slot.time}
@@ -176,14 +192,34 @@ export function ScheduleModal({ isOpen, onClose, store }: ScheduleModalProps) {
                             </div>
                         </div>
 
+                        {/* Already Booked Slots */}
+                        {bookedSlotsInfo.length > 0 && (
+                            <div className="pt-4 border-t border-neutral-800">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-4 ml-1">Horários já reservados hoje</label>
+                                <div className="space-y-3">
+                                    {bookedSlotsInfo.map((info) => (
+                                        <div key={info.time} className="flex items-center gap-3 p-3 bg-neutral-950 border border-neutral-800/50 rounded-2xl">
+                                            <div className="w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-[10px] font-bold text-neutral-600">
+                                                {info.time}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-xs font-bold text-neutral-400">Reservado por <span className="text-white">{info.clientName}</span></p>
+                                            </div>
+                                            <div className="w-2 h-2 rounded-full bg-red-500/50 animate-pulse" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Action Button */}
                         <button
                             onClick={handleSchedule}
-                            disabled={loading || !selectedSlot || !serviceName}
-                            className="w-full py-4 bg-white hover:bg-neutral-200 disabled:opacity-50 disabled:hover:bg-white text-black rounded-2xl font-bold text-lg transition-all flex items-center justify-center gap-2"
+                            disabled={loading || !selectedSlot}
+                            className="w-full py-5 bg-white hover:bg-neutral-200 disabled:opacity-50 disabled:hover:bg-white text-black rounded-[24px] font-black uppercase text-base tracking-widest transition-all flex items-center justify-center gap-3 shadow-[0_20px_40px_rgba(255,255,255,0.1)] active:scale-95"
                         >
-                            {loading ? <Loader2 className="animate-spin" /> : <Clock size={20} />}
-                            {loading ? 'Solicitando...' : 'Solicitar Agendamento'}
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-6 h-6" />}
+                            {loading ? 'Processando...' : 'Confirmar Agendamento'}
                         </button>
                     </div>
                 )}

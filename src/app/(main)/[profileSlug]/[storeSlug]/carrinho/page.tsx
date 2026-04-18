@@ -15,7 +15,7 @@ export default function CarrinhoPage() {
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
 
-    const { itemsByStore, updateQuantity, removeItem, storeDetails } = useCartStore()
+    const { itemsByStore, updateQuantity, removeItem, storeDetails, clearStoreCart } = useCartStore()
     const [mounted, setMounted] = useState(false)
     const [ownerWhatsapp, setOwnerWhatsapp] = useState<string | null>(null)
     const [buyerName, setBuyerName] = useState<string>('')
@@ -133,6 +133,11 @@ export default function CarrinhoPage() {
         
         setCheckoutLoading(false)
         window.open(link, '_blank')
+        
+        // Limpar o carrinho após finalizar
+        setTimeout(() => {
+            clearStoreCart(storeSlug)
+        }, 1000)
     }
 
     if (!mounted) {

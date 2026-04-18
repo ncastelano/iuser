@@ -343,7 +343,7 @@ export default function EditarProduto() {
                         <div>
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Nome do Produto</label>
                             <input
-                                placeholder="Ex: Curso de Culinária"
+                                placeholder="Ex: Pastel de queijo"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
@@ -368,7 +368,7 @@ export default function EditarProduto() {
                         <div>
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Descrição</label>
                             <textarea
-                                placeholder="Detalhes do seu produto..."
+                                placeholder="Ex: massa de pastel e queijo."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={4}

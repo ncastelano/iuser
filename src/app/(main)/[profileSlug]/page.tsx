@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil } from 'lucide-react'
+import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil, Clock } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
 import { MuralPost } from '@/components/MuralPost'
 
@@ -21,6 +21,7 @@ export default function ProfilePage() {
     const [muralPosts, setMuralPosts] = useState<any[]>([])
     const [purchases, setPurchases] = useState<any[]>([])
     const [flashPosts, setFlashPosts] = useState<any[]>([])
+    const [appointmentsToday, setAppointmentsToday] = useState<any[]>([])
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [activeTab, setActiveTab] = useState<Tab>('lojas')
     const [loading, setLoading] = useState(true)
@@ -48,7 +49,7 @@ export default function ProfilePage() {
     useEffect(() => {
         const loadInitialData = async () => {
             const supabase = createClient()
-            
+
             // 1. Fetch current user
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUser(user)
@@ -83,7 +84,7 @@ export default function ProfilePage() {
             setFollowersCount(followersRes.count || 0)
             setFollowingCount(followingRes.count || 0)
             setIsFollowing(!!checkFollowRes.data)
-            
+
             // Filter unique stores from purchases
             const uniqueStorePurchases = (salesRes.data || []).reduce((acc: any[], current: any) => {
                 const x = acc.find(item => item.store_id === current.store_id);
@@ -100,7 +101,7 @@ export default function ProfilePage() {
                     .select('*, stores(name, storeSlug, logo_url, profileSlug:profiles(profileSlug))')
                     .in('store_id', storeIds)
                     .order('created_at', { ascending: false })
-                
+
                 setFlashPosts(flashData || [])
             }
 
@@ -112,6 +113,22 @@ export default function ProfilePage() {
                     .eq('follower_id', user.id)
                 setFollowingIds((followingData || []).map(f => f.following_id))
             }
+
+            // 6. Fetch today's appointments for this profile (if they have stores/services)
+            const today = new Date()
+            const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
+            const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
+
+            const { data: appointments } = await supabase
+                .from('appointments')
+                .select('*, profiles:client_id(name, avatar_url, profileSlug)')
+                .in('store_id', (storesRes.data || []).map(s => s.id))
+                .gte('start_time', startOfDay)
+                .lte('start_time', endOfDay)
+                .neq('status', 'declined')
+                .order('start_time', { ascending: true })
+
+            setAppointmentsToday(appointments || [])
 
             setLoading(false)
         }
@@ -125,16 +142,16 @@ export default function ProfilePage() {
     useEffect(() => {
         const fetchMural = async () => {
             if (activeTab !== 'mural') return
-            
+
             setLoadingMural(true)
             const supabase = createClient()
-            
+
             // "Mundo" fetches everyone's posts
             const { data, error } = await supabase
                 .from('mural_posts')
                 .select('*, profiles(name, profileSlug, avatar_url, address)')
                 .order('created_at', { ascending: false })
-            
+
             if (!error && data) {
                 setAllMuralPosts(data)
             }
@@ -208,9 +225,9 @@ export default function ProfilePage() {
         if (!profile || !isOwner) return
         const supabase = createClient()
         const nextValue = !profile.show_location
-        
+
         setProfile({ ...profile, show_location: nextValue })
-        
+
         await supabase.from('profiles').update({ show_location: nextValue }).eq('id', profile.id)
     }
 
@@ -252,11 +269,11 @@ export default function ProfilePage() {
         if (!addr) return ''
         const parts = addr.split(',')
         const street = parts[0]?.trim() || ''
-        
+
         // Try to get number from second part
         const secondPart = parts[1]?.trim() || ''
         const number = secondPart.split('-')[0]?.trim() || ''
-        
+
         // Try to get city from third part
         const thirdPart = parts[2]?.trim() || ''
         const city = thirdPart.split('-')[0]?.trim() || ''
@@ -281,7 +298,7 @@ export default function ProfilePage() {
         if (muralFilter === 'cidade') {
             const profileCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
             if (!profileCity) return []
-            
+
             return allMuralPosts.filter(post => {
                 const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
                 return postCity === profileCity
@@ -335,14 +352,14 @@ export default function ProfilePage() {
                         )}
                     </div>
                 </div>
-                
+
                 <div className="space-y-4">
                     <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-white leading-none">
                         {profile.name}
                     </h1>
                     <div className="flex items-center justify-center gap-4">
-                         <span className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Verificado iUser</span>
-                         <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-[0.3em]">/{profile.profileSlug}</span>
+                        <span className="px-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Verificado iUser</span>
+                        <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-[0.3em]">/{profile.profileSlug}</span>
                     </div>
                 </div>
 
@@ -364,29 +381,28 @@ export default function ProfilePage() {
                         {currentUser?.id !== profile.id ? (
                             <button
                                 onClick={handleFollowToggle}
-                                className={`px-12 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-3 ${
-                                    isFollowing 
-                                    ? 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white/20' 
-                                    : 'bg-white text-black hover:bg-neutral-200 shadow-white/10'
-                                }`}
+                                className={`px-12 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-3 ${isFollowing
+                                        ? 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white/20'
+                                        : 'bg-white text-black hover:bg-neutral-200 shadow-white/10'
+                                    }`}
                             >
                                 {isFollowing ? 'Seguindo' : 'Seguir Perfil'}
                             </button>
                         ) : (
                             <div className="flex flex-col items-center gap-4">
-                                {profile.address ? (
-                                    <div 
+                                {profile.address && !profile.address.toLowerCase().includes('rua tal') ? (
+                                    <div
                                         onClick={() => !isOwner && openInGoogleMaps(profile.location)}
                                         className={`flex items-center gap-3 px-8 py-4 bg-red-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest shadow-xl ${!isOwner ? 'cursor-pointer hover:bg-red-700 transition-colors' : ''}`}
                                     >
                                         <MapPin size={16} /> {formatAddressShort(profile.address)}
-                                        <button 
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); toggleLocationVisibility() }}
                                             className="ml-4 px-4 py-1.5 bg-black/20 hover:bg-black/40 rounded-xl transition-all border border-white/10"
                                         >
                                             {profile.show_location ? 'Ocultar' : 'Mostrar'}
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); setShowLocationModal(true) }}
                                             className="ml-2 p-1.5 hover:bg-black/20 rounded-xl transition-all"
                                         >
@@ -394,7 +410,7 @@ export default function ProfilePage() {
                                         </button>
                                     </div>
                                 ) : (
-                                    <button 
+                                    <button
                                         onClick={() => setShowLocationModal(true)}
                                         className="flex items-center gap-3 px-8 py-4 bg-neutral-900 text-neutral-400 border border-white/10 rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:border-white transition-all shadow-xl"
                                     >
@@ -405,12 +421,57 @@ export default function ProfilePage() {
                         )}
                     </div>
 
-                    {!isOwner && profile.show_location && profile.address && (
-                        <div 
+                    {!isOwner && profile.show_location && profile.address && !profile.address.toLowerCase().includes('rua tal') && (
+                        <div
                             onClick={() => openInGoogleMaps(profile.location)}
                             className="flex items-center gap-2 px-6 py-2.5 bg-neutral-900/50 border border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-neutral-500 cursor-pointer hover:bg-neutral-900 transition-colors"
                         >
                             <MapPin size={14} className="text-red-600" /> {formatAddressShort(profile.address)}
+                        </div>
+                    )}
+
+                    {/* Today's Appointments Social Proof */}
+                    {appointmentsToday.length > 0 && (
+                        <div className="w-full max-w-2xl mx-auto mt-12 space-y-4">
+                            <div className="flex items-center gap-4 px-2">
+                                <div className="h-px flex-1 bg-white/10" />
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-neutral-500 whitespace-nowrap">Agenda de Hoje:</h3>
+                                <div className="h-px flex-1 bg-white/10" />
+                            </div>
+
+                            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
+                                {appointmentsToday.map((appt, i) => (
+                                    <div
+                                        key={appt.id || i}
+                                        onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
+                                        className="flex-shrink-0 w-[240px] snap-start bg-neutral-900/40 border border-white/5 rounded-3xl p-5 flex items-center gap-4 group hover:bg-neutral-900/60 transition-all shadow-xl cursor-pointer"
+                                    >
+                                        <div className="w-12 h-12 rounded-2xl bg-black border border-white/5 overflow-hidden flex-shrink-0">
+                                            {appt.profiles?.avatar_url ? (
+                                                <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-neutral-800">
+                                                    {appt.profiles?.name?.charAt(0) || 'U'}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none">
+                                                {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                            <p className="text-[11px] font-bold text-white uppercase italic truncate mt-1">
+                                                {appt.profiles?.name || 'Cliente'}
+                                            </p>
+                                            <p className="text-[9px] text-neutral-500 font-bold truncate uppercase tracking-widest">
+                                                {appt.service_name || 'Agendamento'}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <Clock className="w-4 h-4 text-neutral-700" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -486,7 +547,7 @@ export default function ProfilePage() {
                         {/* Mural Filter Buttons */}
                         <div className="flex justify-center flex-wrap gap-2 pb-4">
                             {(['mundo', 'cidade', 'sigo'] as MuralFilter[]).map(filter => {
-                                let label = filter === 'cidade' 
+                                let label = filter === 'cidade'
                                     ? (profile?.address?.split(',')[2]?.trim() || 'Cidade')
                                     : filter.charAt(0).toUpperCase() + filter.slice(1)
 
@@ -503,7 +564,7 @@ export default function ProfilePage() {
                         </div>
 
                         {loadingMural ? (
-                             <div className="py-24 text-center">
+                            <div className="py-24 text-center">
                                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                                 <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 italic">Filtrando Mural...</p>
                             </div>
@@ -522,7 +583,7 @@ export default function ProfilePage() {
 
                 {activeTab === 'compras' && (
                     <div className="space-y-12">
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {purchases.length === 0 ? (
                                 <div className="col-span-full py-24 text-center rounded-[40px] border border-dashed border-white/5">
                                     <ShoppingBag className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
@@ -550,22 +611,22 @@ export default function ProfilePage() {
                                     </div>
                                 ))
                             )}
-                         </div>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'flash' && (
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {flashPosts.length === 0 ? (
-                             <div className="col-span-full py-24 text-center rounded-[40px] border border-dashed border-white/5">
+                            <div className="col-span-full py-24 text-center rounded-[40px] border border-dashed border-white/5">
                                 <Zap className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
                                 <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Nenhuma promoção flash ativa</p>
                             </div>
                         ) : (
                             flashPosts.map(post => (
-                                <Link 
+                                <Link
                                     href={`/${post.stores?.profileSlug?.profileSlug || profile.profileSlug}/${post.stores?.storeSlug}`}
-                                    key={post.id} 
+                                    key={post.id}
                                     className="group relative h-[400px] rounded-[48px] overflow-hidden border border-white/5 bg-neutral-950 shadow-2xl block"
                                 >
                                     {post.image_url ? (
@@ -588,10 +649,10 @@ export default function ProfilePage() {
                                 </Link>
                             ))
                         )}
-                     </div>
+                    </div>
                 )}
             </div>
-            
+
             <div className="pb-24" />
 
             {/* Location Modal */}
@@ -607,7 +668,7 @@ export default function ProfilePage() {
 
                         <div className="space-y-6">
                             <div className="relative group">
-                                <input 
+                                <input
                                     type="text"
                                     placeholder="Digite seu endereço comercial ou residencial"
                                     value={manualAddress}
@@ -617,8 +678,8 @@ export default function ProfilePage() {
                                 {suggestions.length > 0 && (
                                     <div className="absolute top-full left-0 right-0 mt-4 bg-neutral-900 border border-white/10 rounded-[32px] overflow-hidden z-[110] shadow-2xl">
                                         {suggestions.map((s, i) => (
-                                            <div 
-                                                key={i} 
+                                            <div
+                                                key={i}
                                                 onClick={() => selectLocationSuggestion(s)}
                                                 className="p-5 hover:bg-white/5 cursor-pointer border-b border-white/5 last:border-0 transition-colors"
                                             >
@@ -631,7 +692,7 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="pt-4">
-                                <button 
+                                <button
                                     onClick={saveLocation}
                                     disabled={!tempAddress}
                                     className="w-full py-6 bg-white text-black rounded-[28px] font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all disabled:opacity-20"

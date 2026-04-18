@@ -160,7 +160,9 @@ export default function CriarLoja() {
             description,
             logo_url: logoPath,
             owner_id: userData.user.id,
-            location: location ? `POINT(${location.lng} ${location.lat})` : null
+            location: location ? `POINT(${location.lng} ${location.lat})` : null,
+            address: address,
+            city: city
         })
 
         if (error) {
