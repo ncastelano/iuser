@@ -552,8 +552,8 @@ export default function Vitrine() {
         {/* Flash-style Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-16 sm:mb-24">
           <div className="flex items-center gap-5 pointer-events-auto">
-            <div className="w-16 h-16 bg-primary text-primary-foreground rounded-3xl flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.3)] rotate-3">
-              <ShoppingBag className="w-9 h-9" />
+            <div className="w-16 h-16 bg-white/5 backdrop-blur-2xl p-3 border border-white/10 rounded-3xl flex items-center justify-center shadow-2xl rotate-3 group hover:rotate-0 transition-all duration-500">
+              <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-foreground leading-[0.8]">

@@ -63,8 +63,20 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(circle_at_center,hsla(var(--foreground)/0.01)_1px,transparent_1px)] bg-[size:40px_40px]" />
             </div>
 
+            {/* Header com Logo */}
+            {!isMapRoute && !isFlashRoute && (
+                <header className="relative z-20 w-full max-w-7xl mx-auto px-4 md:px-8 pt-8 flex items-center justify-between">
+                    <Link href="/" className="group flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/5 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform duration-500">
+                             <img src="/logo.png" alt="iUser" className="w-full h-full object-contain" />
+                        </div>
+                        <span className="text-2xl font-black italic tracking-tighter uppercase text-white group-hover:text-primary transition-colors">iUser<span className="text-primary">.</span></span>
+                    </Link>
+                </header>
+            )}
+
             {/* Conteúdo */}
-            <main className={`relative z-10 flex-1 w-full flex flex-col ${isMapRoute || isFlashRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-32'}`}>
+            <main className={`relative z-10 flex-1 w-full flex flex-col ${isMapRoute || isFlashRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-4 pb-32'}`}>
                 {children}
             </main>
 

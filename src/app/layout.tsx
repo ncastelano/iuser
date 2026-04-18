@@ -11,13 +11,18 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://iuser.com.br'),
   title: 'iUser | Catálogo Digital Inteligente',
   description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: 'iUser | Catálogo Digital Inteligente',
     description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
     url: 'https://iuser.com.br',
     siteName: 'iuser.com.br',
     images: [{
-      url: '/logo-preview.png', // Fallback for the app image
+      url: '/logo.png',
       width: 1200,
       height: 630,
       alt: 'iUser'
@@ -28,7 +33,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'iUser | Catálogo Digital Inteligente',
     description: 'Descubra as melhores lojas e produtos em um ecossistema digital premium.',
-    images: ['/logo-preview.png'],
+    images: ['/logo.png'],
   }
 }
 
