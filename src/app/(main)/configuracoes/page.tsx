@@ -11,6 +11,10 @@ export default function ConfiguracoesPage() {
     const supabase = createClient()
 
     const { theme, setTheme } = useThemeStore()
+    const [whatsapp, setWhatsapp] = useState('')
+    const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
 
     useEffect(() => {
         async function loadProfile() {
