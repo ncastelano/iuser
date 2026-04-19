@@ -46,7 +46,7 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                 .lte('start_time', endOfDay)
                 .neq('status', 'declined')
 
-            const bookedTimesMap: Record<string, { name: string, avatar: string | null }> = {}
+            const bookedTimesMap: Record<string, { name: string, avatar: string | null }> = {};
             
             (existing || []).forEach(a => {
                 const date = new Date(a.start_time)
