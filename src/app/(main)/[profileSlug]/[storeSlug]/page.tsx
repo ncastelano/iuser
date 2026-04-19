@@ -41,13 +41,57 @@ type RatingRow = {
     } | null
 }
 
+type SaleType = {
+    id: string
+    buyer_id: string
+    buyer_name: string
+    product_id: string
+    product_name: string
+    store_id: string
+    created_at: string
+    profiles?: {
+        avatar_url: string | null
+        name: string | null
+        profileSlug: string | null
+    } | null
+}
+
+type AppointmentType = {
+    id: string
+    start_time: string
+    service_name: string
+    status: string
+    client_id: string
+    store_id: string
+    profiles?: {
+        avatar_url: string | null
+        name: string | null
+        profileSlug: string | null
+    } | null
+}
+
+type StoreType = {
+    id: string
+    name: string
+    storeSlug: string
+    description?: string | null
+    address?: string | null
+    is_open: boolean
+    logo_url?: string | null
+    ratings_avg?: number | null
+    ratings_count?: number | null
+    owner_id: string
+    final_whatsapp?: string | null
+    whatsapp?: string | null
+}
+
 export default function StorePage() {
     const params = useParams()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
 
-    const [store, setStore] = useState<any | null>(null)
+    const [store, setStore] = useState<StoreType | null>(null)
     const [products, setProducts] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
     const [loading, setLoading] = useState(true)
@@ -60,9 +104,9 @@ export default function StorePage() {
     const [myRating, setMyRating] = useState(0)
     const [ratingLoading, setRatingLoading] = useState(false)
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
-    const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([])
-    const [appointmentsToday, setAppointmentsToday] = useState<any[]>([])
-    const [recentSales, setRecentSales] = useState<any[]>([])
+    const [upcomingAppointments, setUpcomingAppointments] = useState<AppointmentType[]>([])
+    const [appointmentsToday, setAppointmentsToday] = useState<AppointmentType[]>([])
+    const [recentSales, setRecentSales] = useState<SaleType[]>([])
     const [cartAnimating, setCartAnimating] = useState(false)
 
     const [searchQuery, setSearchQuery] = useState('')
@@ -102,7 +146,7 @@ export default function StorePage() {
         return `${baseUrl}/${profileSlug}/${storeSlug}`
     }, [profileSlug, storeSlug])
 
-    const loadRatings = useCallback(async (storeId: string, userId?: string | null) => {
+    const loadRatings = useCallback(async (storeId: string, userId: string | null) => {
         const { data, error: ratingsError } = await supabase
             .from('store_ratings')
             .select('id, rating, profile_id, created_at, profiles(id, name, avatar_url, "profileSlug")')
@@ -124,12 +168,11 @@ export default function StorePage() {
         if (rows.length > 0) {
             const sum = rows.reduce((acc, r) => acc + r.rating, 0)
             const avg = sum / rows.length
-            setStore(prev => prev ? { ...prev, ratings_avg: avg, ratings_count: rows.length } : null)
+            setStore((prev: StoreType | null) => prev ? { ...prev, ratings_avg: avg, ratings_count: rows.length } : null)
         }
 
-        const activeUserId = userId ?? currentUserId
-        setMyRating(rows.find((rating) => rating.profile_id === activeUserId)?.rating ?? 0)
-    }, [currentUserId, supabase])
+        setMyRating(rows.find((rating) => rating.profile_id === userId)?.rating ?? 0)
+    }, [supabase])
 
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
@@ -214,18 +257,37 @@ export default function StorePage() {
             .neq('status', 'declined')
             .order('start_time', { ascending: true })
 
-        setAppointmentsToday(todayData || [])
+        // Mapear os dados para o tipo AppointmentType
+        const mappedTodayAppointments: AppointmentType[] = (todayData || []).map((item: any) => ({
+            id: item.id,
+            start_time: item.start_time,
+            service_name: item.service_name,
+            status: item.status,
+            client_id: item.client_id,
+            store_id: item.store_id,
+            profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        }))
+        setAppointmentsToday(mappedTodayAppointments)
 
         // Keep upcoming logic if needed elsewhere, but today is the priority here
         const { data: upcomingData } = await supabase
             .from('appointments')
-            .select('profiles:client_id(avatar_url, name, "profileSlug")')
+            .select('*, profiles:client_id(avatar_url, name, "profileSlug")')
             .eq('store_id', foundStore.id)
             .gte('start_time', new Date().toISOString())
             .order('start_time', { ascending: true })
             .limit(5)
 
-        setUpcomingAppointments(upcomingData || [])
+        const mappedUpcomingAppointments: AppointmentType[] = (upcomingData || []).map((item: any) => ({
+            id: item.id,
+            start_time: item.start_time,
+            service_name: item.service_name,
+            status: item.status,
+            client_id: item.client_id,
+            store_id: item.store_id,
+            profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        }))
+        setUpcomingAppointments(mappedUpcomingAppointments)
 
         // Load recent sales
         const { data: salesData } = await supabase
@@ -235,32 +297,57 @@ export default function StorePage() {
             .order('created_at', { ascending: false })
             .limit(10)
 
-        setRecentSales(salesData || [])
+        const mappedSales: SaleType[] = (salesData || []).map((item: any) => ({
+            id: item.id,
+            buyer_id: item.buyer_id,
+            buyer_name: item.buyer_name,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            store_id: item.store_id,
+            created_at: item.created_at,
+            profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        }))
+        setRecentSales(mappedSales)
+
+        setLoading(false)
+    }, [loadRatings, storeSlug, supabase])
+
+    useEffect(() => {
+        if (!store?.id) return
 
         // Subscribe to real-time sales
         const salesChannel = supabase
-            .channel(`public:store_sales:store_id=eq.${foundStore.id}`)
+            .channel(`public:store_sales:store_id=eq.${store.id}`)
             .on(
                 'postgres_changes',
                 {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'store_sales',
-                    filter: `store_id=eq.${foundStore.id}`
+                    filter: `store_id=eq.${store.id}`
                 },
                 (payload) => {
                     console.log('Nova venda detectada!', payload.new)
-                    setRecentSales(prev => [payload.new, ...prev].slice(0, 10))
+                    const newSale = payload.new as any
+                    const mappedNewSale: SaleType = {
+                        id: newSale.id,
+                        buyer_id: newSale.buyer_id,
+                        buyer_name: newSale.buyer_name,
+                        product_id: newSale.product_id,
+                        product_name: newSale.product_name,
+                        store_id: newSale.store_id,
+                        created_at: newSale.created_at,
+                        profiles: null
+                    }
+                    setRecentSales((prev: SaleType[]) => [mappedNewSale, ...prev].slice(0, 10))
                 }
             )
             .subscribe()
 
-        setLoading(false)
-
         return () => {
             supabase.removeChannel(salesChannel)
         }
-    }, [loadRatings, storeSlug, supabase])
+    }, [store?.id, supabase])
 
     useEffect(() => {
         loadStore()
@@ -813,7 +900,7 @@ export default function StorePage() {
                                                                 <button
                                                                     onClick={(event) => {
                                                                         event.stopPropagation()
-                                                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
                                                                         setCartAnimating(true)
                                                                         setTimeout(() => setCartAnimating(false), 500)
                                                                     }}
@@ -838,7 +925,7 @@ export default function StorePage() {
                                                         <div
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
-                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, product)
+                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
                                                                 setCartAnimating(true)
                                                                 setTimeout(() => setCartAnimating(false), 500)
                                                             }}
