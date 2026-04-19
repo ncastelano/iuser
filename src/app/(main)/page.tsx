@@ -81,9 +81,10 @@ export default function Vitrine() {
   const [showAllProducts, setShowAllProducts] = useState(false)
   const [showAllStores, setShowAllStores] = useState(false)
 
+  // Começar com filtro de "Melhor avaliado" ao invés de "distância"
   const [sortBy, setSortBy] = useState<
     'distance' | 'rating' | 'prepTime' | 'priceMin' | 'priceMax'
-  >('distance')
+  >('rating') // Alterado de 'distance' para 'rating'
 
   const filters = [
     { label: 'Mais próximo', value: 'distance', icon: MapPin },
@@ -95,6 +96,28 @@ export default function Vitrine() {
   const getActiveFilterLabel = () => {
     const active = filters.find(f => f.value === sortBy)
     return active ? active.label : 'Filtrar'
+  }
+
+  const getActiveFilterIcon = () => {
+    const active = filters.find(f => f.value === sortBy)
+    const Icon = active?.icon || Filter
+    return <Icon className="w-4 h-4" />
+  }
+
+  // Função para obter o título dinâmico baseado no filtro
+  const getSectionTitle = () => {
+    switch (sortBy) {
+      case 'distance':
+        return 'Próximos de Você'
+      case 'rating':
+        return 'Melhores do iUser'
+      case 'priceMin':
+        return 'Mais Baratos'
+      case 'priceMax':
+        return 'Mais Requintados'
+      default:
+        return 'Melhores do iUser'
+    }
   }
 
   // 📍 DISTÂNCIA - USANDO PARSE COORDENADAS ROBUSTO
@@ -318,66 +341,115 @@ export default function Vitrine() {
   const hasMoreProducts = sortedProducts.length > PREVIEW_COUNT
   const hasMoreStores = sortedStores.length > PREVIEW_COUNT
 
+  const sectionTitle = getSectionTitle()
+
   return (
     <div className="min-h-screen bg-background font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Header Section */}
-        <header className="mb-12">
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              <div className="bg-gradient-to-br from-gray-800 to-gray-900 dark:from-neutral-800 dark:to-neutral-900 p-3 rounded-2xl shadow-lg">
-                <img src="/logo.png" alt="iUser" className="h-10 w-auto object-contain brightness-0 invert" />
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Header Section - Compacto */}
+        <header className="mb-8">
+          <div className="flex items-center gap-3">
+            {/* Logo - Verde e Branco */}
+            <div className="bg-black p-2 rounded-xl shadow-lg">
+              <img src="/logo.png" alt="iUser" className="h-8 w-auto object-contain brightness-0" />
             </div>
-
             {/* Search Input */}
-            <div className="relative group flex-1 max-w-2xl">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div className="relative group flex-1">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Procurar produtos ou serviços..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-11 pr-10 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all duration-300 shadow-sm"
+                className="w-full pl-9 pr-8 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all duration-300 shadow-sm"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  <X className="w-4 h-4" />
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
+
+            {/* Filter Button */}
+            <button
+              onClick={() => setShowFilters(true)}
+              className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-all duration-300 shadow-sm"
+            >
+              {getActiveFilterIcon()}
+              <span className="hidden sm:inline">{getActiveFilterLabel()}</span>
+            </button>
           </div>
         </header>
 
-        {/* Filters Bar */}
-        <nav className="mb-12 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-2 pb-2">
-            {filters.map((option) => {
-              const Icon = option.icon
-              const isActive = sortBy === option.value
-              return (
+        {/* Filter Modal/Popup */}
+        {showFilters && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowFilters(false)}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
+            <div
+              className="relative bg-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md mx-4 sm:mx-auto shadow-2xl transform transition-all duration-300 animate-in slide-in-from-bottom sm:slide-in-from-bottom-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header do Popup */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h3 className="text-lg font-semibold text-foreground">Ordenar por</h3>
                 <button
-                  key={option.value}
-                  onClick={() => setSortBy(option.value as any)}
-                  className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 ${isActive
-                    ? 'bg-primary text-primary-foreground shadow-md'
-                    : 'bg-card text-muted-foreground hover:bg-muted border border-border shadow-sm'
-                    }`}
+                  onClick={() => setShowFilters(false)}
+                  className="p-1 rounded-lg hover:bg-muted transition-colors"
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
-                  {option.label}
+                  <X className="w-5 h-5 text-muted-foreground" />
                 </button>
-              )
-            })}
-          </div>
-        </nav>
+              </div>
 
-        {/* Lojas Section */}
+              {/* Opções de Filtro */}
+              <div className="p-2">
+                {filters.map((option) => {
+                  const Icon = option.icon
+                  const isActive = sortBy === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setSortBy(option.value as any)
+                        setShowFilters(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-foreground hover:bg-muted'
+                        }`}
+                    >
+                      <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <span className={`flex-1 text-left font-medium ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                        {option.label}
+                      </span>
+                      {isActive && (
+                        <div className="w-2 h-2 rounded-full bg-primary" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Footer com botão de limpar */}
+              <div className="p-4 border-t border-border">
+                <button
+                  onClick={() => {
+                    setSortBy('rating') // Mudado para 'rating' ao invés de 'distance'
+                    setShowFilters(false)
+                  }}
+                  className="w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Limpar filtros
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lojas Section - Título Dinâmico */}
         <section className="mb-16">
           <div className="flex items-end justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-foreground">Próximos de Você</h2>
+              <h2 className="text-2xl font-bold text-foreground">{sectionTitle}</h2>
               <p className="text-xs text-muted-foreground mt-1">{sortedStores.length} lojas encontradas</p>
             </div>
             {hasMoreStores && (
