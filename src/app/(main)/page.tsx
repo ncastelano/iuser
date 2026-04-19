@@ -351,7 +351,7 @@ export default function Vitrine() {
           <div className="flex items-center gap-3">
             {/* Logo - Verde e Branco */}
             <div className="bg-black p-2 rounded-xl shadow-lg">
-              <img src="/logo.png" alt="iUser" className="h-8 w-auto object-contain brightness-0" />
+              <img src="/logo.png" alt="iUser" className="h-8 w-auto object-contain brightness-0 invert" />
             </div>
             {/* Search Input */}
             <div className="relative group flex-1">
