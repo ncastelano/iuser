@@ -85,6 +85,31 @@ type StoreType = {
     whatsapp?: string | null
 }
 
+// Função para formatar endereço (rua, número, cidade)
+const formatAddress = (fullAddress: string | null | undefined): string => {
+    if (!fullAddress) return 'Endereço não informado'
+
+    const parts = fullAddress.split(',').map(p => p.trim())
+
+    if (parts.length >= 2) {
+        const streetWithNumber = parts[0]
+        let city = ''
+        for (let i = parts.length - 1; i >= 0; i--) {
+            const part = parts[i]
+            if (!/^[A-Z]{2}$/.test(part) &&
+                part.toLowerCase() !== 'brasil' &&
+                part.length > 2 &&
+                !part.includes('CEP')) {
+                city = part
+                break
+            }
+        }
+        const result = city ? `${streetWithNumber}, ${city}` : streetWithNumber
+        return result.length > 40 ? result.substring(0, 37) + '...' : result
+    }
+    return fullAddress.length > 40 ? fullAddress.substring(0, 37) + '...' : fullAddress
+}
+
 export default function StorePage() {
     const params = useParams()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
@@ -164,7 +189,6 @@ export default function StorePage() {
         })) as RatingRow[]
         setRatings(rows)
 
-        // Recalculate average manually to ensure immediate UI update
         if (rows.length > 0) {
             const sum = rows.reduce((acc, r) => acc + r.rating, 0)
             const avg = sum / rows.length
@@ -232,7 +256,6 @@ export default function StorePage() {
                 : null,
         }))
 
-        // Fetch owner WhatsApp as fallback if store doesn't have one
         let storeWhatsapp = foundStore.whatsapp
         if (!storeWhatsapp && foundStore.owner_id) {
             const { data: profile } = await supabase.from('profiles').select('whatsapp').eq('id', foundStore.owner_id).single()
@@ -243,7 +266,6 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
-        // Load today's appointments for social proof
         const today = new Date()
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
@@ -257,7 +279,6 @@ export default function StorePage() {
             .neq('status', 'declined')
             .order('start_time', { ascending: true })
 
-        // Mapear os dados para o tipo AppointmentType
         const mappedTodayAppointments: AppointmentType[] = (todayData || []).map((item: any) => ({
             id: item.id,
             start_time: item.start_time,
@@ -269,7 +290,6 @@ export default function StorePage() {
         }))
         setAppointmentsToday(mappedTodayAppointments)
 
-        // Keep upcoming logic if needed elsewhere, but today is the priority here
         const { data: upcomingData } = await supabase
             .from('appointments')
             .select('*, profiles:client_id(avatar_url, name, "profileSlug")')
@@ -289,7 +309,6 @@ export default function StorePage() {
         }))
         setUpcomingAppointments(mappedUpcomingAppointments)
 
-        // Load recent sales
         const { data: salesData } = await supabase
             .from('store_sales')
             .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
@@ -315,7 +334,6 @@ export default function StorePage() {
     useEffect(() => {
         if (!store?.id) return
 
-        // Subscribe to real-time sales
         const salesChannel = supabase
             .channel(`public:store_sales:store_id=eq.${store.id}`)
             .on(
@@ -383,28 +401,6 @@ export default function StorePage() {
         await loadStore()
         setRatingLoading(false)
     }
-
-    const toggleStoreStatus = async () => {
-        if (!store || !isOwner) return
-        const nextIsOpen = !store.is_open
-
-        if (!window.confirm(nextIsOpen ? 'Você quer abrir a loja?' : 'Você quer fechar a loja?')) return
-
-        setStore({ ...store, is_open: nextIsOpen })
-
-        const { error: updateError } = await supabase
-            .from('stores')
-            .update({ is_open: nextIsOpen })
-            .eq('id', store.id)
-
-        if (updateError) {
-            console.error('[StorePage] Erro ao atualizar status:', updateError)
-            alert('Erro ao alterar o status da loja.')
-            setStore({ ...store, is_open: !nextIsOpen })
-        }
-    }
-
-    const latestRatings = ratings.slice(0, 6)
 
     if (loading) {
         return (
@@ -559,240 +555,190 @@ export default function StorePage() {
                 )}
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-10">
-                {/* Hero Section */}
-                <section className="relative flex flex-col md:flex-row items-center md:items-start gap-8 p-8 md:p-12 rounded-[40px] border border-border bg-gradient-to-br from-card/40 to-card/10 backdrop-blur-md shadow-2xl shadow-black/5 dark:shadow-none overflow-hidden group">
-                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-foreground/5 blur-3xl rounded-full group-hover:bg-foreground/10 transition-colors duration-700" />
-                    <div className="w-40 h-40 md:w-56 md:h-56 rounded-[32px] bg-background p-1 flex items-center justify-center border border-border shadow-[0_0_50px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0 relative">
-                        {store.logo_url ? (
-                            <img src={store.logo_url} className="w-full h-full object-cover rounded-[28px]" alt={`Logo ${store.name}`} />
-                        ) : (
-                            <span className="text-muted-foreground/30 text-6xl font-black italic">{store.name?.charAt(0)}</span>
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent pointer-events-none" />
+            <main className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-8">
+                {/* Hero Section - Novo Layout Compacto */}
+                <section className="bg-card/40 border border-border rounded-[32px] p-6 backdrop-blur-md">
+                    {/* Row 1: Logo + Nome e Descrição */}
+                    <div className="flex gap-6">
+                        <div className="w-24 h-24 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0 shadow-lg">
+                            {store.logo_url ? (
+                                <img src={store.logo_url} className="w-full h-full object-cover" alt={`Logo ${store.name}`} />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-3xl font-black text-muted-foreground/30">
+                                    {store.name?.charAt(0)}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="text-2xl md:text-3xl font-black tracking-tighter text-foreground uppercase italic mb-2">
+                                {store.name}
+                            </h2>
+                            {store.description && (
+                                <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
+                                    {store.description}
+                                </p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex flex-col gap-6 text-center md:text-left flex-1 items-center md:items-start">
-                        <div className="space-y-3">
-                            <h2 className="text-4xl md:text-6xl font-black tracking-tighter text-foreground uppercase italic">{store.name}</h2>
-                            {store.description && <p className="text-muted-foreground text-base md:text-lg leading-relaxed max-w-2xl">{store.description}</p>}
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-6">
-                            <div className="flex flex-col gap-1">
-                                <div
-                                    className={`flex items-center gap-4 p-4 rounded-3xl transition-all duration-300 border ${myRating > 0
-                                        ? 'bg-neutral-900 border-primary/50 shadow-xl'
-                                        : 'bg-secondary/40 border-border hover:border-foreground/10'
-                                        }`}
+                    {/* Row 2: Avaliações + Pessoas que amam */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-border">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <RatingStars
+                                    value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
+                                    size={16}
+                                    onChange={!isOwner ? submitRating : undefined}
+                                />
+                                <span className="text-lg font-extrabold text-foreground">
+                                    {Number(store.ratings_avg || 0).toFixed(1)}
+                                </span>
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
+                                    className="text-[10px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                                 >
-                                    <div className="flex flex-col gap-0.5">
-                                        <div className="flex items-center gap-2">
-                                            <RatingStars
-                                                value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
-                                                size={18}
-                                                onChange={!isOwner ? submitRating : undefined}
-                                            />
-                                            <span className="text-xl font-extrabold text-foreground">{Number(store.ratings_avg || 0).toFixed(1)}</span>
-                                        </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)
-                                            }}
-                                            className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors text-left"
-                                        >
-                                            {store.ratings_count ?? 0} AVALIAÇÕES &rarr;
-                                        </button>
+                                    ({store.ratings_count ?? 0} aval.)
+                                </button>
+                            </div>
+
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <div className="flex -space-x-2 overflow-hidden">
+                                {ratings.slice(0, 3).map((r, i) => (
+                                    <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-card border border-border bg-muted overflow-hidden">
+                                        {r.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="h-full w-full flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+                                                {r.profiles?.name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
                                     </div>
-                                    {myRating > 0 && (
-                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-                                            <CheckCircle2 className="w-3 h-3 text-primary" />
-                                            <span className="text-[9px] font-black text-primary uppercase tracking-widest">AVALIADO</span>
-                                        </div>
-                                    )}
+                                ))}
+                            </div>
+                            <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">
+                                +{ratings.length} clientes
+                            </p>
+                            {myRating > 0 && (
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/10 border border-primary/20">
+                                    <CheckCircle2 className="w-3 h-3 text-primary" />
+                                    <span className="text-[8px] font-black text-primary uppercase tracking-widest">VOCÊ AVALIOU</span>
                                 </div>
-                            </div>
-                            <div className="h-10 w-px bg-border hidden sm:block" />
-                            <div className="flex items-center gap-3">
-                                <div className="flex -space-x-3 overflow-hidden">
-                                    {ratings.slice(0, 3).map((r, i) => (
-                                        <div key={i} className="inline-block h-10 w-10 rounded-full ring-4 ring-background border border-border bg-muted overflow-hidden">
-                                            {r.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="h-full w-full flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                                                    {r.profiles?.name?.charAt(0) || '?'}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                                <p className="text-xs font-bold uppercase tracking-tight text-muted-foreground">Pessoas que <br /> amam esta loja</p>
-                            </div>
+                            )}
                         </div>
+                    </div>
 
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-                            <div
-                                className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border-2 transition-all duration-300 ${store.is_open
-                                    ? 'bg-neutral-900 border-neutral-800 text-white'
-                                    : 'bg-red-600 border-red-700 text-white'
-                                    }`}
-                            >
-                                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-2 ${store.is_open ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]' : 'bg-white'}`} />
-                                {store.is_open ? 'Aberta no Momento' : 'Temporariamente Fechada'}
-                            </div>
+                    {/* Row 3: Localização + Agendar Horário */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-border">
+                        <button
+                            onClick={() => {
+                                if (store.address) {
+                                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`, '_blank')
+                                }
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/10 border border-red-600/20 hover:bg-red-600 hover:text-white transition-all duration-300 group"
+                        >
+                            <MapPin className="w-4 h-4 text-red-600 group-hover:text-white" />
+                            <span className="text-[11px] font-black uppercase tracking-widest text-red-600 group-hover:text-white">
+                                {formatAddress(store.address)}
+                            </span>
+                        </button>
 
-                            <button
-                                onClick={() => {
-                                    if (store.address) {
-                                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`, '_blank')
-                                    }
-                                }}
-                                className="px-8 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-red-600 text-white hover:bg-neutral-900 transition-all duration-300 flex items-center gap-3 shadow-xl active:scale-95"
-                            >
-                                <MapPin className="w-4 h-4" /> {store.address || 'Rua tal, numero tal'}
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-black text-[11px] uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-lg"
+                        >
+                            <Calendar className="w-4 h-4" />
+                            Agendar Horário
+                        </button>
+
+
                     </div>
                 </section>
 
-                {/* Agenda & Action Section */}
-                <div className="flex flex-col gap-6">
-                    <div className="flex flex-wrap items-center justify-center md:justify-end gap-4">
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="group relative px-10 py-6 bg-primary text-primary-foreground font-black rounded-3xl hover:scale-[1.02] transition-all duration-500 active:scale-95 shadow-[0_25px_50px_rgba(var(--primary),0.2)] overflow-hidden flex items-center gap-4 border border-primary/20"
-                        >
-                            <div className="relative z-10 flex items-center gap-3">
-                                <Calendar className="w-8 h-8" />
-                                <div className="flex flex-col items-start leading-tight">
-                                    <span className="text-lg uppercase tracking-tight">Agendar Horário</span>
-                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Ver Agenda da Loja</span>
+                {/* Compraram Aqui Section - só mostra se tiver vendas */}
+                {recentSales.length > 0 && (
+                    <section className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <div className="h-px flex-1 bg-border" />
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
+                                Compraram aqui:
+                            </h3>
+                            <div className="h-px flex-1 bg-border" />
+                        </div>
+                        <div className="flex overflow-x-auto pb-2 gap-3 scrollbar-hide snap-x snap-mandatory">
+                            {recentSales.slice(0, 6).map((sale, i) => (
+                                <div key={sale.id || i} className="flex-shrink-0 w-[200px] snap-start bg-muted/30 border border-border rounded-2xl p-3 flex items-center gap-3 group hover:bg-muted/50 transition-all">
+                                    <div className="w-10 h-10 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0">
+                                        {sale.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-black text-muted-foreground/30">
+                                                {sale.buyer_name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[8px] font-black text-primary uppercase tracking-wider">NOVA COMPRA</p>
+                                        <p className="text-[10px] font-bold text-foreground truncate">
+                                            {sale.buyer_name || 'Alguém'}
+                                        </p>
+                                        <p className="text-[8px] text-muted-foreground font-bold truncate">
+                                            {sale.product_name}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-                        </button>
-
-                        {isOwner && (
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
-                                    className="group px-8 py-5 bg-secondary border border-border text-foreground font-black rounded-3xl hover:bg-foreground hover:text-background transition-all duration-300 active:scale-95 flex items-center gap-3"
-                                >
-                                    <Pencil className="w-6 h-6" />
-                                    <span className="text-lg uppercase tracking-tight">Editar Loja</span>
-                                </button>
-                                <button
-                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                                    className="group px-8 py-5 bg-card border border-border text-foreground font-black rounded-3xl hover:border-foreground transition-all duration-300 active:scale-95 flex items-center gap-3"
-                                >
-                                    <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                    <span className="text-lg uppercase tracking-tight">Novo Item</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* MICRO EXTRATO / SOCIAL PROOF */}
-                    <div className="space-y-10">
-                        {/* SALES SECTION */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-4 px-2">
-                                <div className="h-px flex-1 bg-border" />
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">Compraram aqui:</h3>
-                                <div className="h-px flex-1 bg-border" />
-                            </div>
-
-                            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
-                                {recentSales.length > 0 ? recentSales.map((sale, i) => (
-                                    <div key={sale.id || i} className="flex-shrink-0 w-[280px] snap-start bg-muted/30 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-muted/50 transition-all shadow-lg shadow-black/5 dark:shadow-none hover:-translate-y-1">
-                                        <div className="w-12 h-12 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0">
-                                            {sale.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-muted-foreground/30">
-                                                    {sale.buyer_name?.charAt(0) || '?'}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none">NOVA COMPRA!</p>
-                                            <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
-                                                {sale.buyer_name || 'Alguém'} <span className="text-muted-foreground font-normal">comprou</span>
-                                            </p>
-                                            <p className="text-[10px] text-muted-foreground font-bold truncate">
-                                                {sale.product_name}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[8px] text-muted-foreground/50 font-black uppercase">🛒</p>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <div className="w-full py-12 text-center rounded-[32px] border border-dashed border-border bg-muted/10">
-                                        <ShoppingCart className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-20" />
-                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Aguardando próximas movimentações...</p>
-                                    </div>
-                                )}
-                            </div>
+                            ))}
                         </div>
+                    </section>
+                )}
 
-                        {/* APPOINTMENTS TODAY SECTION */}
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-4 px-2">
-                                <div className="h-px flex-1 bg-border" />
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">Agendados para Hoje:</h3>
-                                <div className="h-px flex-1 bg-border" />
-                            </div>
-
-                            <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide snap-x snap-mandatory">
-                                {appointmentsToday.length > 0 ? (
-                                    appointmentsToday.map((appt, i) => (
-                                        <div
-                                            key={appt.id || i}
-                                            onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                            className="flex-shrink-0 w-[240px] snap-start bg-card/40 border border-border rounded-3xl p-5 flex items-center gap-4 group hover:bg-card/80 transition-all shadow-xl cursor-pointer hover:-translate-y-1"
-                                        >
-                                            <div className="w-12 h-12 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0 relative">
-                                                {appt.profiles?.avatar_url ? (
-                                                    <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-xs font-black italic text-muted-foreground/30">
-                                                        {appt.profiles?.name?.charAt(0) || 'U'}
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] font-black text-primary uppercase tracking-widest leading-none flex items-center gap-1.5">
-                                                    <Clock className="w-2.5 h-2.5" />
-                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                </p>
-                                                <p className="text-[11px] font-bold text-foreground uppercase italic truncate mt-1">
-                                                    {appt.profiles?.name || 'Cliente'}
-                                                </p>
-                                                <p className="text-[9px] text-muted-foreground font-bold truncate uppercase tracking-widest">
-                                                    {appt.service_name || 'Agendamento'}
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse" />
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="w-full py-12 text-center rounded-[32px] border border-dashed border-border bg-muted/10">
-                                        <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-3 opacity-20" />
-                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground italic">Nenhum agendamento para hoje...</p>
-                                    </div>
-                                )}
-                            </div>
+                {/* Agendados para Hoje Section - só mostra se tiver agendamentos */}
+                {appointmentsToday.length > 0 && (
+                    <section className="space-y-4">
+                        <div className="flex items-center gap-4">
+                            <div className="h-px flex-1 bg-border" />
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
+                                Agendados para Hoje:
+                            </h3>
+                            <div className="h-px flex-1 bg-border" />
                         </div>
-                    </div>
-                </div>
+                        <div className="flex overflow-x-auto pb-2 gap-3 scrollbar-hide snap-x snap-mandatory">
+                            {appointmentsToday.slice(0, 6).map((appt, i) => (
+                                <div
+                                    key={appt.id || i}
+                                    onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
+                                    className="flex-shrink-0 w-[200px] snap-start bg-card/40 border border-border rounded-2xl p-3 flex items-center gap-3 group hover:bg-card/80 transition-all cursor-pointer"
+                                >
+                                    <div className="w-10 h-10 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0">
+                                        {appt.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-black text-muted-foreground/30">
+                                                {appt.profiles?.name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[8px] font-black text-primary uppercase tracking-wider flex items-center gap-1">
+                                            <Clock className="w-2.5 h-2.5" />
+                                            {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-foreground truncate">
+                                            {appt.profiles?.name || 'Cliente'}
+                                        </p>
+                                        <p className="text-[8px] text-muted-foreground font-bold truncate uppercase tracking-wider">
+                                            {appt.service_name || 'Agendamento'}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )}
 
-                {/* Cart Status Bar (High Premium) */}
+                {/* Cart Status Bar */}
                 {mounted && totalItems > 0 && (
                     <div
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
@@ -832,7 +778,17 @@ export default function StorePage() {
                             />
                         </div>
                     </div>
+                    {isOwner && (
+                        <div className="flex gap-2">
 
+                            <button
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
+                                className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-card border border-border text-foreground hover:border-foreground transition-all"
+                            >
+                                <Plus className="w-3 h-3 inline mr-1" /> Adicionar novo produto ou serviço
+                            </button>
+                        </div>
+                    )}
                     {filteredProducts.length === 0 ? (
                         <div className="py-20 text-center rounded-[32px] border border-dashed border-white/5 bg-white/[0.02]">
                             <Search className="w-12 h-12 text-neutral-800 mx-auto mb-4" />
