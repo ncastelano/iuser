@@ -1,4 +1,3 @@
-// app/(main)/[storeSlug]/[productSlug]/editar-produto/page.tsx
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -30,6 +29,7 @@ export default function EditarProduto() {
     const [type, setType] = useState<ProductType>('physical')
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
+    const [city, setCity] = useState('') // Adicionado o estado city
     const [category, setCategory] = useState('')
     const [existingCategories, setExistingCategories] = useState<string[]>([])
 
@@ -91,6 +91,7 @@ export default function EditarProduto() {
             setPrice(data.price?.toString().replace('.', ',') || '')
             setType((data.type as ProductType) || 'physical')
             setAddress(data.address || '')
+            setCity(data.city || '') // Carrega a cidade se existir
 
             if (data.image_url) {
                 const url = supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl
@@ -138,6 +139,11 @@ export default function EditarProduto() {
             if (data && data.features && data.features.length > 0) {
                 const feature = data.features[0]
                 setAddress(feature.place_name)
+                // Extrai a cidade do endereço
+                const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
+                if (cityComponent) {
+                    setCity(cityComponent.text)
+                }
             }
         } catch (e) {
             console.error(e)
@@ -154,6 +160,11 @@ export default function EditarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
+                // Extrai a cidade do endereço
+                const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
+                if (cityComponent) {
+                    setCity(cityComponent.text)
+                }
             } else {
                 alert('Endereço não encontrado! Tente digitar com mais detalhes (ex: Rua, Número, Cidade).')
             }
@@ -214,6 +225,7 @@ export default function EditarProduto() {
             type,
             location: locationString,
             address: address || null,
+            city: city || null, // Adiciona a cidade ao update
             category: category || null
         }
 
@@ -397,7 +409,10 @@ export default function EditarProduto() {
                                 <div className="p-3.5 bg-neutral-950 text-white rounded-xl border border-white/50 text-sm flex flex-col gap-2 relative">
                                     <span className="font-bold flex items-center gap-1"><MapPin className="w-4 h-4" /> Localização Atual</span>
                                     {address ? (
-                                        <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
+                                        <>
+                                            <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
+                                            {city && <p className="text-neutral-400 text-xs">Cidade: {city}</p>}
+                                        </>
                                     ) : (
                                         <span className="text-neutral-500 text-xs animate-pulse">Coordenadas: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
                                     )}
