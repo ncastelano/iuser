@@ -1,4 +1,3 @@
-// app/criar-produto/page.tsx  
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -34,6 +33,7 @@ export default function CriarProduto() {
     const [type, setType] = useState<ProductType>('physical')
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
+    const [city, setCity] = useState('') // Adicionado o estado city
     const [category, setCategory] = useState('')
 
     const [imageFile, setImageFile] = useState<File | null>(null)
@@ -100,6 +100,11 @@ export default function CriarProduto() {
             if (data && data.features && data.features.length > 0) {
                 const feature = data.features[0]
                 setAddress(feature.place_name)
+                // Extrai a cidade do endereço
+                const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
+                if (cityComponent) {
+                    setCity(cityComponent.text)
+                }
             }
         } catch (e) {
             console.error(e)
@@ -116,6 +121,11 @@ export default function CriarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
+                // Extrai a cidade do endereço
+                const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
+                if (cityComponent) {
+                    setCity(cityComponent.text)
+                }
             } else {
                 alert('Endereço não encontrado! Tente digitar com mais detalhes (ex: Rua, Número, Cidade).')
             }
@@ -178,6 +188,7 @@ export default function CriarProduto() {
             store_id: storeId,
             location: locationString,
             address: address || null,
+            city: city || null, // Adiciona a cidade ao insert
             category: category || null
         })
 
@@ -323,7 +334,10 @@ export default function CriarProduto() {
                                 <div className="p-3.5 bg-neutral-950 text-white rounded-xl border border-white/50 text-sm flex flex-col gap-2 relative">
                                     <span className="font-bold flex items-center gap-1"><MapPin className="w-4 h-4" /> Localização Capturada</span>
                                     {address ? (
-                                        <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
+                                        <>
+                                            <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
+                                            {city && <p className="text-neutral-400 text-xs">Cidade: {city}</p>}
+                                        </>
                                     ) : (
                                         <span className="text-neutral-500 text-xs animate-pulse">Buscando endereço exato...</span>
                                     )}
