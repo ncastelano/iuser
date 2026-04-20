@@ -11,7 +11,7 @@ interface ThemeState {
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  theme: 'dark', // Default
+  theme: 'light', // Default
   setTheme: (theme) => {
     set({ theme })
     if (typeof document !== 'undefined') {

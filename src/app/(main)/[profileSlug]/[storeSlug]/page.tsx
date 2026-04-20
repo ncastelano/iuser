@@ -555,136 +555,130 @@ export default function StorePage() {
                 )}
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 md:px-8 pt-8 flex flex-col gap-8">
-                {/* Hero Section - Novo Layout Compacto */}
-                <section className="bg-card/40 border border-border rounded-[32px] p-6 backdrop-blur-md">
-                    {/* Row 1: Logo + Nome e Descrição */}
-                    <div className="flex gap-6">
-                        <div className="w-24 h-24 rounded-2xl bg-background border border-border overflow-hidden flex-shrink-0 shadow-lg">
-                            {store.logo_url ? (
-                                <img src={store.logo_url} className="w-full h-full object-cover" alt={`Logo ${store.name}`} />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-3xl font-black text-muted-foreground/30">
-                                    {store.name?.charAt(0)}
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-2xl md:text-3xl font-black tracking-tighter text-foreground uppercase italic mb-2">
-                                {store.name}
-                            </h2>
-                            {store.description && (
-                                <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">
-                                    {store.description}
-                                </p>
-                            )}
-                        </div>
+            <main className="max-w-7xl mx-auto px-4 md:px-8 pt-6 flex flex-col gap-6">
+                {/* Logo e Nome - Sem card */}
+                <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0 shadow-md">
+                        {store.logo_url ? (
+                            <img src={store.logo_url} className="w-full h-full object-cover" alt={`Logo ${store.name}`} />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-2xl font-black text-muted-foreground/30">
+                                {store.name?.charAt(0)}
+                            </div>
+                        )}
                     </div>
-
-                    {/* Row 2: Avaliações + Pessoas que amam */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-border">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <RatingStars
-                                    value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
-                                    size={16}
-                                    onChange={!isOwner ? submitRating : undefined}
-                                />
-                                <span className="text-lg font-extrabold text-foreground">
-                                    {Number(store.ratings_avg || 0).toFixed(1)}
-                                </span>
-                                <button
-                                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
-                                    className="text-[10px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                    ({store.ratings_count ?? 0} aval.)
-                                </button>
-                            </div>
-
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="flex -space-x-2 overflow-hidden">
-                                {ratings.slice(0, 3).map((r, i) => (
-                                    <div key={i} className="inline-block h-8 w-8 rounded-full ring-2 ring-card border border-border bg-muted overflow-hidden">
-                                        {r.profiles?.avatar_url ? (
-                                            <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="h-full w-full flex items-center justify-center text-[9px] font-bold text-muted-foreground">
-                                                {r.profiles?.name?.charAt(0) || '?'}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">
-                                +{ratings.length} clientes
+                    <div>
+                        <h2 className="text-2xl font-black tracking-tighter text-foreground">
+                            {store.name}
+                        </h2>
+                        {store.description && (
+                            <p className="text-muted-foreground text-sm line-clamp-1">
+                                {store.description}
                             </p>
-                            {myRating > 0 && (
-                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-primary/10 border border-primary/20">
-                                    <CheckCircle2 className="w-3 h-3 text-primary" />
-                                    <span className="text-[8px] font-black text-primary uppercase tracking-widest">VOCÊ AVALIOU</span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Avaliações + Pessoas que amam */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <RatingStars
+                            value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
+                            size={14}
+                            onChange={!isOwner ? submitRating : undefined}
+                        />
+                        <span className="text-base font-extrabold text-foreground">
+                            {Number(store.ratings_avg || 0).toFixed(1)}
+                        </span>
+                        <button
+                            onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
+                            className="text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            ({store.ratings_count ?? 0})
+                        </button>
+                        {myRating > 0 && (
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-primary" />
+                                <span className="text-[7px] font-black text-primary uppercase tracking-widest">AVALIADO</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2 overflow-hidden">
+                            {ratings.slice(0, 3).map((r, i) => (
+                                <div key={i} className="inline-block h-7 w-7 rounded-full ring-2 ring-card border border-border bg-muted overflow-hidden">
+                                    {r.profiles?.avatar_url ? (
+                                        <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="h-full w-full object-cover" alt="" />
+                                    ) : (
+                                        <div className="h-full w-full flex items-center justify-center text-[8px] font-bold text-muted-foreground">
+                                            {r.profiles?.name?.charAt(0) || '?'}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            ))}
                         </div>
+                        <p className="text-[9px] font-bold uppercase tracking-tight text-muted-foreground">
+                            +{ratings.length}
+                        </p>
                     </div>
+                </div>
 
-                    {/* Row 3: Localização + Agendar Horário */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-border">
-                        <button
-                            onClick={() => {
-                                if (store.address) {
-                                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`, '_blank')
-                                }
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600/10 border border-red-600/20 hover:bg-red-600 hover:text-white transition-all duration-300 group"
-                        >
-                            <MapPin className="w-4 h-4 text-red-600 group-hover:text-white" />
-                            <span className="text-[11px] font-black uppercase tracking-widest text-red-600 group-hover:text-white">
-                                {formatAddress(store.address)}
-                            </span>
-                        </button>
+                {/* Localização + Agendar Horário */}
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        onClick={() => {
+                            if (store.address) {
+                                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`, '_blank')
+                            }
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600/10 border border-red-600/20 hover:bg-red-600 hover:text-white transition-all duration-300 group"
+                    >
+                        <MapPin className="w-3.5 h-3.5 text-red-600 group-hover:text-white" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-red-600 group-hover:text-white">
+                            {formatAddress(store.address)}
+                        </span>
+                    </button>
 
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-black text-[11px] uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-lg"
-                        >
-                            <Calendar className="w-4 h-4" />
-                            Agendar Horário
-                        </button>
+                    <button
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-md"
+                    >
+                        <Calendar className="w-3.5 h-3.5" />
+                        Agendar
+                    </button>
 
 
-                    </div>
-                </section>
+                </div>
 
                 {/* Compraram Aqui Section - só mostra se tiver vendas */}
                 {recentSales.length > 0 && (
-                    <section className="space-y-4">
+                    <section className="space-y-3">
                         <div className="flex items-center gap-4">
                             <div className="h-px flex-1 bg-border" />
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
+                            <h3 className="text-[9px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
                                 Compraram aqui:
                             </h3>
                             <div className="h-px flex-1 bg-border" />
                         </div>
                         <div className="flex overflow-x-auto pb-2 gap-3 scrollbar-hide snap-x snap-mandatory">
                             {recentSales.slice(0, 6).map((sale, i) => (
-                                <div key={sale.id || i} className="flex-shrink-0 w-[200px] snap-start bg-muted/30 border border-border rounded-2xl p-3 flex items-center gap-3 group hover:bg-muted/50 transition-all">
-                                    <div className="w-10 h-10 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0">
+                                <div key={sale.id || i} className="flex-shrink-0 w-[180px] snap-start bg-muted/30 border border-border rounded-xl p-2 flex items-center gap-2 group hover:bg-muted/50 transition-all">
+                                    <div className="w-8 h-8 rounded-lg bg-background border border-border overflow-hidden flex-shrink-0">
                                         {sale.profiles?.avatar_url ? (
                                             <img src={getAvatarUrl(supabase, sale.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs font-black text-muted-foreground/30">
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-muted-foreground/30">
                                                 {sale.buyer_name?.charAt(0) || '?'}
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[8px] font-black text-primary uppercase tracking-wider">NOVA COMPRA</p>
-                                        <p className="text-[10px] font-bold text-foreground truncate">
+                                        <p className="text-[7px] font-black text-primary uppercase tracking-wider">NOVA COMPRA</p>
+                                        <p className="text-[9px] font-bold text-foreground truncate">
                                             {sale.buyer_name || 'Alguém'}
                                         </p>
-                                        <p className="text-[8px] text-muted-foreground font-bold truncate">
+                                        <p className="text-[7px] text-muted-foreground font-bold truncate">
                                             {sale.product_name}
                                         </p>
                                     </div>
@@ -696,10 +690,10 @@ export default function StorePage() {
 
                 {/* Agendados para Hoje Section - só mostra se tiver agendamentos */}
                 {appointmentsToday.length > 0 && (
-                    <section className="space-y-4">
+                    <section className="space-y-3">
                         <div className="flex items-center gap-4">
                             <div className="h-px flex-1 bg-border" />
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
+                            <h3 className="text-[9px] font-black uppercase tracking-[0.4em] text-muted-foreground whitespace-nowrap">
                                 Agendados para Hoje:
                             </h3>
                             <div className="h-px flex-1 bg-border" />
@@ -709,26 +703,26 @@ export default function StorePage() {
                                 <div
                                     key={appt.id || i}
                                     onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                    className="flex-shrink-0 w-[200px] snap-start bg-card/40 border border-border rounded-2xl p-3 flex items-center gap-3 group hover:bg-card/80 transition-all cursor-pointer"
+                                    className="flex-shrink-0 w-[180px] snap-start bg-card/40 border border-border rounded-xl p-2 flex items-center gap-2 group hover:bg-card/80 transition-all cursor-pointer"
                                 >
-                                    <div className="w-10 h-10 rounded-xl bg-background border border-border overflow-hidden flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-lg bg-background border border-border overflow-hidden flex-shrink-0">
                                         {appt.profiles?.avatar_url ? (
                                             <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs font-black text-muted-foreground/30">
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-muted-foreground/30">
                                                 {appt.profiles?.name?.charAt(0) || '?'}
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[8px] font-black text-primary uppercase tracking-wider flex items-center gap-1">
-                                            <Clock className="w-2.5 h-2.5" />
+                                        <p className="text-[7px] font-black text-primary uppercase tracking-wider flex items-center gap-1">
+                                            <Clock className="w-2 h-2" />
                                             {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </p>
-                                        <p className="text-[10px] font-bold text-foreground truncate">
+                                        <p className="text-[9px] font-bold text-foreground truncate">
                                             {appt.profiles?.name || 'Cliente'}
                                         </p>
-                                        <p className="text-[8px] text-muted-foreground font-bold truncate uppercase tracking-wider">
+                                        <p className="text-[7px] text-muted-foreground font-bold truncate uppercase tracking-wider">
                                             {appt.service_name || 'Agendamento'}
                                         </p>
                                     </div>
@@ -745,78 +739,76 @@ export default function StorePage() {
                         className={`group fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] cursor-pointer transition-all duration-300 ${cartAnimating ? 'scale-110' : 'scale-100'}`}
                     >
                         <div className="absolute inset-[-1px] rounded-full bg-gradient-to-r from-primary via-secondary to-primary animate-gradient-xy blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative bg-card px-5 py-3 rounded-full flex items-center gap-4 overflow-hidden z-10 transition-all group-hover:bg-background shadow-2xl shadow-black/20 dark:shadow-none border border-border/50">
-                            <div className="relative h-10 w-10 rounded-full bg-foreground flex items-center justify-center shadow-xl">
-                                <ShoppingCart className="w-5 h-5 text-background" />
-                                <div className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-primary text-primary-foreground text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-card animate-bounce">
+                        <div className="relative bg-card px-4 py-2 rounded-full flex items-center gap-3 overflow-hidden z-10 transition-all group-hover:bg-background shadow-2xl shadow-black/20 dark:shadow-none border border-border/50">
+                            <div className="relative h-8 w-8 rounded-full bg-foreground flex items-center justify-center shadow-xl">
+                                <ShoppingCart className="w-4 h-4 text-background" />
+                                <div className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[8px] font-black rounded-full flex items-center justify-center ring-2 ring-card animate-bounce">
                                     {totalItems}
                                 </div>
                             </div>
-                            <div className="flex flex-col pr-2">
-                                <span className="text-sm font-black text-foreground italic tracking-tight">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                <span className="text-[9px] font-black uppercase text-primary tracking-widest leading-none">Ver Carrinho</span>
+                            <div className="flex flex-col pr-1">
+                                <span className="text-xs font-black text-foreground italic tracking-tight">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-[8px] font-black uppercase text-primary tracking-widest leading-none">Ver Carrinho</span>
                             </div>
                         </div>
                     </div>
                 )}
+                {isOwner && (
+                    <>
 
+                        <button
+                            onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
+                            className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-card border border-border text-foreground hover:border-foreground transition-all"
+                        >
+                            <Plus className="w-3 h-3 inline mr-1" /> Adicionar Produto ou serviço
+                        </button>
+                    </>
+                )}
                 {/* Products Section */}
-                <div className="space-y-8">
-                    <div className="flex flex-col gap-4">
-                        <div className="flex items-center justify-between border-b border-border pb-4">
-                            <h3 className="text-2xl font-black italic tracking-tighter">Cardápio / Catálogo</h3>
-                            <span className="text-sm font-black text-muted-foreground">{filteredProducts.length} Produtos</span>
+                <div className="space-y-6 mt-4">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between border-b border-border pb-3">
+                            <h3 className="text-xl font-black italic tracking-tighter">Cardápio</h3>
+                            <span className="text-xs font-black text-muted-foreground">{filteredProducts.length} itens</span>
                         </div>
                         <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <input
                                 type="text"
                                 placeholder="procurar..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-secondary border border-border rounded-2xl py-4 pl-12 pr-4 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/30 transition-colors"
+                                className="w-full bg-secondary border border-border rounded-xl py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/30 transition-colors"
                             />
                         </div>
                     </div>
-                    {isOwner && (
-                        <div className="flex gap-2">
 
-                            <button
-                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                                className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-card border border-border text-foreground hover:border-foreground transition-all"
-                            >
-                                <Plus className="w-3 h-3 inline mr-1" /> Adicionar novo produto ou serviço
-                            </button>
-                        </div>
-                    )}
                     {filteredProducts.length === 0 ? (
-                        <div className="py-20 text-center rounded-[32px] border border-dashed border-white/5 bg-white/[0.02]">
-                            <Search className="w-12 h-12 text-neutral-800 mx-auto mb-4" />
-                            <p className="text-neutral-500 font-bold uppercase italic text-sm">Nenhum produto encontrado</p>
+                        <div className="py-12 text-center rounded-2xl border border-dashed border-white/5 bg-white/[0.02]">
+                            <Search className="w-8 h-8 text-neutral-800 mx-auto mb-2" />
+                            <p className="text-neutral-500 font-bold uppercase italic text-xs">Nenhum produto encontrado</p>
                         </div>
                     ) : (
                         <>
                             {Object.entries(groupedProducts).map(([category, products]) => (
-                                <div key={category} className="space-y-6">
-                                    <div className="flex items-center gap-4">
-                                        <h4 className="text-[10px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
+                                <div key={category} className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <h4 className="text-[9px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
                                         <div className="h-px flex-1 bg-border" />
                                     </div>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                         {products.map((product) => (
                                             <div
                                                 key={product.id}
                                                 onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                                                className="group relative flex bg-card/40 border border-border rounded-[24px] overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-4 gap-4 items-stretch shadow-xl shadow-black/5 dark:shadow-none hover:shadow-2xl hover:-translate-y-1"
+                                                className="group relative flex bg-card/40 border border-border rounded-xl overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-3 gap-3 items-stretch shadow-md hover:shadow-xl hover:-translate-y-0.5"
                                             >
-                                                <div className="flex-1 flex flex-col min-w-0 py-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h4 className="text-[17px] leading-tight font-bold text-foreground truncate line-clamp-2">{product.name}</h4>
-                                                    </div>
-                                                    <p className="text-muted-foreground text-xs font-medium line-clamp-2 mt-1 min-h-[32px]">{product.description || "Nenhuma descrição detalhada disponível."}</p>
+                                                <div className="flex-1 flex flex-col min-w-0 py-0.5">
+                                                    <h4 className="text-sm leading-tight font-bold text-foreground line-clamp-2">{product.name}</h4>
+                                                    <p className="text-muted-foreground text-[10px] font-medium line-clamp-2 mt-1 min-h-[28px]">{product.description || "Sem descrição"}</p>
 
-                                                    <div className="mt-auto pt-3 flex flex-wrap items-center gap-3">
-                                                        <p className="text-lg font-black italic tracking-tighter text-foreground mr-auto">
+                                                    <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
+                                                        <p className="text-base font-black italic tracking-tighter text-foreground mr-auto">
                                                             R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                         </p>
 
@@ -826,30 +818,30 @@ export default function StorePage() {
                                                                     event.stopPropagation()
                                                                     router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
                                                                 }}
-                                                                className="px-4 py-2 rounded-xl font-black uppercase text-[9px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
+                                                                className="px-2.5 py-1 rounded-lg font-black uppercase text-[8px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
                                                             >
                                                                 Editar
                                                             </button>
                                                         ) : (
                                                             mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                                <div className="flex gap-1.5">
+                                                                <div className="flex gap-1">
                                                                     <button
                                                                         onClick={(event) => {
                                                                             event.stopPropagation()
                                                                             router.push(`/${profileSlug}/${storeSlug}/carrinho`)
                                                                         }}
-                                                                        className="h-9 px-3 bg-foreground text-background font-black uppercase text-[9px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"
+                                                                        className="h-7 px-2.5 bg-foreground text-background font-black uppercase text-[8px] tracking-widest rounded-lg transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"
                                                                     >
-                                                                        <CheckCircle2 className="w-3.5 h-3.5" /> OK
+                                                                        <CheckCircle2 className="w-3 h-3" /> OK
                                                                     </button>
                                                                     <button
                                                                         onClick={(event) => {
                                                                             event.stopPropagation()
                                                                             removeItem(storeSlug as string, product.id)
                                                                         }}
-                                                                        className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
+                                                                        className="h-7 w-7 rounded-lg flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
                                                                     >
-                                                                        <Trash2 className="w-4 h-4" />
+                                                                        <Trash2 className="w-3.5 h-3.5" />
                                                                     </button>
                                                                 </div>
                                                             ) : (
@@ -860,21 +852,21 @@ export default function StorePage() {
                                                                         setCartAnimating(true)
                                                                         setTimeout(() => setCartAnimating(false), 500)
                                                                     }}
-                                                                    className="h-9 px-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1.5 border border-border"
+                                                                    className="h-7 px-2.5 rounded-lg font-black uppercase text-[8px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1 border border-border"
                                                                 >
-                                                                    <Plus className="w-4 h-4" /> ADD
+                                                                    <Plus className="w-3 h-3" /> ADD
                                                                 </button>
                                                             )
                                                         )}
                                                     </div>
                                                 </div>
 
-                                                <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
+                                                <div className="relative w-20 h-20 rounded-xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
                                                     {product.image_url ? (
                                                         <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                                                            <span className="text-muted-foreground font-bold italic text-sm">Sem Foto</span>
+                                                            <span className="text-muted-foreground font-bold italic text-[8px]">Sem Foto</span>
                                                         </div>
                                                     )}
                                                     {!isOwner && (
@@ -885,14 +877,14 @@ export default function StorePage() {
                                                                 setCartAnimating(true)
                                                                 setTimeout(() => setCartAnimating(false), 500)
                                                             }}
-                                                            className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-lg z-20"
+                                                            className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-md z-20"
                                                         >
-                                                            <Plus className="w-5 h-5" />
+                                                            <Plus className="w-3.5 h-3.5" />
                                                         </div>
                                                     )}
                                                     {product.type && (
-                                                        <div className="absolute top-2 right-2 bg-background/70 backdrop-blur-md px-2 py-0.5 rounded border border-border">
-                                                            <span className="text-[8px] font-bold uppercase tracking-wider text-foreground">
+                                                        <div className="absolute top-1 right-1 bg-background/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-border">
+                                                            <span className="text-[6px] font-bold uppercase tracking-wider text-foreground">
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
                                                             </span>
                                                         </div>

@@ -5,12 +5,12 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, UserCircle } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, UserCircle, Star, Briefcase } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
-type Mode = 'lojas' | 'produtos' | 'pessoas'
+type Mode = 'lojas' | 'servicos' | 'produtos'
 
 // Parseia location no formato WKT "POINT(lng lat)" OU GeoJSON {type:"Point", coordinates:[lng,lat]}
 function parseCoords(location: any): [number, number] | null {
@@ -49,13 +49,13 @@ export default function MapPage() {
     const [mode, setMode] = useState<Mode>('lojas')
     const [stores, setStores] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
-    const [people, setPeople] = useState<any[]>([])
     const [filtered, setFiltered] = useState<any[]>([])
     const [selectedItem, setSelectedItem] = useState<any | null>(null)
     const [search, setSearch] = useState('')
     const [mapReady, setMapReady] = useState(false)
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
+    const [showFilters, setShowFilters] = useState(false)
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -63,7 +63,7 @@ export default function MapPage() {
     // Sync app mode with map local mode
     useEffect(() => {
         if (appMode === 'personal') {
-            setMode('pessoas')
+            setMode('lojas')
         } else {
             setMode('lojas')
         }
@@ -86,7 +86,7 @@ export default function MapPage() {
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
             style: initialStyle,
-            center: [-63.9004, -8.7612], // Porto Velho, RO
+            center: [-63.9004, -8.7612],
             zoom: 12,
             attributionControl: false
         })
@@ -102,13 +102,12 @@ export default function MapPage() {
 
         mapRef.current = map
 
-        // Monitor theme changes to update map style
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.attributeName === 'class') {
                     const isDarkNow = document.documentElement.classList.contains('dark')
                     const targetStyle = isDarkNow ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
-                    
+
                     if (mapRef.current) {
                         mapRef.current.setStyle(targetStyle)
                     }
@@ -130,17 +129,15 @@ export default function MapPage() {
 
             const { data: storesData } = await supabase.from('stores_geo').select('*')
             const { data: productsData } = await supabase.from('products_geo').select('*')
-            const { data: profilesData } = await supabase.from('profiles_geo').select('id, profileSlug, name, avatar_url, location, show_location')
-
-            // Debug: log fetched counts
-            console.log('Fetched stores:', storesData?.length, 'products:', productsData?.length, 'people:', profilesData?.length)
+            const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
 
             const mappedStores = (storesData || []).map(s => ({
                 ...s,
-                profileSlug: (profilesData || []).find((profile) => profile.id === s.owner_id)?.profileSlug || 'loja',
+                profileSlug: (profilesList || []).find((profile) => profile.id === s.owner_id)?.profileSlug || 'loja',
                 logo_url: s.logo_url
                     ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
-                    : null
+                    : null,
+                is_open: s.is_open ?? true
             }))
 
             const mappedProducts = (productsData || []).map(p => ({
@@ -150,34 +147,8 @@ export default function MapPage() {
                     : null
             }))
 
-            const { data: followsData } = await supabase.from('follows').select('follower_id, following_id')
-
-            const mappedPeople = (profilesData || [])
-                .filter(p => p.location && p.show_location)
-                .map(p => {
-                    const followsList = followsData || []
-                    const followersCount = followsList.filter(f => f.following_id === p.id).length
-                    const followingCount = followsList.filter(f => f.follower_id === p.id).length
-                    const personStores = mappedStores.filter(s => s.owner_id === p.id)
-
-                    return {
-                        id: p.id,
-                        name: p.name || 'iUser',
-                        profileSlug: p.profileSlug,
-                        avatar_url: p.avatar_url
-                            ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
-                            : null,
-                        location: p.location,
-                        is_person: true,
-                        followersCount,
-                        followingCount,
-                        stores: personStores
-                    }
-                })
-
             setStores(mappedStores)
             setProducts(mappedProducts)
-            setPeople(mappedPeople)
         }
 
         load()
@@ -189,21 +160,27 @@ export default function MapPage() {
             setFiltered(overrideList)
             return
         }
-        const items = mode === 'lojas' ? stores : mode === 'produtos' ? products : people
+        let items = []
+        if (mode === 'lojas') {
+            items = stores
+        } else if (mode === 'servicos') {
+            items = products.filter(p => p.type === 'service')
+        } else if (mode === 'produtos') {
+            items = products.filter(p => p.type === 'physical')
+        }
+
         const q = search.toLowerCase()
         setFiltered(q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items)
-    }, [search, mode, stores, products, people, overrideList])
+    }, [search, mode, stores, products, overrideList])
 
     // ── MARKERS ─────────────────────────────────────────────────────────────────
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
         const map = mapRef.current
 
-        // Limpar markers anteriores
         markersRef.current.forEach(m => m.remove())
         markersRef.current = []
 
-        // Agrupar itens para espalhar (spiderify) quem está na MESMA coordenada
         const coordGroups: Record<string, any[]> = {}
 
         filtered.forEach(item => {
@@ -211,22 +188,18 @@ export default function MapPage() {
 
             if (mode === 'lojas') {
                 coords = parseCoords(item.location)
-            } else if (mode === 'produtos') {
+            } else if (mode === 'produtos' || mode === 'servicos') {
                 const store = stores.find(s => s.id === item.store_id)
                 coords = parseCoords(store?.location)
-            } else {
-                coords = parseCoords(item.location)
             }
 
             if (!coords) return
 
-            // chave com precisão de 4 casas (aprox 11 metros)
             const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`
             if (!coordGroups[key]) coordGroups[key] = []
             coordGroups[key].push({ item, coords })
         })
 
-        // Renderizar marcadores
         Object.values(coordGroups).forEach(group => {
             group.forEach((entry, index) => {
                 const { item, coords } = entry
@@ -234,32 +207,35 @@ export default function MapPage() {
                 let lng = coords[0]
                 let lat = coords[1]
 
-                // Deslocamento radial dinâmico removido por pedido
-                // lng lat permanecem iguais
+                const imageUrl = mode === 'lojas' ? item.logo_url : item.image_url
 
-                const imageUrl = mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url
-
-                // O wrapper base que o mapbox controla
                 const el = document.createElement('div')
-                el.style.zIndex = (100 - index).toString() // Central fica em cima
+                el.style.zIndex = (100 - index).toString()
 
-                // O Elemento interno é o redondinho em formato de pino/avatar
                 const inner = document.createElement('div')
 
+                let borderColor = 'hsl(var(--foreground)/0.2)'
+                if (mode === 'lojas') {
+                    borderColor = item.is_open ? '#22c55e' : '#ef4444'
+                } else if (index === 0) {
+                    borderColor = 'hsl(var(--primary))'
+                }
+
                 inner.style.cssText = `
-                    width: 48px;
-                    height: 48px;
+                    width: 40px;
+                    height: 40px;
                     border-radius: 12px;
                     overflow: hidden;
-                    border: 2px solid ${index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--foreground)/0.2)'};
+                    border: 2px solid ${borderColor};
                     cursor: pointer;
-                    background: hsl(var(--card));
+                    background: white;
                     transition: transform 0.2s ease;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
                 `
 
                 inner.onmouseenter = () => {
                     inner.style.transform = 'scale(1.2)'
-                    el.style.zIndex = "999" // trás pra frente no hover
+                    el.style.zIndex = "999"
                 }
 
                 inner.onmouseleave = () => {
@@ -268,23 +244,21 @@ export default function MapPage() {
                 }
 
                 const storeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-foreground"><path d="m2 7 4.41-2.20a2 2 0 0 1 1.76 0l4.23 2.12a2 2 0 0 0 1.76 0L18.4 4.8a2 2 0 0 1 1.76 0L22 7"/><path d="M22 7v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7"/><path d="M2 11h20"/><path d="M16 11v9"/><path d="M8 11v9"/></svg>`
-                const userSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-foreground"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
 
                 if (imageUrl) {
                     const img = document.createElement('img')
                     img.src = imageUrl
                     img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
                     img.onerror = () => {
-                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${mode === 'pessoas' ? userSvg : storeSvg}</div>`
+                        inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
                     }
                     inner.appendChild(img)
                 } else {
-                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${mode === 'pessoas' ? userSvg : storeSvg}</div>`
+                    inner.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;">${storeSvg}</div>`
                 }
 
                 el.appendChild(inner)
 
-                // Add indicator badge se tem mais de um no mesmo lugar, e este for o center
                 if (index === 0 && group.length > 1) {
                     const badge = document.createElement('div')
                     badge.innerHTML = `+${group.length - 1}`
@@ -346,8 +320,7 @@ export default function MapPage() {
             .addTo(mapRef.current)
     }, [mapReady, userLocation])
 
-    // ── SELECTED STORE (para produtos) ──────────────────────────────────────────
-    const selectedStore = mode === 'produtos'
+    const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
 
@@ -372,9 +345,7 @@ export default function MapPage() {
     const distanceFormatted = formatDistance(distanceValue)
 
     return (
-        // Full‑screen map container with a loading overlay
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
-            {/* Global style to shift Mapbox controls and logo above the bottom navbar */}
             <style>{`
                 .mapboxgl-ctrl-bottom-right,
                 .mapboxgl-ctrl-bottom-left {
@@ -382,201 +353,212 @@ export default function MapPage() {
                 }
             `}</style>
 
-            {/* MAP CANVAS */}
             <div
                 ref={mapContainerRef}
                 className="absolute inset-0 w-full h-full"
                 style={{ background: '#111' }}
             />
 
-            {/* Loading spinner while Mapbox initializes */}
             {!mapReady && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xl">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xl z-10">
                     <span className="text-white text-xl animate-pulse">Carregando mapa…</span>
                 </div>
             )}
 
             {/* TOP BAR UI */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-xl z-20 space-y-4">
-                <div className="backdrop-blur-3xl bg-background/60 border border-border rounded-[32px] p-2.5 shadow-2xl overflow-hidden relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    
-                    <div className="relative flex flex-col gap-2.5">
-                        {/* SEARCH INPUT */}
-                        <div className="flex items-center gap-3 bg-secondary/50 rounded-2xl px-5 py-4 border border-border focus-within:border-primary/20 transition-all">
-                            <Search className="w-5 h-5 text-muted-foreground" />
-                            <input
-                                value={search}
-                                onChange={e => { setSearch(e.target.value); setOverrideList(null) }}
-                                placeholder={mode === 'lojas' ? 'EXPLORAR LOJAS...' : mode === 'produtos' ? 'EXPLORAR PRODUTOS...' : 'CONECTAR PESSOAS...'}
-                                className="flex-1 bg-transparent text-foreground text-sm font-black italic uppercase outline-none placeholder:text-muted-foreground/30 tracking-wider"
-                            />
-                            {search && (
-                                <button onClick={() => setSearch('')} className="w-8 h-8 flex items-center justify-center rounded-xl bg-secondary/80 hover:bg-secondary transition">
-                                    <X className="w-4 h-4 text-muted-foreground" />
-                                </button>
-                            )}
-                        </div>
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="flex items-center gap-3">
+                    <div className="bg-black p-2.5 rounded-2xl shadow-xl flex-shrink-0">
+                        <img src="/logo.png" alt="iUser" className="h-7 w-auto object-contain brightness-0 invert" />
+                    </div>
 
-                        {/* TABS */}
-                        <div className="flex gap-2">
-                            {(['lojas', 'produtos', 'pessoas'] as Mode[]).map(m => (
-                                <button
-                                    key={m}
-                                    onClick={() => { setMode(m); setSelectedItem(null); setOverrideList(null) }}
-                                    className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase italic tracking-[0.2em] transition-all flex items-center justify-center gap-3 ${mode === m
-                                        ? 'bg-foreground text-background shadow-2xl'
-                                        : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
-                                        }`}
-                                >
-                                    {m === 'lojas' ? <Store className="w-4 h-4" /> : m === 'produtos' ? <ShoppingBag className="w-4 h-4" /> : <UserCircle className="w-4 h-4" />}
-                                    {m}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="relative group flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder={mode === 'lojas' ? "Procurar lojas..." : mode === 'servicos' ? "Procurar serviços..." : "Procurar produtos..."}
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
+                            className="w-full pl-10 pr-10 py-3.5 bg-card/80 backdrop-blur-xl border border-border/50 rounded-[20px] text-foreground placeholder:text-muted-foreground/60 text-sm focus:outline-none focus:border-primary/50 transition-all duration-300 shadow-2xl shadow-black/20"
+                        />
+                        {search && (
+                            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => setShowFilters(true)}
+                        className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all duration-300 shadow-sm"
+                    >
+                        {mode === 'lojas' ? <Store className="w-4 h-4" /> : mode === 'servicos' ? <Briefcase className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                        <span className="hidden sm:inline lowercase first-letter:uppercase">{mode}</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* HORIZONTAL LISTA DE ITENS - DO TAMANHO DOS MARCADORES (48px) */}
+            {filtered.length > 0 && (
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                    <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                        {filtered.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => {
+                                    setSelectedItem(item)
+                                    let loc = null
+                                    if (mode === 'lojas') {
+                                        loc = item.location
+                                    } else {
+                                        const store = stores.find(s => s.id === item.store_id)
+                                        loc = store?.location
+                                    }
+                                    const coords = parseCoords(loc)
+                                    if (coords && mapRef.current) {
+                                        mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
+                                    }
+                                }}
+                                className={`snap-center flex-shrink-0 transition-all duration-300 ${selectedItem?.id === item.id
+                                    ? 'ring-2 ring-primary scale-110'
+                                    : 'opacity-90 hover:scale-105'
+                                    }`}
+                                style={{ width: '40px', height: '40px' }}
+                            >
+                                <div className={`w-full h-full rounded-lg overflow-hidden border shadow-sm ${mode === 'lojas'
+                                    ? (item.is_open ? 'border-green-500' : 'border-red-500')
+                                    : 'border-border'
+                                    } bg-white`}>
+                                    {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
+                                        <img
+                                            src={mode === 'lojas' ? item.logo_url : item.image_url}
+                                            className="w-full h-full object-cover"
+                                            alt=""
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-[10px] font-black italic bg-white text-muted-foreground">
+                                            {item.name?.charAt(0)}
+                                        </div>
+                                    )}
+                                </div>
+                            </button>
+                        ))}
                     </div>
                 </div>
-
-                {/* HORIZONTAL CAROUSEL */}
-                {filtered.length > 0 && (
-                    <div className={`relative px-1 transition-all ${overrideList ? 'p-2 border border-blue-500/30 rounded-[28px] bg-blue-500/5 backdrop-blur-xl' : ''}`}>
-                        {overrideList && (
-                             <div className="flex items-center justify-between px-4 mb-2">
-                                <span className="text-[9px] font-black uppercase text-blue-400 tracking-widest">Itens na Localização</span>
-                                <button onClick={() => setOverrideList(null)} className="text-[9px] font-black uppercase text-white/40 hover:text-white underline tracking-widest">Limpar</button>
-                             </div>
-                        )}
-                        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x">
-                            {filtered.map(item => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => {
-                                        setSelectedItem(item)
-                                        const loc = mode === 'lojas' ? item.location : stores.find(s => s.id === item.store_id)?.location
-                                        const coords = parseCoords(loc)
-                                        if (coords && mapRef.current) {
-                                            mapRef.current.flyTo({ center: coords, zoom: 16, duration: 1000 })
-                                        }
-                                    }}
-                                    className={`snap-center flex-shrink-0 w-24 rounded-2xl overflow-hidden transition-all duration-500 ${selectedItem?.id === item.id 
-                                        ? 'bg-white shadow-[0_20px_40px_rgba(255,255,255,0.1)] -translate-y-1' 
-                                        : 'bg-black/40 backdrop-blur-xl border border-white/5'
-                                    }`}
-                                >
-                                    <div className="aspect-square bg-neutral-900 flex items-center justify-center p-0.5">
-                                        {(mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url) ? (
-                                            <img src={mode === 'lojas' ? item.logo_url : mode === 'produtos' ? item.image_url : item.avatar_url} className="w-full h-full object-cover rounded-xl" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-xs font-black italic">{item.name.charAt(0)}</div>
-                                        )}
-                                    </div>
-                                    <div className="p-2 text-center">
-                                        <p className={`text-[8px] font-black uppercase truncate tracking-tighter ${selectedItem?.id === item.id ? 'text-black' : 'text-neutral-500'}`}>{item.name}</p>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
+            )}
 
             {/* SELECTED ITEM CARD */}
             {selectedItem && (
-                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-30 animate-in slide-in-from-bottom-5 duration-500">
-                    <div className="backdrop-blur-3xl bg-card border border-border rounded-[40px] p-6 shadow-[0_40px_80px_rgba(0,0,0,0.6)] relative group">
-                        <button onClick={() => setSelectedItem(null)} className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-2xl bg-secondary/80 hover:bg-foreground hover:text-background transition-all shadow-xl z-10">
-                            <X className="w-5 h-5" />
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500">
+                    <div className="backdrop-blur-3xl bg-card border border-border/50 rounded-[28px] p-4 shadow-[0_40px_80px_rgba(0,0,0,0.4)] relative group">
+                        <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-secondary/80 hover:bg-foreground hover:text-background transition-all z-10">
+                            <X className="w-4 h-4" />
                         </button>
 
-                        <div className="flex gap-6 items-center">
-                            <div className="w-28 h-28 rounded-[32px] overflow-hidden bg-background p-1 border border-border flex-shrink-0 shadow-2xl">
-                                {(mode === 'lojas' ? selectedItem.logo_url : mode === 'produtos' ? selectedItem.image_url : selectedItem.avatar_url) ? (
-                                    <img src={mode === 'lojas' ? selectedItem.logo_url : mode === 'produtos' ? selectedItem.image_url : selectedItem.avatar_url} className="w-full h-full object-cover rounded-[28px]" alt="" />
+                        <div className="flex gap-4 items-center">
+                            <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-background p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-border'}`}>
+                                {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
+                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-[14px]" alt="" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-4xl font-black italic text-muted-foreground/30">!</div>
+                                    <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-muted-foreground/30">?</div>
                                 )}
                             </div>
 
-                            <div className="flex-1 min-w-0 space-y-2 relative">
+                            <div className="flex-1 min-w-0 space-y-1 relative">
                                 <div className="space-y-0.5">
-                                     <h3 className="text-2xl font-black italic uppercase tracking-tighter text-foreground truncate leading-tight">{selectedItem.name}</h3>
-                                     {distanceFormatted && (
-                                         <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">{distanceFormatted}</span>
-                                         </div>
-                                     )}
-                                </div>
-                                {mode === 'produtos' && (
-                                    <p className="text-2xl font-black italic tracking-tighter text-foreground">R$ {(selectedItem.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                )}
-                                {mode === 'lojas' && selectedItem.description && (
-                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{selectedItem.description}</p>
-                                )}
-                                {mode === 'pessoas' && (
-                                    <div className="pt-2 space-y-3">
-                                        <div className="flex gap-4 items-center">
-                                            <div className="text-center">
-                                                <p className="text-xl font-black italic tracking-tighter leading-none">{selectedItem.followersCount}</p>
-                                                <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Seguidores</p>
-                                            </div>
-                                            <div className="w-px h-6 bg-border" />
-                                            <div className="text-center">
-                                                <p className="text-xl font-black italic tracking-tighter leading-none">{selectedItem.followingCount}</p>
-                                                <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Seguindo</p>
-                                            </div>
-                                        </div>
-                                        {selectedItem.stores?.length > 0 && (
-                                            <div className="flex flex-col gap-2 pt-2 border-t border-border">
-                                                <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Lojas que gerencia:</span>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {selectedItem.stores.map((store: any) => (
-                                                        <div key={store.id} className="flex items-center gap-2 p-1.5 pr-3 rounded-full bg-secondary/30 border border-white/5 group-hover:border-primary/20 transition-all cursor-pointer" onClick={(e) => { e.stopPropagation(); router.push(`/${store.profileSlug}/${store.storeSlug}`) }}>
-                                                            <div className="w-5 h-5 rounded-full overflow-hidden bg-background">
-                                                                {store.logo_url ? (
-                                                                    <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black">{store.name?.charAt(0)}</div>
-                                                                )}
-                                                            </div>
-                                                            <span className="text-[9px] font-bold text-foreground uppercase truncate max-w-[100px]">{store.name}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                    <h3 className="text-lg font-black italic uppercase tracking-tighter text-foreground truncate leading-tight">{selectedItem.name}</h3>
+                                    <div className="flex items-center gap-2">
+                                        {mode === 'lojas' && (
+                                            <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full ${selectedItem.is_open ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                {selectedItem.is_open ? 'Aberto' : 'Fechado'}
+                                            </span>
+                                        )}
+                                        {distanceFormatted && (
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{distanceFormatted}</span>
+                                        )}
+                                        {mode === 'lojas' && selectedItem.ratings_avg > 0 && (
+                                            <div className="flex items-center gap-1 font-black text-[10px] text-yellow-500">
+                                                <Star size={10} className="fill-yellow-500" />
+                                                {selectedItem.ratings_avg.toFixed(1)}
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                                {(mode === 'servicos' || mode === 'produtos') && selectedItem.price && (
+                                    <p className="text-lg font-black italic tracking-tighter text-foreground">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                )}
+                                {mode === 'lojas' && selectedItem.description && (
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1">{selectedItem.description}</p>
                                 )}
                             </div>
                         </div>
 
                         <button
                             onClick={() => {
-                                if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
-                                else if (mode === 'produtos') {
-                                    const store = stores.find(s => s.id === selectedItem.store_id)
-                                    if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                if (mode === 'lojas') {
+                                    router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
                                 } else {
-                                    router.push(`/${selectedItem.profileSlug}`)
+                                    const store = stores.find(s => s.id === selectedItem.store_id)
+                                    if (store) {
+                                        router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
+                                    }
                                 }
                             }}
-                            className="mt-6 w-full py-5 bg-foreground text-background rounded-[24px] font-black uppercase text-[11px] tracking-[0.3em] transition-all hover:opacity-90 shadow-2xl active:scale-[0.98]"
+                            className="mt-4 w-full py-3 bg-foreground text-background rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all hover:opacity-90 active:scale-[0.98]"
                         >
-                            {mode === 'pessoas' ? 'Ver Perfil' : 'Ver Detalhes'} &rarr;
+                            Visitar Loja &rarr;
                         </button>
                     </div>
                 </div>
             )}
 
             {/* TOTALS BADGE */}
-            <div className="absolute bottom-24 left-6 z-10 pointer-events-none sm:block hidden">
-                <div className="bg-background/60 backdrop-blur-xl border border-border rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {filtered.length} {mode === 'lojas' ? 'Centros de Distribuição' : mode === 'produtos' ? 'Itens Disponíveis' : 'Pessoas no Mural'}
+            <div className="absolute bottom-20 left-6 z-10 pointer-events-none sm:block hidden">
+                <div className="bg-background/80 backdrop-blur-xl border border-border/50 rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-70">
+                        {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : 'Produtos'}
                     </span>
                 </div>
             </div>
+
+            {/* Filter Modal */}
+            {showFilters && (
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setShowFilters(false)} />
+                    <div className="relative bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in slide-in-from-bottom font-sans overflow-hidden border border-border">
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <h3 className="text-lg font-bold text-foreground">Explorar</h3>
+                            <button onClick={() => setShowFilters(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
+                                <X className="w-5 h-5 text-muted-foreground" />
+                            </button>
+                        </div>
+                        <div className="p-2 space-y-1">
+                            {(['lojas', 'servicos', 'produtos'] as Mode[]).map(m => (
+                                <button
+                                    key={m}
+                                    onClick={() => {
+                                        setMode(m)
+                                        setShowFilters(false)
+                                        setSelectedItem(null)
+                                        setOverrideList(null)
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${mode === m
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'text-foreground hover:bg-muted'
+                                        }`}
+                                >
+                                    <div className={`p-2 rounded-lg ${mode === m ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                        {m === 'lojas' ? <Store size={18} /> : m === 'servicos' ? <Briefcase size={18} /> : <ShoppingBag size={18} />}
+                                    </div>
+                                    <span className="flex-1 text-left font-bold text-sm lowercase first-letter:uppercase">{m}</span>
+                                    {mode === m && <div className="w-2 h-2 rounded-full bg-primary" />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

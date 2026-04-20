@@ -5,7 +5,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil } from 'lucide-react'
-import { FlashPostModal } from '@/components/FlashPostModal'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
@@ -35,7 +34,6 @@ export default function CriarProduto() {
     const [type, setType] = useState<ProductType>('physical')
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
-    const [city, setCity] = useState('')
     const [category, setCategory] = useState('')
 
     const [imageFile, setImageFile] = useState<File | null>(null)
@@ -43,6 +41,7 @@ export default function CriarProduto() {
 
     const [showFlashModal, setShowFlashModal] = useState(false)
     const [lastCreatedProduct, setLastCreatedProduct] = useState<any>(null)
+    const [existingCategories, setExistingCategories] = useState<string[]>([])
 
     // 🔥 buscar loja
     useEffect(() => {
@@ -68,6 +67,23 @@ export default function CriarProduto() {
         fetchStore()
     }, [storeSlug])
 
+    // 👀 buscar categorias existentes
+    useEffect(() => {
+        const fetchCategories = async () => {
+            if (!storeId) return
+            const { data } = await supabase
+                .from('products')
+                .select('category')
+                .eq('store_id', storeId)
+
+            if (data) {
+                const cats = Array.from(new Set(data.map(p => p.category).filter(Boolean))) as string[]
+                setExistingCategories(cats)
+            }
+        }
+        fetchCategories()
+    }, [storeId])
+
     // preview imagem
     useEffect(() => {
         if (!imageFile) return
@@ -84,8 +100,6 @@ export default function CriarProduto() {
             if (data && data.features && data.features.length > 0) {
                 const feature = data.features[0]
                 setAddress(feature.place_name)
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
             }
         } catch (e) {
             console.error(e)
@@ -102,9 +116,6 @@ export default function CriarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
-
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
             } else {
                 alert('Endereço não encontrado! Tente digitar com mais detalhes (ex: Rua, Número, Cidade).')
             }
@@ -167,7 +178,6 @@ export default function CriarProduto() {
             store_id: storeId,
             location: locationString,
             address: address || null,
-            city: city || null,
             category: category || null
         })
 
@@ -178,15 +188,8 @@ export default function CriarProduto() {
             return
         }
 
-        // Instead of redirecting, show the modal
-        setLastCreatedProduct({
-            id: '', // We don't have the ID easily here unless we select it back, but we can pass names
-            storeId: storeId,
-            name: name,
-            image_url: imagePath,
-            price: parseFloat(price.replace(',', '.'))
-        })
-        setShowFlashModal(true)
+        // Redirecionar para a página da loja após criar
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const typeOptions = [
@@ -298,6 +301,19 @@ export default function CriarProduto() {
                                 onChange={(e) => setCategory(e.target.value)}
                                 className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
                             />
+                            {existingCategories.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {existingCategories.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => setCategory(cat)}
+                                            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${category === cat ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white border border-neutral-700'}`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <p className="text-[10px] text-neutral-500 mt-2 ml-1">Isso criará uma seção separada na sua loja.</p>
                         </div>
 
@@ -379,18 +395,6 @@ export default function CriarProduto() {
                 </div>
             </div>
 
-            {showFlashModal && lastCreatedProduct && (
-                <FlashPostModal
-                    isOpen={showFlashModal}
-                    onClose={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                    storeId={storeId!}
-                    type="new_product"
-                    title={lastCreatedProduct.name}
-                    content={`Acabamos de adicionar um novo produto: ${lastCreatedProduct.name}! Venha conferir.`}
-                    newPrice={lastCreatedProduct.price}
-                    imageUrl={lastCreatedProduct.image_url}
-                />
-            )}
         </div>
     )
 }

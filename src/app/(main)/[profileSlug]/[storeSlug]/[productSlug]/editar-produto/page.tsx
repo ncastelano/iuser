@@ -5,7 +5,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil, Trash2 } from 'lucide-react'
-import { FlashPostModal } from '@/components/FlashPostModal'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
@@ -31,7 +30,8 @@ export default function EditarProduto() {
     const [type, setType] = useState<ProductType>('physical')
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
-    const [city, setCity] = useState('')
+    const [category, setCategory] = useState('')
+    const [existingCategories, setExistingCategories] = useState<string[]>([])
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
@@ -91,7 +91,6 @@ export default function EditarProduto() {
             setPrice(data.price?.toString().replace('.', ',') || '')
             setType((data.type as ProductType) || 'physical')
             setAddress(data.address || '')
-            setCity(data.city || '')
 
             if (data.image_url) {
                 const url = supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl
@@ -112,6 +111,13 @@ export default function EditarProduto() {
             setStoreId(store.id)
             setOriginalPrice(data.price)
             setPageLoading(false)
+
+            // Fetch categories
+            const { data: catData } = await supabase.from('products').select('category').eq('store_id', store.id)
+            if (catData) {
+                const cats = Array.from(new Set(catData.map(p => p.category).filter(Boolean))) as string[]
+                setExistingCategories(cats)
+            }
         }
 
         fetchProductData()
@@ -132,8 +138,6 @@ export default function EditarProduto() {
             if (data && data.features && data.features.length > 0) {
                 const feature = data.features[0]
                 setAddress(feature.place_name)
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
             }
         } catch (e) {
             console.error(e)
@@ -150,9 +154,6 @@ export default function EditarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
-
-                const cityContext = feature.context?.find((c: any) => c.id.startsWith('place'))
-                setCity(cityContext ? cityContext.text : '')
             } else {
                 alert('Endereço não encontrado! Tente digitar com mais detalhes (ex: Rua, Número, Cidade).')
             }
@@ -213,7 +214,7 @@ export default function EditarProduto() {
             type,
             location: locationString,
             address: address || null,
-            city: city || null
+            category: category || null
         }
 
         if (imagePath) {
@@ -229,18 +230,7 @@ export default function EditarProduto() {
             return
         }
 
-        const currentPrice = parseFloat(price.replace(',', '.'))
-        if (originalPrice !== null && originalPrice !== currentPrice) {
-            setLastUpdatedProduct({
-                name,
-                image_url: imagePath || null,
-                oldPrice: originalPrice,
-                newPrice: currentPrice
-            })
-            setShowFlashModal(true)
-        } else {
-            router.push(`/${profileSlug}/${storeSlug}`)
-        }
+        router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const handleDelete = async () => {
@@ -376,6 +366,31 @@ export default function EditarProduto() {
                             />
                         </div>
 
+                        {/* CATEGORIA */}
+                        <div>
+                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Categoria da Loja (Opcional)</label>
+                            <input
+                                placeholder="Ex: Pasteis, Bebidas, Sobremesas..."
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
+                            />
+                            {existingCategories.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {existingCategories.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => setCategory(cat)}
+                                            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${category === cat ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white border border-neutral-700'}`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <p className="text-[10px] text-neutral-500 mt-2 ml-1">Isso criará uma seção separada na sua loja.</p>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Localização do Produto/Serviço</label>
                             {location ? (
@@ -465,20 +480,6 @@ export default function EditarProduto() {
                 </div>
             </div>
 
-            {showFlashModal && lastUpdatedProduct && (
-                <FlashPostModal
-                    isOpen={showFlashModal}
-                    onClose={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                    storeId={storeId!}
-                    productId={productId!}
-                    type="price_change"
-                    title={lastUpdatedProduct.name}
-                    content={`O preço do produto ${lastUpdatedProduct.name} mudou! De R$ ${lastUpdatedProduct.oldPrice.toFixed(2).replace('.', ',')} para R$ ${lastUpdatedProduct.newPrice.toFixed(2).replace('.', ',')}. Aproveite!`}
-                    oldPrice={lastUpdatedProduct.oldPrice}
-                    newPrice={lastUpdatedProduct.newPrice}
-                    imageUrl={lastUpdatedProduct.image_url}
-                />
-            )}
         </div>
     )
 }

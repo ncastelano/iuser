@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil, Clock } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
-import { MuralPost } from '@/components/MuralPost'
 
 type Tab = 'lojas' | 'mural' | 'compras' | 'flash'
 type MuralFilter = 'mundo' | 'cidade' | 'sigo'
@@ -382,8 +381,8 @@ export default function ProfilePage() {
                             <button
                                 onClick={handleFollowToggle}
                                 className={`px-12 py-5 rounded-[24px] font-black uppercase text-xs tracking-[0.2em] transition-all active:scale-95 shadow-2xl flex items-center gap-3 ${isFollowing
-                                        ? 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white/20'
-                                        : 'bg-white text-black hover:bg-neutral-200 shadow-white/10'
+                                    ? 'bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-white/20'
+                                    : 'bg-white text-black hover:bg-neutral-200 shadow-white/10'
                                     }`}
                             >
                                 {isFollowing ? 'Seguindo' : 'Seguir Perfil'}
@@ -563,21 +562,7 @@ export default function ProfilePage() {
                             })}
                         </div>
 
-                        {loadingMural ? (
-                            <div className="py-24 text-center">
-                                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 italic">Filtrando Mural...</p>
-                            </div>
-                        ) : getFilteredMuralPosts().length === 0 ? (
-                            <div className="py-24 text-center rounded-[40px] border border-dashed border-white/5">
-                                <Globe className="w-16 h-16 text-neutral-800 mx-auto mb-6" />
-                                <p className="text-neutral-500 text-xl font-bold uppercase italic tracking-wider">Nada encontrado com este filtro</p>
-                            </div>
-                        ) : (
-                            getFilteredMuralPosts().map(post => (
-                                <MuralPost key={post.id} post={post} currentUserId={currentUser?.id} />
-                            ))
-                        )}
+
                     </div>
                 )}
 

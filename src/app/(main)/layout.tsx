@@ -10,10 +10,9 @@ import {
     User,
     LogOut,
     MapPinned,
-    Zap,
     ShoppingCart,
-    ChartBarStacked,
-    BrickWall
+    DollarSign,
+    Settings
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
@@ -52,7 +51,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     }
 
     const isMapRoute = pathname === '/mapa'
-    const isFlashRoute = pathname === '/flash'
 
     return (
         <div className="relative flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-primary selection:text-primary-foreground overflow-x-hidden">
@@ -64,7 +62,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             </div>
 
             {/* Conteúdo */}
-            <main className={`relative z-10 flex-1 w-full flex flex-col ${isMapRoute || isFlashRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-4 pb-32'}`}>
+            <main className={`relative z-10 flex-1 w-full flex flex-col pb-24 ${isMapRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-4'}`}>
                 {children}
             </main>
 
@@ -83,46 +81,31 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 </div>
             </Link>
 
-            {/* Bottom Navbar - Verde */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[98%] sm:w-[600px] z-50">
-                <nav className="bg-card/40 backdrop-blur-2xl border border-green-500/30 rounded-[32px] p-2 shadow-2xl overflow-hidden relative group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-green-500/5 via-transparent to-green-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
-                    <div className="relative flex justify-around items-center h-16">
-                        <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/' ? 'bg-green-500 text-white shadow-xl' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <Store size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+            {/* Bottom Navbar - Estilo Compacto (TikTok/YouTube) */}
+            <div className="fixed bottom-0 left-0 right-0 z-50">
+                <nav className="bg-card/80 backdrop-blur-2xl border-t border-green-500/20 px-2 py-1 shadow-2xl relative">
+                    <div className="max-w-md mx-auto flex justify-around items-center h-14">
+                        <Link href="/" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
+                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
+                                <Store size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/' ? 'opacity-100 text-green-500' : 'opacity-0'}`}>Vitrine</span>
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname === '/' ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Vitrine</span>
                         </Link>
 
-                        <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mapa' ? 'bg-green-500 text-white shadow-xl' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <MapPinned size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                        <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
+                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/mapa' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
+                                <MapPinned size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mapa' ? 'opacity-100 text-green-500' : 'opacity-0'}`}>Mapa</span>
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname === '/mapa' ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Mapa</span>
                         </Link>
 
-                        <Link href="/mural" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/mural' ? 'bg-green-500 text-white shadow-xl' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <BrickWall size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
+                        <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
+                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
+                                <DollarSign size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/mural' ? 'opacity-100 text-green-500' : 'opacity-0'}`}>Mural</span>
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Financeiro</span>
                         </Link>
 
-                        <Link href="/flash" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/flash' ? 'bg-green-500 text-white shadow-xl' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <Zap size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
-                            </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/flash' ? 'opacity-100 text-green-500' : 'opacity-0'}`}>Flash</span>
-                        </Link>
-
-                        <Link href="/dashboard" className="relative flex flex-col items-center justify-center gap-1 group/item">
-                            <div className={`p-2 rounded-2xl transition-all duration-500 ${pathname === '/dashboard' ? 'bg-green-500 text-white shadow-xl' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <ChartBarStacked size={22} className="transition-transform duration-300 group-hover/item:scale-110" />
-                            </div>
-                            <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity duration-300 ${pathname === '/dashboard' ? 'opacity-100 text-green-500' : 'opacity-0'}`}>Dashboard</span>
-                        </Link>
                     </div>
                 </nav>
             </div>

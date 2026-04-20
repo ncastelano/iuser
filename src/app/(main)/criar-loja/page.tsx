@@ -21,7 +21,6 @@ export default function CriarLoja() {
 
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
-    const [city, setCity] = useState('')
 
     const [manualAddress, setManualAddress] = useState('')
     const [editingAddress, setEditingAddress] = useState(false)
@@ -162,7 +161,6 @@ export default function CriarLoja() {
             owner_id: userData.user.id,
             location: location ? `POINT(${location.lng} ${location.lat})` : null,
             address: address,
-            city: city
         })
 
         if (error) {
