@@ -183,6 +183,11 @@ export default function ProductPage() {
             if (userProfile?.name) setBuyerName(userProfile.name)
         }
 
+        if (storeData.owner_id === userId) {
+            router.push(`/${profileSlug}/${storeSlug}/${productSlug}/editar-produto`)
+            return
+        }
+
         setStore({ ...storeData, logo_url: logoUrl })
         setProduct(productData as Product)
         setImage(productData.image_url ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl : null)
@@ -288,7 +293,7 @@ export default function ProductPage() {
     }
 
     const isService = ['service', 'serviço', 'servico'].includes((product.type || product.category || '').toLowerCase())
-    const typeLabel = product.type === 'service' ? 'Serviço' : product.type === 'physical' ? 'Produto Físico' : (product.type || product.category || 'Produto')
+    const typeLabel = product.type === 'service' ? 'Serviço' : product.type === 'digital' ? 'Digital' : 'Produto'
 
     return (
         <div className="relative w-full max-w-6xl mx-auto py-8 md:py-16 animate-fade-in text-foreground selection:bg-primary selection:text-white px-4">

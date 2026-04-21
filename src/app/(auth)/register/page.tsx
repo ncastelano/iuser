@@ -130,8 +130,9 @@ export default function Register() {
       <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700">
         <div className="text-center space-y-4 mb-10 flex flex-col items-center">
           <div className="flex justify-center mb-2">
-            <img src="/iuser_preta.png" alt="iUser Logo" className="h-14 md:h-16 block dark:hidden object-contain" />
-            <img src="/iuser_branca.png" alt="iUser Logo" className="h-14 md:h-16 hidden dark:block object-contain" />
+            <div className="bg-black p-3 rounded-2xl shadow-xl">
+              <img src="/logo.png" alt="iUser Logo" className="h-14 md:h-16 object-contain" />
+            </div>
           </div>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic mt-2">Inicie sua Jornada Digital</p>
         </div>
@@ -143,8 +144,9 @@ export default function Register() {
                 <CheckCircle2 className="w-10 h-10 text-primary" />
               </div>
               <div className="flex justify-center mb-2">
-                <img src="/iuser_preta.png" alt="iUser Logo" className="h-8 md:h-12 block dark:hidden object-contain" />
-                <img src="/iuser_branca.png" alt="iUser Logo" className="h-8 md:h-12 hidden dark:block object-contain" />
+                <div className="bg-black p-2 rounded-xl shadow-lg">
+                  <img src="/logo.png" alt="iUser Logo" className="h-8 md:h-12 object-contain" />
+                </div>
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Sua jornada começou! Enviamos um link de <span className="text-foreground font-bold">ativação</span> para o seu e-mail.

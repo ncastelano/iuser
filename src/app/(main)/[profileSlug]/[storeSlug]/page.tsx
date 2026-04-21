@@ -83,6 +83,7 @@ type StoreType = {
     owner_id: string
     final_whatsapp?: string | null
     whatsapp?: string | null
+    category_order?: string[] | null
 }
 
 // Função para formatar endereço (rua, número, cidade)
@@ -133,6 +134,8 @@ export default function StorePage() {
     const [appointmentsToday, setAppointmentsToday] = useState<AppointmentType[]>([])
     const [recentSales, setRecentSales] = useState<SaleType[]>([])
     const [cartAnimating, setCartAnimating] = useState(false)
+    const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+    const [categoryOrder, setCategoryOrder] = useState<string[]>([])
 
     const [searchQuery, setSearchQuery] = useState('')
     const { itemsByStore, addItem, removeItem } = useCartStore()
@@ -158,8 +161,53 @@ export default function StorePage() {
             if (!groups[cat]) groups[cat] = []
             groups[cat].push(product)
         })
-        return groups
-    }, [filteredProducts])
+
+        // Sort categories based on order
+        const sortedGroups: Record<string, any[]> = {}
+        const allCats = Object.keys(groups)
+        
+        const sortedCats = [...allCats].sort((a, b) => {
+            const indexA = categoryOrder.indexOf(a)
+            const indexB = categoryOrder.indexOf(b)
+            if (indexA === -1 && indexB === -1) return a.localeCompare(b)
+            if (indexA === -1) return 1
+            if (indexB === -1) return -1
+            return indexA - indexB
+        })
+
+        sortedCats.forEach(cat => {
+            sortedGroups[cat] = groups[cat]
+        })
+
+        return sortedGroups
+    }, [filteredProducts, categoryOrder])
+
+    const toggleCategory = (cat: string) => {
+        const newCollapsed = new Set(collapsedCategories)
+        if (newCollapsed.has(cat)) newCollapsed.delete(cat)
+        else newCollapsed.add(cat)
+        setCollapsedCategories(newCollapsed)
+    }
+
+    const moveCategory = async (cat: string, direction: 'up' | 'down') => {
+        if (!store) return
+        const allCats = Object.keys(groupedProducts)
+        const index = allCats.indexOf(cat)
+        if (index === -1) return
+
+        const newOrder = [...allCats]
+        if (direction === 'up' && index > 0) {
+            [newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]]
+        } else if (direction === 'down' && index < newOrder.length - 1) {
+            [newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]]
+        } else {
+            return
+        }
+
+        setCategoryOrder(newOrder)
+        // Save to DB
+        await supabase.from('stores').update({ category_order: newOrder }).eq('id', store.id)
+    }
 
 
     useEffect(() => {
@@ -235,7 +283,9 @@ export default function StorePage() {
                 store_id: foundStore.id,
                 viewer_id: userId,
             }).then(({ error: viewError }) => {
-                if (viewError) console.error('[StorePage] Erro ao registrar view:', viewError)
+                if (viewError) {
+                    console.error('[StorePage] Erro ao registrar view:', viewError.message, viewError.details)
+                }
             })
         }
 
@@ -263,6 +313,7 @@ export default function StorePage() {
         }
 
         setStore({ ...foundStore, logo_url: logoUrl, final_whatsapp: storeWhatsapp })
+        setCategoryOrder(foundStore.category_order || [])
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
@@ -732,27 +783,7 @@ export default function StorePage() {
                     </section>
                 )}
 
-                {/* Cart Status Bar */}
-                {mounted && totalItems > 0 && (
-                    <div
-                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/carrinho`)}
-                        className={`group fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] cursor-pointer transition-all duration-300 ${cartAnimating ? 'scale-110' : 'scale-100'}`}
-                    >
-                        <div className="absolute inset-[-1px] rounded-full bg-gradient-to-r from-primary via-secondary to-primary animate-gradient-xy blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative bg-card px-4 py-2 rounded-full flex items-center gap-3 overflow-hidden z-10 transition-all group-hover:bg-background shadow-2xl shadow-black/20 dark:shadow-none border border-border/50">
-                            <div className="relative h-8 w-8 rounded-full bg-foreground flex items-center justify-center shadow-xl">
-                                <ShoppingCart className="w-4 h-4 text-background" />
-                                <div className="absolute -top-1.5 -right-1.5 h-4 w-4 bg-primary text-primary-foreground text-[8px] font-black rounded-full flex items-center justify-center ring-2 ring-card animate-bounce">
-                                    {totalItems}
-                                </div>
-                            </div>
-                            <div className="flex flex-col pr-1">
-                                <span className="text-xs font-black text-foreground italic tracking-tight">R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                <span className="text-[8px] font-black uppercase text-primary tracking-widest leading-none">Ver Carrinho</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
+
                 {isOwner && (
                     <>
 
@@ -790,17 +821,54 @@ export default function StorePage() {
                         </div>
                     ) : (
                         <>
-                            {Object.entries(groupedProducts).map(([category, products]) => (
-                                <div key={category} className="space-y-4">
-                                    <div className="flex items-center gap-3">
-                                        <h4 className="text-[9px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
-                                        <div className="h-px flex-1 bg-border" />
-                                    </div>
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {Object.entries(groupedProducts).map(([category, products], catIndex) => {
+                                const isCollapsed = collapsedCategories.has(category)
+                                return (
+                                    <div key={category} className="space-y-4">
+                                        <div className="flex items-center gap-3">
+                                            <h4 className="text-[9px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
+                                            <div className="h-px flex-1 bg-border" />
+                                            
+                                            <div className="flex items-center gap-1">
+                                                {isOwner && (
+                                                    <div className="flex items-center gap-0.5 mr-2">
+                                                        <button 
+                                                            disabled={catIndex === 0}
+                                                            onClick={() => moveCategory(category, 'up')}
+                                                            className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
+                                                        >
+                                                            <Clock className="w-3 h-3 rotate-180" />
+                                                        </button>
+                                                        <button 
+                                                            disabled={catIndex === Object.keys(groupedProducts).length - 1}
+                                                            onClick={() => moveCategory(category, 'down')}
+                                                            className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
+                                                        >
+                                                            <Clock className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                <button 
+                                                    onClick={() => toggleCategory(category)}
+                                                    className="w-6 h-6 flex items-center justify-center bg-secondary border border-border rounded-lg hover:border-foreground transition-all"
+                                                >
+                                                    {isCollapsed ? <Plus className="w-3 h-3" /> : <div className="w-2.5 h-0.5 bg-foreground" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        {!isCollapsed && (
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                                         {products.map((product) => (
                                             <div
                                                 key={product.id}
-                                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
+                                                onClick={() => {
+                                                    if (isOwner) {
+                                                        router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                    } else {
+                                                        router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)
+                                                    }
+                                                }}
                                                 className="group relative flex bg-card/40 border border-border rounded-xl overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-3 gap-3 items-stretch shadow-md hover:shadow-xl hover:-translate-y-0.5"
                                             >
                                                 <div className="flex-1 flex flex-col min-w-0 py-0.5">
@@ -885,7 +953,7 @@ export default function StorePage() {
                                                     {product.type && (
                                                         <div className="absolute top-1 right-1 bg-background/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-border">
                                                             <span className="text-[6px] font-bold uppercase tracking-wider text-foreground">
-                                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Especial'}
+                                                                {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         </div>
                                                     )}
@@ -893,8 +961,11 @@ export default function StorePage() {
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            ))}
+                                            )
+                                        }
+                                    </div>
+                                )
+                            })}
                         </>
                     )}
                 </div>

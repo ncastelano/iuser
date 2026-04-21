@@ -56,6 +56,7 @@ export default function MapPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
     const [showFilters, setShowFilters] = useState(false)
+    const [recentBuyers, setRecentBuyers] = useState<any[]>([])
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -284,9 +285,26 @@ export default function MapPage() {
                     el.appendChild(badge)
                 }
 
-                el.onclick = () => {
+                el.onclick = async () => {
                     setSelectedItem(item)
                     map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
+                    
+                    // Fetch recent buyers if it's a store
+                    if (mode === 'lojas') {
+                        const supabase = createClient()
+                        const { data } = await supabase
+                            .from('store_sales')
+                            .select('buyer_profile_slug, buyer_name')
+                            .eq('store_id', item.id)
+                            .order('created_at', { ascending: false })
+                            .limit(5)
+                        
+                        if (data) {
+                            const uniqueBuyers = Array.from(new Set(data.map(b => b.buyer_profile_slug)))
+                                .map(slug => data.find(b => b.buyer_profile_slug === slug))
+                            setRecentBuyers(uniqueBuyers)
+                        }
+                    }
                 }
 
                 const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
@@ -369,7 +387,7 @@ export default function MapPage() {
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                 <div className="flex items-center gap-3">
                     <div className="bg-black p-2.5 rounded-2xl shadow-xl flex-shrink-0">
-                        <img src="/logo.png" alt="iUser" className="h-7 w-auto object-contain brightness-0 invert" />
+                        <img src="/logo.png" alt="iUser" className="h-7 w-auto object-contain" />
                     </div>
 
                     <div className="relative group flex-1">
@@ -493,6 +511,23 @@ export default function MapPage() {
                             </div>
                         </div>
 
+                        {mode === 'lojas' && recentBuyers.length > 0 && (
+                            <div className="mt-4 flex flex-col gap-2">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="flex -space-x-2">
+                                        {recentBuyers.map((buyer, i) => (
+                                            <div key={i} className="w-6 h-6 rounded-full border-2 border-card bg-secondary flex items-center justify-center overflow-hidden">
+                                                <UserCircle className="w-full h-full text-muted-foreground/50" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                        {recentBuyers.length === 5 ? 'Vários já compraram' : `${recentBuyers.length} clientes recentes`}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         <button
                             onClick={() => {
                                 if (mode === 'lojas') {
@@ -524,9 +559,9 @@ export default function MapPage() {
 
             {/* Filter Modal */}
             {showFilters && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setShowFilters(false)} />
-                    <div className="relative bg-card rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in slide-in-from-bottom font-sans overflow-hidden border border-border">
+                    <div className="relative bg-card rounded-3xl w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in zoom-in-95 font-sans overflow-hidden border border-border">
                         <div className="flex items-center justify-between p-4 border-b border-border">
                             <h3 className="text-lg font-bold text-foreground">Explorar</h3>
                             <button onClick={() => setShowFilters(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">

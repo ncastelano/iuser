@@ -70,8 +70,9 @@ function LoginContent() {
       >
         <div className="text-center space-y-4 mb-12 flex flex-col items-center">
           <div className="flex justify-center mb-2">
-            <img src="/iuser_preta.png" alt="iUser Logo" className="h-16 md:h-20 block dark:hidden object-contain" />
-            <img src="/iuser_branca.png" alt="iUser Logo" className="h-16 md:h-20 hidden dark:block object-contain" />
+            <div className="bg-black p-3 rounded-2xl shadow-xl">
+              <img src="/logo.png" alt="iUser Logo" className="h-16 md:h-20 object-contain" />
+            </div>
           </div>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic mt-4">Mostre o que você tem de melhor</p>
         </div>

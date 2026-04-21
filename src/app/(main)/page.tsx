@@ -166,7 +166,7 @@ export default function Vitrine() {
   const translateType = (type: string | null) => {
     if (!type) return null
     const t = type.toLowerCase()
-    if (t === 'physical') return 'Físico'
+    if (t === 'physical') return 'Produto'
     if (t === 'service') return 'Serviço'
     return type
   }
@@ -349,16 +349,15 @@ export default function Vitrine() {
         {/* Header Section - Compacto */}
         <header className="mb-8">
           <div className="flex items-center gap-3">
-            {/* Logo - Verde e Branco */}
             <div className="bg-black p-2 rounded-xl shadow-lg">
-              <img src="/logo.png" alt="iUser" className="h-8 w-auto object-contain brightness-0 invert" />
+              <img src="/logo.png" alt="iUser" className="h-8 w-auto object-contain" />
             </div>
             {/* Search Input */}
             <div className="relative group flex-1">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Procurar produtos ou serviços..."
+                placeholder="Procurar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-8 py-2 bg-card border border-border rounded-lg text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all duration-300 shadow-sm"
@@ -383,10 +382,10 @@ export default function Vitrine() {
 
         {/* Filter Modal/Popup */}
         {showFilters && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowFilters(false)}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowFilters(false)}>
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
             <div
-              className="relative bg-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md mx-4 sm:mx-auto shadow-2xl transform transition-all duration-300 animate-in slide-in-from-bottom sm:slide-in-from-bottom-0"
+              className="relative bg-card rounded-3xl w-full sm:max-w-md mx-auto shadow-2xl transform transition-all duration-300 animate-in zoom-in-95"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header do Popup */}

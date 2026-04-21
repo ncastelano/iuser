@@ -265,7 +265,7 @@ export default function EditarProduto() {
     }
 
     const typeOptions = [
-        { label: 'Físico', value: 'physical', icon: Package },
+        { label: 'Produto', value: 'physical', icon: Package },
         { label: 'Digital', value: 'digital', icon: Monitor },
         { label: 'Serviço', value: 'service', icon: Briefcase }
     ]
