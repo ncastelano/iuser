@@ -240,6 +240,7 @@ export default function CarrinhoPage() {
                     </button>
                 </div>
             ) : (
+                <>
                     {/* Items List - Compacto */}
                     <div className="space-y-3">
                         {cartItems.map((item) => (
@@ -253,7 +254,8 @@ export default function CarrinhoPage() {
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-black italic">{item.product.name.charAt(0)}</div>
                                     )}
-                                </div>                                <div className="flex-1 min-w-0">
+                                </div>
+                                <div className="flex-1 min-w-0">
                                     <div className="space-y-0.5">
                                         <h4 className="text-sm font-black italic uppercase tracking-tighter text-foreground truncate">{item.product.name}</h4>
                                         <div className="text-[7px] font-black uppercase tracking-widest text-muted-foreground">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
@@ -292,7 +294,9 @@ export default function CarrinhoPage() {
                                 </div>
                             </div>
                         ))}
-                    </div>div>                    {/* Summary Card - Compacto */}
+                    </div>
+
+                    {/* Summary Card - Compacto */}
                     <div className="bg-card/60 backdrop-blur-3xl border border-border rounded-3xl p-6 md:p-8 space-y-6 shadow-xl relative overflow-hidden">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-border pb-6">
                             <div className="space-y-0.5 text-center md:text-left">
@@ -322,7 +326,7 @@ export default function CarrinhoPage() {
                             <p className="text-center text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground">O pedido será enviado para o WhatsApp da loja.</p>
                         </div>
                     </div>
-                </div></div>
+                </>
             )}
 
             {/* Suggested Items */}
