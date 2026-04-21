@@ -69,8 +69,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
 
             {/* Bottom Navbar - Estilo Compacto (TikTok/YouTube) */}
-            <div className="fixed bottom-0 left-0 right-0 z-50">
-                <nav className="bg-card/80 backdrop-blur-2xl border-t border-green-500/20 px-2 py-1 shadow-2xl relative">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-2xl border-t border-green-500/20 pb-[env(safe-area-inset-bottom)]">
+                <nav className="px-2 py-1 shadow-2xl relative">
                     <div className="max-w-md mx-auto flex justify-around items-center h-14">
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
                             <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>

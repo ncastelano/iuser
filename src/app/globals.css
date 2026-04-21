@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root, .light {
+  :root, .light, .dark {
     --background: 0 0% 100%; /* Branco puro */
     --foreground: 222.2 84% 4.9%;
 
@@ -33,36 +33,6 @@
     --ring: 142.1 76.2% 36.3%;
 
     --radius: 0.75rem;
-  }
-
-  .dark {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-
-    --secondary: 142.1 10% 95%; 
-    --secondary-foreground: 142.1 76.2% 10%;
-
-    --muted: 142.1 10% 95%;
-    --muted-foreground: 142.1 10% 40%;
-
-    --accent: 142.1 10% 95%;
-    --accent-foreground: 142.1 76.2% 10%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 142.1 10% 90%;
-    --input: 142.1 10% 90%;
-    --ring: 142.1 76.2% 36.3%;
   }
 }
 
@@ -108,7 +78,7 @@
 
 /* Utilitários premium */
 .glass {
-  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-sm dark:bg-black/70 dark:border-white/10;
+  @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-sm;
 }
 
 @keyframes slide-in {
@@ -129,7 +99,7 @@
 
 /* Efeito Premium de Glassmorphism Monochrome */
 .glass-glow-card {
-  @apply relative isolate overflow-hidden bg-neutral-900 border border-neutral-800 rounded-2xl;
+  @apply relative isolate overflow-hidden bg-white border border-neutral-100 rounded-2xl shadow-sm;
 }
 
 .glass-glow-card::before {
