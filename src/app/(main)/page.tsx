@@ -444,178 +444,118 @@ export default function Vitrine() {
           </div>
         )}
 
-        {/* Lojas Section - Título Dinâmico */}
-        <section className="mb-16">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{sectionTitle}</h2>
-              <p className="text-xs text-muted-foreground mt-1">{sortedStores.length} lojas encontradas</p>
+        {/* Lojas Section - Título Dinâmico (Compacto) */}
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">{sectionTitle}</h2>
+              <span className="text-[8px] font-bold text-muted-foreground uppercase">{sortedStores.length} lojas</span>
             </div>
             {hasMoreStores && (
               <button
                 onClick={() => setShowAllStores(!showAllStores)}
-                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                className="text-[9px] font-black uppercase text-primary tracking-widest hover:opacity-80"
               >
-                {showAllStores ? 'Ver Menos' : `Ver Todas (${sortedStores.length})`}
-                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllStores ? 'rotate-90' : ''}`} />
+                {showAllStores ? 'Ver Menos' : 'Ver Todas'} &rarr;
               </button>
             )}
           </div>
 
-          {sortedStores.length === 0 ? (
-            <div className="py-16 text-center bg-card rounded-2xl border border-border shadow-sm">
-              <Store className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground">Nenhuma loja encontrada na sua região</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {visibleStores.map((store, idx) => {
-                const stats = store.store_stats ?? {}
-                const distance = calcDistanceKm(store.location)
-                const distanceFormatted = formatDistance(distance)
-                return (
-                  <div
-                    key={store.id + idx}
-                    onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-                    className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 border border-border/50"
-                  >
-                    <div className="relative h-40 bg-muted overflow-hidden">
-                      {store.logo_url ? (
-                        <img src={store.logo_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={store.name} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-4xl font-bold">{store.name?.charAt(0)}</div>
-                      )}
-
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm">
-                        <div className={`w-1.5 h-1.5 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-[10px] font-medium text-foreground">{store.is_open ? 'Aberto' : 'Fechado'}</span>
-                      </div>
-
-                      {distanceFormatted && (
-                        <div className="absolute top-3 right-3 px-2.5 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-[10px] font-medium text-foreground">{distanceFormatted}</span>
-                        </div>
-                      )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {visibleStores.map((store, idx) => {
+              const stats = store.store_stats ?? {}
+              const distance = calcDistanceKm(store.location)
+              const distanceFormatted = formatDistance(distance)
+              return (
+                <div
+                  key={store.id + idx}
+                  onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
+                  className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md border border-border/50 flex flex-col"
+                >
+                  <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+                    {store.logo_url ? (
+                      <img src={store.logo_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={store.name} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-bold uppercase">{store.name?.charAt(0)}</div>
+                    )}
+                    
+                    <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 bg-background/90 backdrop-blur-sm rounded-md shadow-sm border border-border/10">
+                      <div className={`w-1 h-1 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-[7px] font-black uppercase text-foreground">{store.is_open ? 'ON' : 'OFF'}</span>
                     </div>
 
-                    <div className="p-5">
-                      <h3 className="text-xl font-bold text-foreground mb-1 truncate">{store.name}</h3>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                          <span className="text-sm font-bold text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground font-medium">({stats.ratings_count ?? 0})</span>
+                    {distanceFormatted && (
+                      <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-background/90 backdrop-blur-sm rounded-md shadow-sm border border-border/10">
+                        <span className="text-[7px] font-bold text-foreground">{distanceFormatted}</span>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="flex items-center justify-between pt-4 border-t border-border">
-                        <div className="flex -space-x-2">
-                          {allProducts.filter(p => p.store_id === store.id).slice(0, 3).map(p => (
-                            <div key={p.id} className="w-8 h-8 rounded-lg bg-muted border-2 border-card overflow-hidden shadow-sm">
-                              {p.image_url ? (
-                                <img src={p.image_url} className="w-full h-full object-cover" alt="" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[8px] text-muted-foreground/40 font-bold">{p.name.charAt(0)}</div>
-                              )}
-                            </div>
-                          ))}
-                          {allProducts.filter(p => p.store_id === store.id).length > 3 && (
-                            <div className="w-8 h-8 rounded-lg bg-primary border-2 border-card flex items-center justify-center text-[10px] font-bold text-primary-foreground">
-                              +{allProducts.filter(p => p.store_id === store.id).length - 3}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors italic uppercase tracking-widest text-[9px] font-black">Ver loja →</span>
+                  <div className="p-2 space-y-1">
+                    <h3 className="text-[10px] font-black text-foreground uppercase truncate leading-none">{store.name}</h3>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-2 h-2 text-yellow-500 fill-yellow-500" />
+                        <span className="text-[8px] font-bold text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
                       </div>
+                      <span className="text-[7px] font-black uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity">Ver &rarr;</span>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
         </section>
 
-        {/* Produtos Section */}
-        <section className="pb-12">
-          <div className="flex items-end justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">Produtos e Serviços</h2>
-              <p className="text-xs text-muted-foreground mt-1">{sortedProducts.length} produtos disponíveis</p>
+        {/* Produtos Section (Compacto) */}
+        <section className="pb-8">
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">Produtos e Serviços</h2>
+              <span className="text-[8px] font-bold text-muted-foreground uppercase">{sortedProducts.length} itens</span>
             </div>
-            {hasMoreProducts && (
-              <button
-                onClick={() => setShowAllProducts(!showAllProducts)}
-                className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-              >
-                {showAllProducts ? 'Ver Menos' : `Ver Todas (${sortedProducts.length})`}
-                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : ''}`} />
-              </button>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {visibleProducts.map((product, idx) => {
               const store = getStore(product.store_id)
-              const distance = store ? calcDistanceKm(store.location) : null
-              const distanceFormatted = formatDistance(distance)
               const price = typeof product.price === 'number' ? product.price : 0
-              const typeLabel = translateType(product.type) || product.category || 'Produto'
+              const typeLabel = translateType(product.type) || product.category || 'Item'
 
               return (
                 <div
                   key={product.id + idx}
                   onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                  className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 border border-border/50"
+                  className="group relative bg-card rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md border border-border/50 flex flex-col"
                 >
-                  <div className="relative aspect-[4/3] bg-muted overflow-hidden border-b border-border/50">
+                  <div className="relative aspect-square bg-muted overflow-hidden">
                     {product.image_url ? (
                       <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={product.name} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-muted">
-                        <div className="text-center opacity-30">
-                          <ShoppingBag className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
-                          <span className="text-xs text-muted-foreground">{product.name.slice(0, 15)}</span>
-                        </div>
+                      <div className="w-full h-full flex items-center justify-center bg-muted/30">
+                        <ShoppingBag className="w-6 h-6 text-muted-foreground opacity-10" />
                       </div>
                     )}
 
-                    <div className="absolute top-3 left-3">
-                      <div className="bg-background/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-foreground shadow-sm">
+                    <div className="absolute top-2 left-2">
+                      <div className="bg-background/90 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-widest text-foreground shadow-sm border border-border/10">
                         {typeLabel}
                       </div>
                     </div>
-
-                    {distanceFormatted && (
-                      <div className="absolute bottom-3 right-3">
-                        <div className="flex items-center gap-1 px-2 py-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm">
-                          <MapPin className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-[10px] font-medium text-foreground">{distanceFormatted}</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  <div className="p-4">
-                    <h4 className="font-bold text-foreground mb-1 line-clamp-2 min-h-[48px] italic">{product.name}</h4>
+                  <div className="p-2 space-y-1.5">
+                    <div>
+                      {store && (
+                        <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground truncate mb-0.5">{store.name}</p>
+                      )}
+                      <h4 className="text-[10px] font-black text-foreground uppercase leading-tight line-clamp-1">{product.name}</h4>
+                    </div>
 
-                    {store && (
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="w-5 h-5 rounded bg-muted overflow-hidden flex-shrink-0 border border-border/50">
-                          {store.logo_url ? (
-                            <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <Store className="w-3 h-3 text-muted-foreground/30 m-1" />
-                          )}
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">{store.name}</span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <span className="text-xl font-black text-foreground italic">R$ {price.toFixed(2).replace('.', ',')}</span>
-                      <div className="w-8 h-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-md">
-                        <Plus className="w-4 h-4" />
+                    <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                      <span className="text-xs font-black text-foreground italic">R$ {price.toFixed(0)}</span>
+                      <div className="w-5 h-5 rounded-lg bg-secondary text-foreground group-hover:bg-primary group-hover:text-white flex items-center justify-center transition-all shadow-sm">
+                        <Plus size={10} />
                       </div>
                     </div>
                   </div>

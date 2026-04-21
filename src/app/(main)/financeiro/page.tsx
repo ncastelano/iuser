@@ -65,11 +65,11 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
     const currentStatus = statusMap[order.status as keyof typeof statusMap] || statusMap['pending']
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
             <div className="absolute inset-0 bg-background/80 backdrop-blur-xl" onClick={onClose} />
-            <div className="relative bg-card border border-border w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                {/* Status Timeline Header */}
-                <div className="bg-secondary/30 p-6 flex justify-around items-center border-b border-border/50">
+            <div className="relative bg-card border border-border w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+                {/* Status Timeline Header - FIXED */}
+                <div className="bg-secondary/30 p-6 flex justify-around items-center border-b border-border/50 shrink-0">
                     {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => (
                         <div key={s} className="flex flex-col items-center gap-2">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
@@ -85,7 +85,8 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                     ))}
                 </div>
 
-                <div className="p-8 space-y-8">
+                {/* SCROLLABLE CONTENT */}
+                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">ID Checkout: {order.checkout_id.slice(0, 8)}</p>
@@ -96,7 +97,7 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                         </div>
                     </div>
 
-                    <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-3">
                         {order.items.map((item, idx) => (
                             <div key={idx} className="flex items-center justify-between p-4 bg-secondary/20 rounded-2xl border border-border/30 group hover:border-foreground/20 transition-all">
                                 <div>
@@ -112,30 +113,31 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Líquido</span>
                         <span className="text-4xl font-black italic tracking-tighter">R$ {order.totalPrice.toFixed(2)}</span>
                     </div>
+                </div>
 
-                    <div className="grid grid-cols-1 gap-3">
-                        {currentStatus.next && (
-                            <button 
-                                onClick={() => onAction(currentStatus.next!)}
-                                className="py-5 bg-foreground text-background rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-green-500 hover:text-white transition-all shadow-xl active:scale-[0.98]"
-                            >
-                                {currentStatus.nextLabel}
-                            </button>
-                        )}
-                        
-                        {order.status === 'pending' && (
-                            <button 
-                                onClick={() => onAction('rejected')}
-                                className="py-4 bg-destructive/5 text-destructive border border-destructive/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive hover:text-white transition-all"
-                            >
-                                Recusar Pedido
-                            </button>
-                        )}
-
-                        <button onClick={onClose} className="py-4 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-all">
-                            Fechar Visualização
+                {/* FOOTER BUTTONS - FIXED */}
+                <div className="p-8 pt-0 grid grid-cols-1 gap-3 shrink-0">
+                    {currentStatus.next && (
+                        <button 
+                            onClick={() => onAction(currentStatus.next!)}
+                            className="py-5 bg-foreground text-background rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-green-500 hover:text-white transition-all shadow-xl active:scale-[0.98]"
+                        >
+                            {currentStatus.nextLabel}
                         </button>
-                    </div>
+                    )}
+                    
+                    {order.status === 'pending' && (
+                        <button 
+                            onClick={() => onAction('rejected')}
+                            className="py-4 bg-destructive/5 text-destructive border border-destructive/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive hover:text-white transition-all"
+                        >
+                            Recusar Pedido
+                        </button>
+                    )}
+
+                    <button onClick={onClose} className="py-4 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-all">
+                        Fechar Visualização
+                    </button>
                 </div>
             </div>
         </div>
@@ -274,54 +276,54 @@ function StoreFinancialCard({
                 </div>
             </div>
 
-            <div className="p-8 space-y-12">
-                {/* 1. Métricas iFood Level */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-secondary/20 p-6 rounded-3xl border border-border/30">
-                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Hoje</p>
-                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[9px] font-bold text-green-500 mt-1 uppercase">{metrics.daily.orders} pedidos</p>
+            <div className="p-4 md:p-6 space-y-6">
+                {/* 1. Métricas iFood Level - Compactas */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
+                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Hoje</p>
+                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[8px] font-bold text-green-500 mt-1 uppercase">{metrics.daily.orders} pedidos</p>
                     </div>
-                    <div className="bg-secondary/20 p-6 rounded-3xl border border-border/30">
-                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Ticket Médio</p>
-                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Média p/ Pedido</p>
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
+                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Ticket Médio</p>
+                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">Média p/ Pedido</p>
                     </div>
-                    <div className="bg-secondary/20 p-6 rounded-3xl border border-border/30">
-                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Volume Mês</p>
-                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.monthly.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">{metrics.monthly.orders} pedidos</p>
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
+                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Volume Mês</p>
+                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.monthly.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">{metrics.monthly.orders} pedidos</p>
                     </div>
-                    <div className="bg-secondary/20 p-6 rounded-3xl border border-border/30">
-                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Total Geral</p>
-                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.total.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">{metrics.total.orders} concluídos</p>
+                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
+                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Total Geral</p>
+                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.total.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">{metrics.total.orders} concluídos</p>
                     </div>
                 </div>
 
-                {/* 1.1 Desempenho de Itens */}
-                <div className="bg-secondary/10 p-6 rounded-[32px] border border-border/20">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-2">
-                        <TrendingUp size={12} /> Desempenho de Produtos
+                {/* 1.1 Desempenho de Itens - Compacto */}
+                <div className="bg-secondary/10 p-4 rounded-[24px] border border-border/20">
+                    <h4 className="text-[8px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-4 flex items-center gap-2">
+                        <TrendingUp size={10} /> Desempenho de Produtos
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         {topItems.map(([name, data], i) => (
-                            <div key={i} className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-background border border-border flex items-center justify-center text-[10px] font-black">{i + 1}</div>
-                                    <span className="text-[10px] font-black uppercase truncate max-w-[120px]">{name}</span>
+                            <div key={i} className="flex items-center justify-between gap-3 bg-background/50 p-2 rounded-xl border border-border/20">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-background border border-border flex items-center justify-center text-[8px] font-black">{i + 1}</div>
+                                    <span className="text-[9px] font-black uppercase truncate max-w-[80px]">{name}</span>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-black">{data.count} un.</p>
-                                    <p className="text-[8px] font-bold text-muted-foreground tracking-tighter">R$ {data.total.toFixed(2)}</p>
+                                    <p className="text-[9px] font-black">{data.count}u.</p>
+                                    <p className="text-[7px] font-bold text-muted-foreground tracking-tighter">R$ {data.total.toFixed(0)}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* 2. Seções de Pedidos (Estilo iFood) */}
-                <div className="space-y-12">
+                {/* 2. Seções de Pedidos (Estilo iFood) - Compactas */}
+                <div className="space-y-8">
                     {/* NOVOS PEDIDOS (PENDING) */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -420,19 +422,19 @@ function StoreFinancialCard({
                                 <div 
                                     key={order.checkout_id}
                                     onClick={() => setSelectedOrder(order)}
-                                    className="flex items-center justify-between p-6 rounded-[24px] bg-secondary/10 border border-border/20 hover:bg-secondary/20 cursor-pointer transition-all opacity-70 group"
+                                    className="flex items-center justify-between p-4 rounded-2xl bg-secondary/10 border border-border/20 hover:bg-secondary/20 cursor-pointer transition-all opacity-70 group"
                                 >
                                     <div className="flex flex-col">
-                                        <span className="text-lg font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
-                                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
+                                        <span className="text-base font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
+                                        <span className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
                                     </div>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-3">
                                         <div className="text-right">
-                                            <span className="text-xl font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
-                                            <p className="text-[8px] font-black text-green-500 uppercase">Recebido</p>
+                                            <span className="text-lg font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
+                                            <p className="text-[7px] font-black text-green-500 uppercase">Recebido</p>
                                         </div>
-                                        <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
-                                            <CheckCircle2 className="w-5 h-5" />
+                                        <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
+                                            <CheckCircle2 className="w-4 h-4" />
                                         </div>
                                     </div>
                                 </div>
