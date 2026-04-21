@@ -66,20 +66,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 {children}
             </main>
 
-            {/* Floating Cart Button - Verde */}
-            <Link
-                href="/todoscarrinhosdecompra"
-                className={`fixed bottom-28 right-6 z-50 p-5 bg-card/60 backdrop-blur-2xl text-foreground rounded-[28px] border border-green-500/30 shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:scale-110 active:scale-95 transition-all duration-500 group ${totalCartItems === 0 ? 'opacity-0 scale-50 pointer-events-none' : 'opacity-100'}`}
-            >
-                <div className="relative">
-                    <ShoppingCart size={24} className="transition-transform group-hover:rotate-12 text-foreground" />
-                    {totalCartItems > 0 && (
-                        <div className="absolute -top-3 -right-3 min-w-[20px] h-[20px] bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-lg px-1">
-                            {totalCartItems > 99 ? '99+' : totalCartItems}
-                        </div>
-                    )}
-                </div>
-            </Link>
+
 
             {/* Bottom Navbar - Estilo Compacto (TikTok/YouTube) */}
             <div className="fixed bottom-0 left-0 right-0 z-50">
@@ -97,6 +84,20 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                                 <MapPinned size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
                             </div>
                             <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname === '/mapa' ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Mapa</span>
+                        </Link>
+
+                        <Link href="/todoscarrinhosdecompra" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
+                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/todoscarrinhosdecompra' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
+                                <div className="relative">
+                                    <ShoppingCart size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
+                                    {totalCartItems > 0 && (
+                                        <div className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-green-500 text-white rounded-full flex items-center justify-center text-[7px] font-black shadow-lg px-0.5">
+                                            {totalCartItems > 99 ? '99+' : totalCartItems}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname === '/todoscarrinhosdecompra' ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Carrinho</span>
                         </Link>
 
                         <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">

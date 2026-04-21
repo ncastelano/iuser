@@ -12,7 +12,6 @@ export default function ConfiguracoesPage() {
 
     const { theme, setTheme } = useThemeStore()
     const [whatsapp, setWhatsapp] = useState('')
-    const [themeMode, setThemeMode] = useState<'dark' | 'light'>('dark')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -35,11 +34,7 @@ export default function ConfiguracoesPage() {
                     setWhatsapp(data.whatsapp)
                 }
 
-                if (data?.theme_mode) {
-                    setThemeMode(data.theme_mode as 'dark' | 'light')
-                } else {
-                    setThemeMode('dark') // Default
-                }
+
             }
 
             setLoading(false)
@@ -60,7 +55,7 @@ export default function ConfiguracoesPage() {
                 .from('profiles')
                 .update({
                     whatsapp: normalizedWhatsapp || null,
-                    theme_mode: themeMode || 'dark'
+                    theme_mode: 'light'
                 })
                 .eq('id', user.id)
 
@@ -69,7 +64,7 @@ export default function ConfiguracoesPage() {
                 alert(`Erro ao salvar: ${error.message}`)
             } else {
                 setWhatsapp(normalizedWhatsapp)
-                if (themeMode) setTheme(themeMode) // Sincroniza o estado global caso não tenha sincronizado
+                setTheme('light') // Sincroniza o estado global para garantir light mode
                 alert('Configurações salvas com sucesso!')
             }
         }
@@ -149,40 +144,7 @@ export default function ConfiguracoesPage() {
                         />
                     </div>
 
-                    {/* Tema */}
-                    <div className="space-y-4">
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-                            Preferência Visual
-                        </p>
 
-                        <div className="flex bg-secondary/50 p-1.5 rounded-2xl border border-border">
-                            <button
-                                onClick={() => {
-                                    setThemeMode('dark')
-                                    setTheme('dark')
-                                }}
-                                className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'dark'
-                                    ? 'bg-foreground text-background shadow-xl'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                            >
-                                Dark Mode
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setThemeMode('light')
-                                    setTheme('light')
-                                }}
-                                className={`flex-1 py-4 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${themeMode === 'light'
-                                    ? 'bg-foreground text-background shadow-xl'
-                                    : 'text-muted-foreground hover:text-foreground'
-                                    }`}
-                            >
-                                Light Mode
-                            </button>
-                        </div>
-                    </div>
 
                     {/* Save */}
                     <button

@@ -11,26 +11,24 @@ interface ThemeState {
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
-  theme: 'light', // Default
+  theme: 'light', // Always light
   setTheme: (theme) => {
-    set({ theme })
+    // Force light mode regardless of what is passed
+    const forcedTheme = 'light'
+    set({ theme: forcedTheme })
     if (typeof document !== 'undefined') {
-      if (theme === 'light') {
-        document.documentElement.classList.add('light')
-        document.documentElement.classList.remove('dark')
-      } else {
-        document.documentElement.classList.add('dark')
-        document.documentElement.classList.remove('light')
-      }
+      document.documentElement.classList.add('light')
+      document.documentElement.classList.remove('dark')
     }
   },
   toggleTheme: () => {
-    const next = get().theme === 'light' ? 'dark' : 'light'
-    get().setTheme(next)
+    // Do nothing or force light
+    get().setTheme('light')
   },
   syncTheme: async (userId) => {
     const supabase = createClient()
-    const { theme } = get()
-    await supabase.from('profiles').update({ theme_mode: theme }).eq('id', userId)
+    // Always sync 'light' to the profile
+    await supabase.from('profiles').update({ theme_mode: 'light' }).eq('id', userId)
   }
 }))
+

@@ -19,7 +19,7 @@ export function ThemeLoader() {
           .single()
         
         if (profile?.theme_mode) {
-          setTheme(profile.theme_mode as 'light' | 'dark')
+          setTheme('light') // Always force light
         }
       }
     }
@@ -34,11 +34,10 @@ export function ThemeLoader() {
         schema: 'public', 
         table: 'profiles' 
       }, (payload) => {
-        if (payload.new.theme_mode) {
-          setTheme(payload.new.theme_mode)
-        }
+        setTheme('light') // Always force light
       })
       .subscribe()
+
 
     return () => {
       supabase.removeChannel(channel)
