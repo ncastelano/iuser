@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ShoppingCart, Minus, Plus, Trash2, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ShoppingCart, Minus, Plus, Trash2, CheckCircle2, Eye, EyeOff, User, Link as LinkIcon, Mail, Lock } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { createClient } from '@/lib/supabase/client'
 import { formatCartMessage, getWhatsAppLink } from '@/lib/whatsapp'
+import { useRef } from 'react'
 
 export default function CarrinhoPage() {
     const params = useParams()
@@ -23,15 +24,19 @@ export default function CarrinhoPage() {
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
     const [suggestions, setSuggestions] = useState<any[]>([])
-    
+
     // Auth Inline States
     const [authMode, setAuthMode] = useState<'login' | 'register' | 'none'>('login')
     const [authEmail, setAuthEmail] = useState('')
     const [authPassword, setAuthPassword] = useState('')
+    const [authConfirmPassword, setAuthConfirmPassword] = useState('')
     const [authName, setAuthName] = useState('')
     const [authProfileSlug, setAuthProfileSlug] = useState('')
     const [authLoading, setAuthLoading] = useState(false)
     const [authError, setAuthError] = useState<string | null>(null)
+    const [showPassword, setShowPassword] = useState(false)
+    const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null)
+    const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -50,7 +55,6 @@ export default function CarrinhoPage() {
         const loadInfo = async () => {
             if (!storeSlug) return
 
-            // 1. Fetch store owner to get WhatsApp
             const { data: storeData } = await supabase
                 .from('stores')
                 .select('id, owner_id, whatsapp')
@@ -70,7 +74,6 @@ export default function CarrinhoPage() {
                     if (profileData?.whatsapp) setOwnerWhatsapp(profileData.whatsapp)
                 }
 
-                // Load suggestions
                 const { data: productsData } = await supabase
                     .from('products')
                     .select('*')
@@ -83,7 +86,6 @@ export default function CarrinhoPage() {
                 }
             }
 
-            // 2. Fetch current user info
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
                 setCurrentUserId(user.id)
@@ -130,6 +132,12 @@ export default function CarrinhoPage() {
         setAuthLoading(true)
         setAuthError(null)
 
+        if (authPassword !== authConfirmPassword) {
+            setAuthError('As senhas não coincidem')
+            setAuthLoading(false)
+            return
+        }
+
         if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
             setAuthError('O link deve conter apenas letras, números e hifens.')
             setAuthLoading(false)
@@ -161,6 +169,25 @@ export default function CarrinhoPage() {
         setAuthLoading(false)
     }
 
+    // Debounced Slug Check
+    useEffect(() => {
+        if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
+        
+        if (authProfileSlug.length < 3) {
+            setIsSlugAvailable(null)
+            return
+        }
+
+        slugTimeoutRef.current = setTimeout(async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('profileSlug')
+                .eq('profileSlug', authProfileSlug)
+                .single()
+            setIsSlugAvailable(!data)
+        }, 500)
+    }, [authProfileSlug, supabase])
+
     const handleFinalizarCompra = async () => {
         if (!storeInfo || !storeSlug) return
         if (!ownerWhatsapp) {
@@ -187,7 +214,7 @@ export default function CarrinhoPage() {
 
             if (storeData) {
                 const checkout_id = crypto.randomUUID()
-                
+
                 const { data: orderData } = await supabase
                     .from('orders')
                     .insert({
@@ -256,172 +283,205 @@ export default function CarrinhoPage() {
     }
 
     return (
-        <div className="relative w-full max-w-4xl mx-auto py-8 md:py-16 animate-fade-in text-foreground selection:bg-green-500 selection:text-white px-4 pb-32">
+        <div className="relative w-full max-w-4xl mx-auto py-6 px-4 pb-32 animate-fade-in text-foreground selection:bg-green-500 selection:text-white">
             {/* Header Compacto */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">
-                <div className="flex items-center gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-border pb-6">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border rounded-none hover:bg-foreground hover:text-background transition-all duration-500 shadow-xl"
+                        className="w-10 h-10 flex items-center justify-center bg-secondary/50 border border-border hover:bg-foreground hover:text-background transition-all duration-500"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-4 h-4" />
                     </button>
-                    <div className="space-y-0.5">
-                        <h1 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-foreground">
-                            Seu Carrinho<span className="text-green-500">.</span>
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter text-foreground">
+                            Carrinho<span className="text-green-500">.</span>
                         </h1>
                         {storeInfo && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">Checkout em</span>
-                                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground">{storeInfo.name}</span>
-                            </div>
+                            <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground mt-0.5">
+                                {storeInfo.name}
+                            </p>
                         )}
                     </div>
                 </div>
-                
-                <div className="px-6 py-2 bg-secondary/50 border border-border rounded-none">
-                    <div className="flex items-center gap-2">
-                        <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">{totalItems} Itens</span>
-                    </div>
+
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary/50 border border-border">
+                    <ShoppingCart className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[8px] font-black uppercase tracking-wider text-muted-foreground">{totalItems} itens</span>
                 </div>
             </div>
 
             {cartItems.length === 0 ? (
-                <div className="py-24 text-center rounded-none border border-dashed border-border bg-card/40 flex flex-col items-center justify-center gap-6">
-                    <div className="w-20 h-20 bg-secondary rounded-none flex items-center justify-center border border-border">
-                        <ShoppingCart className="w-8 h-8 text-muted-foreground/30" />
+                <div className="py-16 text-center border border-dashed border-border bg-card/40 flex flex-col items-center justify-center gap-4">
+                    <div className="w-16 h-16 bg-secondary flex items-center justify-center border border-border">
+                        <ShoppingCart className="w-6 h-6 text-muted-foreground/30" />
                     </div>
-                    <div className="space-y-1">
-                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-foreground">Vazio</h2>
-                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest opacity-60">Sua sacola está aguardando produtos.</p>
+                    <div>
+                        <h2 className="text-xl font-black italic uppercase tracking-tighter text-foreground">Vazio</h2>
+                        <p className="text-muted-foreground text-[8px] font-bold uppercase tracking-wider opacity-60 mt-1">
+                            Sua sacola está aguardando produtos.
+                        </p>
                     </div>
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="px-10 py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest rounded-none hover:opacity-90 transition-all shadow-xl"
+                        className="px-6 py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all shadow-lg"
                     >
                         Voltar para a Vitrine
                     </button>
                 </div>
             ) : (
-                <div className="space-y-12">
-                    {/* Items List */}
-                    <div className="space-y-6">
+                <div className="space-y-8">
+                    {/* Items List - Compacto */}
+                    <div className="space-y-3">
                         {cartItems.map((item) => (
                             <div
                                 key={item.product.id}
-                                className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-none p-4 md:p-6 flex flex-col md:flex-row items-center gap-6 transition-all hover:bg-card/60 hover:border-green-500/30 shadow-lg"
+                                className="flex gap-4 border border-border p-3 hover:border-green-500/30 transition-all bg-card/20"
                             >
-                                <div className="w-28 h-28 md:w-32 md:h-32 bg-secondary rounded-none overflow-hidden border border-border flex-shrink-0 shadow-lg">
+                                <div className="w-16 h-16 bg-secondary border border-border flex-shrink-0">
                                     {item.product.image_url ? (
-                                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+                                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-3xl font-black italic">{item.product.name.charAt(0)}</div>
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-lg font-black italic">
+                                            {item.product.name.charAt(0)}
+                                        </div>
                                     )}
                                 </div>
 
-                                <div className="flex-1 space-y-4 text-center md:text-left">
-                                    <div className="space-y-0.5">
-                                        <h4 className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-foreground line-clamp-2">{item.product.name}</h4>
-                                        <div className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-                                    </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-black italic uppercase tracking-tighter text-foreground truncate">
+                                        {item.product.name}
+                                    </h4>
+                                    <p className="text-[9px] font-black text-green-500 mt-0.5">
+                                        R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </p>
 
-                                    <div className="flex items-center justify-center md:justify-start gap-3">
-                                        <div className="flex items-center bg-secondary border border-border p-0.5 rounded-none shadow-inner">
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <div className="flex items-center bg-secondary border border-border">
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, -1)}
-                                                className="w-8 h-8 flex items-center justify-center rounded-none bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-6 h-6 flex items-center justify-center bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Minus className="w-3 h-3" />
+                                                <Minus className="w-2.5 h-2.5" />
                                             </button>
-                                            <span className="w-8 text-center text-xs font-black italic">{item.quantity}</span>
+                                            <span className="w-6 text-center text-[10px] font-black italic">{item.quantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, 1)}
-                                                className="w-8 h-8 flex items-center justify-center rounded-none bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-6 h-6 flex items-center justify-center bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Plus className="w-3 h-3" />
+                                                <Plus className="w-2.5 h-2.5" />
                                             </button>
                                         </div>
                                         <button
                                             onClick={() => removeItem(storeSlug as string, item.product.id)}
-                                            className="w-10 h-10 flex items-center justify-center rounded-none bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
+                                            className="w-7 h-7 flex items-center justify-center bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
                                         >
-                                            <Trash2 className="w-4 h-4" />
+                                            <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="text-center md:text-right">
-                                    <div className="text-[8px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-0.5">Subtotal</div>
-                                    <div className="text-2xl font-black italic tracking-tighter text-foreground">
+                                <div className="text-right flex-shrink-0">
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Subtotal</p>
+                                    <p className="text-base font-black italic tracking-tighter text-foreground">
                                         R$ {(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </div>
+                                    </p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Summary & Checkout Logic Area */}
-                    <div id="checkout-auth-area" className="bg-card/60 backdrop-blur-3xl border border-border rounded-none p-8 md:p-10 space-y-8 shadow-2xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-80 h-80 bg-green-500/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                    {/* Summary & Checkout - Compacto sem card */}
+                    <div id="checkout-auth-area" className="border-t border-b border-border py-6 space-y-6">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">Total</p>
+                                <p className="text-2xl sm:text-3xl font-black italic tracking-tighter text-foreground">
+                                    R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
 
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b border-border pb-8">
-                            <div className="space-y-0.5 text-center md:text-left">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Acumulado</h3>
-                                <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest opacity-50">Exclusividade iUser</p>
-                            </div>
-                            <div className="text-4xl md:text-5xl font-black italic tracking-tighter text-foreground">
-                                R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
+                            {!currentUserId ? (
+                                <button
+                                    onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
+                                    className="px-6 py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all"
+                                >
+                                    Identificar para Finalizar
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleFinalizarCompra}
+                                    disabled={checkoutLoading}
+                                    className="px-6 py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {checkoutLoading ? (
+                                        <div className="w-3.5 h-3.5 border-2 border-background/20 border-t-background rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            Finalizar via WhatsApp
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
 
-                        {!currentUserId ? (
-                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                                <div className="text-center space-y-1">
-                                    <h4 className="text-sm font-black uppercase tracking-widest text-foreground">Identificação</h4>
-                                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Acesse sua conta ou cadastre-se para finalizar</p>
-                                </div>
-
-                                <div className="flex bg-secondary/50 p-1 border border-border rounded-none">
-                                    <button 
+                        {/* Auth Section - Compacto */}
+                        {!currentUserId && (
+                            <div id="auth-section" className="space-y-4 pt-4 border-t border-border">
+                                <div className="flex bg-secondary/50 p-0.5 border border-border">
+                                    <button
                                         onClick={() => setAuthMode('login')}
-                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${authMode === 'login' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground'}`}
+                                        className={`flex-1 py-2 text-[8px] font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
                                     >
                                         Entrar
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={() => setAuthMode('register')}
-                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${authMode === 'register' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground'}`}
+                                        className={`flex-1 py-2 text-[8px] font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
                                     >
                                         Criar Conta
                                     </button>
                                 </div>
 
                                 {authError && (
-                                    <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-[8px] font-black uppercase tracking-wider text-center">
+                                    <div className="p-2 bg-destructive/10 border border-destructive/20 text-destructive text-[7px] font-black uppercase tracking-wider text-center">
                                         {authError}
                                     </div>
                                 )}
 
                                 {authMode === 'login' ? (
                                     <form onSubmit={handleInlineLogin} className="space-y-3">
-                                        <input 
-                                            type="email" 
-                                            placeholder="seu@email.com"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authEmail}
-                                            onChange={(e) => setAuthEmail(e.target.value)}
-                                            required
-                                        />
-                                        <input 
-                                            type="password" 
-                                            placeholder="sua senha"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authPassword}
-                                            onChange={(e) => setAuthPassword(e.target.value)}
-                                            required
-                                        />
-                                        <button 
+                                        <div className="relative">
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                            <input
+                                                type="email"
+                                                placeholder="seu@email.com"
+                                                className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                value={authEmail}
+                                                onChange={(e) => setAuthEmail(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="relative">
+                                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder="sua senha"
+                                                className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                value={authPassword}
+                                                onChange={(e) => setAuthPassword(e.target.value)}
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-all"
+                                            >
+                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <button
                                             disabled={authLoading}
                                             className="w-full py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
                                         >
@@ -430,40 +490,86 @@ export default function CarrinhoPage() {
                                     </form>
                                 ) : (
                                     <form onSubmit={handleInlineRegister} className="space-y-3">
-                                        <input 
-                                            type="text" 
-                                            placeholder="Nome Completo"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authName}
-                                            onChange={(e) => setAuthName(e.target.value)}
-                                            required
-                                        />
-                                        <input 
-                                            type="text" 
-                                            placeholder="link-do-perfil (slug)"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authProfileSlug}
-                                            onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                            required
-                                        />
-                                        <input 
-                                            type="email" 
-                                            placeholder="seu@email.com"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authEmail}
-                                            onChange={(e) => setAuthEmail(e.target.value)}
-                                            required
-                                        />
-                                        <input 
-                                            type="password" 
-                                            placeholder="Crie uma senha"
-                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
-                                            value={authPassword}
-                                            onChange={(e) => setAuthPassword(e.target.value)}
-                                            required
-                                        />
-                                        <button 
-                                            disabled={authLoading}
+                                        <div className="relative">
+                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                            <input
+                                                type="text"
+                                                placeholder="Nome Completo"
+                                                className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                value={authName}
+                                                onChange={(e) => setAuthName(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="relative">
+                                                <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                                <div className="flex items-center bg-secondary/50 border border-border focus-within:border-green-500/50">
+                                                    <span className="pl-11 pr-1 text-[8px] font-black text-muted-foreground uppercase tracking-widest hidden sm:inline">iuser.com.br/</span>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="link-do-perfil"
+                                                        className="w-full py-3 pl-11 sm:pl-0 pr-4 bg-transparent text-xs outline-none placeholder:text-muted-foreground/30"
+                                                        value={authProfileSlug}
+                                                        onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                        required
+                                                    />
+                                                    {isSlugAvailable !== null && (
+                                                        <div className={`pr-4 ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {isSlugAvailable ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-[7px] font-black uppercase">Indisponível</span>}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative">
+                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                            <input
+                                                type="email"
+                                                placeholder="seu@email.com"
+                                                className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                value={authEmail}
+                                                onChange={(e) => setAuthEmail(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="relative">
+                                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    placeholder="Senha"
+                                                    className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                    value={authPassword}
+                                                    onChange={(e) => setAuthPassword(e.target.value)}
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-all"
+                                                >
+                                                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                                </button>
+                                            </div>
+                                            <div className="relative">
+                                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    placeholder="Confirmar"
+                                                    className="w-full bg-secondary/50 border border-border px-11 py-3 text-xs focus:outline-none focus:border-green-500/50"
+                                                    value={authConfirmPassword}
+                                                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            disabled={authLoading || isSlugAvailable === false}
                                             className="w-full py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
                                         >
                                             {authLoading ? 'Cadastrando...' : 'Cadastrar e Finalizar'}
@@ -471,39 +577,24 @@ export default function CarrinhoPage() {
                                     </form>
                                 )}
                             </div>
-                        ) : (
-                            <div className="flex flex-col gap-4 animate-in fade-in duration-500">
-                                <div className="flex items-center justify-between px-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Logado como @{currentUserSlug}</span>
-                                    </div>
-                                    <button 
-                                        onClick={async () => {
-                                            await supabase.auth.signOut()
-                                            setCurrentUserId(null)
-                                            setAuthMode('login')
-                                        }}
-                                        className="text-[7px] font-black uppercase tracking-widest text-muted-foreground hover:text-destructive transition-colors"
-                                    >
-                                        Sair
-                                    </button>
+                        )}
+
+                        {currentUserId && (
+                            <div className="flex items-center justify-between pt-2 border-t border-border">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-green-500" />
+                                    <span className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">@{currentUserSlug}</span>
                                 </div>
                                 <button
-                                    onClick={handleFinalizarCompra}
-                                    disabled={checkoutLoading}
-                                    className="w-full py-5 bg-foreground text-background rounded-none font-black uppercase text-xs tracking-[0.4em] transition-all hover:bg-green-500 hover:text-white active:scale-[0.98] shadow-xl flex items-center justify-center gap-4 group/btn disabled:opacity-50"
+                                    onClick={async () => {
+                                        await supabase.auth.signOut()
+                                        setCurrentUserId(null)
+                                        setAuthMode('login')
+                                    }}
+                                    className="text-[7px] font-black uppercase tracking-wider text-muted-foreground hover:text-destructive transition-colors"
                                 >
-                                    {checkoutLoading ? (
-                                        <div className="w-5 h-5 border-2 border-background/20 border-t-background rounded-full animate-spin" />
-                                    ) : (
-                                        <>
-                                            <CheckCircle2 className="w-5 h-5" />
-                                            Finalizar via WhatsApp
-                                        </>
-                                    )}
+                                    Sair
                                 </button>
-                                <p className="text-center text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">O pedido será enviado para o WhatsApp da loja.</p>
                             </div>
                         )}
                     </div>
@@ -512,28 +603,30 @@ export default function CarrinhoPage() {
 
             {/* Sugestões Compactas */}
             {suggestions.length > 0 && (
-                <div className="mt-16 space-y-6">
+                <div className="mt-12 space-y-4">
                     <div className="flex items-center gap-3">
-                        <h3 className="text-[8px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">Sugestões</h3>
+                        <h3 className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">Sugestões</h3>
                         <div className="h-px flex-1 bg-border" />
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {suggestions.map((p) => (
-                            <div key={p.id} className="bg-card/40 border border-border rounded-none p-3 group hover:border-green-500/30 transition-all">
-                                <div className="aspect-square rounded-none overflow-hidden bg-secondary mb-3 border border-border/50">
+                            <div key={p.id} className="border border-border p-2 hover:border-green-500/30 transition-all bg-card/20">
+                                <div className="aspect-square overflow-hidden bg-secondary border border-border/50 mb-2">
                                     {p.image_url ? (
                                         <img
                                             src={supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl}
                                             alt={p.name}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                                         />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-lg font-black italic">{p.name.charAt(0)}</div>
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-lg font-black italic">
+                                            {p.name.charAt(0)}
+                                        </div>
                                     )}
                                 </div>
-                                <h4 className="text-[10px] font-bold text-foreground truncate mb-0.5">{p.name}</h4>
-                                <div className="flex items-center justify-between gap-1.5">
-                                    <p className="text-xs font-black text-green-500 italic">R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                <h4 className="text-[9px] font-bold text-foreground truncate">{p.name}</h4>
+                                <div className="flex items-center justify-between gap-1 mt-1">
+                                    <p className="text-[10px] font-black text-green-500 italic">R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                     <button
                                         onClick={() => addItem(storeSlug as string, { name: storeInfo?.name || '', logo_url: storeInfo?.logo_url || null }, {
                                             id: p.id,
@@ -541,9 +634,9 @@ export default function CarrinhoPage() {
                                             price: p.price,
                                             image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null
                                         })}
-                                        className="w-7 h-7 rounded-none bg-foreground text-background flex items-center justify-center hover:bg-green-500 hover:text-white transition-all shadow-lg active:scale-90"
+                                        className="w-6 h-6 bg-foreground text-background flex items-center justify-center hover:bg-green-500 hover:text-white transition-all"
                                     >
-                                        <Plus className="w-3.5 h-3.5" />
+                                        <Plus className="w-3 h-3" />
                                     </button>
                                 </div>
                             </div>
@@ -551,8 +644,6 @@ export default function CarrinhoPage() {
                     </div>
                 </div>
             )}
-
-            <div className="pb-32" />
         </div>
     )
 }

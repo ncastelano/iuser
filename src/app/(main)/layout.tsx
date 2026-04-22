@@ -65,7 +65,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         setMessage('Logout realizado com sucesso')
         setTimeout(() => {
             router.refresh()
-            router.push('/login')
+            router.push('/')
         }, 1000)
     }
 

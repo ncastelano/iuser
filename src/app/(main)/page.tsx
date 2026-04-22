@@ -84,7 +84,7 @@ export default function Vitrine() {
   // Começar com filtro de "Melhor avaliado" ao invés de "distância"
   const [sortBy, setSortBy] = useState<
     'distance' | 'rating' | 'prepTime' | 'priceMin' | 'priceMax'
-  >('rating') // Alterado de 'distance' para 'rating'
+  >('rating')
 
   const filters = [
     { label: 'Mais próximo', value: 'distance', icon: MapPin },
@@ -101,7 +101,7 @@ export default function Vitrine() {
   const getActiveFilterIcon = () => {
     const active = filters.find(f => f.value === sortBy)
     const Icon = active?.icon || Filter
-    return <Icon className="w-4 h-4" />
+    return <Icon className="w-3.5 h-3.5" />
   }
 
   // Função para obter o título dinâmico baseado no filtro
@@ -326,8 +326,8 @@ export default function Vitrine() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-10 h-10 border-4 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-6 h-6 border-2 border-green-500/20 border-t-green-500 rounded-full animate-spin"></div>
       </div>
     )
   }
@@ -345,22 +345,24 @@ export default function Vitrine() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* Header Section - Compacto */}
-        <header className="mb-8">
-          <div className="flex items-center gap-2">
-            <div className="bg-black p-1.5 rounded-none shadow-lg">
+      {/* Header Fixo no Topo - Logo e Input Colados */}
+      <div className="sticky top-0 z-40 bg-background border-b border-border">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center gap-2 py-2">
+            {/* Logo */}
+            <div className="bg-black p-1.5 flex-shrink-0">
               <img src="/logo.png" alt="iUser" className="h-6 w-auto object-contain" />
             </div>
+
             {/* Search Input */}
             <div className="relative group flex-1">
               <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Procurar..."
+                placeholder="Procurar lojas ou produtos..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-8 py-1.5 bg-card border border-border rounded-none text-foreground placeholder:text-muted-foreground text-xs focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/10 transition-all duration-300 shadow-sm"
+                className="w-full pl-8 pr-7 py-1.5 bg-card border border-border text-foreground placeholder:text-muted-foreground text-xs focus:outline-none focus:border-green-500/50 transition-all"
               />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
@@ -372,34 +374,34 @@ export default function Vitrine() {
             {/* Filter Button */}
             <button
               onClick={() => setShowFilters(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-card border border-border rounded-none text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all duration-300 shadow-sm"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border text-[9px] font-black uppercase tracking-wider text-foreground hover:bg-muted transition-all"
             >
               {getActiveFilterIcon()}
               <span className="hidden sm:inline">{getActiveFilterLabel()}</span>
             </button>
           </div>
-        </header>
+        </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Filter Modal/Popup */}
         {showFilters && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowFilters(false)}>
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
             <div
-              className="relative bg-card rounded-none w-full sm:max-w-md mx-auto shadow-2xl transform transition-all duration-300 animate-in zoom-in-95"
+              className="relative bg-card border border-border w-full sm:max-w-md mx-auto shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header do Popup */}
               <div className="flex items-center justify-between p-4 border-b border-border">
-                <h3 className="text-lg font-semibold text-foreground">Ordenar por</h3>
+                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Ordenar por</h3>
                 <button
                   onClick={() => setShowFilters(false)}
-                  className="p-1 rounded-lg hover:bg-muted transition-colors"
+                  className="p-1 hover:bg-muted transition-colors"
                 >
-                  <X className="w-5 h-5 text-muted-foreground" />
+                  <X className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
 
-              {/* Opções de Filtro */}
               <div className="p-2">
                 {filters.map((option) => {
                   const Icon = option.icon
@@ -411,31 +413,30 @@ export default function Vitrine() {
                         setSortBy(option.value as any)
                         setShowFilters(false)
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-none transition-all duration-200 ${isActive
-                        ? 'bg-primary/10 text-primary'
+                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${isActive
+                        ? 'bg-green-500/10 text-green-500'
                         : 'text-foreground hover:bg-muted'
                         }`}
                     >
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <span className={`flex-1 text-left font-medium ${isActive ? 'text-primary' : 'text-foreground'}`}>
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      <span className={`flex-1 text-left text-xs font-black uppercase tracking-wider ${isActive ? 'text-green-500' : 'text-foreground'}`}>
                         {option.label}
                       </span>
                       {isActive && (
-                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        <div className="w-1.5 h-1.5 bg-green-500" />
                       )}
                     </button>
                   )
                 })}
               </div>
 
-              {/* Footer com botão de limpar */}
               <div className="p-4 border-t border-border">
                 <button
                   onClick={() => {
-                    setSortBy('rating') // Mudado para 'rating' ao invés de 'distance'
+                    setSortBy('rating')
                     setShowFilters(false)
                   }}
-                  className="w-full py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="w-full py-2 text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Limpar filtros
                 </button>
@@ -444,31 +445,31 @@ export default function Vitrine() {
           </div>
         )}
 
-        {/* Lojas Section - Título Dinâmico */}
-        <section className="mb-16">
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">{sectionTitle}</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{sortedStores.length} lojas encontradas</p>
+        {/* Lojas Section */}
+        <section className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">{sectionTitle}</h2>
+              <span className="text-[9px] font-black text-muted-foreground">({sortedStores.length})</span>
             </div>
             {hasMoreStores && (
               <button
                 onClick={() => setShowAllStores(!showAllStores)}
-                className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-widest"
+                className="text-[8px] font-black text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-wider"
               >
-                {showAllStores ? 'Menos' : `Tudo (${sortedStores.length})`}
+                {showAllStores ? 'Menos' : `Ver tudo`}
                 <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllStores ? 'rotate-90' : ''}`} />
               </button>
             )}
           </div>
 
           {sortedStores.length === 0 ? (
-            <div className="py-12 text-center bg-card rounded-none border border-border shadow-sm">
-              <Store className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Nenhuma loja encontrada</p>
+            <div className="py-12 text-center border border-dashed border-border bg-card/20">
+              <Store className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Nenhuma loja encontrada</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {visibleStores.map((store, idx) => {
                 const stats = store.store_stats ?? {}
                 const distance = calcDistanceKm(store.location)
@@ -477,51 +478,51 @@ export default function Vitrine() {
                   <div
                     key={store.id + idx}
                     onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-                    className="group relative bg-card rounded-none overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg border border-border/50"
+                    className="group relative bg-card border border-border overflow-hidden transition-all duration-300 cursor-pointer hover:border-green-500/30 hover:shadow-lg"
                   >
-                    <div className="relative h-28 bg-muted overflow-hidden">
+                    <div className="relative h-24 bg-muted overflow-hidden">
                       {store.logo_url ? (
                         <img src={store.logo_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={store.name} />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-2xl font-bold">{store.name?.charAt(0)}</div>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-black italic">{store.name?.charAt(0)}</div>
                       )}
 
-                      <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 bg-background/90 backdrop-blur-sm rounded-none shadow-sm">
-                        <div className={`w-1 h-1 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-[8px] font-black uppercase tracking-widest text-foreground">{store.is_open ? 'Aberto' : 'Fechado'}</span>
+                      <div className="absolute top-1 left-1 flex items-center gap-1 px-1.5 py-0.5 bg-background/90 border border-border/50">
+                        <div className={`w-1 h-1 ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <span className="text-[6px] font-black uppercase tracking-wider text-foreground">{store.is_open ? 'Aberto' : 'Fechado'}</span>
                       </div>
 
                       {distanceFormatted && (
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-background/90 backdrop-blur-sm rounded-none shadow-sm flex items-center gap-1">
-                          <MapPin className="w-2.5 h-2.5 text-muted-foreground" />
-                          <span className="text-[8px] font-black text-foreground">{distanceFormatted}</span>
+                        <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-background/90 border border-border/50 flex items-center gap-0.5">
+                          <MapPin className="w-2 h-2 text-muted-foreground" />
+                          <span className="text-[6px] font-black text-foreground">{distanceFormatted}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-3">
-                      <h3 className="text-sm font-bold text-foreground mb-0.5 truncate">{store.name}</h3>
-                      <div className="flex items-center gap-1.5 mb-2">
+                    <div className="p-2">
+                      <h3 className="text-xs font-black uppercase tracking-tighter text-foreground mb-0.5 truncate">{store.name}</h3>
+                      <div className="flex items-center gap-1 mb-1.5">
                         <div className="flex items-center gap-0.5">
                           <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-                          <span className="text-[10px] font-bold text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+                          <span className="text-[9px] font-black text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
                         </div>
-                        <span className="text-[9px] text-muted-foreground font-medium">({stats.ratings_count ?? 0})</span>
+                        <span className="text-[7px] text-muted-foreground font-bold">({stats.ratings_count ?? 0})</span>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <div className="flex -space-x-1.5">
-                          {allProducts.filter(p => p.store_id === store.id).slice(0, 3).map(p => (
-                            <div key={p.id} className="w-6 h-6 rounded-none bg-muted border border-card overflow-hidden shadow-sm">
+                      <div className="flex items-center justify-between pt-1.5 border-t border-border">
+                        <div className="flex -space-x-1">
+                          {allProducts.filter(p => p.store_id === store.id).slice(0, 2).map(p => (
+                            <div key={p.id} className="w-5 h-5 bg-muted border border-card overflow-hidden">
                               {p.image_url ? (
                                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[6px] text-muted-foreground/40 font-bold">{p.name.charAt(0)}</div>
+                                <div className="w-full h-full flex items-center justify-center text-[5px] text-muted-foreground/40 font-black">{p.name.charAt(0)}</div>
                               )}
                             </div>
                           ))}
                         </div>
-                        <span className="text-[8px] font-black text-muted-foreground group-hover:text-primary transition-colors italic uppercase tracking-tighter">Entrar &rarr;</span>
+                        <span className="text-[7px] font-black text-muted-foreground group-hover:text-green-500 transition-colors uppercase tracking-wider">Entrar →</span>
                       </div>
                     </div>
                   </div>
@@ -532,24 +533,24 @@ export default function Vitrine() {
         </section>
 
         {/* Produtos Section */}
-        <section className="pb-12">
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">Produtos e Serviços</h2>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{sortedProducts.length} disponíveis</p>
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">Produtos e Serviços</h2>
+              <span className="text-[9px] font-black text-muted-foreground">({sortedProducts.length})</span>
             </div>
             {hasMoreProducts && (
               <button
                 onClick={() => setShowAllProducts(!showAllProducts)}
-                className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-widest"
+                className="text-[8px] font-black text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-wider"
               >
-                {showAllProducts ? 'Menos' : `Tudo (${sortedProducts.length})`}
+                {showAllProducts ? 'Menos' : 'Ver tudo'}
                 <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : ''}`} />
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {visibleProducts.map((product, idx) => {
               const store = getStore(product.store_id)
               const distance = store ? calcDistanceKm(store.location) : null
@@ -561,55 +562,53 @@ export default function Vitrine() {
                 <div
                   key={product.id + idx}
                   onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                  className="group relative bg-card rounded-none overflow-hidden transition-all duration-300 cursor-pointer shadow-sm hover:shadow-lg border border-border/50"
+                  className="group relative bg-card border border-border overflow-hidden transition-all duration-300 cursor-pointer hover:border-green-500/30 hover:shadow-lg"
                 >
                   <div className="relative aspect-square bg-muted overflow-hidden border-b border-border/50">
                     {product.image_url ? (
                       <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={product.name} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-muted">
-                        <div className="text-center opacity-30">
-                          <ShoppingBag className="w-8 h-8 text-muted-foreground mx-auto mb-1" />
-                        </div>
+                        <ShoppingBag className="w-6 h-6 text-muted-foreground/20" />
                       </div>
                     )}
 
-                    <div className="absolute top-2 left-2">
-                      <div className="bg-background/90 backdrop-blur-sm px-1.5 py-0.5 rounded-none text-[8px] font-black uppercase tracking-widest text-foreground shadow-sm">
+                    <div className="absolute top-1 left-1">
+                      <div className="bg-background/90 border border-border/50 px-1 py-0.5 text-[6px] font-black uppercase tracking-wider text-foreground">
                         {typeLabel}
                       </div>
                     </div>
 
                     {distanceFormatted && (
-                      <div className="absolute bottom-2 right-2">
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 bg-background/90 backdrop-blur-sm rounded-none shadow-sm">
-                          <MapPin className="w-2.5 h-2.5 text-muted-foreground" />
-                          <span className="text-[8px] font-black text-foreground">{distanceFormatted}</span>
+                      <div className="absolute bottom-1 right-1">
+                        <div className="flex items-center gap-0.5 px-1 py-0.5 bg-background/90 border border-border/50">
+                          <MapPin className="w-2 h-2 text-muted-foreground" />
+                          <span className="text-[6px] font-black text-foreground">{distanceFormatted}</span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="p-2.5">
-                    <h4 className="font-bold text-foreground mb-1 line-clamp-1 text-[11px] uppercase tracking-tighter">{product.name}</h4>
+                  <div className="p-2">
+                    <h4 className="font-black text-foreground mb-0.5 line-clamp-1 text-[10px] uppercase tracking-tighter">{product.name}</h4>
 
                     {store && (
-                      <div className="flex items-center gap-1.5 mb-2 opacity-70">
-                        <div className="w-4 h-4 rounded-none bg-muted overflow-hidden flex-shrink-0 border border-border/50">
+                      <div className="flex items-center gap-1 mb-1.5 opacity-60">
+                        <div className="w-3 h-3 bg-muted overflow-hidden border border-border/50">
                           {store.logo_url ? (
                             <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <Store className="w-2 h-2 text-muted-foreground/30 m-1" />
+                            <Store className="w-1.5 h-1.5 text-muted-foreground/30" />
                           )}
                         </div>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground truncate">{store.name}</span>
+                        <span className="text-[6px] font-black uppercase tracking-wider text-muted-foreground truncate">{store.name}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <span className="text-sm font-black text-foreground italic">R$ {price.toFixed(2).replace('.', ',')}</span>
-                      <div className="w-6 h-6 rounded-none bg-primary text-primary-foreground flex items-center justify-center transition-transform duration-300 group-hover:scale-110 shadow-md">
-                        <Plus className="w-3 h-3" />
+                    <div className="flex items-center justify-between pt-1.5 border-t border-border">
+                      <span className="text-xs font-black text-foreground italic">R$ {price.toFixed(2).replace('.', ',')}</span>
+                      <div className="w-5 h-5 bg-foreground text-background flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:bg-green-500">
+                        <Plus className="w-2.5 h-2.5" />
                       </div>
                     </div>
                   </div>
