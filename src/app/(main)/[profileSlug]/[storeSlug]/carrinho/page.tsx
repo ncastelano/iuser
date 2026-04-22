@@ -23,6 +23,15 @@ export default function CarrinhoPage() {
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
     const [suggestions, setSuggestions] = useState<any[]>([])
+    
+    // Auth Inline States
+    const [authMode, setAuthMode] = useState<'login' | 'register' | 'none'>('login')
+    const [authEmail, setAuthEmail] = useState('')
+    const [authPassword, setAuthPassword] = useState('')
+    const [authName, setAuthName] = useState('')
+    const [authProfileSlug, setAuthProfileSlug] = useState('')
+    const [authLoading, setAuthLoading] = useState(false)
+    const [authError, setAuthError] = useState<string | null>(null)
 
     useEffect(() => { setMounted(true) }, [])
 
@@ -57,17 +66,17 @@ export default function CarrinhoPage() {
                         .select('whatsapp')
                         .eq('id', storeData.owner_id)
                         .single()
-                    
+
                     if (profileData?.whatsapp) setOwnerWhatsapp(profileData.whatsapp)
                 }
 
-                // Load suggestions (products from same store not in cart)
+                // Load suggestions
                 const { data: productsData } = await supabase
                     .from('products')
                     .select('*')
                     .eq('store_id', storeData.id)
                     .limit(10)
-                
+
                 if (productsData) {
                     const inCartIds = new Set(cartItems.map(item => item.product.id))
                     setSuggestions(productsData.filter(p => !inCartIds.has(p.id)).slice(0, 4))
@@ -91,6 +100,67 @@ export default function CarrinhoPage() {
         loadInfo()
     }, [storeSlug, supabase, cartItems.length])
 
+    const handleInlineLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: authPassword,
+        })
+
+        if (error) {
+            setAuthError(error.message)
+            setAuthLoading(false)
+            return
+        }
+
+        if (data.user) {
+            const { data: profile } = await supabase.from('profiles').select('name, profileSlug').eq('id', data.user.id).single()
+            setCurrentUserId(data.user.id)
+            if (profile?.name) setBuyerName(profile.name)
+            if (profile?.profileSlug) setCurrentUserSlug(profile.profileSlug)
+        }
+        setAuthLoading(false)
+    }
+
+    const handleInlineRegister = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+
+        if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
+            setAuthError('O link deve conter apenas letras, números e hifens.')
+            setAuthLoading(false)
+            return
+        }
+
+        const { data: authData, error: authErr } = await supabase.auth.signUp({
+            email: authEmail,
+            password: authPassword,
+            options: { data: { name: authName } }
+        })
+
+        if (authErr) {
+            setAuthError(authErr.message)
+            setAuthLoading(false)
+            return
+        }
+
+        if (authData.user) {
+            await supabase.from('profiles').upsert({
+                id: authData.user.id,
+                name: authName,
+                profileSlug: authProfileSlug
+            })
+            setCurrentUserId(authData.user.id)
+            setBuyerName(authName)
+            setCurrentUserSlug(authProfileSlug)
+        }
+        setAuthLoading(false)
+    }
+
     const handleFinalizarCompra = async () => {
         if (!storeInfo || !storeSlug) return
         if (!ownerWhatsapp) {
@@ -98,11 +168,16 @@ export default function CarrinhoPage() {
             return
         }
 
+        if (!currentUserId) {
+            alert('Por favor, identifique-se abaixo para finalizar.')
+            document.getElementById('checkout-auth-area')?.scrollIntoView({ behavior: 'smooth' })
+            return
+        }
+
         setCheckoutLoading(true)
-        
+
         const finalBuyerName = buyerName || 'Cliente iUser'
 
-        // Record the sales in database
         try {
             const { data: storeData } = await supabase
                 .from('stores')
@@ -113,8 +188,7 @@ export default function CarrinhoPage() {
             if (storeData) {
                 const checkout_id = crypto.randomUUID()
                 
-                // 1. Inserir o Pedido (Header) na nova tabela 'orders'
-                const { data: orderData, error: orderError } = await supabase
+                const { data: orderData } = await supabase
                     .from('orders')
                     .insert({
                         store_id: storeData.id,
@@ -128,11 +202,6 @@ export default function CarrinhoPage() {
                     .select()
                     .single()
 
-                if (orderError) {
-                    console.error('[Cart Checkout] Erro ao criar pedido:', orderError.message, orderError.details)
-                }
-
-                // 2. Inserir Itens do Pedido (Details) - Apenas se o pedido foi criado
                 if (orderData?.id) {
                     const itemsToInsert = cartItems.map(item => ({
                         order_id: orderData.id,
@@ -142,12 +211,9 @@ export default function CarrinhoPage() {
                         unit_price: item.product.price,
                         total_price: item.product.price * item.quantity
                     }))
-
-                    const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert)
-                    if (itemsError) console.error('[Cart Checkout] Erro ao inserir itens:', itemsError.message, itemsError.details)
+                    await supabase.from('order_items').insert(itemsToInsert)
                 }
 
-                // 3. Manter store_sales por enquanto para retrocompatibilidade do financeiro atual
                 const salesToInsert = cartItems.map(item => ({
                     store_id: storeData.id,
                     checkout_id: checkout_id,
@@ -162,7 +228,6 @@ export default function CarrinhoPage() {
                     status: 'pending',
                     created_at: new Date().toISOString()
                 }))
-
                 await supabase.from('store_sales').insert(salesToInsert)
             }
         } catch (e) {
@@ -178,11 +243,9 @@ export default function CarrinhoPage() {
         })
 
         const link = getWhatsAppLink(ownerWhatsapp, message)
-        
         setCheckoutLoading(false)
         window.open(link, '_blank')
-        
-        // Limpar o carrinho após finalizar
+
         setTimeout(() => {
             clearStoreCart(storeSlug)
         }, 1000)
@@ -194,48 +257,48 @@ export default function CarrinhoPage() {
 
     return (
         <div className="relative w-full max-w-4xl mx-auto py-8 md:py-16 animate-fade-in text-foreground selection:bg-green-500 selection:text-white px-4 pb-32">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-16">
+            {/* Header Compacto */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">
                 <div className="flex items-center gap-6">
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="w-14 h-14 flex items-center justify-center bg-secondary/50 border border-border rounded-2xl hover:bg-foreground hover:text-background transition-all duration-500 shadow-2xl"
+                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border rounded-none hover:bg-foreground hover:text-background transition-all duration-500 shadow-xl"
                     >
-                        <ArrowLeft className="w-6 h-6" />
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div className="space-y-1">
-                        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">
+                    <div className="space-y-0.5">
+                        <h1 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter text-foreground">
                             Seu Carrinho<span className="text-green-500">.</span>
                         </h1>
                         {storeInfo && (
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Checkout em</span>
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground">{storeInfo.name}</span>
+                                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">Checkout em</span>
+                                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-foreground">{storeInfo.name}</span>
                             </div>
                         )}
                     </div>
                 </div>
                 
-                <div className="px-8 py-3 bg-secondary/50 border border-border rounded-full">
-                    <div className="flex items-center gap-3">
-                        <ShoppingCart className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{totalItems} Itens Selecionados</span>
+                <div className="px-6 py-2 bg-secondary/50 border border-border rounded-none">
+                    <div className="flex items-center gap-2">
+                        <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">{totalItems} Itens</span>
                     </div>
                 </div>
             </div>
 
             {cartItems.length === 0 ? (
-                <div className="py-32 text-center rounded-[48px] border border-dashed border-border bg-card/40 flex flex-col items-center justify-center gap-8">
-                    <div className="w-24 h-24 bg-secondary rounded-[32px] flex items-center justify-center border border-border">
-                        <ShoppingCart className="w-10 h-10 text-muted-foreground/30" />
+                <div className="py-24 text-center rounded-none border border-dashed border-border bg-card/40 flex flex-col items-center justify-center gap-6">
+                    <div className="w-20 h-20 bg-secondary rounded-none flex items-center justify-center border border-border">
+                        <ShoppingCart className="w-8 h-8 text-muted-foreground/30" />
                     </div>
-                    <div className="space-y-2">
-                        <h2 className="text-3xl font-black italic uppercase tracking-tighter text-foreground">Carrinho Vazio</h2>
-                        <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest opacity-60">Sua sacola de alta performance está aguardando produtos.</p>
+                    <div className="space-y-1">
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter text-foreground">Vazio</h2>
+                        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest opacity-60">Sua sacola está aguardando produtos.</p>
                     </div>
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="px-12 py-5 bg-foreground text-background font-black uppercase text-xs tracking-widest rounded-full hover:opacity-90 transition-all shadow-2xl"
+                        className="px-10 py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest rounded-none hover:opacity-90 transition-all shadow-xl"
                     >
                         Voltar para a Vitrine
                     </button>
@@ -247,9 +310,9 @@ export default function CarrinhoPage() {
                         {cartItems.map((item) => (
                             <div
                                 key={item.product.id}
-                                className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-[40px] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 transition-all hover:bg-card/60 hover:border-green-500/30 shadow-xl"
+                                className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-none p-4 md:p-6 flex flex-col md:flex-row items-center gap-6 transition-all hover:bg-card/60 hover:border-green-500/30 shadow-lg"
                             >
-                                <div className="w-32 h-32 md:w-40 md:h-40 bg-secondary rounded-[32px] overflow-hidden border border-border flex-shrink-0 shadow-2xl">
+                                <div className="w-28 h-28 md:w-32 md:h-32 bg-secondary rounded-none overflow-hidden border border-border flex-shrink-0 shadow-lg">
                                     {item.product.image_url ? (
                                         <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
                                     ) : (
@@ -258,115 +321,229 @@ export default function CarrinhoPage() {
                                 </div>
 
                                 <div className="flex-1 space-y-4 text-center md:text-left">
-                                    <div className="space-y-1">
-                                        <h4 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter text-foreground line-clamp-2">{item.product.name}</h4>
-                                        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Unitário: R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                                    <div className="space-y-0.5">
+                                        <h4 className="text-xl md:text-2xl font-black italic uppercase tracking-tighter text-foreground line-clamp-2">{item.product.name}</h4>
+                                        <div className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                                     </div>
 
-                                    <div className="flex items-center justify-center md:justify-start gap-4">
-                                        <div className="flex items-center bg-secondary border border-border p-1 rounded-2xl shadow-inner">
+                                    <div className="flex items-center justify-center md:justify-start gap-3">
+                                        <div className="flex items-center bg-secondary border border-border p-0.5 rounded-none shadow-inner">
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, -1)}
-                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-8 h-8 flex items-center justify-center rounded-none bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Minus className="w-4 h-4" />
+                                                <Minus className="w-3 h-3" />
                                             </button>
-                                            <span className="w-10 text-center text-sm font-black italic">{item.quantity}</span>
+                                            <span className="w-8 text-center text-xs font-black italic">{item.quantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, 1)}
-                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-8 h-8 flex items-center justify-center rounded-none bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Plus className="w-4 h-4" />
+                                                <Plus className="w-3 h-3" />
                                             </button>
                                         </div>
                                         <button
                                             onClick={() => removeItem(storeSlug as string, item.product.id)}
-                                            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
+                                            className="w-10 h-10 flex items-center justify-center rounded-none bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
                                         >
-                                            <Trash2 className="w-5 h-5" />
+                                            <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
 
                                 <div className="text-center md:text-right">
-                                     <div className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-1">Subtotal Item</div>
-                                     <div className="text-3xl font-black italic tracking-tighter text-foreground">
+                                    <div className="text-[8px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-0.5">Subtotal</div>
+                                    <div className="text-2xl font-black italic tracking-tighter text-foreground">
                                         R$ {(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                     </div>
+                                    </div>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* Summary Card */}
-                    <div className="bg-card/60 backdrop-blur-3xl border border-border rounded-[48px] p-10 md:p-14 space-y-10 shadow-2xl relative overflow-hidden group">
+                    {/* Summary & Checkout Logic Area */}
+                    <div id="checkout-auth-area" className="bg-card/60 backdrop-blur-3xl border border-border rounded-none p-8 md:p-10 space-y-8 shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-80 h-80 bg-green-500/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                        
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b border-border pb-10">
-                            <div className="space-y-1 text-center md:text-left">
-                                <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Acumulado</h3>
-                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-50">Calculado com impostos e exclusividades iUser</p>
+
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b border-border pb-8">
+                            <div className="space-y-0.5 text-center md:text-left">
+                                <h3 className="text-[8px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Acumulado</h3>
+                                <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-widest opacity-50">Exclusividade iUser</p>
                             </div>
-                            <div className="text-5xl md:text-7xl font-black italic tracking-tighter text-foreground">
+                            <div className="text-4xl md:text-5xl font-black italic tracking-tighter text-foreground">
                                 R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-4">
-                            <button
-                                onClick={handleFinalizarCompra}
-                                disabled={checkoutLoading}
-                                className="w-full py-7 bg-foreground text-background rounded-[32px] font-black uppercase text-sm tracking-[0.4em] transition-all hover:bg-green-500 hover:text-white active:scale-[0.98] shadow-2xl flex items-center justify-center gap-4 group/btn disabled:opacity-50"
-                            >
-                                {checkoutLoading ? (
-                                    <div className="w-6 h-6 border-2 border-background/20 border-t-background rounded-full animate-spin" />
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="w-6 h-6" />
-                                        Finalizar via WhatsApp
-                                    </>
+                        {!currentUserId ? (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                <div className="text-center space-y-1">
+                                    <h4 className="text-sm font-black uppercase tracking-widest text-foreground">Identificação</h4>
+                                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Acesse sua conta ou cadastre-se para finalizar</p>
+                                </div>
+
+                                <div className="flex bg-secondary/50 p-1 border border-border rounded-none">
+                                    <button 
+                                        onClick={() => setAuthMode('login')}
+                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${authMode === 'login' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground'}`}
+                                    >
+                                        Entrar
+                                    </button>
+                                    <button 
+                                        onClick={() => setAuthMode('register')}
+                                        className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${authMode === 'register' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground'}`}
+                                    >
+                                        Criar Conta
+                                    </button>
+                                </div>
+
+                                {authError && (
+                                    <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-[8px] font-black uppercase tracking-wider text-center">
+                                        {authError}
+                                    </div>
                                 )}
-                            </button>
-                            <p className="text-center text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">Ao clicar em finalizar você será redirecionado para o atendimento exclusivo do representante.</p>
-                        </div>
+
+                                {authMode === 'login' ? (
+                                    <form onSubmit={handleInlineLogin} className="space-y-3">
+                                        <input 
+                                            type="email" 
+                                            placeholder="seu@email.com"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authEmail}
+                                            onChange={(e) => setAuthEmail(e.target.value)}
+                                            required
+                                        />
+                                        <input 
+                                            type="password" 
+                                            placeholder="sua senha"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authPassword}
+                                            onChange={(e) => setAuthPassword(e.target.value)}
+                                            required
+                                        />
+                                        <button 
+                                            disabled={authLoading}
+                                            className="w-full py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
+                                        >
+                                            {authLoading ? 'Acessando...' : 'Acessar e Finalizar'}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <form onSubmit={handleInlineRegister} className="space-y-3">
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nome Completo"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authName}
+                                            onChange={(e) => setAuthName(e.target.value)}
+                                            required
+                                        />
+                                        <input 
+                                            type="text" 
+                                            placeholder="link-do-perfil (slug)"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authProfileSlug}
+                                            onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                            required
+                                        />
+                                        <input 
+                                            type="email" 
+                                            placeholder="seu@email.com"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authEmail}
+                                            onChange={(e) => setAuthEmail(e.target.value)}
+                                            required
+                                        />
+                                        <input 
+                                            type="password" 
+                                            placeholder="Crie uma senha"
+                                            className="w-full bg-secondary/50 border border-border rounded-none px-4 py-3 text-xs focus:outline-none focus:border-green-500/50 transition-colors"
+                                            value={authPassword}
+                                            onChange={(e) => setAuthPassword(e.target.value)}
+                                            required
+                                        />
+                                        <button 
+                                            disabled={authLoading}
+                                            className="w-full py-4 bg-foreground text-background font-black uppercase text-[10px] tracking-widest hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
+                                        >
+                                            {authLoading ? 'Cadastrando...' : 'Cadastrar e Finalizar'}
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-4 animate-in fade-in duration-500">
+                                <div className="flex items-center justify-between px-2">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                                        <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Logado como @{currentUserSlug}</span>
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            await supabase.auth.signOut()
+                                            setCurrentUserId(null)
+                                            setAuthMode('login')
+                                        }}
+                                        className="text-[7px] font-black uppercase tracking-widest text-muted-foreground hover:text-destructive transition-colors"
+                                    >
+                                        Sair
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={handleFinalizarCompra}
+                                    disabled={checkoutLoading}
+                                    className="w-full py-5 bg-foreground text-background rounded-none font-black uppercase text-xs tracking-[0.4em] transition-all hover:bg-green-500 hover:text-white active:scale-[0.98] shadow-xl flex items-center justify-center gap-4 group/btn disabled:opacity-50"
+                                >
+                                    {checkoutLoading ? (
+                                        <div className="w-5 h-5 border-2 border-background/20 border-t-background rounded-full animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            Finalizar via WhatsApp
+                                        </>
+                                    )}
+                                </button>
+                                <p className="text-center text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">O pedido será enviado para o WhatsApp da loja.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* Suggested Items */}
+            {/* Sugestões Compactas */}
             {suggestions.length > 0 && (
-                <div className="mt-24 space-y-8">
-                    <div className="flex items-center gap-4">
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">Sugestões para você</h3>
+                <div className="mt-16 space-y-6">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-[8px] font-black uppercase tracking-[0.5em] text-muted-foreground whitespace-nowrap">Sugestões</h3>
                         <div className="h-px flex-1 bg-border" />
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {suggestions.map((p) => (
-                            <div key={p.id} className="bg-card/40 border border-border rounded-[32px] p-4 group hover:border-green-500/30 transition-all">
-                                <div className="aspect-square rounded-2xl overflow-hidden bg-secondary mb-4 border border-border/50">
+                            <div key={p.id} className="bg-card/40 border border-border rounded-none p-3 group hover:border-green-500/30 transition-all">
+                                <div className="aspect-square rounded-none overflow-hidden bg-secondary mb-3 border border-border/50">
                                     {p.image_url ? (
-                                        <img 
-                                            src={supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl} 
-                                            alt={p.name} 
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                        <img
+                                            src={supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl}
+                                            alt={p.name}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-black italic">{p.name.charAt(0)}</div>
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-lg font-black italic">{p.name.charAt(0)}</div>
                                     )}
                                 </div>
-                                <h4 className="text-xs font-bold text-foreground truncate mb-1">{p.name}</h4>
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-black text-green-500 italic">R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                    <button 
+                                <h4 className="text-[10px] font-bold text-foreground truncate mb-0.5">{p.name}</h4>
+                                <div className="flex items-center justify-between gap-1.5">
+                                    <p className="text-xs font-black text-green-500 italic">R$ {p.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    <button
                                         onClick={() => addItem(storeSlug as string, { name: storeInfo?.name || '', logo_url: storeInfo?.logo_url || null }, {
                                             id: p.id,
                                             name: p.name,
                                             price: p.price,
                                             image_url: p.image_url ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl : null
                                         })}
-                                        className="w-8 h-8 rounded-full bg-foreground text-background flex items-center justify-center hover:bg-green-500 hover:text-white transition-all shadow-lg active:scale-90"
+                                        className="w-7 h-7 rounded-none bg-foreground text-background flex items-center justify-center hover:bg-green-500 hover:text-white transition-all shadow-lg active:scale-90"
                                     >
-                                        <Plus className="w-4 h-4" />
+                                        <Plus className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             </div>

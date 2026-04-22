@@ -86,7 +86,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                             <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname === '/mapa' ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Mapa</span>
                         </Link>
 
-                        <Link href="/todoscarrinhosdecompra" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
+                        <Link href="/carrinhos" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
                             <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/todoscarrinhosdecompra' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
                                 <div className="relative">
                                     <ShoppingCart size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
