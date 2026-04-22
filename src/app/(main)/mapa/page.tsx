@@ -225,7 +225,7 @@ export default function MapPage() {
                 inner.style.cssText = `
                     width: 40px;
                     height: 40px;
-                    border-radius: 12px;
+                    border-radius: 0;
                     overflow: hidden;
                     border: 2px solid ${borderColor};
                     cursor: pointer;
@@ -272,7 +272,7 @@ export default function MapPage() {
                         font-size: 10px;
                         font-weight: 900;
                         padding: 2px 6px;
-                        border-radius: 10px;
+                        border-radius: 0;
                         border: 2px solid hsl(var(--background));
                         z-index: 10;
                         cursor: pointer;
@@ -327,7 +327,7 @@ export default function MapPage() {
         pin.style.cssText = `
             width: 22px;
             height: 22px;
-            border-radius: 999px;
+            border-radius: 0;
             background: hsl(var(--primary));
             border: 4px solid hsl(var(--background));
             box-shadow: 0 0 0 6px hsla(var(--primary)/0.2);
@@ -386,7 +386,7 @@ export default function MapPage() {
             {/* TOP BAR UI */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                 <div className="flex items-center gap-3">
-                    <div className="bg-black p-2.5 rounded-2xl shadow-xl flex-shrink-0">
+                    <div className="bg-black p-2.5 rounded-none shadow-xl flex-shrink-0">
                         <img src="/logo.png" alt="iUser" className="h-7 w-auto object-contain" />
                     </div>
 
@@ -397,7 +397,7 @@ export default function MapPage() {
                             placeholder={mode === 'lojas' ? "Procurar lojas..." : mode === 'servicos' ? "Procurar serviços..." : "Procurar produtos..."}
                             value={search}
                             onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
-                            className="w-full pl-10 pr-10 py-3.5 bg-card/80 backdrop-blur-xl border border-border/50 rounded-[20px] text-foreground placeholder:text-muted-foreground/60 text-sm focus:outline-none focus:border-primary/50 transition-all duration-300 shadow-2xl shadow-black/20"
+                            className="w-full pl-10 pr-10 py-3.5 bg-card/80 backdrop-blur-xl border border-border/50 rounded-none text-foreground placeholder:text-muted-foreground/60 text-sm focus:outline-none focus:border-primary/50 transition-all duration-300 shadow-2xl shadow-black/20"
                         />
                         {search && (
                             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
@@ -408,7 +408,7 @@ export default function MapPage() {
 
                     <button
                         onClick={() => setShowFilters(true)}
-                        className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all duration-300 shadow-sm"
+                        className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-none text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all duration-300 shadow-sm"
                     >
                         {mode === 'lojas' ? <Store className="w-4 h-4" /> : mode === 'servicos' ? <Briefcase className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
                         <span className="hidden sm:inline lowercase first-letter:uppercase">{mode}</span>
@@ -443,7 +443,7 @@ export default function MapPage() {
                                     }`}
                                 style={{ width: '40px', height: '40px' }}
                             >
-                                <div className={`w-full h-full rounded-lg overflow-hidden border shadow-sm ${mode === 'lojas'
+                                <div className={`w-full h-full rounded-none overflow-hidden border shadow-sm ${mode === 'lojas'
                                     ? (item.is_open ? 'border-green-500' : 'border-red-500')
                                     : 'border-border'
                                     } bg-white`}>
@@ -468,15 +468,15 @@ export default function MapPage() {
             {/* SELECTED ITEM CARD */}
             {selectedItem && (
                 <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500">
-                    <div className="backdrop-blur-3xl bg-card border border-border/50 rounded-[28px] p-4 shadow-[0_40px_80px_rgba(0,0,0,0.4)] relative group">
+                    <div className="backdrop-blur-3xl bg-card border border-border/50 rounded-none p-4 shadow-[0_40px_80px_rgba(0,0,0,0.4)] relative group">
                         <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-secondary/80 hover:bg-foreground hover:text-background transition-all z-10">
                             <X className="w-4 h-4" />
                         </button>
 
                         <div className="flex gap-4 items-center">
-                            <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-background p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-border'}`}>
+                            <div className={`w-20 h-20 rounded-none overflow-hidden bg-background p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-border'}`}>
                                 {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
-                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-[14px]" alt="" />
+                                    <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-none" alt="" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-muted-foreground/30">?</div>
                                 )}
@@ -539,7 +539,7 @@ export default function MapPage() {
                                     }
                                 }
                             }}
-                            className="mt-4 w-full py-3 bg-foreground text-background rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all hover:opacity-90 active:scale-[0.98]"
+                            className="mt-4 w-full py-3 bg-foreground text-background rounded-none font-black uppercase text-[10px] tracking-[0.2em] transition-all hover:opacity-90 active:scale-[0.98]"
                         >
                             Visitar Loja &rarr;
                         </button>
@@ -549,7 +549,7 @@ export default function MapPage() {
 
             {/* TOTALS BADGE */}
             <div className="absolute bottom-20 left-6 z-10 pointer-events-none sm:block hidden">
-                <div className="bg-background/80 backdrop-blur-xl border border-border/50 rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2">
+                <div className="bg-background/80 backdrop-blur-xl border border-border/50 rounded-none px-4 py-2 shadow-2xl flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-70">
                         {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : 'Produtos'}
@@ -561,7 +561,7 @@ export default function MapPage() {
             {showFilters && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setShowFilters(false)} />
-                    <div className="relative bg-card rounded-3xl w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in zoom-in-95 font-sans overflow-hidden border border-border">
+                    <div className="relative bg-card rounded-none w-full sm:max-w-md shadow-2xl transform transition-all duration-300 animate-in zoom-in-95 font-sans overflow-hidden border border-border">
                         <div className="flex items-center justify-between p-4 border-b border-border">
                             <h3 className="text-lg font-bold text-foreground">Explorar</h3>
                             <button onClick={() => setShowFilters(false)} className="p-1 rounded-lg hover:bg-muted transition-colors">
@@ -578,7 +578,7 @@ export default function MapPage() {
                                         setSelectedItem(null)
                                         setOverrideList(null)
                                     }}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${mode === m
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-none transition-all duration-200 ${mode === m
                                         ? 'bg-primary/10 text-primary'
                                         : 'text-foreground hover:bg-muted'
                                         }`}

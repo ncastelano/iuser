@@ -193,32 +193,33 @@ export default function CarrinhoPage() {
     }
 
     return (
-        <div className="relative w-full max-w-3xl mx-auto py-4 md:py-8 animate-fade-in text-foreground selection:bg-green-500 selection:text-white px-4 pb-32">
-            {/* Header Compacto */}
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
-                <div className="flex items-center gap-4">
+        <div className="relative w-full max-w-4xl mx-auto py-8 md:py-16 animate-fade-in text-foreground selection:bg-green-500 selection:text-white px-4 pb-32">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-16">
+                <div className="flex items-center gap-6">
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="w-10 h-10 flex items-center justify-center bg-secondary/50 border border-border rounded-xl hover:bg-foreground hover:text-background transition-all duration-300"
+                        className="w-14 h-14 flex items-center justify-center bg-secondary/50 border border-border rounded-2xl hover:bg-foreground hover:text-background transition-all duration-500 shadow-2xl"
                     >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-6 h-6" />
                     </button>
-                    <div className="space-y-0.5">
-                        <h1 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter text-foreground">
-                            Carrinho<span className="text-green-500">.</span>
+                    <div className="space-y-1">
+                        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-foreground">
+                            Seu Carrinho<span className="text-green-500">.</span>
                         </h1>
                         {storeInfo && (
                             <div className="flex items-center gap-2">
-                                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">{storeInfo.name}</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Checkout em</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground">{storeInfo.name}</span>
                             </div>
                         )}
                     </div>
                 </div>
                 
-                <div className="px-4 py-2 bg-secondary/50 border border-border rounded-full">
-                    <div className="flex items-center gap-2">
-                        <ShoppingCart className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground">{totalItems} Itens</span>
+                <div className="px-8 py-3 bg-secondary/50 border border-border rounded-full">
+                    <div className="flex items-center gap-3">
+                        <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">{totalItems} Itens Selecionados</span>
                     </div>
                 </div>
             </div>
@@ -240,55 +241,56 @@ export default function CarrinhoPage() {
                     </button>
                 </div>
             ) : (
-                <>
-                    {/* Items List - Compacto */}
-                    <div className="space-y-3">
+                <div className="space-y-12">
+                    {/* Items List */}
+                    <div className="space-y-6">
                         {cartItems.map((item) => (
                             <div
                                 key={item.product.id}
-                                className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-2xl p-3 flex items-center gap-4 transition-all hover:bg-card/60 hover:border-green-500/30 shadow-sm"
+                                className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-[40px] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 transition-all hover:bg-card/60 hover:border-green-500/30 shadow-xl"
                             >
-                                <div className="w-20 h-20 bg-secondary rounded-xl overflow-hidden border border-border flex-shrink-0">
+                                <div className="w-32 h-32 md:w-40 md:h-40 bg-secondary rounded-[32px] overflow-hidden border border-border flex-shrink-0 shadow-2xl">
                                     {item.product.image_url ? (
-                                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
+                                        <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-black italic">{item.product.name.charAt(0)}</div>
+                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-3xl font-black italic">{item.product.name.charAt(0)}</div>
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="space-y-0.5">
-                                        <h4 className="text-sm font-black italic uppercase tracking-tighter text-foreground truncate">{item.product.name}</h4>
-                                        <div className="text-[7px] font-black uppercase tracking-widest text-muted-foreground">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+
+                                <div className="flex-1 space-y-4 text-center md:text-left">
+                                    <div className="space-y-1">
+                                        <h4 className="text-2xl md:text-3xl font-black italic uppercase tracking-tighter text-foreground line-clamp-2">{item.product.name}</h4>
+                                        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Unitário: R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <div className="flex items-center bg-secondary border border-border p-0.5 rounded-lg">
+                                    <div className="flex items-center justify-center md:justify-start gap-4">
+                                        <div className="flex items-center bg-secondary border border-border p-1 rounded-2xl shadow-inner">
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, -1)}
-                                                className="w-6 h-6 flex items-center justify-center rounded-md bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Minus className="w-2.5 h-2.5" />
+                                                <Minus className="w-4 h-4" />
                                             </button>
-                                            <span className="w-6 text-center text-[10px] font-black italic">{item.quantity}</span>
+                                            <span className="w-10 text-center text-sm font-black italic">{item.quantity}</span>
                                             <button
                                                 onClick={() => updateQuantity(storeSlug as string, item.product.id, 1)}
-                                                className="w-6 h-6 flex items-center justify-center rounded-md bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
                                             >
-                                                <Plus className="w-2.5 h-2.5" />
+                                                <Plus className="w-4 h-4" />
                                             </button>
                                         </div>
                                         <button
                                             onClick={() => removeItem(storeSlug as string, item.product.id)}
-                                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all"
+                                            className="w-12 h-12 flex items-center justify-center rounded-2xl bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Trash2 className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="text-right flex-shrink-0">
-                                     <div className="text-[7px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Subtotal</div>
-                                     <div className="text-lg font-black italic tracking-tighter text-foreground">
+                                <div className="text-center md:text-right">
+                                     <div className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-1">Subtotal Item</div>
+                                     <div className="text-3xl font-black italic tracking-tighter text-foreground">
                                         R$ {(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                      </div>
                                 </div>
@@ -296,37 +298,39 @@ export default function CarrinhoPage() {
                         ))}
                     </div>
 
-                    {/* Summary Card - Compacto */}
-                    <div className="bg-card/60 backdrop-blur-3xl border border-border rounded-3xl p-6 md:p-8 space-y-6 shadow-xl relative overflow-hidden">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-border pb-6">
-                            <div className="space-y-0.5 text-center md:text-left">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.4em] text-muted-foreground">Total do Pedido</h3>
-                                <p className="text-[7px] text-muted-foreground font-bold uppercase tracking-widest opacity-50">Checkout seguro via iUser</p>
+                    {/* Summary Card */}
+                    <div className="bg-card/60 backdrop-blur-3xl border border-border rounded-[48px] p-10 md:p-14 space-y-10 shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-80 h-80 bg-green-500/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                        
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-8 border-b border-border pb-10">
+                            <div className="space-y-1 text-center md:text-left">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Acumulado</h3>
+                                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-50">Calculado com impostos e exclusividades iUser</p>
                             </div>
-                            <div className="text-3xl md:text-5xl font-black italic tracking-tighter text-foreground">
+                            <div className="text-5xl md:text-7xl font-black italic tracking-tighter text-foreground">
                                 R$ {totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-4">
                             <button
                                 onClick={handleFinalizarCompra}
                                 disabled={checkoutLoading}
-                                className="w-full py-5 bg-foreground text-background rounded-2xl font-black uppercase text-xs tracking-[0.3em] transition-all hover:bg-green-500 hover:text-white active:scale-[0.98] shadow-lg flex items-center justify-center gap-3 disabled:opacity-50"
+                                className="w-full py-7 bg-foreground text-background rounded-[32px] font-black uppercase text-sm tracking-[0.4em] transition-all hover:bg-green-500 hover:text-white active:scale-[0.98] shadow-2xl flex items-center justify-center gap-4 group/btn disabled:opacity-50"
                             >
                                 {checkoutLoading ? (
-                                    <div className="w-5 h-5 border-2 border-background/20 border-t-background rounded-full animate-spin" />
+                                    <div className="w-6 h-6 border-2 border-background/20 border-t-background rounded-full animate-spin" />
                                 ) : (
                                     <>
-                                        <CheckCircle2 className="w-5 h-5" />
+                                        <CheckCircle2 className="w-6 h-6" />
                                         Finalizar via WhatsApp
                                     </>
                                 )}
                             </button>
-                            <p className="text-center text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground">O pedido será enviado para o WhatsApp da loja.</p>
+                            <p className="text-center text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground">Ao clicar em finalizar você será redirecionado para o atendimento exclusivo do representante.</p>
                         </div>
                     </div>
-                </>
+                </div>
             )}
 
             {/* Suggested Items */}

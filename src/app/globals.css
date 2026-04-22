@@ -32,7 +32,7 @@
     --input: 142.1 10% 90%;
     --ring: 142.1 76.2% 36.3%;
 
-    --radius: 0.75rem;
+    --radius: 0;
   }
 }
 
@@ -56,7 +56,7 @@
   .light .bg-black {
     @apply bg-white text-black !important;
   }
-  .light .bg-neutral-950, .light .bg-neutral-900, .light .bg-neutral-800 {
+  .light .bg-neutral-950, .light .bg-neutral-800 {
     @apply bg-neutral-50 border-neutral-200 text-black !important;
   }
   .light .text-white {
@@ -99,7 +99,7 @@
 
 /* Efeito Premium de Glassmorphism Monochrome */
 .glass-glow-card {
-  @apply relative isolate overflow-hidden bg-white border border-neutral-100 rounded-2xl shadow-sm;
+  @apply relative isolate overflow-hidden bg-white border border-neutral-100 rounded-none shadow-sm;
 }
 
 .glass-glow-card::before {

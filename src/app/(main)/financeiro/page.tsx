@@ -65,11 +65,11 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
     const currentStatus = statusMap[order.status as keyof typeof statusMap] || statusMap['pending']
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-background/80 backdrop-blur-xl" onClick={onClose} />
-            <div className="relative bg-card border border-border w-full max-w-lg rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-                {/* Status Timeline Header - FIXED */}
-                <div className="bg-secondary/30 p-6 flex justify-around items-center border-b border-border/50 shrink-0">
+            <div className="relative bg-card border border-border w-full max-w-lg rounded-none shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                {/* Status Timeline Header */}
+                <div className="bg-secondary/30 p-6 flex justify-around items-center border-b border-border/50">
                     {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => (
                         <div key={s} className="flex flex-col items-center gap-2">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black ${
@@ -85,8 +85,7 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                     ))}
                 </div>
 
-                {/* SCROLLABLE CONTENT */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                <div className="p-8 space-y-8">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">ID Checkout: {order.checkout_id.slice(0, 8)}</p>
@@ -97,9 +96,9 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                         </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
                         {order.items.map((item, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-secondary/20 rounded-2xl border border-border/30 group hover:border-foreground/20 transition-all">
+                            <div key={idx} className="flex items-center justify-between p-4 bg-secondary/20 rounded-none border border-border/30 group hover:border-foreground/20 transition-all">
                                 <div>
                                     <p className="text-sm font-black uppercase tracking-tight">{item.product_name}</p>
                                     <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{item.quantity}x • R$ {(item.price / item.quantity).toFixed(2)}</p>
@@ -113,31 +112,30 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground">Total Líquido</span>
                         <span className="text-4xl font-black italic tracking-tighter">R$ {order.totalPrice.toFixed(2)}</span>
                     </div>
-                </div>
 
-                {/* FOOTER BUTTONS - FIXED */}
-                <div className="p-8 pt-0 grid grid-cols-1 gap-3 shrink-0">
-                    {currentStatus.next && (
-                        <button 
-                            onClick={() => onAction(currentStatus.next!)}
-                            className="py-5 bg-foreground text-background rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-green-500 hover:text-white transition-all shadow-xl active:scale-[0.98]"
-                        >
-                            {currentStatus.nextLabel}
-                        </button>
-                    )}
-                    
-                    {order.status === 'pending' && (
-                        <button 
-                            onClick={() => onAction('rejected')}
-                            className="py-4 bg-destructive/5 text-destructive border border-destructive/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-destructive hover:text-white transition-all"
-                        >
-                            Recusar Pedido
-                        </button>
-                    )}
+                    <div className="grid grid-cols-1 gap-3">
+                        {currentStatus.next && (
+                            <button 
+                                onClick={() => onAction(currentStatus.next!)}
+                                className="py-5 bg-foreground text-background rounded-none font-black uppercase text-xs tracking-[0.2em] hover:bg-green-500 hover:text-white transition-all shadow-xl active:scale-[0.98]"
+                            >
+                                {currentStatus.nextLabel}
+                            </button>
+                        )}
+                        
+                        {order.status === 'pending' && (
+                            <button 
+                                onClick={() => onAction('rejected')}
+                                className="py-4 bg-destructive/5 text-destructive border border-destructive/10 rounded-none font-black uppercase text-[10px] tracking-widest hover:bg-destructive hover:text-white transition-all"
+                            >
+                                Recusar Pedido
+                            </button>
+                        )}
 
-                    <button onClick={onClose} className="py-4 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-all">
-                        Fechar Visualização
-                    </button>
+                        <button onClick={onClose} className="py-4 text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-foreground transition-all">
+                            Fechar Visualização
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -247,12 +245,12 @@ function StoreFinancialCard({
     }
 
     return (
-        <div className="bg-card border border-border/50 rounded-[32px] overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500">
+        <div className="bg-card border border-border/50 rounded-none overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500">
             {/* Header com Status */}
             <div className="p-6 border-b border-border/50 bg-secondary/10 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <div className="relative">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-background border border-border shadow-sm">
+                        <div className="w-14 h-14 rounded-none overflow-hidden bg-background border border-border shadow-sm">
                             {store.logo_url && <img src={supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl} className="w-full h-full object-cover" />}
                         </div>
                         <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-card ${store.is_open ? 'bg-green-500' : 'bg-destructive'}`} />
@@ -266,64 +264,64 @@ function StoreFinancialCard({
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={onToggleStatus}
-                        className={`px-6 py-3 rounded-xl font-black uppercase text-[9px] tracking-widest transition-all ${store.is_open ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-green-500 text-white'}`}
+                        className={`px-6 py-3 rounded-none font-black uppercase text-[9px] tracking-widest transition-all ${store.is_open ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-green-500 text-white'}`}
                     >
                         {store.is_open ? 'Fechar Loja' : 'Abrir Loja'}
                     </button>
-                    <Link href={`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`} className="p-3 bg-secondary rounded-xl hover:bg-foreground hover:text-background transition-all">
+                    <Link href={`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`} className="p-3 bg-secondary rounded-none hover:bg-foreground hover:text-background transition-all">
                         <Pencil size={16} />
                     </Link>
                 </div>
             </div>
 
-            <div className="p-4 md:p-6 space-y-6">
-                {/* 1. Métricas iFood Level - Compactas */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
-                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Hoje</p>
-                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[8px] font-bold text-green-500 mt-1 uppercase">{metrics.daily.orders} pedidos</p>
+            <div className="p-8 space-y-12">
+                {/* 1. Métricas iFood Level */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-secondary/20 p-6 rounded-none border border-border/30">
+                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Hoje</p>
+                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold text-green-500 mt-1 uppercase">{metrics.daily.orders} pedidos</p>
                     </div>
-                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
-                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Ticket Médio</p>
-                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">Média p/ Pedido</p>
+                    <div className="bg-secondary/20 p-6 rounded-none border border-border/30">
+                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Ticket Médio</p>
+                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Média p/ Pedido</p>
                     </div>
-                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
-                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Volume Mês</p>
-                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.monthly.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">{metrics.monthly.orders} pedidos</p>
+                    <div className="bg-secondary/20 p-6 rounded-none border border-border/30">
+                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Volume Mês</p>
+                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.monthly.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">{metrics.monthly.orders} pedidos</p>
                     </div>
-                    <div className="bg-secondary/20 p-4 rounded-2xl border border-border/30">
-                        <p className="text-[7px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Total Geral</p>
-                        <p className="text-xl font-black italic tracking-tighter">R$ {metrics.total.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[8px] font-bold text-muted-foreground mt-1 uppercase">{metrics.total.orders} concluídos</p>
+                    <div className="bg-secondary/20 p-6 rounded-none border border-border/30">
+                        <p className="text-[8px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Total Geral</p>
+                        <p className="text-2xl font-black italic tracking-tighter">R$ {metrics.total.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">{metrics.total.orders} concluídos</p>
                     </div>
                 </div>
 
-                {/* 1.1 Desempenho de Itens - Compacto */}
-                <div className="bg-secondary/10 p-4 rounded-[24px] border border-border/20">
-                    <h4 className="text-[8px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-4 flex items-center gap-2">
-                        <TrendingUp size={10} /> Desempenho de Produtos
+                {/* 1.1 Desempenho de Itens */}
+                <div className="bg-secondary/10 p-6 rounded-none border border-border/20">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground mb-6 flex items-center gap-2">
+                        <TrendingUp size={12} /> Desempenho de Produtos
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {topItems.map(([name, data], i) => (
-                            <div key={i} className="flex items-center justify-between gap-3 bg-background/50 p-2 rounded-xl border border-border/20">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-lg bg-background border border-border flex items-center justify-center text-[8px] font-black">{i + 1}</div>
-                                    <span className="text-[9px] font-black uppercase truncate max-w-[80px]">{name}</span>
+                            <div key={i} className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-background border border-border flex items-center justify-center text-[10px] font-black">{i + 1}</div>
+                                    <span className="text-[10px] font-black uppercase truncate max-w-[120px]">{name}</span>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[9px] font-black">{data.count}u.</p>
-                                    <p className="text-[7px] font-bold text-muted-foreground tracking-tighter">R$ {data.total.toFixed(0)}</p>
+                                    <p className="text-[10px] font-black">{data.count} un.</p>
+                                    <p className="text-[8px] font-bold text-muted-foreground tracking-tighter">R$ {data.total.toFixed(2)}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* 2. Seções de Pedidos (Estilo iFood) - Compactas */}
-                <div className="space-y-8">
+                {/* 2. Seções de Pedidos (Estilo iFood) */}
+                <div className="space-y-12">
                     {/* NOVOS PEDIDOS (PENDING) */}
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -334,13 +332,13 @@ function StoreFinancialCard({
                         </div>
                         <div className="grid gap-3">
                             {invites.length === 0 ? (
-                                <p className="text-[10px] font-bold text-muted-foreground uppercase italic p-6 border border-dashed border-border rounded-[24px] text-center opacity-30">Nenhum novo pedido</p>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase italic p-6 border border-dashed border-border rounded-none text-center opacity-30">Nenhum novo pedido</p>
                             ) : (
                                 invites.map(order => (
                                     <div 
                                         key={order.checkout_id} 
                                         onClick={() => setSelectedOrder(order)}
-                                        className="flex items-center justify-between p-6 rounded-[24px] bg-blue-500/5 border border-blue-500/20 hover:bg-blue-500/10 cursor-pointer transition-all animate-in slide-in-from-right duration-500 group"
+                                        className="flex items-center justify-between p-6 rounded-none bg-blue-500/5 border border-blue-500/20 hover:bg-blue-500/10 cursor-pointer transition-all animate-in slide-in-from-right duration-500 group"
                                     >
                                         <div className="flex flex-col">
                                             <span className="text-lg font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
@@ -368,7 +366,7 @@ function StoreFinancialCard({
                                 <div 
                                     key={order.checkout_id} 
                                     onClick={() => setSelectedOrder(order)}
-                                    className="flex items-center justify-between p-6 rounded-[24px] bg-yellow-500/5 border border-yellow-500/20 hover:bg-yellow-500/10 cursor-pointer transition-all"
+                                    className="flex items-center justify-between p-6 rounded-none bg-yellow-500/5 border border-yellow-500/20 hover:bg-yellow-500/10 cursor-pointer transition-all"
                                 >
                                     <div className="flex flex-col">
                                         <span className="text-lg font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
@@ -395,7 +393,7 @@ function StoreFinancialCard({
                                 <div 
                                     key={order.checkout_id} 
                                     onClick={() => setSelectedOrder(order)}
-                                    className="flex items-center justify-between p-6 rounded-[24px] bg-purple-500/5 border border-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-all"
+                                    className="flex items-center justify-between p-6 rounded-none bg-purple-500/5 border border-purple-500/20 hover:bg-purple-500/10 cursor-pointer transition-all"
                                 >
                                     <div className="flex flex-col">
                                         <span className="text-lg font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
@@ -422,19 +420,19 @@ function StoreFinancialCard({
                                 <div 
                                     key={order.checkout_id}
                                     onClick={() => setSelectedOrder(order)}
-                                    className="flex items-center justify-between p-4 rounded-2xl bg-secondary/10 border border-border/20 hover:bg-secondary/20 cursor-pointer transition-all opacity-70 group"
+                                    className="flex items-center justify-between p-6 rounded-none bg-secondary/10 border border-border/20 hover:bg-secondary/20 cursor-pointer transition-all opacity-70 group"
                                 >
                                     <div className="flex flex-col">
-                                        <span className="text-base font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
-                                        <span className="text-[8px] font-bold text-muted-foreground uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
+                                        <span className="text-lg font-black italic uppercase tracking-tighter">/{order.buyer_profile_slug}</span>
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</span>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-4">
                                         <div className="text-right">
-                                            <span className="text-lg font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
-                                            <p className="text-[7px] font-black text-green-500 uppercase">Recebido</p>
+                                            <span className="text-xl font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
+                                            <p className="text-[8px] font-black text-green-500 uppercase">Recebido</p>
                                         </div>
-                                        <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
-                                            <CheckCircle2 className="w-4 h-4" />
+                                        <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-500 group-hover:bg-green-500 group-hover:text-white transition-all">
+                                            <CheckCircle2 className="w-5 h-5" />
                                         </div>
                                     </div>
                                 </div>
@@ -442,7 +440,7 @@ function StoreFinancialCard({
                             {accepted.length > 3 && (
                                 <button 
                                     onClick={() => setShowFullHistory(true)}
-                                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all pt-2 w-full text-center py-4 bg-secondary/5 rounded-2xl border border-dashed border-border"
+                                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all pt-2 w-full text-center py-4 bg-secondary/5 rounded-none border border-dashed border-border"
                                 >
                                     Ver Relatório Completo de Vendas &rarr;
                                 </button>
@@ -456,20 +454,20 @@ function StoreFinancialCard({
             {showFullHistory && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-background/80 backdrop-blur-xl" onClick={() => setShowFullHistory(false)} />
-                    <div className="relative bg-card border border-border w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-500 max-h-[80vh] flex flex-col">
+                    <div className="relative bg-card border border-border w-full max-w-2xl rounded-none shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-500 max-h-[80vh] flex flex-col">
                         <div className="p-8 border-b border-border flex items-center justify-between">
                             <div>
                                 <h2 className="text-3xl font-black italic uppercase tracking-tighter leading-none">Relatório de <span className="text-green-500">Vendas</span></h2>
                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-2">Histórico completo: {accepted.length} pedidos finalizados</p>
                             </div>
-                            <button onClick={() => setShowFullHistory(false)} className="w-12 h-12 rounded-2xl bg-secondary flex items-center justify-center hover:bg-foreground hover:text-background transition-all">
+                            <button onClick={() => setShowFullHistory(false)} className="w-12 h-12 rounded-none bg-secondary flex items-center justify-center hover:bg-foreground hover:text-background transition-all">
                                 <X size={20} />
                             </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
                             {accepted.map(order => (
-                                <div key={order.checkout_id} onClick={() => { setSelectedOrder(order); setShowFullHistory(false); }} className="flex items-center justify-between p-6 rounded-[24px] bg-secondary/20 border border-border/30 hover:border-green-500/30 transition-all cursor-pointer">
+                                <div key={order.checkout_id} onClick={() => { setSelectedOrder(order); setShowFullHistory(false); }} className="flex items-center justify-between p-6 rounded-none bg-secondary/20 border border-border/30 hover:border-green-500/30 transition-all cursor-pointer">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-xl bg-background border border-border flex items-center justify-center text-[10px] font-black">
                                             {new Date(order.created_at).getDate()}
@@ -614,7 +612,7 @@ export default function FinanceiroPage() {
             <div className="sticky top-0 z-[40] bg-background/80 backdrop-blur-xl border-b border-border/50 px-4 md:px-8 py-4">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500">
+                        <div className="w-10 h-10 rounded-none bg-green-500/10 flex items-center justify-center text-green-500">
                             <TrendingUp size={20} />
                         </div>
                         <div>
@@ -627,24 +625,24 @@ export default function FinanceiroPage() {
 
                     <div className="flex items-center gap-3">
                         {/* Toggle Mode */}
-                        <div className="flex bg-secondary/50 p-1 rounded-xl border border-border">
+                        <div className="flex bg-secondary/50 p-1 rounded-none border border-border">
                             <button 
                                 onClick={() => setViewMode('merchant')}
-                                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'merchant' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
+                                className={`px-4 py-1.5 rounded-none text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'merchant' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                             >
                                 Empresa
                             </button>
                             <button 
                                 onClick={() => setViewMode('customer')}
-                                className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'customer' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
+                                className={`px-4 py-1.5 rounded-none text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'customer' ? 'bg-foreground text-background shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                             >
                                 Pessoal
                             </button>
                         </div>
-                        <Link href="/configuracoes" className="p-2.5 bg-secondary/50 border border-border text-foreground rounded-xl hover:bg-foreground hover:text-background transition-all">
+                        <Link href="/configuracoes" className="p-2.5 bg-secondary/50 border border-border text-foreground rounded-none hover:bg-foreground hover:text-background transition-all">
                             <Settings size={18} />
                         </Link>
-                        <button onClick={() => router.push('/criar-loja')} className="p-2.5 bg-foreground text-background rounded-xl hover:opacity-90 transition-all shadow-xl">
+                        <button onClick={() => router.push('/criar-loja')} className="p-2.5 bg-foreground text-background rounded-none hover:opacity-90 transition-all shadow-xl">
                             <Plus size={18} />
                         </button>
                     </div>
@@ -662,7 +660,7 @@ export default function FinanceiroPage() {
                                 <h2 className="text-2xl font-black uppercase tracking-tighter">Nenhuma loja encontrada</h2>
                                 <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Comece criando sua primeira loja agora mesmo.</p>
                             </div>
-                            <button onClick={() => router.push('/criar-loja')} className="px-8 py-4 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-green-500/20 hover:scale-105 transition-all">Criar Loja</button>
+                            <button onClick={() => router.push('/criar-loja')} className="px-8 py-4 bg-green-500 text-white rounded-none font-black uppercase text-[10px] tracking-widest shadow-lg shadow-green-500/20 hover:scale-105 transition-all">Criar Loja</button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -687,8 +685,8 @@ export default function FinanceiroPage() {
                                 <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none">Meu<span className="text-green-500">Extrato</span></h2>
                                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">Histórico completo de suas movimentações</p>
                             </div>
-                            <div className="bg-card border border-border p-6 rounded-[32px] flex items-center gap-6 shadow-sm">
-                                <div className="p-4 bg-green-500/10 rounded-2xl text-green-500">
+                            <div className="bg-card border border-border p-6 rounded-none flex items-center gap-6 shadow-sm">
+                                <div className="p-4 bg-green-500/10 rounded-none text-green-500">
                                     <DollarSign size={24} />
                                 </div>
                                 <div>
@@ -702,7 +700,7 @@ export default function FinanceiroPage() {
 
                         <div className="grid gap-4">
                             {myPurchases.length === 0 ? (
-                                <div className="py-32 text-center border border-dashed border-border rounded-[48px] bg-card/40">
+                                <div className="py-32 text-center border border-dashed border-border rounded-none bg-card/40">
                                     <ShoppingBag size={48} className="mx-auto mb-6 text-muted-foreground opacity-20" />
                                     <p className="text-muted-foreground font-black uppercase tracking-widest text-sm">Você ainda não realizou compras</p>
                                     <Link href="/" className="inline-block mt-8 text-green-500 font-black uppercase text-[10px] tracking-[0.3em] hover:opacity-80 transition-all">Explorar Lojas &rarr;</Link>
@@ -723,10 +721,10 @@ export default function FinanceiroPage() {
                                     groups[p.checkout_id].items.push(p)
                                     return groups
                                 }, {})).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((order: any) => (
-                                    <div key={order.checkout_id} className="group bg-card border border-border/50 rounded-[32px] p-6 md:p-8 hover:border-green-500/30 transition-all duration-300 shadow-sm hover:shadow-xl">
+                                    <div key={order.checkout_id} className="group bg-card border border-border/50 rounded-none p-6 md:p-8 hover:border-green-500/30 transition-all duration-300 shadow-sm hover:shadow-xl">
                                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                                             <div className="flex items-center gap-6">
-                                                <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center text-muted-foreground/30 border border-border">
+                                                <div className="w-16 h-16 rounded-none bg-secondary flex items-center justify-center text-muted-foreground/30 border border-border">
                                                     <StoreIcon size={24} />
                                                 </div>
                                                 <div className="space-y-1">
@@ -741,7 +739,7 @@ export default function FinanceiroPage() {
                                                     <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Valor Total</p>
                                                     <p className="text-3xl font-black italic tracking-tighter">R$ {order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                                 </div>
-                                                <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner ${
+                                                <div className={`px-4 py-2 rounded-none text-[10px] font-black uppercase tracking-widest shadow-inner ${
                                                     order.status === 'pending' ? 'bg-yellow-500/10 text-yellow-600' :
                                                     order.status === 'accepted' ? 'bg-green-500 text-white' :
                                                     order.status === 'paid' ? 'bg-green-500/10 text-green-500' :

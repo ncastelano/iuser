@@ -58,7 +58,7 @@ function LoginContent() {
       {/* ✅ Snackbar */}
       {success === 'account_created' && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
-          <div className="bg-foreground text-background px-8 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-2xl">
+          <div className="bg-foreground text-background px-8 py-4 rounded-none font-black uppercase text-[10px] tracking-widest shadow-2xl">
             Conta Criada com Sucesso
           </div>
         </div>
@@ -66,11 +66,11 @@ function LoginContent() {
 
       <form
         onSubmit={handleLogin}
-        className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700"
+        className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-none shadow-2xl animate-in fade-in zoom-in duration-700"
       >
         <div className="text-center space-y-4 mb-12 flex flex-col items-center">
           <div className="flex justify-center mb-2">
-            <div className="bg-black p-3 rounded-2xl shadow-xl">
+            <div className="bg-black p-3 rounded-none shadow-xl">
               <img src="/logo.png" alt="iUser Logo" className="h-16 md:h-20 object-contain" />
             </div>
           </div>
@@ -78,7 +78,7 @@ function LoginContent() {
         </div>
 
         {error && (
-          <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-2xl animate-shake">
+          <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-none animate-shake">
             {error}
           </div>
         )}
@@ -90,7 +90,7 @@ function LoginContent() {
             </label>
             <input
               type="email"
-              className="w-full px-8 py-5 bg-muted/30 border border-border dark:border-white/5 rounded-[28px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
+              className="w-full px-8 py-5 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
               placeholder="e-mail"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -114,7 +114,7 @@ function LoginContent() {
             <div className="relative group">
               <input
                 type={showPassword ? 'text' : 'password'}
-                className="w-full px-8 py-5 bg-muted/30 border border-border dark:border-white/5 rounded-[28px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 pr-16"
+                className="w-full px-8 py-5 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 pr-16"
                 placeholder="senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -135,7 +135,7 @@ function LoginContent() {
         <button
           type="submit"
           disabled={loading}
-          className="group w-full mt-12 bg-foreground text-background py-6 rounded-[32px] font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white active:scale-[0.96] disabled:opacity-30 shadow-2xl flex items-center justify-center gap-3"
+          className="group w-full mt-12 bg-foreground text-background py-6 rounded-none font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white active:scale-[0.96] disabled:opacity-30 shadow-2xl flex items-center justify-center gap-3"
         >
           {loading ? 'Validando...' : (
             <>

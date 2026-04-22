@@ -25,7 +25,7 @@ export default function TodosCarrinhosPage() {
                 <header className="flex items-center justify-between mb-16">
                     <div className="space-y-2">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => router.back()} className="p-3 bg-secondary/50 border border-border rounded-2xl hover:bg-foreground hover:text-background transition-all">
+                            <button onClick={() => router.back()} className="p-3 bg-secondary/50 border border-border rounded-none hover:bg-foreground hover:text-background transition-all">
                                 <ArrowLeft className="w-6 h-6" />
                             </button>
                             <h1 className="text-5xl md:text-7xl font-black tracking-tighter italic uppercase text-foreground leading-none">
@@ -37,11 +37,11 @@ export default function TodosCarrinhosPage() {
                 </header>
 
                 {storeSlugs.length === 0 ? (
-                    <div className="py-32 text-center rounded-[40px] border border-dashed border-border bg-card/40">
-                        <ShoppingCart className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-                        <p className="text-muted-foreground text-xl font-bold uppercase italic tracking-wider">Seu ecossistema está vazio</p>
-                        <p className="text-muted-foreground text-[10px] mt-2 font-black uppercase tracking-widest opacity-50">Adicione itens de qualquer loja para vê-los aqui!</p>
-                        <Link href="/" className="inline-block mt-10 px-10 py-4 bg-foreground text-background rounded-2xl font-black uppercase text-[11px] tracking-widest hover:opacity-90 transition-all">
+                    <div className="py-24 text-center rounded-none border border-dashed border-border bg-card/40">
+                        <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                        <p className="text-muted-foreground text-lg font-bold uppercase italic tracking-wider">Vazio</p>
+                        <p className="text-muted-foreground text-[8px] mt-1 font-black uppercase tracking-widest opacity-50">Adicione itens para vê-los aqui!</p>
+                        <Link href="/" className="inline-block mt-8 px-8 py-3 bg-foreground text-background rounded-none font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition-all">
                             Explorar Lojas
                         </Link>
                     </div>
@@ -54,51 +54,51 @@ export default function TodosCarrinhosPage() {
                             const totalPrice = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
 
                             return (
-                                <div key={slug} className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-[40px] p-8 hover:border-green-500/30 transition-all duration-500 hover:-translate-y-1">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-20 h-20 rounded-3xl bg-secondary border border-border overflow-hidden shadow-2xl">
+                                <div key={slug} className="group relative bg-card/40 backdrop-blur-3xl border border-border rounded-none p-4 hover:border-green-500/30 transition-all duration-500 hover:-translate-y-0.5">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-none bg-secondary border border-border overflow-hidden shadow-xl">
                                                 {details?.logo_url ? (
                                                     <img src={details.logo_url} className="w-full h-full object-cover transition-all" alt={details.name} />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center bg-secondary"><Store className="w-8 h-8 text-muted-foreground/30" /></div>
                                                 )}
                                             </div>
-                                            <div className="space-y-1">
-                                                <div className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Loja Ativa</div>
-                                                <h3 className="text-3xl font-black italic uppercase tracking-tighter text-foreground">{details?.name || slug}</h3>
-                                                <p className="text-xs font-bold text-green-500">{totalItems} {totalItems === 1 ? 'item' : 'itens'} • R$ {totalPrice.toFixed(2).replace('.', ',')}</p>
+                                            <div className="space-y-0.5">
+                                                <div className="text-[8px] font-black uppercase tracking-[0.3em] text-muted-foreground">Loja Ativa</div>
+                                                <h3 className="text-xl font-black italic uppercase tracking-tighter text-foreground">{details?.name || slug}</h3>
+                                                <p className="text-[10px] font-bold text-green-500">{totalItems} {totalItems === 1 ? 'item' : 'itens'} • R$ {totalPrice.toFixed(2).replace('.', ',')}</p>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-3">
                                             <button 
                                                 onClick={() => clearStoreCart(slug)}
-                                                className="p-5 bg-destructive/10 text-destructive border border-destructive/20 rounded-3xl hover:bg-destructive hover:text-white transition-all shadow-xl"
+                                                className="p-3 bg-destructive/10 text-destructive border border-destructive/20 rounded-none hover:bg-destructive hover:text-white transition-all shadow-lg"
                                                 title="Esvaziar"
                                             >
                                                 <Trash2 className="w-5 h-5" />
                                             </button>
                                             <Link 
                                                 href={`/loja/${slug}/carrinho`}
-                                                className="flex-1 md:flex-none flex items-center justify-center gap-3 px-10 py-5 bg-foreground text-background rounded-3xl font-black uppercase text-[11px] tracking-widest hover:bg-green-500 hover:text-white transition-all shadow-2xl"
+                                                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-foreground text-background rounded-none font-black uppercase text-[10px] tracking-widest hover:bg-green-500 hover:text-white transition-all shadow-xl"
                                             >
-                                                Ver Carrinho <ChevronRight className="w-4 h-4" />
+                                                Ver Carrinho <ChevronRight className="w-3 h-3" />
                                             </Link>
                                         </div>
                                     </div>
 
                                     {/* Preview de itens */}
-                                    <div className="mt-8 pt-8 border-t border-border flex gap-4 overflow-x-auto no-scrollbar">
+                                    <div className="mt-4 pt-4 border-t border-border flex gap-2 overflow-x-auto no-scrollbar">
                                         {items.map((item, idx) => (
-                                            <div key={item.product.id + idx} className="flex-shrink-0 w-16 h-16 rounded-2xl bg-secondary border border-border overflow-hidden relative transition-all">
+                                            <div key={item.product.id + idx} className="flex-shrink-0 w-12 h-12 rounded-none bg-secondary border border-border overflow-hidden relative transition-all">
                                                 {item.product.image_url ? (
                                                     <img src={item.product.image_url} className="w-full h-full object-cover" alt="" />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground/30 font-black italic">ITEM</div>
                                                 )}
                                                 {item.quantity > 1 && (
-                                                    <div className="absolute top-1 right-1 bg-green-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md shadow-lg">
+                                                    <div className="absolute top-0.5 right-0.5 bg-green-500 text-white text-[7px] font-black px-1 py-0.5 rounded-none shadow-lg">
                                                         {item.quantity}x
                                                     </div>
                                                 )}

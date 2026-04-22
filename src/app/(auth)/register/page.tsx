@@ -127,10 +127,10 @@ export default function Register() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--foreground)/0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
       </div>
 
-      <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-[48px] shadow-2xl animate-in fade-in zoom-in duration-700">
+      <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-none shadow-2xl animate-in fade-in zoom-in duration-700">
         <div className="text-center space-y-4 mb-10 flex flex-col items-center">
           <div className="flex justify-center mb-2">
-            <div className="bg-black p-3 rounded-2xl shadow-xl">
+            <div className="bg-black p-3 rounded-none shadow-xl">
               <img src="/logo.png" alt="iUser Logo" className="h-14 md:h-16 object-contain" />
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function Register() {
                 <CheckCircle2 className="w-10 h-10 text-primary" />
               </div>
               <div className="flex justify-center mb-2">
-                <div className="bg-black p-2 rounded-xl shadow-lg">
+                <div className="bg-black p-2 rounded-none shadow-lg">
                   <img src="/logo.png" alt="iUser Logo" className="h-8 md:h-12 object-contain" />
                 </div>
               </div>
@@ -155,7 +155,7 @@ export default function Register() {
             </div>
             <button
               onClick={() => router.push('/login')}
-              className="w-full bg-foreground text-background py-6 rounded-[32px] font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white"
+              className="w-full bg-foreground text-background py-6 rounded-none font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white"
             >
               Ir para o Login
             </button>
@@ -163,7 +163,7 @@ export default function Register() {
         ) : (
           <>
             {error && (
-              <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-2xl animate-shake">
+              <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-none animate-shake">
                 {error}
               </div>
             )}
@@ -175,7 +175,7 @@ export default function Register() {
                 </label>
                 <input
                   type="text"
-                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-[24px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
+                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
                   placeholder="Como devemos lhe chamar?"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -188,7 +188,7 @@ export default function Register() {
                 <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
                   <LinkIcon className="w-3 h-3" /> Link do Perfil / Slug Único
                 </label>
-                <div className="flex items-center bg-muted/30 border border-border dark:border-white/5 rounded-[24px] focus-within:border-primary/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all duration-500 overflow-hidden group">
+                <div className="flex items-center bg-muted/30 border border-border dark:border-white/5 rounded-none focus-within:border-primary/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all duration-500 overflow-hidden group">
                   <span className="pl-6 pr-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest h-full flex items-center">iuser.com.br/</span>
                   <input
                     type="text"
@@ -208,7 +208,7 @@ export default function Register() {
                 </label>
                 <input
                   type="email"
-                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-[24px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
+                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
                   placeholder="Seu melhor e-mail"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -225,7 +225,7 @@ export default function Register() {
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-[24px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 pr-12"
+                      className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 pr-12"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -246,7 +246,7 @@ export default function Register() {
                   </label>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-[24px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
+                    className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -259,7 +259,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="group w-full mt-10 bg-foreground text-background py-5 rounded-[32px] font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white active:scale-[0.96] disabled:opacity-30 shadow-2xl flex items-center justify-center gap-3"
+              className="group w-full mt-10 bg-foreground text-background py-5 rounded-none font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white active:scale-[0.96] disabled:opacity-30 shadow-2xl flex items-center justify-center gap-3"
             >
               {loading ? 'Processando...' : (
                 <>
