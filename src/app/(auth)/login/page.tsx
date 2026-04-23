@@ -7,6 +7,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from 'lucide-react'
+import { BottomNav } from '@/components/BottomNav'
 
 function LoginContent() {
   const router = useRouter()
@@ -164,6 +165,7 @@ function LoginContent() {
           </a>
         </p>
       </form>
+      <BottomNav />
     </div>
   )
 }

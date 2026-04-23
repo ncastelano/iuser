@@ -74,10 +74,10 @@ export default function ConfiguracoesPage() {
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
-        router.replace('/login')
+        router.replace('/')
 
         setTimeout(() => {
-            window.location.href = '/login'
+            window.location.href = '/'
         }, 100)
     }
 

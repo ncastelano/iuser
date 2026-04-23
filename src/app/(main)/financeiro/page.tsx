@@ -272,7 +272,7 @@ function StoreFinancialCard({
                     <div className="bg-secondary/20 p-3 rounded-lg border border-border/30">
                         <p className="text-[7px] font-black uppercase text-muted-foreground tracking-wider">Ticket Médio</p>
                         <p className="text-lg font-black italic">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <p className="text-[8px] font-bold text-muted-foreground">/pedido</p>
+                        <p className="text-[8px] font-bold text-muted-foreground">{metrics.total.orders} pedidos no total</p>
                     </div>
                 </div>
 
@@ -462,19 +462,49 @@ export default function FinanceiroPage() {
             }
         }
 
-        const { data: purchaseData } = await supabase
+        const { data: purchaseDataLegacy } = await supabase
             .from('store_sales')
             .select('*, stores(name)')
             .eq('buyer_id', user.id)
             .order('created_at', { ascending: false })
 
-        if (purchaseData) {
-            const mappedPurchases = purchaseData.map((p: any) => ({
+        const { data: purchaseDataNew } = await supabase
+            .from('orders')
+            .select('*, order_items(*), stores(name)')
+            .eq('buyer_id', user.id)
+            .order('created_at', { ascending: false })
+
+        let allPurchases: any[] = []
+
+        if (purchaseDataLegacy) {
+            allPurchases = [...allPurchases, ...purchaseDataLegacy.map((p: any) => ({
                 ...p,
                 store_name: p.stores?.name || 'Loja'
-            }))
-            setMyPurchases(mappedPurchases)
+            }))]
         }
+
+        if (purchaseDataNew) {
+            const mappedNew = purchaseDataNew.flatMap(o => o.order_items.map((i: any) => ({
+                id: i.id,
+                product_id: i.product_id,
+                product_name: i.product_name,
+                quantity: i.quantity,
+                price: i.total_price,
+                created_at: o.created_at,
+                status: o.status,
+                checkout_id: o.checkout_id,
+                buyer_id: o.buyer_id,
+                buyer_name: o.buyer_name,
+                buyer_profile_slug: o.buyer_profile_slug,
+                store_id: o.store_id,
+                store_name: o.stores?.name || 'Loja'
+            })))
+            allPurchases = [...allPurchases, ...mappedNew]
+        }
+        
+        // Remove duplicate items just in case and set
+        const uniquePurchases = Array.from(new Map(allPurchases.map(item => [item.id, item])).values())
+        setMyPurchases(uniquePurchases)
 
         setLoading(false)
     }

@@ -13,7 +13,10 @@ import {
     Heart,
     Users,
     Plus,
-    ChevronRight
+    ChevronRight,
+    Star,
+    Clock,
+    MapPin
 } from 'lucide-react'
 
 import { useCartStore } from '@/store/useCartStore'
@@ -133,7 +136,6 @@ export default function ProductPage() {
             return
         }
 
-        // Fetch owner whatsapp
         if (storeData.owner_id) {
             const { data: ownerProfile } = await supabase
                 .from('profiles')
@@ -162,7 +164,6 @@ export default function ProductPage() {
             return
         }
 
-        // Carregar outros produtos da loja
         const { data: others } = await supabase
             .from('products')
             .select('*')
@@ -193,7 +194,6 @@ export default function ProductPage() {
         setImage(productData.image_url ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl : null)
         await loadRatings(productData.id, userId)
 
-        // Load recent buyers for this product
         const { data: buyers } = await supabase
             .from('store_sales')
             .select('buyer_name, buyer_id, created_at, profiles:buyer_id(avatar_url, "profileSlug")')
@@ -252,8 +252,6 @@ export default function ProductPage() {
 
         const finalBuyerName = buyerName || 'Cliente iUser'
 
-        // Record the sale for the "Social Proof / Micro Extrato"
-        // We Use a common table or just fire and forget if it fails
         try {
             await supabase.from('store_sales').insert({
                 store_id: store.id,
@@ -283,10 +281,10 @@ export default function ProductPage() {
 
     if (loading || !product || !store) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-muted-foreground text-sm uppercase font-black tracking-widest">Carregando experiência...</p>
+            <div className="min-h-screen flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-green-500/20 border-t-green-500 rounded-full animate-spin" />
+                    <p className="text-muted-foreground text-[8px] uppercase font-black tracking-wider">Carregando...</p>
                 </div>
             </div>
         )
@@ -296,238 +294,251 @@ export default function ProductPage() {
     const typeLabel = product.type === 'service' ? 'Serviço' : product.type === 'digital' ? 'Digital' : 'Produto'
 
     return (
-        <div className="relative w-full max-w-6xl mx-auto py-8 md:py-16 animate-fade-in text-foreground selection:bg-primary selection:text-white px-4">
-            {/* Background Effects */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-                <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/5 blur-[120px] rounded-full" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-secondary/10 blur-[100px] rounded-full" />
+        <div className="min-h-screen bg-background">
+            {/* Header Fixo iFood Style */}
+            <div className="sticky top-0 z-40 bg-background border-b border-border">
+                <div className="px-4 py-2 flex items-center gap-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="w-8 h-8 flex items-center justify-center bg-secondary/50 border border-border hover:bg-foreground hover:text-background transition-all"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex-1">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-muted-foreground">Detalhe do produto</p>
+                        <p className="text-[10px] font-bold truncate">{product.name}</p>
+                    </div>
+                    <div className="px-2 py-1 border border-border">
+                        <span className="text-[7px] font-black uppercase tracking-wider">{typeLabel}</span>
+                    </div>
+                </div>
             </div>
-            <div className="flex flex-col md:flex-row items-start gap-12">
-                {/* Visual - skipping for brevity in thought, but replaced in file */}
-                {/* Info - skipping for brevity in thought, but replaced in file */}
-                <div className="w-full md:w-1/2 space-y-8">
-                    <div className="relative group">
-                        <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-[48px] blur-2xl opacity-0 group-hover:opacity-100 transition duration-1000" />
-                        <div className="relative aspect-square md:h-[600px] bg-card border border-border dark:border-white/5 rounded-[48px] overflow-hidden shadow-2xl">
-                            {image ? (
-                                <img src={image} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-1000 group-hover:scale-105" alt={product.name} />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-6xl font-black italic uppercase">Sem Foto</div>
-                            )}
-                            <div className="absolute top-8 right-8 px-6 py-2.5 bg-background/60 backdrop-blur-3xl border border-border dark:border-white/10 rounded-2xl z-20">
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground">{typeLabel}</span>
+
+            {/* Conteúdo Principal */}
+            <div className="pb-24">
+                {/* Imagem - Tamanho iFood (280px) */}
+                <div className="relative bg-muted border-b border-border">
+                    <div className="h-64 w-full overflow-hidden">
+                        {image ? (
+                            <img
+                                src={image}
+                                className="w-full h-full object-cover"
+                                alt={product.name}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-lg font-black italic uppercase">
+                                Sem Imagem
                             </div>
-                        </div>
+                        )}
                     </div>
 
-                    <div
-                        onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
-                        className="group bg-card border border-border dark:border-white/5 rounded-[40px] p-8 cursor-pointer transition-all duration-500 hover:border-foreground/10 hover:-translate-y-1 shadow-xl"
-                    >
-                        <div className="flex items-center gap-6">
-                            <div className="w-16 h-16 rounded-2xl bg-muted border border-border overflow-hidden shadow-2xl">
-                                {store.logo_url ? (
-                                    <img src={store.logo_url} className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all" alt={store.name} />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-muted"><Store className="w-6 h-6 text-muted-foreground" /></div>
-                                )}
-                            </div>
-                            <div className="flex-1 space-y-1">
-                                <div className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">Representante Autorizado</div>
-                                <h4 className="text-2xl font-black italic uppercase tracking-tighter text-foreground group-hover:text-primary transition-colors">{store.name}</h4>
-                            </div>
-                            <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center group-hover:bg-foreground group-hover:text-background transition-all">
-                                <ChevronRight className="w-6 h-6" />
-                            </div>
-                        </div>
+                    {/* Preço flutuante */}
+                    <div className="absolute bottom-3 right-3 px-3 py-1.5 bg-foreground border border-border">
+                        <span className="text-xs font-black text-background">
+                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
                     </div>
                 </div>
 
-                <div className="w-full md:w-1/2 space-y-12">
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => router.back()} className="w-12 h-12 flex items-center justify-center bg-muted border border-border rounded-2xl hover:bg-foreground hover:text-background transition-all duration-500">
-                                <ArrowLeft className="w-5 h-5" />
-                            </button>
-                            <div className="h-px flex-1 bg-border" />
+                {/* Info do Produto */}
+                <div className="px-4 py-4 border-b border-border">
+                    <h1 className="text-lg font-black italic uppercase tracking-tighter text-foreground mb-2">
+                        {product.name}
+                    </h1>
+
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-1">
+                            <RatingStars value={Number(product.ratings_avg || 0)} size={12} />
+                            <span className="text-[10px] font-bold text-foreground">{(product.ratings_avg || 0).toFixed(1)}</span>
                         </div>
-
-                        <div className="space-y-4">
-                            <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-foreground leading-tight">
-                                {product.name}
-                            </h1>
-                            <div className="flex items-center gap-6">
-                                <div className="flex items-center gap-2">
-                                    <RatingStars value={Number(product.ratings_avg || 0)} size={16} />
-                                    <span className="text-sm font-black text-white italic">{(product.ratings_avg || 0).toFixed(1)}</span>
-                                </div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-neutral-600 underline cursor-pointer" onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/${product.slug}/avaliacoes`)}>
-                                    {product.ratings_count ?? 0} AVALIAÇÕES
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="relative group inline-block">
-                            <div className="absolute -inset-4 bg-primary/5 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <div className="relative text-5xl md:text-6xl font-black italic text-foreground flex items-start gap-2 tracking-tighter">
-                                <span className="text-xl md:text-2xl mt-2">R$</span>
-                                {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-muted/10 border border-border rounded-[40px] p-8 space-y-4">
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">Especificações / Descrição</h3>
-                        <p className="text-muted-foreground leading-relaxed text-base italic">{product.description || "Nenhuma descrição adicional informada pelo representante."}</p>
-                    </div>
-
-                    <div className="bg-muted/10 border border-border rounded-[40px] p-8">
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="space-y-1">
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-foreground">Sua Experiência</h4>
-                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Avalie este item no ecossistema</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <RatingStars value={myRating} onChange={(v) => submitRating(v)} disabled={ratingLoading} size={24} />
-                                {ratingLoading && <div className="w-4 h-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4 pt-10">
-                        {mounted && (
-                            <button
-                                onClick={() => {
-                                    if (isInCart) {
-                                        router.push(`/${profileSlug}/${storeSlug}/carrinho`)
-                                    } else {
-                                        addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, {
-                                            id: product.id,
-                                            name: product.name,
-                                            price: product.price || 0,
-                                            image_url: image,
-                                        })
-                                    }
-                                }}
-                                className={`w-full py-6 rounded-[32px] font-black uppercase text-sm tracking-[0.3em] transition-all flex items-center justify-center gap-4 shadow-2xl ${isInCart ? 'bg-muted text-foreground border border-border' : 'bg-foreground text-background hover:bg-neutral-800 dark:hover:bg-white active:scale-[0.98]'}`}
-                            >
-                                {isInCart ? <CheckCircle2 className="w-6 h-6" /> : <ShoppingCart className="w-6 h-6" />}
-                                {isInCart ? 'Item no Carrinho' : 'Adicionar ao Sistema'}
-                            </button>
-                        )}
-
                         <button
-                            onClick={handleBuyNow}
-                            disabled={buyLoading}
-                            className="w-full py-6 rounded-[32px] bg-muted/50 border border-border font-black uppercase text-sm tracking-[0.3em] text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
+                            onClick={() => router.push(`/${profileSlug}/${storeSlug}/${product.slug}/avaliacoes`)}
+                            className="text-[8px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                         >
-                            {buyLoading ? (
-                                <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                            ) : (
-                                <>
-                                    {isService ? <Briefcase className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
-                                    {isService ? 'Contratar Agora' : 'Comprar Agora'}
-                                </>
-                            )}
+                            {product.ratings_count ?? 0} avaliações
                         </button>
                     </div>
 
-                    {/* Social Proof - Buyers */}
-                    {recentBuyers.length > 0 && (
-                        <div className="bg-primary/5 border border-primary/10 rounded-[32px] p-6 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex items-center gap-3 text-primary">
-                                <Users className="w-5 h-5" />
-                                <span className="text-[10px] font-black uppercase tracking-[.2em]">Social Proof / Aquisições Recentes</span>
-                            </div>
-                            <div className="space-y-3">
-                                {recentBuyers.map((buyer, i) => (
-                                    <div key={i} className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-background border border-border overflow-hidden">
-                                            {buyer.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(supabase, buyer.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black italic">{buyer.buyer_name?.charAt(0) || '?'}</div>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-foreground font-bold italic">
-                                            {buyer.buyer_name} <span className="text-muted-foreground font-normal">adquiriu este item recentemente.</span>
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Social Proof - Ratings */}
-                    {ratings.length > 0 && (
-                        <div className="space-y-6 pt-12">
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground flex items-center gap-4">Feed de Experiências <div className="h-px flex-1 bg-border" /></h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {ratings.slice(0, 4).map((r) => (
-                                    <div key={r.id} className="bg-muted/30 border border-border rounded-3xl p-5 flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-muted border border-border overflow-hidden">
-                                            {r.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover grayscale-[0.3]" alt={r.profiles.name || ""} />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xs font-black italic">{r.profiles?.name?.charAt(0) || "?"}</div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-[10px] font-black uppercase tracking-widest text-foreground truncate">{r.profiles?.name || "Expert iUser"}</div>
-                                            <RatingStars value={r.rating} size={10} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {product.description || "Nenhuma descrição disponível para este item."}
+                    </p>
                 </div>
-            </div>
 
-            {/* Other products from same store */}
-            {otherProducts.length > 0 && (
-                <div className="mt-20 space-y-8">
-                    <div className="flex items-end justify-between px-4">
-                        <div className="space-y-2">
-                            <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground">Mais do Representante</h3>
-                            <h2 className="text-4xl font-black italic uppercase tracking-tighter text-foreground leading-none">Explorar mais nesta loja</h2>
-                        </div>
-                        <Link href={`/${profileSlug}/${storeSlug}`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-                            Ver Vitrine Completa &rarr;
-                        </Link>
+                {/* Info da Loja - Estilo iFood */}
+                <div
+                    onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
+                    className="px-4 py-3 border-b border-border flex items-center gap-3 cursor-pointer hover:bg-muted/10 transition-colors"
+                >
+                    <div className="w-10 h-10 bg-muted border border-border overflow-hidden flex-shrink-0">
+                        {store.logo_url ? (
+                            <img src={store.logo_url} className="w-full h-full object-cover" alt={store.name} />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                                <Store className="w-4 h-4 text-muted-foreground/30" />
+                            </div>
+                        )}
                     </div>
+                    <div className="flex-1">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-muted-foreground">Vendido por</p>
+                        <p className="text-sm font-bold text-foreground">{store.name}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
-                        {otherProducts.map((other) => (
-                            <div
-                                key={other.id}
-                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/${other.slug}`)}
-                                className="group bg-card border border-border rounded-[32px] overflow-hidden cursor-pointer transition-all duration-500 hover:border-foreground/10 hover:-translate-y-1 shadow-xl"
+                {/* Botões de Ação - Fixos no Bottom iFood Style */}
+                <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-3 z-30">
+                    <div className="max-w-6xl mx-auto flex items-center gap-3">
+                        {/* Seção de Avaliação Rápida */}
+                        <div className="flex items-center gap-2 px-2 py-1 border border-border bg-muted/20">
+                            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                            <RatingStars value={myRating} onChange={(v) => submitRating(v)} disabled={ratingLoading} size={10} />
+                        </div>
+
+                        <div className="flex-1 flex gap-2">
+                            {mounted && (
+                                <button
+                                    onClick={() => {
+                                        if (isInCart) {
+                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
+                                        } else {
+                                            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, {
+                                                id: product.id,
+                                                name: product.name,
+                                                price: product.price || 0,
+                                                image_url: image,
+                                            })
+                                        }
+                                    }}
+                                    className={`flex-1 py-3 font-black uppercase text-[9px] tracking-wider transition-all flex items-center justify-center gap-2 border ${isInCart
+                                            ? 'bg-muted text-foreground border-border'
+                                            : 'bg-foreground text-background border-transparent hover:bg-green-500'
+                                        }`}
+                                >
+                                    {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+                                    {isInCart ? 'No carrinho' : 'Adicionar'}
+                                </button>
+                            )}
+
+                            <button
+                                onClick={handleBuyNow}
+                                disabled={buyLoading}
+                                className="flex-1 py-3 bg-green-500 text-white font-black uppercase text-[9px] tracking-wider hover:bg-green-600 transition-all flex items-center justify-center gap-2 border border-green-600 disabled:opacity-50"
                             >
-                                <div className="aspect-square bg-muted overflow-hidden relative">
-                                    {other.image_url ? (
-                                        <img
-                                            src={supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl}
-                                            className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-700 group-hover:scale-110"
-                                            alt={other.name}
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-2xl font-black italic">PRODUTO</div>
-                                    )}
-                                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-background/80 to-transparent pt-12">
-                                        <div className="text-foreground font-black italic uppercase text-xs tracking-tighter truncate">{other.name}</div>
-                                        <div className="text-primary font-black text-sm mt-1">
-                                            R$ {(other.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                        </div>
+                                {buyLoading ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        {isService ? <Briefcase className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                                        {isService ? 'Contratar' : 'Comprar'}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Social Proof - Recent Buyers (Estilo iFood) */}
+                {recentBuyers.length > 0 && (
+                    <div className="px-4 py-3 border-b border-border bg-green-500/5">
+                        <div className="flex items-center gap-2 mb-2">
+                            <Users className="w-3.5 h-3.5 text-green-600" />
+                            <span className="text-[8px] font-black uppercase tracking-wider text-green-600">Compras recentes</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {recentBuyers.slice(0, 3).map((buyer, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                    <div className="w-6 h-6 bg-secondary border border-border overflow-hidden rounded-full">
+                                        {buyer.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, buyer.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-[7px] font-black">
+                                                {buyer.buyer_name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="text-[9px] text-foreground">{buyer.buyer_name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Ratings Feed */}
+                {ratings.length > 0 && (
+                    <div className="px-4 py-4">
+                        <h3 className="text-[9px] font-black uppercase tracking-wider text-muted-foreground mb-3">Avaliações dos clientes</h3>
+                        <div className="space-y-3">
+                            {ratings.slice(0, 3).map((r) => (
+                                <div key={r.id} className="flex items-start gap-3">
+                                    <div className="w-8 h-8 bg-secondary border border-border overflow-hidden rounded-full flex-shrink-0">
+                                        {r.profiles?.avatar_url ? (
+                                            <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-[9px] font-black">
+                                                {r.profiles?.name?.charAt(0) || "?"}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-[9px] font-bold text-foreground">{r.profiles?.name || "Usuário"}</p>
+                                        <RatingStars value={r.rating} size={10} />
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
+                        {ratings.length > 3 && (
+                            <button
+                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/${product.slug}/avaliacoes`)}
+                                className="w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors border border-border"
+                            >
+                                Ver mais avaliações
+                            </button>
+                        )}
                     </div>
-                </div>
-            )}
+                )}
 
-            <div className="pb-32" />
+                {/* Outros Produtos da Loja */}
+                {otherProducts.length > 0 && (
+                    <div className="px-4 py-4 border-t border-border">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">Outros itens da loja</h3>
+                            <Link href={`/${profileSlug}/${storeSlug}`} className="text-[7px] font-black uppercase tracking-wider text-green-600 hover:text-green-700 transition-colors">
+                                Ver todos →
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                            {otherProducts.slice(0, 3).map((other) => (
+                                <div
+                                    key={other.id}
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/${other.slug}`)}
+                                    className="group border border-border overflow-hidden cursor-pointer hover:border-green-500/30 transition-all"
+                                >
+                                    <div className="aspect-square bg-muted overflow-hidden">
+                                        {other.image_url ? (
+                                            <img
+                                                src={supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl}
+                                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                alt={other.name}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-[8px] font-black italic">
+                                                SEM FOTO
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-1.5">
+                                        <h4 className="text-[8px] font-bold truncate">{other.name}</h4>
+                                        <p className="text-[8px] font-black text-green-600">
+                                            R$ {(other.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
