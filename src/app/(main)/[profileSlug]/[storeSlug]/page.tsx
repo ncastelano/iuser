@@ -21,7 +21,9 @@ import {
     MapPin,
     ExternalLink,
     Settings,
-    Pencil
+    Pencil,
+    ArrowDown,
+    ArrowUp
 } from 'lucide-react'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
@@ -836,15 +838,17 @@ export default function StorePage() {
                                                             disabled={catIndex === 0}
                                                             onClick={() => moveCategory(category, 'up')}
                                                             className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
+                                                            title="Mover para cima"
                                                         >
-                                                            <Clock className="w-3 h-3 rotate-180" />
+                                                            <ArrowUp className="w-3 h-3" />
                                                         </button>
                                                         <button
                                                             disabled={catIndex === Object.keys(groupedProducts).length - 1}
                                                             onClick={() => moveCategory(category, 'down')}
                                                             className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
+                                                            title="Mover para baixo"
                                                         >
-                                                            <Clock className="w-3 h-3" />
+                                                            <ArrowDown className="w-3 h-3" />
                                                         </button>
                                                     </div>
                                                 )}

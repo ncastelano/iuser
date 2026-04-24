@@ -222,6 +222,33 @@ export default function Sacola() {
         }
     }, [finishedOrders, supabase])
 
+    // Real-time updates for myPurchases (Meus Pedidos)
+    useEffect(() => {
+        if (!currentUserId) return
+
+        const channel = supabase
+            .channel(`public:orders:${currentUserId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'orders', filter: `buyer_id=eq.${currentUserId}` },
+                (payload) => {
+                    setMyPurchases(prev => prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p))
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'store_sales', filter: `buyer_id=eq.${currentUserId}` },
+                (payload) => {
+                    setMyPurchases(prev => prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p))
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [currentUserId, supabase])
+
     if (!mounted) return null
 
     const storeSlugs = Object.keys(itemsByStore)
@@ -815,9 +842,9 @@ export default function Sacola() {
                             if (!groups[p.checkout_id]) groups[p.checkout_id] = true
                             return groups
                         }, {})).length > 5 && (
-                                <button className="w-full mt-3 py-2 text-[7px] font-black uppercase tracking-wider text-muted-foreground hover:text-green-500 transition-colors border border-border">
+                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[7px] font-black uppercase tracking-wider text-muted-foreground hover:text-green-500 transition-colors border border-border">
                                     Ver todos os pedidos
-                                </button>
+                                </Link>
                             )}
                     </div>
                 )}

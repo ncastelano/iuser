@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Save, LogOut } from 'lucide-react'
+import { ArrowLeft, Save, LogOut, Type } from 'lucide-react'
+import { useFontStore } from '@/store/useFontStore'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
     const supabase = createClient()
 
     const [whatsapp, setWhatsapp] = useState('')
+    const { fontSize, setFontSize } = useFontStore()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
@@ -139,6 +141,41 @@ export default function ConfiguracoesPage() {
                             inputMode="tel"
                             className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
                         />
+                    </div>
+
+                    {/* Fonte */}
+                    <div className="space-y-4 pt-4 border-t border-border/50">
+                        <div className="flex items-center gap-2">
+                            <Type className="w-4 h-4 text-primary" />
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Tamanho das Letras
+                            </label>
+                        </div>
+                        
+                        <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
+                            Aumente o tamanho dos textos de todo o aplicativo para facilitar a leitura.
+                        </p>
+
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                onClick={() => setFontSize('normal')}
+                                className={`py-4 rounded-2xl font-bold text-xs transition-all border ${fontSize === 'normal' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                            >
+                                Padrão
+                            </button>
+                            <button
+                                onClick={() => setFontSize('large')}
+                                className={`py-4 rounded-2xl font-bold text-sm transition-all border ${fontSize === 'large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                            >
+                                Grande
+                            </button>
+                            <button
+                                onClick={() => setFontSize('extra-large')}
+                                className={`py-4 rounded-2xl font-bold text-base transition-all border ${fontSize === 'extra-large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                            >
+                                Enorme
+                            </button>
+                        </div>
                     </div>
 
 
