@@ -4,13 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Save, LogOut } from 'lucide-react'
-import { useThemeStore } from '@/store/useThemeStore'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
     const supabase = createClient()
 
-    const { theme, setTheme } = useThemeStore()
     const [whatsapp, setWhatsapp] = useState('')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -64,7 +62,6 @@ export default function ConfiguracoesPage() {
                 alert(`Erro ao salvar: ${error.message}`)
             } else {
                 setWhatsapp(normalizedWhatsapp)
-                setTheme('light') // Sincroniza o estado global para garantir light mode
                 alert('Configurações salvas com sucesso!')
             }
         }

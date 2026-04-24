@@ -56,7 +56,7 @@ export default function MapPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
     const [showFilters, setShowFilters] = useState(false)
-    const [recentBuyers, setRecentBuyers] = useState<any[]>([])
+
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -288,23 +288,6 @@ export default function MapPage() {
                 el.onclick = async () => {
                     setSelectedItem(item)
                     map.flyTo({ center: [lng, lat], zoom: 16, duration: 600 })
-                    
-                    // Fetch recent buyers if it's a store
-                    if (mode === 'lojas') {
-                        const supabase = createClient()
-                        const { data } = await supabase
-                            .from('store_sales')
-                            .select('buyer_profile_slug, buyer_name')
-                            .eq('store_id', item.id)
-                            .order('created_at', { ascending: false })
-                            .limit(5)
-                        
-                        if (data) {
-                            const uniqueBuyers = Array.from(new Set(data.map(b => b.buyer_profile_slug)))
-                                .map(slug => data.find(b => b.buyer_profile_slug === slug))
-                            setRecentBuyers(uniqueBuyers)
-                        }
-                    }
                 }
 
                 const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
@@ -511,22 +494,7 @@ export default function MapPage() {
                             </div>
                         </div>
 
-                        {mode === 'lojas' && recentBuyers.length > 0 && (
-                            <div className="mt-4 flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5">
-                                    <div className="flex -space-x-2">
-                                        {recentBuyers.map((buyer, i) => (
-                                            <div key={i} className="w-6 h-6 rounded-full border-2 border-card bg-secondary flex items-center justify-center overflow-hidden">
-                                                <UserCircle className="w-full h-full text-muted-foreground/50" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                                        {recentBuyers.length === 5 ? 'Vários já compraram' : `${recentBuyers.length} clientes recentes`}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
+
 
                         <button
                             onClick={() => {

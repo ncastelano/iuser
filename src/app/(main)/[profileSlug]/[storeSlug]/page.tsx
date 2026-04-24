@@ -165,7 +165,7 @@ export default function StorePage() {
         // Sort categories based on order
         const sortedGroups: Record<string, any[]> = {}
         const allCats = Object.keys(groups)
-        
+
         const sortedCats = [...allCats].sort((a, b) => {
             const indexA = categoryOrder.indexOf(a)
             const indexB = categoryOrder.indexOf(b)
@@ -828,18 +828,18 @@ export default function StorePage() {
                                         <div className="flex items-center gap-3">
                                             <h4 className="text-[9px] font-black uppercase tracking-[0.5em] text-primary">{category}</h4>
                                             <div className="h-px flex-1 bg-border" />
-                                            
+
                                             <div className="flex items-center gap-1">
                                                 {isOwner && (
                                                     <div className="flex items-center gap-0.5 mr-2">
-                                                        <button 
+                                                        <button
                                                             disabled={catIndex === 0}
                                                             onClick={() => moveCategory(category, 'up')}
                                                             className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
                                                         >
                                                             <Clock className="w-3 h-3 rotate-180" />
                                                         </button>
-                                                        <button 
+                                                        <button
                                                             disabled={catIndex === Object.keys(groupedProducts).length - 1}
                                                             onClick={() => moveCategory(category, 'down')}
                                                             className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all"
@@ -848,7 +848,7 @@ export default function StorePage() {
                                                         </button>
                                                     </div>
                                                 )}
-                                                <button 
+                                                <button
                                                     onClick={() => toggleCategory(category)}
                                                     className="w-6 h-6 flex items-center justify-center bg-secondary border border-border rounded-lg hover:border-foreground transition-all"
                                                 >
@@ -856,112 +856,112 @@ export default function StorePage() {
                                                 </button>
                                             </div>
                                         </div>
-                                        
+
                                         {!isCollapsed && (
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                                        {products.map((product) => (
-                                            <div
-                                                key={product.id}
-                                                onClick={() => {
-                                                    if (isOwner) {
-                                                        router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                    } else {
-                                                        router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)
-                                                    }
-                                                }}
-                                                className="group relative flex bg-card/40 border border-border rounded-xl overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-3 gap-3 items-stretch shadow-md hover:shadow-xl hover:-translate-y-0.5"
-                                            >
-                                                <div className="flex-1 flex flex-col min-w-0 py-0.5">
-                                                    <h4 className="text-sm leading-tight font-bold text-foreground line-clamp-2">{product.name}</h4>
-                                                    <p className="text-muted-foreground text-[10px] font-medium line-clamp-2 mt-1 min-h-[28px]">{product.description || "Sem descrição"}</p>
+                                                {products.map((product) => (
+                                                    <div
+                                                        key={product.id}
+                                                        onClick={() => {
+                                                            if (isOwner) {
+                                                                router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                            } else {
+                                                                router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)
+                                                            }
+                                                        }}
+                                                        className="group relative flex bg-card/40 border border-border rounded-xl overflow-hidden transition-all duration-300 hover:border-foreground/10 hover:bg-card/80 cursor-pointer p-3 gap-3 items-stretch shadow-md hover:shadow-xl hover:-translate-y-0.5"
+                                                    >
+                                                        <div className="flex-1 flex flex-col min-w-0 py-0.5">
+                                                            <h4 className="text-sm leading-tight font-bold text-foreground line-clamp-2">{product.name}</h4>
+                                                            <p className="text-muted-foreground text-[10px] font-medium line-clamp-2 mt-1 min-h-[28px]">{product.description || "Sem descrição"}</p>
 
-                                                    <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
-                                                        <p className="text-base font-black italic tracking-tighter text-foreground mr-auto">
-                                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                        </p>
+                                                            <div className="mt-auto pt-2 flex flex-wrap items-center gap-2">
+                                                                <p className="text-base font-black italic tracking-tighter text-foreground mr-auto">
+                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                </p>
 
-                                                        {isOwner ? (
-                                                            <button
-                                                                onClick={(event) => {
-                                                                    event.stopPropagation()
-                                                                    router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                                }}
-                                                                className="px-2.5 py-1 rounded-lg font-black uppercase text-[8px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
-                                                            >
-                                                                Editar
-                                                            </button>
-                                                        ) : (
-                                                            mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                                <div className="flex gap-1">
+                                                                {isOwner ? (
                                                                     <button
                                                                         onClick={(event) => {
                                                                             event.stopPropagation()
-                                                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
+                                                                            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
                                                                         }}
-                                                                        className="h-7 px-2.5 bg-foreground text-background font-black uppercase text-[8px] tracking-widest rounded-lg transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"
+                                                                        className="px-2.5 py-1 rounded-lg font-black uppercase text-[8px] tracking-widest bg-secondary text-foreground hover:bg-foreground hover:text-background transition-all border border-border"
                                                                     >
-                                                                        <CheckCircle2 className="w-3 h-3" /> OK
+                                                                        Editar
                                                                     </button>
-                                                                    <button
-                                                                        onClick={(event) => {
-                                                                            event.stopPropagation()
-                                                                            removeItem(storeSlug as string, product.id)
-                                                                        }}
-                                                                        className="h-7 w-7 rounded-lg flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </div>
+                                                                ) : (
+                                                                    mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                                                        <div className="flex gap-1">
+                                                                            <button
+                                                                                onClick={(event) => {
+                                                                                    event.stopPropagation()
+                                                                                    router.push(`/sacola`)
+                                                                                }}
+                                                                                className="h-7 px-2.5 bg-foreground text-background font-black uppercase text-[8px] tracking-widest rounded-lg transition-all shadow-md active:scale-95 flex items-center justify-center gap-1"
+                                                                            >
+                                                                                <CheckCircle2 className="w-3 h-3" /> OK
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(event) => {
+                                                                                    event.stopPropagation()
+                                                                                    removeItem(storeSlug as string, product.id)
+                                                                                }}
+                                                                                className="h-7 w-7 rounded-lg flex items-center justify-center bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all border border-destructive/20"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={(event) => {
+                                                                                event.stopPropagation()
+                                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
+                                                                                setCartAnimating(true)
+                                                                                setTimeout(() => setCartAnimating(false), 500)
+                                                                            }}
+                                                                            className="h-7 px-2.5 rounded-lg font-black uppercase text-[8px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1 border border-border"
+                                                                        >
+                                                                            <Plus className="w-3 h-3" /> ADD
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="relative w-20 h-20 rounded-xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
+                                                            {product.image_url ? (
+                                                                <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
                                                             ) : (
-                                                                <button
-                                                                    onClick={(event) => {
-                                                                        event.stopPropagation()
+                                                                <div className="w-full h-full flex items-center justify-center bg-muted/50">
+                                                                    <span className="text-muted-foreground font-bold italic text-[8px]">Sem Foto</span>
+                                                                </div>
+                                                            )}
+                                                            {!isOwner && (
+                                                                <div
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
                                                                         addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
                                                                         setCartAnimating(true)
                                                                         setTimeout(() => setCartAnimating(false), 500)
                                                                     }}
-                                                                    className="h-7 px-2.5 rounded-lg font-black uppercase text-[8px] tracking-widest bg-foreground/5 hover:bg-foreground hover:text-background text-foreground transition-all flex items-center justify-center gap-1 border border-border"
+                                                                    className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-md z-20"
                                                                 >
-                                                                    <Plus className="w-3 h-3" /> ADD
-                                                                </button>
-                                                            )
-                                                        )}
+                                                                    <Plus className="w-3.5 h-3.5" />
+                                                                </div>
+                                                            )}
+                                                            {product.type && (
+                                                                <div className="absolute top-1 right-1 bg-background/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-border">
+                                                                    <span className="text-[6px] font-bold uppercase tracking-wider text-foreground">
+                                                                        {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-
-                                                <div className="relative w-20 h-20 rounded-xl bg-muted overflow-hidden flex-shrink-0 border border-border group-hover:border-foreground/10 transition-colors">
-                                                    {product.image_url ? (
-                                                        <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt={product.name} />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-muted/50">
-                                                            <span className="text-muted-foreground font-bold italic text-[8px]">Sem Foto</span>
-                                                        </div>
-                                                    )}
-                                                    {!isOwner && (
-                                                        <div
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
-                                                                setCartAnimating(true)
-                                                                setTimeout(() => setCartAnimating(false), 500)
-                                                            }}
-                                                            className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-foreground/80 backdrop-blur-md text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-foreground shadow-md z-20"
-                                                        >
-                                                            <Plus className="w-3.5 h-3.5" />
-                                                        </div>
-                                                    )}
-                                                    {product.type && (
-                                                        <div className="absolute top-1 right-1 bg-background/70 backdrop-blur-md px-1.5 py-0.5 rounded border border-border">
-                                                            <span className="text-[6px] font-bold uppercase tracking-wider text-foreground">
-                                                                {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                            )
+                                        )
                                         }
                                     </div>
                                 )

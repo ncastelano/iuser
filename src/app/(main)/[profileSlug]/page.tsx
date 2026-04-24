@@ -7,8 +7,7 @@ import Link from 'next/link'
 import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil, Clock } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
 
-type Tab = 'lojas' | 'mural' | 'compras' | 'flash'
-type MuralFilter = 'mundo' | 'cidade' | 'sigo'
+type Tab = 'lojas' | 'compras' | 'flash'
 
 export default function ProfilePage() {
     const params = useParams()
@@ -17,7 +16,7 @@ export default function ProfilePage() {
 
     const [profile, setProfile] = useState<any>(null)
     const [stores, setStores] = useState<any[]>([])
-    const [muralPosts, setMuralPosts] = useState<any[]>([])
+
     const [purchases, setPurchases] = useState<any[]>([])
     const [flashPosts, setFlashPosts] = useState<any[]>([])
     const [appointmentsToday, setAppointmentsToday] = useState<any[]>([])
@@ -25,11 +24,7 @@ export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState<Tab>('lojas')
     const [loading, setLoading] = useState(true)
 
-    // Mural Filtering
-    const [muralFilter, setMuralFilter] = useState<MuralFilter>('mundo')
-    const [allMuralPosts, setAllMuralPosts] = useState<any[]>([])
-    const [followingIds, setFollowingIds] = useState<string[]>([])
-    const [loadingMural, setLoadingMural] = useState(false)
+
 
     // Social States
     const [followersCount, setFollowersCount] = useState(0)
@@ -69,9 +64,8 @@ export default function ProfilePage() {
             setIsOwner(user?.id === profileData.id)
 
             // 3. Fetch all related data in parallel
-            const [storesRes, muralRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
+            const [storesRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('stores').select('*').eq('owner_id', profileData.id),
-                supabase.from('mural_posts').select('*, profiles(name, profileSlug, avatar_url)').eq('profile_id', profileData.id).order('created_at', { ascending: false }),
                 supabase.from('store_sales').select('*, stores(name, logo_url, storeSlug)').eq('buyer_id', profileData.id).order('created_at', { ascending: false }),
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileData.id),
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileData.id),
@@ -79,7 +73,6 @@ export default function ProfilePage() {
             ])
 
             setStores(storesRes.data || [])
-            setMuralPosts(muralRes.data || [])
             setFollowersCount(followersRes.count || 0)
             setFollowingCount(followingRes.count || 0)
             setIsFollowing(!!checkFollowRes.data)
@@ -102,15 +95,6 @@ export default function ProfilePage() {
                     .order('created_at', { ascending: false })
 
                 setFlashPosts(flashData || [])
-            }
-
-            // 5. Fetch following list for "Sigo" filter if user logged in
-            if (user) {
-                const { data: followingData } = await supabase
-                    .from('follows')
-                    .select('following_id')
-                    .eq('follower_id', user.id)
-                setFollowingIds((followingData || []).map(f => f.following_id))
             }
 
             // 6. Fetch today's appointments for this profile (if they have stores/services)
@@ -136,29 +120,6 @@ export default function ProfilePage() {
             loadInitialData()
         }
     }, [profileSlug])
-
-    // Fetch mural posts based on filter
-    useEffect(() => {
-        const fetchMural = async () => {
-            if (activeTab !== 'mural') return
-
-            setLoadingMural(true)
-            const supabase = createClient()
-
-            // "Mundo" fetches everyone's posts
-            const { data, error } = await supabase
-                .from('mural_posts')
-                .select('*, profiles(name, profileSlug, avatar_url, address)')
-                .order('created_at', { ascending: false })
-
-            if (!error && data) {
-                setAllMuralPosts(data)
-            }
-            setLoadingMural(false)
-        }
-
-        fetchMural()
-    }, [activeTab, muralFilter])
 
     const handleFollowToggle = async () => {
         if (!currentUser || !profile) return
@@ -291,26 +252,6 @@ export default function ProfilePage() {
         }
     }
 
-    const getFilteredMuralPosts = () => {
-        if (muralFilter === 'mundo') return allMuralPosts
-
-        if (muralFilter === 'cidade') {
-            const profileCity = profile?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
-            if (!profileCity) return []
-
-            return allMuralPosts.filter(post => {
-                const postCity = post.profiles?.address?.split(',')[2]?.split('-')[0]?.trim()?.toLowerCase()
-                return postCity === profileCity
-            })
-        }
-
-        if (muralFilter === 'sigo') {
-            return allMuralPosts.filter(post => followingIds.includes(post.profile_id))
-        }
-
-        return []
-    }
-
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white">
@@ -333,7 +274,6 @@ export default function ProfilePage() {
 
     const tabs: { id: Tab; label: string; icon: any; count: number }[] = [
         { id: 'lojas', label: 'Lojas', icon: StoreIcon, count: stores.length },
-        { id: 'mural', label: 'Mural', icon: Globe, count: muralPosts.length },
         { id: 'compras', label: 'Compras', icon: ShoppingBag, count: purchases.length },
         { id: 'flash', label: 'Flash', icon: Zap, count: flashPosts.length },
     ]
@@ -538,31 +478,6 @@ export default function ProfilePage() {
                                 ))}
                             </div>
                         )}
-                    </div>
-                )}
-
-                {activeTab === 'mural' && (
-                    <div className="max-w-2xl mx-auto space-y-8">
-                        {/* Mural Filter Buttons */}
-                        <div className="flex justify-center flex-wrap gap-2 pb-4">
-                            {(['mundo', 'cidade', 'sigo'] as MuralFilter[]).map(filter => {
-                                let label = filter === 'cidade'
-                                    ? (profile?.address?.split(',')[2]?.trim() || 'Cidade')
-                                    : filter.charAt(0).toUpperCase() + filter.slice(1)
-
-                                return (
-                                    <button
-                                        key={filter}
-                                        onClick={() => setMuralFilter(filter)}
-                                        className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${muralFilter === filter ? 'bg-primary text-background' : 'bg-white/5 text-neutral-500 hover:text-white'}`}
-                                    >
-                                        {label}
-                                    </button>
-                                )
-                            })}
-                        </div>
-
-
                     </div>
                 )}
 

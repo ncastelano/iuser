@@ -264,7 +264,7 @@ export default function Sacola() {
                         })
                         .select()
                         .single()
-                    
+
                     if (orderError) {
                         console.error('Error inserting into orders table (migration in progress):', orderError)
                     }
@@ -297,20 +297,20 @@ export default function Sacola() {
                     }
 
                     const salesToInsert = items.map(item => ({
-                            store_id: storeData.id,
-                            checkout_id: checkout_id,
-                            buyer_id: currentUserId,
-                            buyer_name: currentUserName || authName || 'Cliente iUser',
-                            buyer_profile_slug: currentUserSlug || 'anonimo',
-                            store_slug: slug,
-                            product_id: item.product.id,
-                            product_name: item.product.name,
-                            price: item.product.price * item.quantity,
-                            quantity: item.quantity,
-                            status: 'pending',
-                            created_at: new Date().toISOString()
-                        }))
-                        await supabase.from('store_sales').insert(salesToInsert)
+                        store_id: storeData.id,
+                        checkout_id: checkout_id,
+                        buyer_id: currentUserId,
+                        buyer_name: currentUserName || authName || 'Cliente iUser',
+                        buyer_profile_slug: currentUserSlug || 'anonimo',
+                        store_slug: slug,
+                        product_id: item.product.id,
+                        product_name: item.product.name,
+                        price: item.product.price * item.quantity,
+                        quantity: item.quantity,
+                        status: 'pending',
+                        created_at: new Date().toISOString()
+                    }))
+                    await supabase.from('store_sales').insert(salesToInsert)
 
                     const { data: stats } = await supabase
                         .from('store_sales')
@@ -477,7 +477,7 @@ export default function Sacola() {
                                 <div>
                                     <h2 className="text-sm font-black italic uppercase tracking-tighter text-foreground">Carrinho vazio</h2>
                                     <p className="text-muted-foreground text-[7px] font-bold uppercase tracking-wider">
-                                        Adicione itens para finalizar
+                                        acesse o vitrine para ver lojas , produtos ou serviços.
                                     </p>
                                 </div>
                             </div>
