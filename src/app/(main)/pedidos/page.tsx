@@ -96,22 +96,36 @@ export default function PedidosPage() {
             .channel(`public:orders:${currentUserId}`)
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'orders', filter: `buyer_id=eq.${currentUserId}` },
+                { event: 'UPDATE', schema: 'public', table: 'orders' },
                 (payload) => {
-                    setMyPurchases(prev => prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p))
+                    setMyPurchases(prev => {
+                        const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
+                        if (!exists) return prev
+                        return prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p)
+                    })
                 }
             )
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'store_sales', filter: `buyer_id=eq.${currentUserId}` },
+                { event: 'UPDATE', schema: 'public', table: 'store_sales' },
                 (payload) => {
-                    setMyPurchases(prev => prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p))
+                    setMyPurchases(prev => {
+                        const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
+                        if (!exists) return prev
+                        return prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p)
+                    })
                 }
             )
             .subscribe()
 
+        // Fallback polling (garante atualização se realtime não estiver ativado no banco)
+        const interval = setInterval(() => {
+            loadUserData(currentUserId)
+        }, 5000)
+
         return () => {
             supabase.removeChannel(channel)
+            clearInterval(interval)
         }
     }, [currentUserId, supabase])
 

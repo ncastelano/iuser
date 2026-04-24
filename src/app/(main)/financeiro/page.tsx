@@ -511,7 +511,36 @@ export default function FinanceiroPage() {
 
     useEffect(() => {
         loadFinanceData()
-    }, [])
+        
+        // Subscription for real-time order updates
+        const channel = supabase
+            .channel('financeiro-updates')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'orders' },
+                () => {
+                    loadFinanceData()
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'store_sales' },
+                () => {
+                    loadFinanceData()
+                }
+            )
+            .subscribe()
+
+        // Fallback polling (garante atualização mesmo se o realtime não estiver ativo no Supabase)
+        const interval = setInterval(() => {
+            loadFinanceData()
+        }, 5000)
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(interval)
+        }
+    }, [supabase])
 
     const toggleStoreStatus = async (storeId: string) => {
         const store = stores.find(s => s.id === storeId)
