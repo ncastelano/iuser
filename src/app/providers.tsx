@@ -1,8 +1,9 @@
 'use client'
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FontLoader } from '@/components/FontLoader'
+import { OrderNotification } from '@/components/OrderNotification'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
@@ -10,6 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <FontLoader />
+      <OrderNotification />
       {children}
     </QueryClientProvider>
   )

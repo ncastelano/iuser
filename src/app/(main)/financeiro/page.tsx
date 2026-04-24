@@ -414,7 +414,7 @@ export default function FinanceiroPage() {
     const [myPurchases, setMyPurchases] = useState<Sale[]>([])
     const [loading, setLoading] = useState(true)
     const [profile, setProfile] = useState<any>(null)
-    const [viewMode, setViewMode] = useState<'merchant' | 'customer'>('merchant')
+    const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])
 
     const loadFinanceData = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -571,7 +571,7 @@ export default function FinanceiroPage() {
                         <div>
                             <h1 className="text-lg font-black italic uppercase tracking-tighter leading-none">Finanças</h1>
                             <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">
-                                {viewMode === 'merchant' ? 'Vendas' : 'Compras'}
+                                Visão Geral
                             </p>
                         </div>
                     </div>
@@ -579,16 +579,16 @@ export default function FinanceiroPage() {
                     <div className="flex items-center gap-2">
                         <div className="flex bg-secondary/50 p-0.5 rounded-lg border border-border">
                             <button
-                                onClick={() => setViewMode('merchant')}
-                                className={`px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewMode === 'merchant' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
+                                onClick={() => setViewOrder(['merchant', 'customer'])}
+                                className={`px-2 sm:px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'merchant' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
                             >
-                                Vendas
+                                ↑ Vendas
                             </button>
                             <button
-                                onClick={() => setViewMode('customer')}
-                                className={`px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewMode === 'customer' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
+                                onClick={() => setViewOrder(['customer', 'merchant'])}
+                                className={`px-2 sm:px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'customer' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
                             >
-                                Compras
+                                ↑ Compras
                             </button>
                         </div>
                         <Link href="/configuracoes" className="p-2 bg-secondary/50 border border-border rounded-lg">
@@ -601,8 +601,13 @@ export default function FinanceiroPage() {
                 </div>
             </div>
 
-            <div className="px-4 py-4">
-                {viewMode === 'merchant' ? (
+        <div className="px-4 py-4 space-y-10">
+                {viewOrder.map(section => (
+                    <div key={section}>
+                        <h2 className="text-xs font-black italic uppercase tracking-widest text-muted-foreground mb-4 border-b border-border/50 pb-2">
+                            {section === 'merchant' ? 'Painel Lojista' : 'Extrato Cliente'}
+                        </h2>
+                        {section === 'merchant' ? (
                     stores.length === 0 ? (
                         <div className="py-16 flex flex-col items-center justify-center gap-4">
                             <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground opacity-30">
@@ -665,6 +670,7 @@ export default function FinanceiroPage() {
                                             store_name: (p as any).store_name,
                                             created_at: p.created_at,
                                             status: p.status,
+                                            buyer_profile_slug: p.buyer_profile_slug,
                                             total: 0,
                                             items: []
                                         }
@@ -680,6 +686,9 @@ export default function FinanceiroPage() {
                                                     {new Date(order.created_at).toLocaleDateString('pt-BR')}
                                                 </p>
                                                 <h3 className="text-base font-black italic uppercase tracking-tighter">{order.store_name}</h3>
+                                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider mt-0.5">
+                                                    Comprado por @{order.buyer_profile_slug}
+                                                </p>
                                             </div>
                                             <div className={`px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-wider ${order.status === 'pending' ? 'bg-yellow-500/10 text-yellow-600' :
                                                     order.status === 'paid' ? 'bg-green-500/10 text-green-500' :
@@ -708,6 +717,8 @@ export default function FinanceiroPage() {
                         </div>
                     </div>
                 )}
+                </div>
+            ))}
             </div>
         </div>
     )

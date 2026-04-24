@@ -11,6 +11,7 @@ export default function ConfiguracoesPage() {
     const supabase = createClient()
 
     const [whatsapp, setWhatsapp] = useState('')
+    const [useWhatsapp, setUseWhatsapp] = useState(true)
     const { fontSize, setFontSize } = useFontStore()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -32,6 +33,9 @@ export default function ConfiguracoesPage() {
 
                 if (data?.whatsapp) {
                     setWhatsapp(data.whatsapp)
+                    setUseWhatsapp(true)
+                } else {
+                    setUseWhatsapp(false)
                 }
 
 
@@ -46,7 +50,7 @@ export default function ConfiguracoesPage() {
     const handleSave = async () => {
         setSaving(true)
 
-        const normalizedWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim()
+        const normalizedWhatsapp = useWhatsapp ? whatsapp.replace(/[^\d+]/g, '').trim() : null
 
         const { data: { user } } = await supabase.auth.getUser()
 
@@ -63,7 +67,7 @@ export default function ConfiguracoesPage() {
                 console.error('[Configuracoes] Erro ao salvar:', error)
                 alert(`Erro ao salvar: ${error.message}`)
             } else {
-                setWhatsapp(normalizedWhatsapp)
+                setWhatsapp(normalizedWhatsapp || '')
                 alert('Configurações salvas com sucesso!')
             }
         }
@@ -116,31 +120,48 @@ export default function ConfiguracoesPage() {
 
                     {/* WhatsApp */}
                     <div className="space-y-4">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-                            Seu WhatsApp
-                        </label>
-
-                        <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
-                            Cadastre seu número para receber extratos de vendas e avisos de pedidos em tempo real diretamente no seu celular.
-                        </p>
-
-                        <div className="bg-primary/5 border border-primary/20 p-5 rounded-3xl">
-                            <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">
-                                Atenção Lojista:
-                            </p>
-                            <p className="text-[11px] text-muted-foreground font-medium leading-normal">
-                                Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número. Mantenha-o sempre atualizado!
-                            </p>
+                        <div className="flex items-center justify-between">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Notificações via WhatsApp
+                            </label>
+                            <button
+                                onClick={() => setUseWhatsapp(!useWhatsapp)}
+                                className={`w-10 h-6 rounded-full p-1 transition-colors ${useWhatsapp ? 'bg-green-500' : 'bg-secondary border border-border'}`}
+                            >
+                                <div className={`w-4 h-4 bg-background rounded-full shadow-sm transition-transform ${useWhatsapp ? 'translate-x-4' : 'translate-x-0'}`} />
+                            </button>
                         </div>
 
-                        <input
-                            type="text"
-                            placeholder="(00) 00000-0000"
-                            value={whatsapp}
-                            onChange={(e) => setWhatsapp(e.target.value)}
-                            inputMode="tel"
-                            className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
-                        />
+                        {useWhatsapp && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                                <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
+                                    Cadastre seu número para receber avisos de pedidos em tempo real diretamente no seu celular.
+                                </p>
+
+                                <div className="bg-primary/5 border border-primary/20 p-5 rounded-3xl">
+                                    <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">
+                                        Atenção Lojista:
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground font-medium leading-normal">
+                                        Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número.
+                                    </p>
+                                </div>
+
+                                <input
+                                    type="text"
+                                    placeholder="(00) 00000-0000"
+                                    value={whatsapp}
+                                    onChange={(e) => setWhatsapp(e.target.value)}
+                                    inputMode="tel"
+                                    className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                                />
+                            </div>
+                        )}
+                        {!useWhatsapp && (
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider p-3 bg-secondary/20 rounded-xl border border-dashed border-border text-center">
+                                Você receberá notificações apenas na aba Financeiro.
+                            </p>
+                        )}
                     </div>
 
                     {/* Fonte */}
