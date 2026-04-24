@@ -307,7 +307,7 @@ export default function Sacola() {
                         .single()
 
                     if (orderError) {
-                        console.error('Error inserting into orders table (migration in progress):', orderError)
+                        console.warn('Fallback to legacy store_sales: ', orderError.message)
                     }
 
                     // Sempre adicionar ao finalOrders e salvar no store_sales para não quebrar o fluxo
