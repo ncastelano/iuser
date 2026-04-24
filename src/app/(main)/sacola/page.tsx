@@ -31,6 +31,7 @@ export default function Sacola() {
     const [finishedOrders, setFinishedOrders] = useState<any[]>([])
 
     const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
+    const [currentUserName, setCurrentUserName] = useState<string | null>(null)
     const [myPurchases, setMyPurchases] = useState<any[]>([])
 
     const loadUserData = async (userId: string) => {
@@ -38,13 +39,14 @@ export default function Sacola() {
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('profileSlug, avatar_url')
+            .select('profileSlug, avatar_url, name')
             .eq('id', userId)
             .single()
 
         if (profile) {
             setCurrentUserSlug(profile.profileSlug)
             setCurrentUserAvatar(profile.avatar_url)
+            setCurrentUserName(profile.name)
         }
 
         const { data: purchaseDataLegacy } = await supabase
@@ -192,8 +194,8 @@ export default function Sacola() {
         slugTimeoutRef.current = setTimeout(async () => {
             const { data } = await supabase
                 .from('profiles')
-                .select('slug')
-                .eq('slug', authProfileSlug)
+                .select('profileSlug')
+                .eq('profileSlug', authProfileSlug)
                 .single()
             setIsSlugAvailable(!data)
         }, 500)
@@ -243,18 +245,18 @@ export default function Sacola() {
                 const { data: storeData } = await supabase
                     .from('stores')
                     .select('id, owner_id, whatsapp')
-                    .eq('slug', slug)
+                    .eq('storeSlug', slug)
                     .single()
 
                 if (storeData) {
                     const checkout_id = crypto.randomUUID()
 
-                    const { data: orderData } = await supabase
+                    const { data: orderData, error: orderError } = await supabase
                         .from('orders')
                         .insert({
                             store_id: storeData.id,
                             buyer_id: currentUserId,
-                            buyer_name: authName || 'Cliente iUser',
+                            buyer_name: currentUserName || authName || 'Cliente iUser',
                             buyer_profile_slug: currentUserSlug || 'anonimo',
                             total_amount: totalPrice,
                             status: 'pending',
@@ -262,14 +264,26 @@ export default function Sacola() {
                         })
                         .select()
                         .single()
+                    
+                    if (orderError) {
+                        console.error('Error inserting into orders table (migration in progress):', orderError)
+                    }
+
+                    // Sempre adicionar ao finalOrders e salvar no store_sales para não quebrar o fluxo
+                    finalOrders.push({
+                        id: orderData?.id || checkout_id,
+                        store_id: storeData.id,
+                        buyer_id: currentUserId,
+                        buyer_name: currentUserName || authName || 'Cliente iUser',
+                        buyer_profile_slug: currentUserSlug || 'anonimo',
+                        total_amount: totalPrice,
+                        status: 'pending',
+                        checkout_id,
+                        items,
+                        storeName: details?.name || slug
+                    })
 
                     if (orderData) {
-                        finalOrders.push({
-                            ...orderData,
-                            items,
-                            storeName: details?.name || slug
-                        })
-
                         await supabase.from('order_items').insert(
                             items.map(item => ({
                                 order_id: orderData.id,
@@ -280,12 +294,13 @@ export default function Sacola() {
                                 total_price: item.product.price * item.quantity
                             }))
                         )
+                    }
 
-                        const salesToInsert = items.map(item => ({
+                    const salesToInsert = items.map(item => ({
                             store_id: storeData.id,
                             checkout_id: checkout_id,
                             buyer_id: currentUserId,
-                            buyer_name: authName || 'Cliente iUser',
+                            buyer_name: currentUserName || authName || 'Cliente iUser',
                             buyer_profile_slug: currentUserSlug || 'anonimo',
                             store_slug: slug,
                             product_id: item.product.id,
@@ -297,21 +312,20 @@ export default function Sacola() {
                         }))
                         await supabase.from('store_sales').insert(salesToInsert)
 
-                        const { data: stats } = await supabase
-                            .from('store_sales')
-                            .select('total_orders, total_revenue')
-                            .eq('store_id', storeData.id)
-                            .single()
+                    const { data: stats } = await supabase
+                        .from('store_sales')
+                        .select('total_orders, total_revenue')
+                        .eq('store_id', storeData.id)
+                        .single()
 
-                        await supabase
-                            .from('store_sales')
-                            .upsert({
-                                store_id: storeData.id,
-                                total_orders: (stats?.total_orders || 0) + 1,
-                                total_revenue: (stats?.total_revenue || 0) + totalPrice,
-                                last_sale_at: new Date().toISOString()
-                            })
-                    }
+                    await supabase
+                        .from('store_sales')
+                        .upsert({
+                            store_id: storeData.id,
+                            total_orders: (stats?.total_orders || 0) + 1,
+                            total_revenue: (stats?.total_revenue || 0) + totalPrice,
+                            last_sale_at: new Date().toISOString()
+                        })
                 }
             }
 
@@ -325,7 +339,7 @@ export default function Sacola() {
 
             if (storeSlugs.length === 1 && finalOrders.length > 0) {
                 const slug = storeSlugs[0]
-                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id').eq('slug', slug).single()
+                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id').eq('storeSlug', slug).single()
                 let whatsapp = storeData?.whatsapp
                 if (!whatsapp) {
                     const { data: owner } = await supabase.from('profiles').select('whatsapp').eq('id', storeData?.owner_id).single()

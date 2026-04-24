@@ -399,7 +399,7 @@ export default function ProductPage() {
                                 <button
                                     onClick={() => {
                                         if (isInCart) {
-                                            router.push(`/${profileSlug}/${storeSlug}/carrinho`)
+                                            router.push(`/sacola`)
                                         } else {
                                             addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url }, {
                                                 id: product.id,
@@ -410,8 +410,8 @@ export default function ProductPage() {
                                         }
                                     }}
                                     className={`flex-1 py-3 font-black uppercase text-[9px] tracking-wider transition-all flex items-center justify-center gap-2 border ${isInCart
-                                            ? 'bg-muted text-foreground border-border'
-                                            : 'bg-foreground text-background border-transparent hover:bg-green-500'
+                                        ? 'bg-muted text-foreground border-border'
+                                        : 'bg-foreground text-background border-transparent hover:bg-green-500'
                                         }`}
                                 >
                                     {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
