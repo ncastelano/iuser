@@ -6,6 +6,7 @@ import { ShoppingCart, Store, ChevronRight, Trash2, ArrowLeft, CheckCircle2, Min
 import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 export default function Sacola() {
     const { itemsByStore, storeDetails, updateQuantity, removeItem, clearStoreCart } = useCartStore()
@@ -235,6 +236,14 @@ export default function Sacola() {
                     setMyPurchases(prev => {
                         const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
                         if (!exists) return prev
+
+                        const oldOrder = prev.find(p => p.checkout_id === payload.new.checkout_id)
+                        if (oldOrder && oldOrder.status !== payload.new.status) {
+                            if (payload.new.status === 'preparing') toast.info('👨‍🍳 O lojista começou a preparar seu pedido!')
+                            if (payload.new.status === 'ready') toast.success('✅ Seu pedido está pronto!')
+                            if (payload.new.status === 'paid') toast.success('🎉 Pedido finalizado com sucesso!')
+                        }
+
                         return prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p)
                     })
                 }

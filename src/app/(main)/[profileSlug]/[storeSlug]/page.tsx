@@ -25,6 +25,7 @@ import {
     ArrowDown,
     ArrowUp
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -429,7 +430,7 @@ export default function StorePage() {
 
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-            alert('Entre na sua conta para avaliar esta loja.')
+            toast.info('Entre na sua conta para avaliar esta loja.')
             router.push('/login')
             return
         }
@@ -445,7 +446,7 @@ export default function StorePage() {
 
         if (upsertError) {
             console.error('[StorePage] Erro ao salvar avaliação:', upsertError)
-            alert('Não foi possível salvar sua avaliação agora.')
+            toast.error('Não foi possível salvar sua avaliação agora.')
             setRatingLoading(false)
             return
         }
@@ -921,6 +922,7 @@ export default function StorePage() {
                                                                             onClick={(event) => {
                                                                                 event.stopPropagation()
                                                                                 addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
+                                                                                toast.success('🛍️ Adicionado à sacola!')
                                                                                 setCartAnimating(true)
                                                                                 setTimeout(() => setCartAnimating(false), 500)
                                                                             }}
@@ -946,6 +948,7 @@ export default function StorePage() {
                                                                     onClick={(e) => {
                                                                         e.stopPropagation()
                                                                         addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
+                                                                        toast.success('🛍️ Adicionado à sacola!')
                                                                         setCartAnimating(true)
                                                                         setTimeout(() => setCartAnimating(false), 500)
                                                                     }}

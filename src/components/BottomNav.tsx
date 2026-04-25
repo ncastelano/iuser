@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Store, MapPinned, ShoppingCart, DollarSign } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
+import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef } from 'react'
 
 export function BottomNav() {
@@ -18,6 +19,10 @@ export function BottomNav() {
     const [isCartAnimating, setIsCartAnimating] = useState(false)
     const prevTotalRef = useRef(totalCartItems)
 
+    const pendingOrdersCount = useMerchantStore(state => state.pendingOrdersCount)
+    const [isFinanceAnimating, setIsFinanceAnimating] = useState(false)
+    const prevPendingRef = useRef(pendingOrdersCount)
+
     useEffect(() => {
         if (totalCartItems > prevTotalRef.current) {
             setIsCartAnimating(true)
@@ -28,6 +33,17 @@ export function BottomNav() {
         }
         prevTotalRef.current = totalCartItems
     }, [totalCartItems])
+
+    useEffect(() => {
+        if (pendingOrdersCount > prevPendingRef.current) {
+            setIsFinanceAnimating(true)
+            const timer = setTimeout(() => {
+                setIsFinanceAnimating(false)
+            }, 3000)
+            return () => clearTimeout(timer)
+        }
+        prevPendingRef.current = pendingOrdersCount
+    }, [pendingOrdersCount])
 
     return (
         <>
@@ -92,10 +108,17 @@ export function BottomNav() {
                         </Link>
 
                         <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
-                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'}`}>
-                                <DollarSign size={20} className="transition-transform duration-300 group-hover/item:scale-110" />
+                            <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'} ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
+                                <div className="relative">
+                                    <DollarSign size={20} className={`transition-transform duration-300 group-hover/item:scale-110 ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
+                                    {pendingOrdersCount > 0 && (
+                                        <div className={`absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-green-500 text-white rounded-full flex items-center justify-center text-[7px] font-black shadow-lg px-0.5 ${isFinanceAnimating ? 'animate-badge-pop' : ''}`}>
+                                            {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'}`}>Financeiro</span>
+                            <span className={`text-[8px] font-bold uppercase tracking-tighter transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'opacity-100 text-green-500' : 'opacity-60 text-muted-foreground'} ${isFinanceAnimating ? 'scale-110 text-green-500 font-black' : ''}`}>Financeiro</span>
                         </Link>
                     </div>
                 </nav>

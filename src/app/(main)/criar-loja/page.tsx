@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Camera, MapPinned, Edit3, X, ArrowLeft } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function CriarLoja() {
     const router = useRouter()
@@ -125,13 +126,13 @@ export default function CriarLoja() {
     }
 
     const handleCreate = async () => {
-        if (!name || !storeSlug) return alert('Preencha os campos')
+        if (!name || !storeSlug) return toast.error('Preencha os campos')
 
         setLoading(true)
 
         const { data: userData } = await supabase.auth.getUser()
         if (!userData?.user) {
-            alert('Você precisa estar logado')
+            toast.error('Você precisa estar logado')
             setLoading(false)
             return
         }
@@ -164,7 +165,7 @@ export default function CriarLoja() {
         })
 
         if (error) {
-            alert(error.message)
+            toast.error(error.message)
             setLoading(false)
             return
         }
@@ -192,7 +193,7 @@ export default function CriarLoja() {
                 <div className="flex items-center gap-6 border-b border-border pb-8">
                     <button
                         onClick={() => router.back()}
-                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border rounded-2xl hover:bg-secondary transition-all active:scale-95 flex-shrink-0"
+                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border  hover:bg-secondary transition-all active:scale-95 flex-shrink-0"
                     >
                         <ArrowLeft className="w-6 h-6" />
                     </button>
@@ -206,7 +207,7 @@ export default function CriarLoja() {
                     </div>
                 </div>
 
-                <div className="bg-card/40 backdrop-blur-xl p-8 rounded-[40px] border border-border shadow-2xl space-y-8">
+                <div className="bg-card/40 backdrop-blur-xl p-8  border border-border shadow-2xl space-y-8">
                     {/* LOGO */}
                     <div className="space-y-4">
                         <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground text-center">
@@ -214,7 +215,7 @@ export default function CriarLoja() {
                         </label>
                         <div
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-32 h-32 mx-auto rounded-[32px] border border-dashed border-primary/50 bg-primary/5 hover:bg-primary/10 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
+                            className="w-32 h-32 mx-auto  border border-dashed border-primary/50 bg-primary/5 hover:bg-primary/10 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
                         >
                             {preview ? (
                                 <img src={preview} className="w-full h-full object-cover" />
@@ -239,7 +240,7 @@ export default function CriarLoja() {
                             placeholder="Minha Super Loja"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                            className="w-full bg-secondary/30 border border-border px-6 py-4  text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
                         />
                     </div>
 
@@ -248,7 +249,7 @@ export default function CriarLoja() {
                         <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
                             Endereço (Link)
                         </label>
-                        <div className="flex bg-secondary/30 border border-border rounded-2xl focus-within:border-primary overflow-hidden transition-all">
+                        <div className="flex bg-secondary/30 border border-border  focus-within:border-primary overflow-hidden transition-all">
                             <span className="flex items-center px-4 bg-muted text-muted-foreground border-r border-border text-xs font-bold whitespace-nowrap">
                                 iuser.com.br/
                             </span>
@@ -273,7 +274,7 @@ export default function CriarLoja() {
                             placeholder="O que você vende?"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 min-h-[100px]"
+                            className="w-full bg-secondary/30 border border-border px-6 py-4  text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 min-h-[100px]"
                         />
                     </div>
 
@@ -296,12 +297,12 @@ export default function CriarLoja() {
                                                 setLoadingLocation(false)
                                             },
                                             () => {
-                                                alert('Erro ao obter localização')
+                                                toast.error('Erro ao obter localização')
                                                 setLoadingLocation(false)
                                             }
                                         )
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
+                                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20  font-black uppercase text-[10px] tracking-widest transition-all"
                                 >
                                     <MapPinned size={16} />
                                     {loadingLocation ? 'Buscando...' : 'Usar minha localização atual'}
@@ -315,10 +316,10 @@ export default function CriarLoja() {
                                             setManualAddress(e.target.value)
                                             setEditingAddress(true)
                                         }}
-                                        className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                                        className="w-full bg-secondary/30 border border-border px-6 py-4  text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
                                     />
                                     {suggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-2xl overflow-hidden z-50 shadow-2xl">
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border  overflow-hidden z-50 shadow-2xl">
                                             {suggestions.map((s, i) => (
                                                 <div
                                                     key={i}
@@ -335,7 +336,7 @@ export default function CriarLoja() {
                         )}
 
                         {location && !editingAddress && (
-                            <div className="p-5 border border-primary/30 bg-primary/5 rounded-2xl space-y-3">
+                            <div className="p-5 border border-primary/30 bg-primary/5  space-y-3">
                                 <p className="text-sm font-bold text-foreground">{address}</p>
                                 <button
                                     onClick={() => setEditingAddress(true)}
@@ -353,10 +354,10 @@ export default function CriarLoja() {
                                     placeholder="Digite um novo endereço"
                                     value={manualAddress}
                                     onChange={(e) => setManualAddress(e.target.value)}
-                                    className="w-full bg-secondary/30 border border-border px-6 py-4 rounded-2xl text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                                    className="w-full bg-secondary/30 border border-border px-6 py-4  text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
                                 />
                                 {suggestions.length > 0 && (
-                                    <div className="absolute top-[52px] left-0 right-0 bg-card border border-border rounded-2xl overflow-hidden z-50 shadow-2xl">
+                                    <div className="absolute top-[52px] left-0 right-0 bg-card border border-border  overflow-hidden z-50 shadow-2xl">
                                         {suggestions.map((s, i) => (
                                             <div
                                                 key={i}
@@ -383,7 +384,7 @@ export default function CriarLoja() {
                     <button
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3 rounded-[24px] hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl mt-4"
+                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3  hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl mt-4"
                     >
                         {loading ? 'Criando...' : 'Criar Loja'}
                     </button>

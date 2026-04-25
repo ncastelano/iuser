@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
     TrendingUp,
     DollarSign,
@@ -73,7 +74,7 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                     {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => (
                         <div key={s} className="flex flex-col items-center gap-1">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black ${order.status === s ? 'bg-foreground text-background scale-110' :
-                                    ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground opacity-30'
+                                ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground opacity-30'
                                 }`}>
                                 {idx + 1}
                             </div>
@@ -158,7 +159,6 @@ function StoreFinancialCard({
     onUpdateOrder: () => void
 }) {
     const [selectedOrder, setSelectedOrder] = useState<GroupedOrder | null>(null)
-    const [showFullHistory, setShowFullHistory] = useState(false)
 
     const groupedOrders = useMemo(() => {
         const groups: Record<string, GroupedOrder> = {}
@@ -226,6 +226,8 @@ function StoreFinancialCard({
             .from('orders')
             .update({ status })
             .eq('checkout_id', selectedOrder.checkout_id)
+
+        toast.success('Status do pedido atualizado!')
 
         setSelectedOrder(null)
         onUpdateOrder()
@@ -349,51 +351,20 @@ function StoreFinancialCard({
                     )}
 
                     {/* Histórico Resumido */}
-                    {accepted.length > 0 && (
+                    {groupedOrders.length > 0 && (
                         <div className="pt-2 border-t border-border/30">
-                            <button
-                                onClick={() => setShowFullHistory(true)}
-                                className="w-full text-center text-[8px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground py-2"
+                            <Link
+                                href={`/${profile?.profileSlug}/${store.storeSlug}/pedidos`}
+                                className="block w-full text-center text-[8px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground py-2"
                             >
-                                Ver {accepted.length} pedidos finalizados →
-                            </button>
+                                Ver todos os {groupedOrders.length} pedidos da loja →
+                            </Link>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* History Modal Compacto */}
-            {showFullHistory && (
-                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-xl" onClick={() => setShowFullHistory(false)} />
-                    <div className="relative bg-card border-t sm:border border-border w-full sm:max-w-lg rounded-t-2xl sm:rounded-none shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
-                        <div className="p-5 border-b border-border flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-black italic uppercase tracking-tighter">Histórico</h2>
-                                <p className="text-[8px] text-muted-foreground">{accepted.length} pedidos</p>
-                            </div>
-                            <button onClick={() => setShowFullHistory(false)} className="p-2 bg-secondary rounded-lg">
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {accepted.map(order => (
-                                <div key={order.checkout_id} onClick={() => { setSelectedOrder(order); setShowFullHistory(false); }} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20 border border-border/30 active:bg-secondary/30 cursor-pointer">
-                                    <div>
-                                        <p className="text-sm font-black italic">@{order.buyer_profile_slug}</p>
-                                        <p className="text-[8px] text-muted-foreground">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
-                                    </div>
-                                    <p className="text-base font-black italic">R$ {order.totalPrice.toFixed(2)}</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-4 bg-secondary/30 border-t border-border flex items-center justify-between">
-                            <span className="text-[8px] font-black uppercase">Total</span>
-                            <span className="text-xl font-black italic">R$ {accepted.reduce((acc, o) => acc + o.totalPrice, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {selectedOrder && (
                 <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleAction} />
@@ -501,7 +472,7 @@ export default function FinanceiroPage() {
             })))
             allPurchases = [...allPurchases, ...mappedNew]
         }
-        
+
         // Remove duplicate items just in case and set
         const uniquePurchases = Array.from(new Map(allPurchases.map(item => [item.id, item])).values())
         setMyPurchases(uniquePurchases)
@@ -511,7 +482,7 @@ export default function FinanceiroPage() {
 
     useEffect(() => {
         loadFinanceData()
-        
+
         // Subscription for real-time order updates
         const channel = supabase
             .channel('financeiro-updates')
@@ -549,6 +520,7 @@ export default function FinanceiroPage() {
         const { error } = await supabase.from('stores').update({ is_open: newStatus }).eq('id', storeId)
         if (!error) {
             setStores(prev => prev.map(s => s.id === storeId ? { ...s, is_open: newStatus } : s))
+            toast.info(`Sua loja agora está ${newStatus ? 'Aberta' : 'Fechada'}`)
         }
     }
 
@@ -594,131 +566,135 @@ export default function FinanceiroPage() {
                         <Link href="/configuracoes" className="p-2 bg-secondary/50 border border-border rounded-lg">
                             <Settings size={14} />
                         </Link>
-                        <button onClick={() => router.push('/criar-loja')} className="p-2 bg-foreground text-background rounded-lg shadow-lg">
-                            <Plus size={14} />
-                        </button>
                     </div>
                 </div>
             </div>
 
-        <div className="px-4 py-4 space-y-10">
+            <div className="px-4 py-4 space-y-10">
                 {viewOrder.map(section => (
                     <div key={section}>
-                        <h2 className="text-xs font-black italic uppercase tracking-widest text-muted-foreground mb-4 border-b border-border/50 pb-2">
-                            {section === 'merchant' ? 'Painel Lojista' : 'Extrato Cliente'}
-                        </h2>
-                        {section === 'merchant' ? (
-                    stores.length === 0 ? (
-                        <div className="py-16 flex flex-col items-center justify-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground opacity-30">
-                                <StoreIcon size={32} />
-                            </div>
-                            <div className="text-center space-y-2">
-                                <h2 className="text-lg font-black uppercase tracking-tighter">Sem lojas</h2>
-                                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Crie sua primeira loja</p>
-                            </div>
-                            <button onClick={() => router.push('/criar-loja')} className="px-6 py-3 bg-green-500 text-white rounded-lg font-black uppercase text-[9px] tracking-wider shadow-lg">
-                                Criar Loja
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4">
-                            {stores.map(store => (
-                                <StoreFinancialCard
-                                    key={store.id}
-                                    store={store}
-                                    sales={sales.filter(s => s.store_id === store.id)}
-                                    supabase={supabase}
-                                    onToggleStatus={() => toggleStoreStatus(store.id)}
-                                    profile={profile}
-                                    onUpdateOrder={loadFinanceData}
-                                />
-                            ))}
-                        </div>
-                    )
-                ) : (
-                    /* Modo Cliente Compacto */
-                    <div className="space-y-4">
-                        {/* Header do Extrato */}
-                        <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
-                            <div>
-                                <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">Total Gasto</p>
-                                <p className="text-2xl font-black italic tracking-tighter">
-                                    R$ {myPurchases.reduce((acc, p) => acc + p.price, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </p>
-                            </div>
-                            <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
-                                <DollarSign size={20} />
-                            </div>
-                        </div>
-
-                        {/* Lista de Compras Compacta */}
-                        <div className="space-y-3">
-                            {myPurchases.length === 0 ? (
-                                <div className="py-16 text-center border border-dashed border-border rounded-xl bg-card/40">
-                                    <ShoppingBag size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
-                                    <p className="text-muted-foreground font-black uppercase tracking-wider text-xs">Sem compras</p>
-                                    <Link href="/" className="inline-block mt-4 text-green-500 font-black uppercase text-[8px] tracking-wider">
-                                        Explorar Lojas →
-                                    </Link>
-                                </div>
-                            ) : (
-                                Object.values(myPurchases.reduce((groups: any, p) => {
-                                    if (!groups[p.checkout_id]) {
-                                        groups[p.checkout_id] = {
-                                            checkout_id: p.checkout_id,
-                                            store_name: (p as any).store_name,
-                                            created_at: p.created_at,
-                                            status: p.status,
-                                            buyer_profile_slug: p.buyer_profile_slug,
-                                            total: 0,
-                                            items: []
-                                        }
-                                    }
-                                    groups[p.checkout_id].total += p.price
-                                    groups[p.checkout_id].items.push(p)
-                                    return groups
-                                }, {})).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((order: any) => (
-                                    <div key={order.checkout_id} className="bg-card border border-border/50 rounded-xl p-4">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div>
-                                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">
-                                                    {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                                </p>
-                                                <h3 className="text-base font-black italic uppercase tracking-tighter">{order.store_name}</h3>
-                                                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider mt-0.5">
-                                                    Comprado por @{order.buyer_profile_slug}
-                                                </p>
-                                            </div>
-                                            <div className={`px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-wider ${order.status === 'pending' ? 'bg-yellow-500/10 text-yellow-600' :
-                                                    order.status === 'paid' ? 'bg-green-500/10 text-green-500' :
-                                                        'bg-destructive/10 text-destructive'
-                                                }`}>
-                                                {order.status === 'pending' ? 'Pendente' : order.status === 'paid' ? 'Pago' : 'Cancelado'}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex gap-1 flex-wrap">
-                                                {order.items.slice(0, 3).map((item: any, idx: number) => (
-                                                    <span key={idx} className="text-[8px] font-bold text-muted-foreground bg-secondary/30 px-2 py-0.5 rounded">
-                                                        {item.quantity}x {item.product_name}
-                                                    </span>
-                                                ))}
-                                                {order.items.length > 3 && (
-                                                    <span className="text-[8px] font-bold text-muted-foreground">+{order.items.length - 3}</span>
-                                                )}
-                                            </div>
-                                            <p className="text-lg font-black italic">R$ {order.total.toFixed(2)}</p>
-                                        </div>
-                                    </div>
-                                ))
+                        <div className="flex items-center justify-between mb-4 border-b border-border/50 pb-2">
+                            <h2 className="text-xs font-black italic uppercase tracking-widest text-muted-foreground">
+                                {section === 'merchant' ? 'Painel Lojista' : 'Extrato Cliente'}
+                            </h2>
+                            {section === 'merchant' && (
+                                <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider">
+                                    criar loja
+                                </button>
                             )}
                         </div>
+                        {section === 'merchant' ? (
+                            stores.length === 0 ? (
+                                <div className="py-16 flex flex-col items-center justify-center gap-4">
+                                    <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground opacity-30">
+                                        <StoreIcon size={32} />
+                                    </div>
+                                    <div className="text-center space-y-2">
+                                        <h2 className="text-lg font-black uppercase tracking-tighter">Sem lojas</h2>
+                                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Crie sua primeira loja</p>
+                                    </div>
+                                    <button onClick={() => router.push('/criar-loja')} className="px-6 py-3 bg-green-500 text-white rounded-lg font-black uppercase text-[9px] tracking-wider shadow-lg">
+                                        Criar Loja
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-4">
+                                    {stores.map(store => (
+                                        <StoreFinancialCard
+                                            key={store.id}
+                                            store={store}
+                                            sales={sales.filter(s => s.store_id === store.id)}
+                                            supabase={supabase}
+                                            onToggleStatus={() => toggleStoreStatus(store.id)}
+                                            profile={profile}
+                                            onUpdateOrder={loadFinanceData}
+                                        />
+                                    ))}
+                                </div>
+                            )
+                        ) : (
+                            /* Modo Cliente Compacto */
+                            <div className="space-y-4">
+                                {/* Header do Extrato */}
+                                <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">Total Gasto</p>
+                                        <p className="text-2xl font-black italic tracking-tighter">
+                                            R$ {myPurchases.reduce((acc, p) => acc + p.price, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
+                                    <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                                        <DollarSign size={20} />
+                                    </div>
+                                </div>
+
+                                {/* Lista de Compras Compacta */}
+                                <div className="space-y-3">
+                                    {myPurchases.length === 0 ? (
+                                        <div className="py-16 text-center border border-dashed border-border rounded-xl bg-card/40">
+                                            <ShoppingBag size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+                                            <p className="text-muted-foreground font-black uppercase tracking-wider text-xs">Sem compras</p>
+                                            <Link href="/" className="inline-block mt-4 text-green-500 font-black uppercase text-[8px] tracking-wider">
+                                                Explorar Lojas →
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        Object.values(myPurchases.reduce((groups: any, p) => {
+                                            if (!groups[p.checkout_id]) {
+                                                groups[p.checkout_id] = {
+                                                    checkout_id: p.checkout_id,
+                                                    store_name: (p as any).store_name,
+                                                    created_at: p.created_at,
+                                                    status: p.status,
+                                                    buyer_profile_slug: p.buyer_profile_slug,
+                                                    total: 0,
+                                                    items: []
+                                                }
+                                            }
+                                            groups[p.checkout_id].total += p.price
+                                            groups[p.checkout_id].items.push(p)
+                                            return groups
+                                        }, {})).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((order: any) => (
+                                            <div key={order.checkout_id} className="bg-card border border-border/50 rounded-xl p-4">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div>
+                                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider">
+                                                            {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                                                        </p>
+                                                        <h3 className="text-base font-black italic uppercase tracking-tighter">{order.store_name}</h3>
+                                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider mt-0.5">
+                                                            Comprado por @{order.buyer_profile_slug}
+                                                        </p>
+                                                    </div>
+                                                    <div className={`px-2 py-1 rounded-lg text-[7px] font-black uppercase tracking-wider ${order.status === 'pending' ? 'bg-yellow-500/10 text-yellow-600' :
+                                                        order.status === 'paid' ? 'bg-green-500/10 text-green-500' :
+                                                            'bg-destructive/10 text-destructive'
+                                                        }`}>
+                                                        {order.status === 'pending' ? 'Pendente' : order.status === 'paid' ? 'Pago' : 'Cancelado'}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex gap-1 flex-wrap">
+                                                        {order.items.slice(0, 3).map((item: any, idx: number) => (
+                                                            <span key={idx} className="text-[8px] font-bold text-muted-foreground bg-secondary/30 px-2 py-0.5 rounded">
+                                                                {item.quantity}x {item.product_name}
+                                                            </span>
+                                                        ))}
+                                                        {order.items.length > 3 && (
+                                                            <span className="text-[8px] font-bold text-muted-foreground">+{order.items.length - 3}</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-lg font-black italic">R$ {order.total.toFixed(2)}</p>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )}
-                </div>
-            ))}
+                ))}
             </div>
         </div>
     )
