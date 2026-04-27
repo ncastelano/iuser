@@ -4,7 +4,7 @@
     "slug": "iuser",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./public/icon.png",
+    "icon": "../public/icon.png",
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
       "**/*"
@@ -15,7 +15,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./public/icon.png",
+        "foregroundImage": "../public/icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.ncastelano.iuser"

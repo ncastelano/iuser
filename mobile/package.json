@@ -1,0 +1,25 @@
+{
+  "name": "iuser-mobile",
+  "version": "1.0.0",
+  "main": "App.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "^55.0.17",
+    "expo-constants": "^55.0.15",
+    "expo-device": "^55.0.15",
+    "expo-notifications": "^55.0.20",
+    "react": "18.2.0",
+    "react-native": "0.85.2",
+    "@supabase/supabase-js": "^2.100.1"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.0",
+    "typescript": "^5.3.0"
+  },
+  "private": true
+}

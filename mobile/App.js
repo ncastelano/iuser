@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, StatusBar, Platform } from 'react-native';
-import { usePushNotifications } from './src/hooks/usePushNotifications';
+import { usePushNotifications } from '../src/hooks/usePushNotifications';
 
 export default function App() {
   const { expoPushToken, notification } = usePushNotifications();
