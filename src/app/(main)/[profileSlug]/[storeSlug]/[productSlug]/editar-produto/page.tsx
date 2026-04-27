@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil, Trash2 } from 'lucide-react'
+import { ImageIcon, Package, Monitor, Briefcase, MapPin, Pencil, Trash2, ArrowLeft, Save } from 'lucide-react'
+import { toast } from 'sonner'
 
 type ProductType = 'physical' | 'digital' | 'service'
 
@@ -29,16 +30,12 @@ export default function EditarProduto() {
     const [type, setType] = useState<ProductType>('physical')
     const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
     const [address, setAddress] = useState('')
-    const [city, setCity] = useState('') // Adicionado o estado city
+    const [city, setCity] = useState('')
     const [category, setCategory] = useState('')
     const [existingCategories, setExistingCategories] = useState<string[]>([])
 
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
-
-    const [originalPrice, setOriginalPrice] = useState<number | null>(null)
-    const [showFlashModal, setShowFlashModal] = useState(false)
-    const [lastUpdatedProduct, setLastUpdatedProduct] = useState<any>(null)
     const [storeId, setStoreId] = useState<string | null>(null)
 
     useEffect(() => {
@@ -47,7 +44,7 @@ export default function EditarProduto() {
 
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) {
-                alert('Você precisa estar logado.')
+                toast.error('Você precisa estar logado.')
                 router.push('/')
                 return
             }
@@ -55,19 +52,18 @@ export default function EditarProduto() {
             const { data: store, error: storeError } = await supabase.from('stores').select('id, owner_id').ilike('storeSlug', storeSlug).single()
 
             if (storeError || !store) {
-                alert('Loja não encontrada.')
+                toast.error('Loja não encontrada.')
                 router.push('/')
                 return
             }
 
             if (store.owner_id !== user.id) {
-                alert('Você não tem permissão para editar este produto.')
+                toast.error('Sem permissão para editar.')
                 router.push(`/${profileSlug}/${storeSlug}`)
                 return
             }
 
             const decodedSlug = decodeURIComponent(productSlug || '')
-
             let q = supabase.from('products').select('*').eq('store_id', store.id)
 
             if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decodedSlug)) {
@@ -79,8 +75,7 @@ export default function EditarProduto() {
             const { data, error } = await q.limit(1).maybeSingle()
 
             if (error || !data) {
-                console.error("Erro fetch product:", error, "Slug:", decodedSlug)
-                alert(`Produto não encontrado. (Buscando: ${decodedSlug}) Erro interno: ${error?.message || 'Sem dados'}`)
+                toast.error('Produto não encontrado.')
                 router.push(`/${profileSlug}/${storeSlug}`)
                 return
             }
@@ -91,7 +86,8 @@ export default function EditarProduto() {
             setPrice(data.price?.toString().replace('.', ',') || '')
             setType((data.type as ProductType) || 'physical')
             setAddress(data.address || '')
-            setCity(data.city || '') // Carrega a cidade se existir
+            setCity(data.city || '')
+            setCategory(data.category || '')
 
             if (data.image_url) {
                 const url = supabase.storage.from('product-images').getPublicUrl(data.image_url).data.publicUrl
@@ -101,26 +97,21 @@ export default function EditarProduto() {
             if (data.location) {
                 if (typeof data.location === 'string') {
                     const match = data.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
-                    if (match) {
-                        setLocation({ lng: parseFloat(match[1]), lat: parseFloat(match[2]) });
-                    }
+                    if (match) setLocation({ lng: parseFloat(match[1]), lat: parseFloat(match[2]) });
                 } else if (data.location.type === 'Point' && data.location.coordinates) {
                     setLocation({ lng: data.location.coordinates[0], lat: data.location.coordinates[1] })
                 }
             }
 
             setStoreId(store.id)
-            setOriginalPrice(data.price)
             setPageLoading(false)
 
-            // Fetch categories
             const { data: catData } = await supabase.from('products').select('category').eq('store_id', store.id)
             if (catData) {
                 const cats = Array.from(new Set(catData.map(p => p.category).filter(Boolean))) as string[]
                 setExistingCategories(cats)
             }
         }
-
         fetchProductData()
     }, [storeSlug, productSlug])
 
@@ -139,11 +130,8 @@ export default function EditarProduto() {
             if (data && data.features && data.features.length > 0) {
                 const feature = data.features[0]
                 setAddress(feature.place_name)
-                // Extrai a cidade do endereço
                 const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
-                if (cityComponent) {
-                    setCity(cityComponent.text)
-                }
+                if (cityComponent) setCity(cityComponent.text)
             }
         } catch (e) {
             console.error(e)
@@ -160,59 +148,43 @@ export default function EditarProduto() {
                 const [lon, lat] = feature.center
                 setLocation({ lat, lng: lon })
                 setAddress(feature.place_name)
-                // Extrai a cidade do endereço
                 const cityComponent = feature.context?.find((c: any) => c.id.includes('place'))
-                if (cityComponent) {
-                    setCity(cityComponent.text)
-                }
+                if (cityComponent) setCity(cityComponent.text)
             } else {
-                alert('Endereço não encontrado! Tente digitar com mais detalhes (ex: Rua, Número, Cidade).')
+                toast.error('Endereço não encontrado!')
             }
         } catch (e) {
             console.error(e)
-            alert('Erro na busca do endereço no MapBox.')
+            toast.error('Erro na busca do endereço.')
         }
     }
 
     const handleUpdate = async () => {
         if (!name || !price || !productId) {
-            alert('Preencha os campos obrigatórios')
+            toast.error('Preencha os campos obrigatórios')
             return
         }
 
         setLoading(true)
-
         let imagePath: string | undefined = undefined
 
         if (imageFile) {
             const fileExt = imageFile.name.split('.').pop()
             const fileName = `${Date.now()}.${fileExt}`
-
             const { data, error } = await supabase.storage
                 .from('product-images')
                 .upload(fileName, imageFile)
 
-            if (!error && data) {
-                imagePath = data.path
-            }
+            if (!error && data) imagePath = data.path
         }
 
-        let slug = name
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, '')
+        let slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '')
 
-        // VERIFICA SE O NOVO SLUG DO PRODUTO EXISTE E COLOCA SUFIXO (Ignorando a si mesmo)
         let isUnique = false
         while (!isUnique) {
             const { data } = await supabase.from('products').select('id').eq('slug', slug).neq('id', productId).limit(1).maybeSingle()
-            if (data) {
-                slug = slug + '-' + Math.floor(Math.random() * 9999).toString()
-            } else {
-                isUnique = true
-            }
+            if (data) slug = slug + '-' + Math.floor(Math.random() * 9999).toString()
+            else isUnique = true
         }
 
         const locationString = location ? `POINT(${location.lng} ${location.lat})` : null;
@@ -225,42 +197,39 @@ export default function EditarProduto() {
             type,
             location: locationString,
             address: address || null,
-            city: city || null, // Adiciona a cidade ao update
+            city: city || null,
             category: category || null
         }
 
-        if (imagePath) {
-            updateData.image_url = imagePath
-        }
+        if (imagePath) updateData.image_url = imagePath
 
         const { error } = await supabase.from('products').update(updateData).eq('id', productId)
 
         if (error) {
             console.error(error)
-            alert('Erro ao atualizar produto')
+            toast.error('Erro ao atualizar produto')
             setLoading(false)
             return
         }
 
+        toast.success('Produto atualizado!')
         router.push(`/${profileSlug}/${storeSlug}`)
     }
 
     const handleDelete = async () => {
-        if (!window.confirm("Certeza que deseja deletar permanentemente este produto? Esta ação não pode ser desfeita.")) {
-            return
-        }
+        if (!window.confirm("Certeza que deseja deletar permanentemente este produto?")) return
 
         setLoading(true)
         const { error } = await supabase.from('products').delete().eq('id', productId)
 
         if (error) {
             console.error(error)
-            alert("Erro ao deletar produto.")
+            toast.error("Erro ao deletar produto.")
             setLoading(false)
             return
         }
 
-        alert("Produto deletado com sucesso.")
+        toast.success("Produto removido.")
         router.push(`/${profileSlug}/${storeSlug}`)
     }
 
@@ -272,169 +241,195 @@ export default function EditarProduto() {
 
     if (pageLoading) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center text-white">
-                <span className="animate-pulse">Carregando dados do produto...</span>
+            <div className="min-h-screen bg-background flex items-center justify-center text-foreground font-sans">
+                <span className="text-[10px] font-black uppercase tracking-widest animate-pulse">Carregando dados do produto...</span>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-40">
-            <div className="w-full max-w-lg mt-8">
-                <div className="flex justify-between items-end mb-8">
-                    <div>
-                        <h1 className="text-3xl font-extrabold mb-1 tracking-tight">Editar Produto</h1>
-                        <p className="text-neutral-400 text-sm">Atualize as informações ou remova o item.</p>
-                    </div>
+        <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans selection:bg-primary selection:text-primary-foreground">
+            <div className="max-w-2xl mx-auto space-y-10 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                
+                {/* Header */}
+                <div className="flex items-center gap-6 border-b border-border pb-8">
                     <button
-                        onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
-                        className="text-neutral-400 hover:text-white text-sm"
+                        onClick={() => router.back()}
+                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border hover:bg-secondary transition-all active:scale-95 rounded-none"
                     >
-                        Voltar
+                        <ArrowLeft className="w-6 h-6" />
                     </button>
+
+                    <div>
+                        <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
+                            Editar Produto<span className="text-primary">.</span>
+                        </h1>
+                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">
+                            Atualize as informações do seu item
+                        </p>
+                    </div>
                 </div>
 
-                <div className="bg-neutral-900 border border-neutral-800 p-6 md:p-8 rounded-2xl shadow-2xl">
-
+                {/* Card */}
+                <div className="bg-card/40 backdrop-blur-xl p-8 border border-border shadow-2xl space-y-8 rounded-none">
+                    
                     {/* Image Upload */}
-                    <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full h-48 mb-8 rounded-xl border-2 border-dashed border-neutral-700 bg-neutral-950 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition hover:border-white/50 hover:bg-neutral-900 group"
-                    >
-                        {preview ? (
-                            <img src={preview} className="w-full h-full object-cover" alt="Product preview" />
-                        ) : (
-                            <>
-                                <ImageIcon className="text-4xl text-neutral-500 mb-3 group-hover:text-white transition" />
-                                <span className="text-sm text-neutral-400 font-medium">Clique para selecionar imagem</span>
-                            </>
-                        )}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) =>
-                                e.target.files && setImageFile(e.target.files[0])
-                            }
-                        />
+                    <div className="space-y-4">
+                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                            Imagem do Produto
+                        </label>
+                        <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full h-64 border border-border bg-secondary/30 flex flex-col items-center justify-center cursor-pointer overflow-hidden transition hover:bg-secondary/50 group relative rounded-none"
+                        >
+                            {preview ? (
+                                <>
+                                    <img src={preview} className="w-full h-full object-cover" alt="Product preview" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Pencil className="w-8 h-8 text-white" />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-16 h-16 bg-background border border-border flex items-center justify-center mb-4 group-hover:scale-110 transition-transform rounded-none">
+                                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">
+                                        Clique para selecionar imagem
+                                    </span>
+                                </>
+                            )}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
+                            />
+                        </div>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         {/* Tipo de Produto */}
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Tipo de Produto</label>
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Tipo de Produto
+                            </label>
                             <div className="grid grid-cols-3 gap-2">
                                 {typeOptions.map(option => (
                                     <button
                                         key={option.value}
                                         onClick={() => setType(option.value as ProductType)}
-                                        className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border transition ${type === option.value
-                                            ? 'bg-white/10 border-white text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]'
-                                            : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'
+                                        className={`flex flex-col items-center justify-center gap-2 py-5 border transition-all rounded-none ${type === option.value
+                                            ? 'bg-foreground text-background border-foreground shadow-xl'
+                                            : 'bg-secondary/30 border-border text-muted-foreground hover:bg-secondary/50'
                                             }`}
                                     >
-                                        <option.icon className={`w-5 h-5 ${type === option.value ? 'text-white' : 'text-neutral-500'}`} />
-                                        <span className="text-xs font-semibold">{option.label}</span>
+                                        <option.icon className="w-5 h-5" />
+                                        <span className="text-[9px] font-black uppercase tracking-widest">{option.label}</span>
                                     </button>
                                 ))}
                             </div>
                         </div>
 
                         {/* NOME */}
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Nome do Produto</label>
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Nome do Produto
+                            </label>
                             <input
-                                placeholder="Ex: Pastel de queijo"
+                                placeholder="EX: PASTEL DE QUEIJO"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
+                                className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 uppercase rounded-none"
                             />
                         </div>
 
                         {/* PREÇO */}
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Preço</label>
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Preço de Venda
+                            </label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 font-medium">R$</span>
+                                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-muted-foreground font-black text-xs">R$</span>
                                 <input
                                     placeholder="0,00"
                                     value={price}
                                     onChange={(e) => setPrice(e.target.value)}
-                                    className="w-full p-3.5 pl-12 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
+                                    className="w-full bg-secondary/30 border border-border pl-14 pr-6 py-4 text-foreground font-black outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 text-xl italic rounded-none"
                                 />
                             </div>
                         </div>
 
                         {/* DESCRIÇÃO */}
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Descrição</label>
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Detalhes / Descrição
+                            </label>
                             <textarea
-                                placeholder="Ex: massa de pastel e queijo."
+                                placeholder="DESCREVA O SEU PRODUTO OU SERVIÇO AQUI..."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={4}
-                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600 resize-none"
+                                className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-medium outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 resize-none leading-relaxed rounded-none"
                             />
                         </div>
 
                         {/* CATEGORIA */}
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Categoria da Loja (Opcional)</label>
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Categoria
+                            </label>
                             <input
-                                placeholder="Ex: Pasteis, Bebidas, Sobremesas..."
+                                placeholder="EX: BEBIDAS, SOBREMESAS..."
                                 value={category}
                                 onChange={(e) => setCategory(e.target.value)}
-                                className="w-full p-3.5 bg-neutral-950 text-white rounded-xl border border-neutral-800 focus:border-white focus:ring-1 focus:ring-white outline-none transition placeholder:text-neutral-600"
+                                className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 uppercase rounded-none"
                             />
                             {existingCategories.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-2 mt-2">
                                     {existingCategories.map(cat => (
                                         <button
                                             key={cat}
                                             onClick={() => setCategory(cat)}
-                                            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${category === cat ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white border border-neutral-700'}`}
+                                            className={`px-3 py-1.5 border font-black text-[8px] uppercase tracking-widest transition-all rounded-none ${category === cat ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/20 border-border text-muted-foreground hover:bg-secondary/50'}`}
                                         >
                                             {cat}
                                         </button>
                                     ))}
                                 </div>
                             )}
-                            <p className="text-[10px] text-neutral-500 mt-2 ml-1">Isso criará uma seção separada na sua loja.</p>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-semibold text-neutral-300 mb-2 ml-1">Localização do Produto/Serviço</label>
+                        {/* LOCALIZAÇÃO */}
+                        <div className="space-y-4 border-t border-border/50 pt-8">
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                                Localização (Opcional)
+                            </label>
                             {location ? (
-                                <div className="p-3.5 bg-neutral-950 text-white rounded-xl border border-white/50 text-sm flex flex-col gap-2 relative">
-                                    <span className="font-bold flex items-center gap-1"><MapPin className="w-4 h-4" /> Localização Atual</span>
-                                    {address ? (
-                                        <>
-                                            <p className="text-neutral-300 text-xs leading-relaxed">{address}</p>
-                                            {city && <p className="text-neutral-400 text-xs">Cidade: {city}</p>}
-                                        </>
-                                    ) : (
-                                        <span className="text-neutral-500 text-xs animate-pulse">Coordenadas: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
+                                <div className="bg-primary/5 border border-primary/20 p-6 space-y-4 rounded-none">
+                                    <div className="flex items-center gap-3">
+                                        <MapPin className="w-5 h-5 text-primary" />
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Localização Definida</span>
+                                    </div>
+                                    {address && (
+                                        <p className="text-xs text-muted-foreground font-medium leading-relaxed">{address}</p>
                                     )}
-                                    <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                                    <div className="flex gap-2">
                                         <button
                                             onClick={() => {
-                                                const newAddress = prompt("Digite o novo endereço completo (Rua, Número, Bairro, Cidade):", address)
+                                                const newAddress = prompt("Digite o endereço completo:", address)
                                                 if (newAddress) fetchCoordsFromAddress(newAddress)
                                             }}
-                                            className="text-white font-semibold text-xs hover:bg-neutral-800 flex-1 border border-white/20 py-2 rounded-lg transition flex justify-center items-center gap-1"
+                                            className="px-4 py-2 bg-background border border-border text-[9px] font-black uppercase tracking-widest hover:bg-secondary transition-all rounded-none"
                                         >
-                                            <Pencil className="w-3 h-3" /> Editar
+                                            Editar
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                setLocation(null)
-                                                setAddress('')
-                                                setCity('')
-                                            }}
-                                            className="text-red-400 font-semibold text-xs hover:text-white bg-red-400/10 px-4 py-2 rounded-lg transition"
+                                            onClick={() => { setLocation(null); setAddress(''); setCity(''); }}
+                                            className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/20 text-[9px] font-black uppercase tracking-widest hover:bg-destructive/20 transition-all rounded-none"
                                         >
-                                            Limpar Localização
+                                            Remover
                                         </button>
                                     </div>
                                 </div>
@@ -451,50 +446,54 @@ export default function EditarProduto() {
                                                     setLoadingLocation(false)
                                                 },
                                                 (err) => {
-                                                    alert('Permissão negada ou erro ao buscar localização')
+                                                    toast.error('Erro ao buscar localização')
                                                     setLoadingLocation(false)
                                                 }
                                             );
                                         } else {
-                                            alert('Geolocalização não suportada pelo navegador.');
+                                            toast.error('Geolocalização não suportada')
                                             setLoadingLocation(false)
                                         }
                                     }}
-                                    className="w-full p-3.5 bg-neutral-900 border border-neutral-800 hover:border-white text-neutral-400 hover:text-white rounded-xl transition flex items-center justify-center gap-2"
+                                    className="w-full bg-secondary/30 border border-border border-dashed py-6 flex flex-col items-center justify-center gap-2 hover:bg-secondary/50 transition-all group rounded-none"
                                 >
-                                    <MapPin className="w-5 h-5" /> {loadingLocation ? 'Procurando localização...' : 'Adicionar Localização Exata'}
+                                    <MapPin className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground">
+                                        {loadingLocation ? 'Buscando...' : 'Capturar Localização do Produto'}
+                                    </span>
                                 </button>
                             )}
-                            <p className="text-xs text-neutral-500 mt-2 ml-1">Útil se este item for em um ponto diferente da loja mãe.</p>
                         </div>
                     </div>
 
-                    {/* BOTÕES */}
-                    <div className="mt-10 flex flex-col gap-3">
+                    {/* Actions */}
+                    <div className="space-y-4">
                         <button
                             onClick={handleUpdate}
                             disabled={loading}
-                            className="w-full bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black py-4 rounded-xl font-bold text-lg transition-all transform active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_25px_rgba(255,255,255,0.25)]"
+                            className="w-full py-6 bg-foreground text-background font-black uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl rounded-none"
                         >
                             {loading ? (
-                                <span className="animate-pulse">Salvando...</span>
+                                'SALVANDO...'
                             ) : (
-                                'Salvar Alterações'
+                                <>
+                                    <Save className="w-5 h-5" />
+                                    Salvar Alterações
+                                </>
                             )}
                         </button>
 
                         <button
                             onClick={handleDelete}
                             disabled={loading}
-                            className="w-full bg-red-500/10 border border-red-500/50 hover:bg-red-500 text-red-500 hover:text-white py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-destructive/10 text-destructive border border-destructive/20 font-black uppercase text-[10px] tracking-[0.3em] hover:bg-destructive hover:text-white transition-all flex items-center justify-center gap-3 rounded-none"
                         >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                             Deletar Produto
                         </button>
                     </div>
                 </div>
             </div>
-
         </div>
     )
 }

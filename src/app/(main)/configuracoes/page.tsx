@@ -101,7 +101,7 @@ export default function ConfiguracoesPage() {
                 <div className="flex items-center gap-6 border-b border-border pb-8">
                     <button
                         onClick={() => router.back()}
-                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border  hover:bg-secondary transition-all active:scale-95"
+                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border  hover:bg-secondary transition-all active:scale-95 rounded-none"
                     >
                         <ArrowLeft className="w-6 h-6" />
                     </button>
@@ -117,7 +117,7 @@ export default function ConfiguracoesPage() {
                 </div>
 
                 {/* Card */}
-                <div className="bg-card/40 backdrop-blur-xl p-8  border border-border shadow-2xl space-y-8">
+                <div className="bg-card/40 backdrop-blur-xl p-8 border border-border shadow-2xl space-y-8 rounded-none">
 
                     {/* WhatsApp */}
                     <div className="space-y-4">
@@ -127,9 +127,9 @@ export default function ConfiguracoesPage() {
                             </label>
                             <button
                                 onClick={() => setUseWhatsapp(!useWhatsapp)}
-                                className={`w-10 h-6  p-1 transition-colors ${useWhatsapp ? 'bg-green-500' : 'bg-secondary border border-border'}`}
+                                className={`w-10 h-6 p-1 transition-colors rounded-none ${useWhatsapp ? 'bg-green-500' : 'bg-secondary border border-border'}`}
                             >
-                                <div className={`w-4 h-4 bg-background  shadow-sm transition-transform ${useWhatsapp ? 'translate-x-4' : 'translate-x-0'}`} />
+                                <div className={`w-4 h-4 bg-background shadow-sm transition-transform rounded-none ${useWhatsapp ? 'translate-x-4' : 'translate-x-0'}`} />
                             </button>
                         </div>
 
@@ -139,7 +139,7 @@ export default function ConfiguracoesPage() {
                                     Cadastre seu número para receber avisos de pedidos em tempo real diretamente no seu celular.
                                 </p>
 
-                                <div className="bg-primary/5 border border-primary/20 p-5 ">
+                                <div className="bg-primary/5 border border-primary/20 p-5 rounded-none">
                                     <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">
                                         Atenção Lojista:
                                     </p>
@@ -154,12 +154,12 @@ export default function ConfiguracoesPage() {
                                     value={whatsapp}
                                     onChange={(e) => setWhatsapp(e.target.value)}
                                     inputMode="tel"
-                                    className="w-full bg-secondary/30 border border-border px-6 py-4  text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30"
+                                    className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 rounded-none"
                                 />
                             </div>
                         )}
                         {!useWhatsapp && (
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider p-3 bg-secondary/20  border border-dashed border-border text-center">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider p-3 bg-secondary/20 border border-dashed border-border text-center rounded-none">
                                 Você receberá notificações apenas na aba Financeiro.
                             </p>
                         )}
@@ -181,32 +181,30 @@ export default function ConfiguracoesPage() {
                         <div className="grid grid-cols-3 gap-2">
                             <button
                                 onClick={() => setFontSize('normal')}
-                                className={`py-4  font-bold text-xs transition-all border ${fontSize === 'normal' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-4 font-bold text-xs transition-all border rounded-none ${fontSize === 'normal' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
                             >
                                 Padrão
                             </button>
                             <button
                                 onClick={() => setFontSize('large')}
-                                className={`py-4  font-bold text-sm transition-all border ${fontSize === 'large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-4 font-bold text-sm transition-all border rounded-none ${fontSize === 'large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
                             >
                                 Grande
                             </button>
                             <button
                                 onClick={() => setFontSize('extra-large')}
-                                className={`py-4  font-bold text-base transition-all border ${fontSize === 'extra-large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-4 font-bold text-base transition-all border rounded-none ${fontSize === 'extra-large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
                             >
                                 Enorme
                             </button>
                         </div>
                     </div>
 
-
-
                     {/* Save */}
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3  hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl"
+                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl rounded-none"
                     >
                         {saving ? (
                             'Guardando...'
@@ -223,7 +221,7 @@ export default function ConfiguracoesPage() {
                 <div className="pt-4 px-4">
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-3 px-8 py-5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20  font-black uppercase text-[10px] tracking-[0.3em] transition-all w-full justify-center group"
+                        className="flex items-center gap-3 px-8 py-5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 font-black uppercase text-[10px] tracking-[0.3em] transition-all w-full justify-center group rounded-none"
                     >
                         <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                         Sair da conta

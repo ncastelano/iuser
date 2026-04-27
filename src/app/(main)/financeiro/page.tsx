@@ -19,6 +19,7 @@ import {
     Settings,
     ShoppingBag
 } from 'lucide-react'
+import { useMerchantStore } from '@/store/useMerchantStore'
 
 interface Store {
     id: string
@@ -227,7 +228,7 @@ function StoreFinancialCard({
             .update({ status })
             .eq('checkout_id', selectedOrder.checkout_id)
 
-        toast.success('Status do pedido atualizado!')
+        // toast.success('Status do pedido atualizado!')
 
         setSelectedOrder(null)
         onUpdateOrder()
@@ -350,6 +351,46 @@ function StoreFinancialCard({
                         </div>
                     )}
 
+                    {/* Pronto */}
+                    {forReady.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-[8px] font-black uppercase tracking-wider text-purple-600">Pronto ({forReady.length})</h4>
+                            {forReady.slice(0, 2).map(order => (
+                                <div
+                                    key={order.checkout_id}
+                                    onClick={() => setSelectedOrder(order)}
+                                    className="flex items-center justify-between p-3 rounded-lg bg-purple-500/5 border border-purple-500/20 cursor-pointer"
+                                >
+                                    <span className="text-sm font-black italic">@{order.buyer_profile_slug}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
+                                        <ChevronRight size={16} className="text-purple-600" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Pago / Finalizado */}
+                    {accepted.length > 0 && (
+                        <div className="space-y-2">
+                            <h4 className="text-[8px] font-black uppercase tracking-wider text-green-600">Finalizado ({accepted.length})</h4>
+                            {accepted.slice(0, 2).map(order => (
+                                <div
+                                    key={order.checkout_id}
+                                    onClick={() => setSelectedOrder(order)}
+                                    className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20 cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
+                                >
+                                    <span className="text-sm font-black italic">@{order.buyer_profile_slug}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base font-black italic">R$ {order.totalPrice.toFixed(2)}</span>
+                                        <ChevronRight size={16} className="text-green-600" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Histórico Resumido */}
                     {groupedOrders.length > 0 && (
                         <div className="pt-2 border-t border-border/30">
@@ -379,6 +420,7 @@ import { CheckCircle2, X } from 'lucide-react'
 export default function FinanceiroPage() {
     const supabase = createClient()
     const router = useRouter()
+    const setPendingOrdersCount = useMerchantStore(state => state.setPendingOrdersCount)
 
     const [stores, setStores] = useState<Store[]>([])
     const [sales, setSales] = useState<Sale[]>([])
@@ -423,13 +465,21 @@ export default function FinanceiroPage() {
                     store_id: o.store_id
                 })))
                 setSales(mappedSales)
+                
+                // Sincroniza o contador global
+                const pendingOrders = new Set(mappedSales.filter(s => s.status === 'pending').map(s => s.checkout_id)).size
+                setPendingOrdersCount(pendingOrders)
             } else {
                 const { data: legacySales } = await supabase
                     .from('store_sales')
                     .select('*')
                     .in('store_id', myStores.map(s => s.id))
                     .order('created_at', { ascending: false })
-                if (legacySales) setSales(legacySales)
+                if (legacySales) {
+                    setSales(legacySales)
+                    const pendingOrders = new Set(legacySales.filter(s => s.status === 'pending').map(s => s.checkout_id)).size
+                    setPendingOrdersCount(pendingOrders)
+                }
             }
         }
 
@@ -578,7 +628,7 @@ export default function FinanceiroPage() {
                                 {section === 'merchant' ? 'Painel Lojista' : 'Extrato Cliente'}
                             </h2>
                             {section === 'merchant' && (
-                                <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider">
+                                <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider rounded-none">
                                     criar loja
                                 </button>
                             )}

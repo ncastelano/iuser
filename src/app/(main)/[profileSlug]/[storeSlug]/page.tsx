@@ -922,7 +922,6 @@ export default function StorePage() {
                                                                             onClick={(event) => {
                                                                                 event.stopPropagation()
                                                                                 addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
-                                                                                toast.success('🛍️ Adicionado à sacola!')
                                                                                 setCartAnimating(true)
                                                                                 setTimeout(() => setCartAnimating(false), 500)
                                                                             }}
@@ -948,7 +947,6 @@ export default function StorePage() {
                                                                     onClick={(e) => {
                                                                         e.stopPropagation()
                                                                         addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
-                                                                        toast.success('🛍️ Adicionado à sacola!')
                                                                         setCartAnimating(true)
                                                                         setTimeout(() => setCartAnimating(false), 500)
                                                                     }}

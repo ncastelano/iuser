@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
+import { useMerchantStore } from '@/store/useMerchantStore'
 import { BottomNav } from '@/components/BottomNav'
 
 export default function MainLayout({ children }: { children: ReactNode }) {
@@ -50,6 +51,23 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         }
         prevTotalRef.current = totalCartItems
     }, [totalCartItems])
+
+    const latestOrderNotification = useMerchantStore(state => state.latestOrderNotification)
+    const setLatestOrderNotification = useMerchantStore(state => state.setLatestOrderNotification)
+
+    useEffect(() => {
+        if (latestOrderNotification) {
+            setMessage(latestOrderNotification)
+            setType('success')
+            
+            const timer = setTimeout(() => {
+                setMessage(null)
+                setLatestOrderNotification(null)
+            }, 5000)
+            
+            return () => clearTimeout(timer)
+        }
+    }, [latestOrderNotification, setLatestOrderNotification])
 
     const handleLogout = async () => {
         const supabase = createClient()

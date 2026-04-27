@@ -228,43 +228,52 @@ export default function Sacola() {
         if (!currentUserId) return
 
         const channel = supabase
-            .channel(`public:orders:${currentUserId}`)
+            .channel(`buyer-status-${currentUserId}`)
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'orders' },
+                { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'orders',
+                    filter: `buyer_id=eq.${currentUserId}`
+                },
                 (payload) => {
-                    setMyPurchases(prev => {
-                        const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
-                        if (!exists) return prev
+                    const newStatus = payload.new.status
+                    const checkoutId = payload.new.checkout_id
 
-                        const oldOrder = prev.find(p => p.checkout_id === payload.new.checkout_id)
-                        if (oldOrder && oldOrder.status !== payload.new.status) {
-                            if (payload.new.status === 'preparing') toast.info('👨‍🍳 O lojista começou a preparar seu pedido!')
-                            if (payload.new.status === 'ready') toast.success('✅ Seu pedido está pronto!')
-                            if (payload.new.status === 'paid') toast.success('🎉 Pedido finalizado com sucesso!')
+                    setMyPurchases(prev => {
+                        const existing = prev.find(p => p.checkout_id === checkoutId)
+                        if (!existing) return prev
+
+                        if (existing.status !== newStatus) {
+                            if (newStatus === 'preparing') toast.info('👨‍🍳 O lojista começou a preparar seu pedido!')
+                            if (newStatus === 'ready') toast.success('✅ Seu pedido está pronto!')
+                            if (newStatus === 'paid') toast.success('🎉 Pedido finalizado com sucesso!')
+                            if (newStatus === 'rejected') toast.error('❌ Seu pedido foi recusado pelo lojista.')
                         }
 
-                        return prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p)
+                        return prev.map(p => p.checkout_id === checkoutId ? { ...p, status: newStatus } : p)
                     })
                 }
             )
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'store_sales' },
+                { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'store_sales',
+                    filter: `buyer_id=eq.${currentUserId}`
+                },
                 (payload) => {
-                    setMyPurchases(prev => {
-                        const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
-                        if (!exists) return prev
-                        return prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p)
-                    })
+                    setMyPurchases(prev => prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p))
                 }
             )
             .subscribe()
 
-        // Fallback polling (garante atualização se realtime não estiver ativado no banco)
+        // Fallback polling
         const interval = setInterval(() => {
             loadUserData(currentUserId)
-        }, 5000)
+        }, 8000)
 
         return () => {
             supabase.removeChannel(channel)

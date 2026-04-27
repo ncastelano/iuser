@@ -20,6 +20,7 @@ export function BottomNav() {
     const prevTotalRef = useRef(totalCartItems)
 
     const pendingOrdersCount = useMerchantStore(state => state.pendingOrdersCount)
+    const customerOrderStatuses = useMerchantStore(state => state.customerOrderStatuses)
     const [isFinanceAnimating, setIsFinanceAnimating] = useState(false)
     const prevPendingRef = useRef(pendingOrdersCount)
 
@@ -66,6 +67,10 @@ export function BottomNav() {
                     50% { transform: scale(1.5); }
                     100% { transform: scale(1); opacity: 1; }
                 }
+                @keyframes pulse-ring {
+                    0% { transform: scale(0.8); opacity: 0.5; }
+                    100% { transform: scale(1.3); opacity: 0; }
+                }
                 .animate-cart-bounce {
                     animation: cart-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
                 }
@@ -74,6 +79,9 @@ export function BottomNav() {
                 }
                 .animate-badge-pop {
                     animation: badge-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                }
+                .animate-pulse-ring {
+                    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
                 }
             `}</style>
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-2xl border-t border-green-500/20 pb-[env(safe-area-inset-bottom)]">
@@ -97,6 +105,13 @@ export function BottomNav() {
                             <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname === '/sacola' ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'} ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
                                     <ShoppingCart size={20} className={`transition-transform duration-300 group-hover/item:scale-110 ${isCartAnimating ? 'animate-cart-shake' : ''}`} />
+                                    {customerOrderStatuses?.length > 0 && (
+                                        <div className="absolute -top-1 -left-3 flex gap-0.5 z-10">
+                                            {customerOrderStatuses.includes('pending') && <div className="w-2 h-2 rounded-full bg-blue-500 border border-card shadow-sm animate-pulse" title="Pendente" />}
+                                            {customerOrderStatuses.includes('preparing') && <div className="w-2 h-2 rounded-full bg-yellow-500 border border-card shadow-sm animate-pulse" title="Em Preparo" />}
+                                            {customerOrderStatuses.includes('ready') && <div className="w-2 h-2 rounded-full bg-purple-500 border border-card shadow-sm animate-pulse" title="Pronto" />}
+                                        </div>
+                                    )}
                                     {totalCartItems > 0 && (
                                         <div className={`absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-green-500 text-white rounded-full flex items-center justify-center text-[7px] font-black shadow-lg px-0.5 ${isCartAnimating ? 'animate-badge-pop' : ''}`}>
                                             {totalCartItems > 99 ? '99+' : totalCartItems}
@@ -110,7 +125,10 @@ export function BottomNav() {
                         <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-0.5 group/item flex-1">
                             <div className={`p-1.5 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro') ? 'text-green-500' : 'text-muted-foreground hover:text-green-500'} ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    <DollarSign size={20} className={`transition-transform duration-300 group-hover/item:scale-110 ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
+                                    {pendingOrdersCount > 0 && (
+                                        <div className="absolute inset-0 bg-green-500/20 rounded-full animate-pulse-ring" />
+                                    )}
+                                    <DollarSign size={20} className={`relative transition-transform duration-300 group-hover/item:scale-110 ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
                                     {pendingOrdersCount > 0 && (
                                         <div className={`absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] bg-green-500 text-white rounded-full flex items-center justify-center text-[7px] font-black shadow-lg px-0.5 ${isFinanceAnimating ? 'animate-badge-pop' : ''}`}>
                                             {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
