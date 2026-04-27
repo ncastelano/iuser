@@ -17,7 +17,8 @@ import {
     Store as StoreIcon,
     Package,
     Settings,
-    ShoppingBag
+    ShoppingBag,
+    MapPinned
 } from 'lucide-react'
 import { useMerchantStore } from '@/store/useMerchantStore'
 
@@ -72,18 +73,44 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
             <div className="relative bg-card border-t sm:border border-border w-full sm:max-w-lg rounded-t-2xl sm:rounded-none shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
                 {/* Status Timeline Header - Compacto */}
                 <div className="bg-secondary/30 p-4 flex justify-around items-center border-b border-border/50">
-                    {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => (
-                        <div key={s} className="flex flex-col items-center gap-1">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black ${order.status === s ? 'bg-foreground text-background scale-110' :
-                                ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx ? 'bg-green-500 text-white' : 'bg-muted text-muted-foreground opacity-30'
-                                }`}>
-                                {idx + 1}
+                    {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => {
+                        const isCurrent = order.status === s;
+                        const isCompleted = ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx;
+                        
+                        let dotColor = 'bg-muted text-muted-foreground opacity-30';
+                        let textColor = 'text-muted-foreground opacity-50';
+
+                        if (isCurrent || isCompleted) {
+                            if (s === 'pending') dotColor = 'bg-blue-500 text-white';
+                            if (s === 'preparing') dotColor = 'bg-yellow-500 text-white';
+                            if (s === 'ready') dotColor = 'bg-purple-500 text-white';
+                            if (s === 'paid') dotColor = 'bg-green-500 text-white';
+                            
+                            if (isCurrent) {
+                                dotColor += ' scale-110 shadow-md';
+                                if (s === 'pending') textColor = 'text-blue-500';
+                                if (s === 'preparing') textColor = 'text-yellow-500';
+                                if (s === 'ready') textColor = 'text-purple-500';
+                                if (s === 'paid') textColor = 'text-green-500';
+                            } else {
+                                if (s === 'pending') textColor = 'text-blue-500 opacity-70';
+                                if (s === 'preparing') textColor = 'text-yellow-500 opacity-70';
+                                if (s === 'ready') textColor = 'text-purple-500 opacity-70';
+                                if (s === 'paid') textColor = 'text-green-500 opacity-70';
+                            }
+                        }
+
+                        return (
+                            <div key={s} className="flex flex-col items-center gap-1">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black transition-all duration-300 ${dotColor}`}>
+                                    {idx + 1}
+                                </div>
+                                <span className={`text-[6px] font-black uppercase tracking-wider transition-all duration-300 ${textColor}`}>
+                                    {s === 'pending' ? 'Novo' : s === 'preparing' ? 'Prep' : s === 'ready' ? 'Pronto' : 'Pago'}
+                                </span>
                             </div>
-                            <span className={`text-[6px] font-black uppercase tracking-wider ${order.status === s ? 'text-foreground' : 'text-muted-foreground opacity-50'}`}>
-                                {s === 'pending' ? 'Novo' : s === 'preparing' ? 'Prep' : s === 'ready' ? 'Pronto' : 'Pago'}
-                            </span>
-                        </div>
-                    ))}
+                        )
+                    })}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -428,6 +455,27 @@ export default function FinanceiroPage() {
     const [loading, setLoading] = useState(true)
     const [profile, setProfile] = useState<any>(null)
     const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])
+    const [locLoading, setLocLoading] = useState(false)
+
+    const saveLocation = () => {
+        setLocLoading(true)
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const geoString = `POINT(${pos.coords.longitude} ${pos.coords.latitude})`
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    await supabase.from('profiles').update({ profiles_geo: geoString }).eq('id', user.id)
+                    setProfile((prev: any) => ({ ...prev, profiles_geo: geoString }))
+                    toast.success('Localização salva com sucesso!')
+                }
+                setLocLoading(false)
+            },
+            () => {
+                toast.error('Não foi possível obter sua localização.')
+                setLocLoading(false)
+            }
+        )
+    }
 
     const loadFinanceData = async () => {
         const { data: { user } } = await supabase.auth.getUser()
@@ -625,7 +673,7 @@ export default function FinanceiroPage() {
                     <div key={section}>
                         <div className="flex items-center justify-between mb-4 border-b border-border/50 pb-2">
                             <h2 className="text-xs font-black italic uppercase tracking-widest text-muted-foreground">
-                                {section === 'merchant' ? 'Painel Lojista' : 'Extrato Cliente'}
+                                {section === 'merchant' ? 'Painel Lojista' : 'Painel Cliente'}
                             </h2>
                             {section === 'merchant' && (
                                 <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider rounded-none">
@@ -665,6 +713,33 @@ export default function FinanceiroPage() {
                         ) : (
                             /* Modo Cliente Compacto */
                             <div className="space-y-4">
+                                {/* Minha Localização */}
+                                <div className="bg-card border border-border rounded-xl p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                            <MapPinned size={12} /> Minha Localização Atual
+                                        </h3>
+                                        {profile?.profiles_geo && (
+                                            <span className="text-[8px] font-black uppercase tracking-wider text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
+                                                Salva
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs font-bold text-foreground mb-4">
+                                        {profile?.profiles_geo 
+                                            ? 'Sua localização está salva e será usada para facilitar suas entregas nas lojas.' 
+                                            : 'Nenhuma localização salva. Atualize para facilitar suas entregas!'}
+                                    </p>
+                                    <button 
+                                        onClick={saveLocation} 
+                                        disabled={locLoading}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary hover:bg-foreground hover:text-background border border-border rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <MapPinned size={14} />
+                                        {locLoading ? 'Obtendo Localização...' : 'Atualizar Minha Localização'}
+                                    </button>
+                                </div>
+
                                 {/* Header do Extrato */}
                                 <div className="bg-card border border-border rounded-xl p-4 flex items-center justify-between">
                                     <div>

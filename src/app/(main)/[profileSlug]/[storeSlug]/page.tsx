@@ -87,6 +87,7 @@ type StoreType = {
     final_whatsapp?: string | null
     whatsapp?: string | null
     category_order?: string[] | null
+    allow_scheduling?: boolean
 }
 
 // Função para formatar endereço (rua, número, cidade)
@@ -210,6 +211,18 @@ export default function StorePage() {
         setCategoryOrder(newOrder)
         // Save to DB
         await supabase.from('stores').update({ category_order: newOrder }).eq('id', store.id)
+    }
+
+    const toggleScheduling = async () => {
+        if (!store) return
+        const newStatus = !store.allow_scheduling
+        const { error } = await supabase.from('stores').update({ allow_scheduling: newStatus }).eq('id', store.id)
+        if (error) {
+            toast.error('Erro ao atualizar permissão de agendamentos.')
+            return
+        }
+        setStore(prev => prev ? { ...prev, allow_scheduling: newStatus } : null)
+        toast.success(newStatus ? 'Agendamentos permitidos!' : 'Agendamentos cancelados.')
     }
 
 
@@ -694,13 +707,28 @@ export default function StorePage() {
                         </span>
                     </button>
 
-                    <button
-                        onClick={() => setIsScheduleModalOpen(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-md"
-                    >
-                        <Calendar className="w-3.5 h-3.5" />
-                        Agendar
-                    </button>
+                    {(store.allow_scheduling || isOwner) && (
+                        <div className="flex items-center gap-2">
+                            {store.allow_scheduling && (
+                                <button
+                                    onClick={() => setIsScheduleModalOpen(true)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-black text-[10px] uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-md"
+                                >
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    Agendar
+                                </button>
+                            )}
+
+                            {isOwner && (
+                                <button
+                                    onClick={toggleScheduling}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-black text-[10px] uppercase tracking-widest transition-all duration-300 ${store.allow_scheduling ? 'bg-destructive/10 border-destructive/20 text-destructive hover:bg-destructive hover:text-white' : 'bg-green-500/10 border-green-500/20 text-green-500 hover:bg-green-500 hover:text-white'}`}
+                                >
+                                    {store.allow_scheduling ? 'Cancelar Agendamentos' : 'Permitir Agendamentos'}
+                                </button>
+                            )}
+                        </div>
+                    )}
 
 
                 </div>

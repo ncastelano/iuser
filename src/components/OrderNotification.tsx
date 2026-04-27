@@ -17,6 +17,7 @@ export function OrderNotification() {
     const storesListRef = useRef<string[]>([])
     const lastFetchedCountRef = useRef<number | null>(null)
     const isFirstLoadRef = useRef(true)
+    const currentUserIdRef = useRef<string | null>(null)
 
     useEffect(() => {
         const reloadMerchantCount = async () => {
@@ -52,6 +53,34 @@ export function OrderNotification() {
                 }
             } catch (err) {
                 console.error('[OrderNotification] Count reload failed:', err)
+            }
+        }
+
+        const reloadCustomerStatuses = async (userId: string) => {
+            try {
+                // Busca orders novas
+                const { data: ordersData } = await supabase
+                    .from('orders')
+                    .select('status')
+                    .eq('buyer_id', userId)
+                    .in('status', ['pending', 'preparing', 'ready'])
+                
+                // Busca orders legadas
+                const { data: legacyData } = await supabase
+                    .from('store_sales')
+                    .select('status')
+                    .eq('buyer_id', userId)
+                    .in('status', ['pending', 'preparing', 'ready'])
+
+                const allStatuses = [
+                    ...(ordersData?.map(o => o.status) || []),
+                    ...(legacyData?.map(l => l.status) || [])
+                ]
+                // Deduplicar para pegar apenas quais status únicos estão ativos
+                const uniqueStatuses = Array.from(new Set(allStatuses))
+                setCustomerOrderStatuses(uniqueStatuses)
+            } catch (err) {
+                console.error('[OrderNotification] Customer status reload failed:', err)
             }
         }
 
@@ -136,40 +165,19 @@ export function OrderNotification() {
 
                 // Polling
                 if (!pollIntervalRef.current) {
-                    pollIntervalRef.current = setInterval(reloadMerchantCount, 5000)
+                    pollIntervalRef.current = setInterval(() => {
+                        reloadMerchantCount()
+                        if (currentUserIdRef.current) {
+                            reloadCustomerStatuses(currentUserIdRef.current)
+                        }
+                    }, 5000)
                 }
             } catch (err) {
                 console.error('[OrderNotification] Setup failed:', err)
             }
         }
 
-        const reloadCustomerStatuses = async (userId: string) => {
-            try {
-                // Busca orders novas
-                const { data: ordersData } = await supabase
-                    .from('orders')
-                    .select('status')
-                    .eq('buyer_id', userId)
-                    .in('status', ['pending', 'preparing', 'ready'])
-                
-                // Busca orders legadas
-                const { data: legacyData } = await supabase
-                    .from('store_sales')
-                    .select('status')
-                    .eq('buyer_id', userId)
-                    .in('status', ['pending', 'preparing', 'ready'])
 
-                const allStatuses = [
-                    ...(ordersData?.map(o => o.status) || []),
-                    ...(legacyData?.map(l => l.status) || [])
-                ]
-                // Deduplicar para pegar apenas quais status únicos estão ativos
-                const uniqueStatuses = Array.from(new Set(allStatuses))
-                setCustomerOrderStatuses(uniqueStatuses)
-            } catch (err) {
-                console.error('[OrderNotification] Customer status reload failed:', err)
-            }
-        }
 
         const setupCustomer = async (userId: string) => {
             try {
@@ -203,6 +211,7 @@ export function OrderNotification() {
 
         const handleAuthAction = async (session: any) => {
             if (session?.user) {
+                currentUserIdRef.current = session.user.id
                 await setupMerchant(session.user.id)
                 await setupCustomer(session.user.id)
             }
