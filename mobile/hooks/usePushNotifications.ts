@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { createClient } from '../lib/supabase/client';
+import { createClient } from '../../src/lib/supabase/client'; // Ajustado para a raiz do projeto
 
 // Configuração básica do handler de notificações
 Notifications.setNotificationHandler({
@@ -27,12 +27,10 @@ export const usePushNotifications = () => {
       if (token) saveTokenToSupabase(token);
     });
 
-    // Listener para quando uma notificação é recebida com o app aberto (Foreground)
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       setNotification(notification);
     });
 
-    // Listener para quando o usuário interage com a notificação
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('Interação com notificação:', response);
     });
@@ -52,7 +50,7 @@ export const usePushNotifications = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      const platform = Platform.OS; // 'ios' | 'android'
+      const platform = Platform.OS;
 
       const { error } = await supabase
         .from('push_tokens')
@@ -96,16 +94,8 @@ async function registerForPushNotificationsAsync() {
       return;
     }
     
-    // EAS Project ID
     const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-    
-    if (!projectId) {
-      console.warn('Project ID do EAS não encontrado no app.json');
-    }
-
     token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  } else {
-    console.warn('Aviso: Notificações Push só funcionam em dispositivos físicos.');
   }
 
   return token;
