@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root, .light, .dark {
+  :root {
     --background: 0 0% 100%; /* Branco puro */
     --foreground: 222.2 84% 4.9%;
 
@@ -50,29 +50,6 @@
   body {
     @apply bg-background text-foreground antialiased transition-colors duration-300;
     font-family: 'Microsoft PhagsPa', sans-serif;
-  }
-
-  /* Automatic inversion for legacy hardcoded dark classes in light mode */
-  .light .bg-black {
-    @apply bg-white text-black !important;
-  }
-  .light .bg-neutral-950, .light .bg-neutral-800 {
-    @apply bg-neutral-50 border-neutral-200 text-black !important;
-  }
-  .light .text-white {
-    @apply text-black !important;
-  }
-  .light .text-neutral-400, .light .text-neutral-500 {
-    @apply text-neutral-600 !important;
-  }
-  .light .border-white\/5, .light .border-white\/10 {
-    @apply border-neutral-200 !important;
-  }
-  .light .bg-white\/5, .light .bg-white\/10 {
-    @apply bg-neutral-200/50 !important;
-  }
-  .light .glass {
-    @apply bg-white/80 border-neutral-200/50 shadow-md backdrop-blur-md !important;
   }
 }
 

@@ -5,39 +5,61 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, UserCircle, Star, Briefcase } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, UserCircle, Star, Briefcase, CheckCircle2 } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 type Mode = 'lojas' | 'servicos' | 'produtos'
 
-// Parseia location no formato WKT "POINT(lng lat)" OU GeoJSON {type:"Point", coordinates:[lng,lat]}
+// Função para parsear coordenadas (suporta WKT, GeoJSON e PostGIS Hex Binary)
 function parseCoords(location: any): [number, number] | null {
-    if (!location) return null;
+    if (!location) return null
 
-    // If location is a JSON string (legacy rows), try to parse it
-    if (typeof location === 'string') {
+    // 1. Se for string JSON, tenta parsear
+    if (typeof location === 'string' && (location.startsWith('{') || location.startsWith('['))) {
         try {
-            location = JSON.parse(location);
-        } catch {
-            // Not JSON – continue to other checks
-        }
+            const parsed = JSON.parse(location)
+            if (parsed && typeof parsed === 'object') {
+                location = parsed
+            }
+        } catch { /* Ignora */ }
     }
 
-    // Expected GeoJSON shape
+    // 2. Formato GeoJSON (Objeto)
     if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
-        const [lng, lat] = location.coordinates;
-        return isFinite(lng) && isFinite(lat) ? [lng, lat] : null;
+        const [lng, lat] = location.coordinates
+        return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
     }
 
-    // Fallback to WKT string
-    if (typeof location === 'string') {
-        const match = location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
-        return match ? [parseFloat(match[1]), parseFloat(match[2])] : null;
+    // 3. Formato WKT string (ex: POINT(-46.123 -23.456))
+    if (typeof location === 'string' && location.toUpperCase().includes('POINT')) {
+        const match = location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+        if (match) return [parseFloat(match[1]), parseFloat(match[2])]
     }
 
-    return null;
+    // 4. Formato PostGIS Binary Hex (WKB/EWKB)
+    if (typeof location === 'string' && location.length >= 42 && /^[0-9A-F]+$/i.test(location)) {
+        try {
+            const hexToDouble = (hex: string) => {
+                const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+                const view = new DataView(bytes.buffer)
+                return view.getFloat64(0, true)
+            }
+
+            if (location.length === 50) {
+                const lng = hexToDouble(location.substring(18, 34))
+                const lat = hexToDouble(location.substring(34, 50))
+                return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+            } else if (location.length === 42) {
+                const lng = hexToDouble(location.substring(10, 26))
+                const lat = hexToDouble(location.substring(26, 42))
+                return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+            }
+        } catch (e) { console.error('[Geo] WKB Error:', e) }
+    }
+
+    return null
 }
 
 export default function MapPage() {
@@ -56,6 +78,7 @@ export default function MapPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
     const [showFilters, setShowFilters] = useState(false)
+    const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets')
 
 
     const router = useRouter()
@@ -81,12 +104,9 @@ export default function MapPage() {
             )
         }
 
-        const isDark = document.documentElement.classList.contains('dark')
-        const initialStyle = isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
-
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
-            style: initialStyle,
+            style: mapStyle === 'streets' ? 'mapbox://styles/mapbox/streets-v12' : 'mapbox://styles/mapbox/satellite-streets-v12',
             center: [-63.9004, -8.7612],
             zoom: 12,
             attributionControl: false
@@ -103,33 +123,19 @@ export default function MapPage() {
 
         mapRef.current = map
 
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    const isDarkNow = document.documentElement.classList.contains('dark')
-                    const targetStyle = isDarkNow ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12'
-
-                    if (mapRef.current) {
-                        mapRef.current.setStyle(targetStyle)
-                    }
-                }
-            })
-        })
-        observer.observe(document.documentElement, { attributes: true })
-
         return () => {
+            setMapReady(false)
             map.remove()
-            observer.disconnect()
         }
-    }, [])
+    }, [mapStyle])
 
     // ── LOAD DATA ───────────────────────────────────────────────────────────────
     useEffect(() => {
         const load = async () => {
             const supabase = createClient()
 
-            const { data: storesData } = await supabase.from('stores_geo').select('*')
-            const { data: productsData } = await supabase.from('products_geo').select('*')
+            const { data: storesData } = await supabase.from('stores').select('*')
+            const { data: productsData } = await supabase.from('products').select('*')
             const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
 
             const mappedStores = (storesData || []).map(s => ({
@@ -191,7 +197,8 @@ export default function MapPage() {
                 coords = parseCoords(item.location)
             } else if (mode === 'produtos' || mode === 'servicos') {
                 const store = stores.find(s => s.id === item.store_id)
-                coords = parseCoords(store?.location)
+                // Prioriza a localização do produto, senão usa a da loja
+                coords = parseCoords(item.location) || parseCoords(store?.location)
             }
 
             if (!coords) return
@@ -562,6 +569,22 @@ export default function MapPage() {
                     </div>
                 </div>
             )}
+
+            {/* Alternador de Estilo de Mapa */}
+            <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
+                <button
+                    onClick={() => setMapStyle('streets')}
+                    className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border transition-all shadow-xl ${mapStyle === 'streets' ? 'bg-primary text-white border-primary' : 'bg-white text-black border-neutral-200'}`}
+                >
+                    Original
+                </button>
+                <button
+                    onClick={() => setMapStyle('satellite')}
+                    className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border transition-all shadow-xl ${mapStyle === 'satellite' ? 'bg-primary text-white border-primary' : 'bg-white text-black border-neutral-200'}`}
+                >
+                    Satélite 3D
+                </button>
+            </div>
         </div>
     )
 }

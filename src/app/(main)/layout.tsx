@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ReactNode, useState, useEffect, useRef } from 'react'
-import Snackbar from '@/components/Snackbar'
+import { toast } from 'sonner'
 import {
     Store,
     User,
@@ -25,8 +25,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     const { itemsByStore } = useCartStore()
     const { mode } = useAppModeStore()
 
-    const [message, setMessage] = useState<string | null>(null)
-    const [type, setType] = useState<'success' | 'error'>('success')
 
     const totalCartItems = Object.values(itemsByStore).reduce(
         (acc, items) => acc + items.reduce((sum, item) => sum + item.quantity, 0),
@@ -39,12 +37,10 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (totalCartItems > prevTotalRef.current) {
             setIsCartAnimating(true)
-            setMessage('Item adicionado ao seu carrinho!')
-            setType('success')
+            toast.success('Item adicionado ao seu carrinho!')
             
             const timer = setTimeout(() => {
                 setIsCartAnimating(false)
-                setMessage(null)
             }, 3000)
             
             return () => clearTimeout(timer)
@@ -57,15 +53,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (latestOrderNotification) {
-            setMessage(latestOrderNotification)
-            setType('success')
-            
-            const timer = setTimeout(() => {
-                setMessage(null)
-                setLatestOrderNotification(null)
-            }, 5000)
-            
-            return () => clearTimeout(timer)
+            toast.success(latestOrderNotification, {
+                icon: <DollarSign className="w-4 h-4 text-green-500" />,
+                duration: 8000
+            })
+            setLatestOrderNotification(null)
         }
     }, [latestOrderNotification, setLatestOrderNotification])
 
@@ -75,13 +67,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
         if (error) {
             console.error('Erro ao sair:', error.message)
-            setType('error')
-            setMessage('Erro ao sair')
+            toast.error('Erro ao sair')
             return
         }
 
-        setType('success')
-        setMessage('Logout realizado com sucesso')
+        toast.success('Logout realizado com sucesso')
         setTimeout(() => {
             router.refresh()
             router.push('/')
@@ -112,7 +102,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             {/* Bottom Navbar */}
             <BottomNav />
 
-            {message && <Snackbar message={message} type={type} />}
         </div>
     )
 }

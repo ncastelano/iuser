@@ -294,54 +294,83 @@ export default function EditarLoja() {
                                     className="w-full p-4 bg-transparent text-white outline-none font-bold"
                                 />
                             </div>
-                            {slugStatus === 'checking' && <p className="text-[9px] text-neutral-600 ml-1 uppercase font-bold animate-pulse">Verificando disponibilidade...</p>}
-                            {slugStatus === 'available' && <p className="text-[9px] text-green-500 ml-1 uppercase font-bold">✓ Endereço liberado!</p>}
+                            {slugStatus === 'checking' && <p className="text-[9px] text-neutral-400 ml-1 uppercase font-bold animate-pulse">Verificando disponibilidade...</p>}
+                            {slugStatus === 'available' && <p className="text-[9px] text-emerald-600 ml-1 uppercase font-bold">✓ Endereço liberado!</p>}
                             {slugStatus === 'taken' && <p className="text-[9px] text-red-500 ml-1 uppercase font-bold">✗ Endereço já ocupado.</p>}
-                            <p className="text-[9px] text-neutral-700 ml-1 uppercase font-black tracking-widest italic">Aviso: Mudar o slug alterará o link de acesso da sua loja.</p>
+                            <p className="text-[9px] text-neutral-400 ml-1 uppercase font-black tracking-widest italic">Aviso: Mudar o slug alterará o link de acesso da sua loja.</p>
                         </div>
 
                         {/* DESCRIÇÃO */}
                         <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 ml-1">Biografia / Descrição</label>
+                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 ml-1">Biografia / Descrição</label>
                             <textarea
                                 placeholder="Conte a história da sua marca..."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={4}
-                                className="w-full p-4 bg-neutral-950 text-white rounded-2xl border border-white/5 focus:border-white/20 outline-none transition-all font-medium placeholder:text-neutral-800 resize-none leading-relaxed"
+                                className="w-full p-4 bg-neutral-50 text-neutral-800 rounded-2xl border border-neutral-200 focus:border-black/20 outline-none transition-all font-medium placeholder:text-neutral-400 resize-none leading-relaxed"
                             />
                         </div>
 
                         {/* LOCALIZAÇÃO */}
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 ml-1">Sede da Loja (Localização)</label>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between ml-1">
+                                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Sede da Loja (Localização)</label>
+                                {location && (
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                                        Sincronizada
+                                    </span>
+                                )}
+                            </div>
+
                             {location ? (
-                                <div className="p-6 bg-neutral-950 text-white rounded-2xl border border-white/10 space-y-4">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center shrink-0">
-                                            <MapPin className="w-5 h-5 text-white" />
+                                <div className="group relative bg-white rounded-[32px] border border-neutral-100 overflow-hidden transition-all hover:border-black/20 shadow-sm">
+                                    {/* Map Preview */}
+                                    <div className="relative w-full h-48 bg-neutral-50">
+                                        {(() => {
+                                            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+                                            const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-l+000000(${location.lng},${location.lat})/${location.lng},${location.lat},15,0/600x350?access_token=${token}`;
+                                            return (
+                                                <img 
+                                                    src={mapUrl} 
+                                                    alt="Mapa da Sede" 
+                                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105"
+                                                />
+                                            );
+                                        })()}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent pointer-events-none" />
+                                        
+                                        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center shadow-lg">
+                                                    <MapPin className="w-5 h-5" />
+                                                </div>
+                                                <div className="max-w-[200px]">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 leading-none mb-1">Endereço Atual</p>
+                                                    <p className="text-[10px] font-bold text-neutral-800 truncate leading-tight">{address || 'Localização Definida'}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        const newAddress = prompt("Digite o novo endereço completo:", address)
+                                                        if (newAddress) fetchCoordsFromAddress(newAddress)
+                                                    }}
+                                                    className="w-10 h-10 rounded-xl bg-white border border-neutral-200 text-black flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all"
+                                                    title="Editar Endereço"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => { setLocation(null); setAddress(''); }}
+                                                    className="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
+                                                    title="Limpar Localização"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-600 italic">Endereço Detectado</p>
-                                            <p className="text-xs font-bold leading-relaxed">{address || 'Coordenadas: ' + location.lat.toFixed(4) + ', ' + location.lng.toFixed(4)}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                const newAddress = prompt("Digite o novo endereço completo:", address)
-                                                if (newAddress) fetchCoordsFromAddress(newAddress)
-                                            }}
-                                            className="flex-1 py-3 px-4 bg-white/5 hover:bg-white text-white hover:text-black rounded-xl text-[9px] font-black uppercase tracking-widest border border-white/10 transition-all flex items-center justify-center gap-2"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" /> Editar Endereço
-                                        </button>
-                                        <button
-                                            onClick={() => { setLocation(null); setAddress(''); }}
-                                            className="py-3 px-4 bg-red-500/10 text-red-500 rounded-xl text-[9px] font-black uppercase tracking-widest border border-red-500/20 hover:bg-red-500 hover:text-white transition-all"
-                                        >
-                                            Limpar
-                                        </button>
                                     </div>
                                 </div>
                             ) : (
@@ -358,10 +387,12 @@ export default function EditarLoja() {
                                             () => { alert('Erro ao buscar localização'); setLoadingLocation(false); }
                                         );
                                     }}
-                                    className="w-full p-4 bg-neutral-950 border border-white/5 hover:border-white/20 text-neutral-600 hover:text-white rounded-2xl transition-all flex items-center justify-center gap-3 font-black uppercase text-[10px] tracking-[0.2em]"
+                                    className="group w-full p-8 bg-neutral-950 border border-white/5 hover:border-white/20 text-neutral-600 hover:text-white rounded-[32px] transition-all flex flex-col items-center justify-center gap-4 font-black uppercase text-[10px] tracking-[0.3em] active:scale-95"
                                 >
-                                    {loadingLocation ? <Loader2 className="w-5 h-5 animate-spin" /> : <Globe className="w-5 h-5" />}
-                                    {loadingLocation ? 'Sincronizando...' : 'Adicionar Localização da Sede'}
+                                    <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
+                                        {loadingLocation ? <Loader2 className="w-8 h-8 animate-spin" /> : <Globe className="w-8 h-8" />}
+                                    </div>
+                                    {loadingLocation ? 'Sincronizando Coordenadas...' : 'Adicionar Localização da Sede'}
                                 </button>
                             )}
                         </div>

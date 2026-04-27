@@ -19,7 +19,41 @@ export function OrderNotification() {
     const isFirstLoadRef = useRef(true)
     const currentUserIdRef = useRef<string | null>(null)
 
+    // Helper para disparar notificação do sistema
+    const triggerSystemNotification = (title: string, body: string) => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'granted') {
+                try {
+                    new Notification(title, {
+                        body,
+                        icon: '/icon.png',
+                        badge: '/icon.png',
+                        silent: false,
+                    })
+                } catch (e) {
+                    // Fallback para mobile ou browsers que exigem service worker para notificações
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.ready.then(registration => {
+                            registration.showNotification(title, {
+                                body,
+                                icon: '/icon.png',
+                                badge: '/icon.png',
+                            })
+                        })
+                    }
+                }
+            }
+        }
+    }
+
     useEffect(() => {
+        // Solicitar permissão ao carregar
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'default') {
+                Notification.requestPermission()
+            }
+        }
+
         const reloadMerchantCount = async () => {
             const storeIds = storesListRef.current
             if (!storeIds.length) return
@@ -122,7 +156,9 @@ export function OrderNotification() {
                                 if (payload.new.status === 'pending') {
                                     const buyer = payload.new.buyer_profile_slug || 'cliente'
                                     const store = storeMap[payload.new.store_id].slug
-                                    setLatestOrderNotification(`Um pedido de /${buyer} na /${store}`)
+                                    const msg = `Um pedido de /${buyer} na /${store}`
+                                    setLatestOrderNotification(msg)
+                                    triggerSystemNotification("Novo Pedido!", msg)
                                 }
                             }
                         })
@@ -141,7 +177,9 @@ export function OrderNotification() {
                                 if (payload.new.status === 'pending') {
                                     const buyer = payload.new.buyer_name || 'cliente'
                                     const store = storeMap[payload.new.store_id].slug
-                                    setLatestOrderNotification(`Um pedido de /${buyer} na /${store}`)
+                                    const msg = `Um pedido de /${buyer} na /${store}`
+                                    setLatestOrderNotification(msg)
+                                    triggerSystemNotification("Novo Pedido!", msg)
                                 }
                             }
                         })

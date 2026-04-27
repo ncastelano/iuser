@@ -40,29 +40,51 @@ type ProductType = {
 
 const PREVIEW_COUNT = 20
 
-// Função para parsear coordenadas (suporta WKT e GeoJSON)
+// Função para parsear coordenadas (suporta WKT, GeoJSON e PostGIS Hex Binary)
 function parseCoords(location: any): [number, number] | null {
   if (!location) return null
 
-  // Se for string JSON, tenta parsear
-  if (typeof location === 'string') {
+  // 1. Se for string JSON, tenta parsear
+  if (typeof location === 'string' && (location.startsWith('{') || location.startsWith('['))) {
     try {
-      location = JSON.parse(location)
-    } catch {
-      // Continua para outros checks
-    }
+      const parsed = JSON.parse(location)
+      if (parsed && typeof parsed === 'object') {
+        location = parsed
+      }
+    } catch { /* Ignora */ }
   }
 
-  // Formato GeoJSON
+  // 2. Formato GeoJSON (Objeto)
   if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
     const [lng, lat] = location.coordinates
     return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
   }
 
-  // Fallback para WKT string
-  if (typeof location === 'string') {
+  // 3. Formato WKT string (ex: POINT(-46.123 -23.456))
+  if (typeof location === 'string' && location.toUpperCase().includes('POINT')) {
     const match = location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
-    return match ? [parseFloat(match[1]), parseFloat(match[2])] : null
+    if (match) return [parseFloat(match[1]), parseFloat(match[2])]
+  }
+
+  // 4. Formato PostGIS Binary Hex (WKB/EWKB)
+  if (typeof location === 'string' && location.length >= 42 && /^[0-9A-F]+$/i.test(location)) {
+    try {
+      const hexToDouble = (hex: string) => {
+        const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+        const view = new DataView(bytes.buffer)
+        return view.getFloat64(0, true)
+      }
+
+      if (location.length === 50) {
+        const lng = hexToDouble(location.substring(18, 34))
+        const lat = hexToDouble(location.substring(34, 50))
+        return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+      } else if (location.length === 42) {
+        const lng = hexToDouble(location.substring(10, 26))
+        const lat = hexToDouble(location.substring(26, 42))
+        return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+      }
+    } catch (e) { console.error('[Geo] WKB Error:', e) }
   }
 
   return null
@@ -244,9 +266,9 @@ export default function Vitrine() {
         const supabase = createClient()
 
         const [{ data: storesList, error: sErr }, { data: profilesList, error: prErr }, { data: productsList, error: pErr }] = await Promise.all([
-          supabase.from('stores_geo').select('*'),
+          supabase.from('stores').select('*'),
           supabase.from('profiles').select('id, "profileSlug"'),
-          supabase.from('products_geo').select('*')
+          supabase.from('products').select('*')
         ])
 
         if (sErr || prErr || pErr) {

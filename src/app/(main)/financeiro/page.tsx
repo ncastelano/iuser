@@ -18,9 +18,12 @@ import {
     Package,
     Settings,
     ShoppingBag,
-    MapPinned
+    MapPinned,
+    MapPin,
+    X
 } from 'lucide-react'
 import { useMerchantStore } from '@/store/useMerchantStore'
+import { parseCoords } from '@/lib/geo'
 
 interface Store {
     id: string
@@ -76,7 +79,7 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                     {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => {
                         const isCurrent = order.status === s;
                         const isCompleted = ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx;
-                        
+
                         let dotColor = 'bg-muted text-muted-foreground opacity-30';
                         let textColor = 'text-muted-foreground opacity-50';
 
@@ -85,7 +88,7 @@ function OrderModal({ order, onClose, onAction }: { order: GroupedOrder, onClose
                             if (s === 'preparing') dotColor = 'bg-yellow-500 text-white';
                             if (s === 'ready') dotColor = 'bg-purple-500 text-white';
                             if (s === 'paid') dotColor = 'bg-green-500 text-white';
-                            
+
                             if (isCurrent) {
                                 dotColor += ' scale-110 shadow-md';
                                 if (s === 'pending') textColor = 'text-blue-500';
@@ -442,7 +445,7 @@ function StoreFinancialCard({
 }
 
 // ── MAIN PAGE (MOBILE COMPACTA) ──────────────────────────────────────────────
-import { CheckCircle2, X } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 
 export default function FinanceiroPage() {
     const supabase = createClient()
@@ -457,6 +460,52 @@ export default function FinanceiroPage() {
     const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])
     const [locLoading, setLocLoading] = useState(false)
 
+    const fetchAddressFromCoords = async (lat: number, lng: number) => {
+        try {
+            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&types=address,poi,place`)
+            const data = await res.json()
+            if (data && data.features && data.features.length > 0) {
+                const feature = data.features[0]
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    await supabase.from('profiles').update({ address: feature.place_name }).eq('id', user.id)
+                    setProfile((prev: any) => ({ ...prev, address: feature.place_name }))
+                }
+            }
+        } catch (e) { console.error(e) }
+    }
+
+    const fetchCoordsFromAddress = async (query: string) => {
+        try {
+            setLocLoading(true)
+            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=BR`)
+            const data = await res.json()
+            if (data && data.features && data.features.length > 0) {
+                const feature = data.features[0]
+                const [lon, lat] = feature.center
+                const geoString = `POINT(${lon} ${lat})`
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    await supabase.from('profiles').update({
+                        location: geoString,
+                        address: feature.place_name
+                    }).eq('id', user.id)
+                    setProfile((prev: any) => ({ ...prev, location: geoString, address: feature.place_name }))
+                    toast.success('Localização atualizada!')
+                }
+            } else {
+                toast.error('Endereço não encontrado!')
+            }
+        } catch (e) {
+            console.error(e)
+            toast.error('Erro na busca do endereço.')
+        } finally {
+            setLocLoading(false)
+        }
+    }
+
     const saveLocation = () => {
         setLocLoading(true)
         navigator.geolocation.getCurrentPosition(
@@ -464,9 +513,10 @@ export default function FinanceiroPage() {
                 const geoString = `POINT(${pos.coords.longitude} ${pos.coords.latitude})`
                 const { data: { user } } = await supabase.auth.getUser()
                 if (user) {
-                    await supabase.from('profiles').update({ profiles_geo: geoString }).eq('id', user.id)
-                    setProfile((prev: any) => ({ ...prev, profiles_geo: geoString }))
-                    toast.success('Localização salva com sucesso!')
+                    await supabase.from('profiles').update({ location: geoString }).eq('id', user.id)
+                    setProfile((prev: any) => ({ ...prev, location: geoString }))
+                    fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude)
+                    toast.success('Localização sincronizada!')
                 }
                 setLocLoading(false)
             },
@@ -497,118 +547,25 @@ export default function FinanceiroPage() {
                 .in('store_id', myStores.map(s => s.id))
                 .order('created_at', { ascending: false })
 
-            if (ordersData && ordersData.length > 0) {
-                const mappedSales: Sale[] = ordersData.flatMap(o => o.order_items.map((i: any) => ({
-                    id: i.id,
-                    product_id: i.product_id,
-                    product_name: i.product_name,
-                    quantity: i.quantity,
-                    price: i.total_price,
-                    created_at: o.created_at,
-                    status: o.status,
-                    checkout_id: o.checkout_id,
-                    buyer_id: o.buyer_id,
-                    buyer_name: o.buyer_name,
-                    buyer_profile_slug: o.buyer_profile_slug,
-                    store_id: o.store_id
-                })))
-                setSales(mappedSales)
-                
-                // Sincroniza o contador global
-                const pendingOrders = new Set(mappedSales.filter(s => s.status === 'pending').map(s => s.checkout_id)).size
-                setPendingOrdersCount(pendingOrders)
-            } else {
-                const { data: legacySales } = await supabase
-                    .from('store_sales')
-                    .select('*')
-                    .in('store_id', myStores.map(s => s.id))
-                    .order('created_at', { ascending: false })
-                if (legacySales) {
-                    setSales(legacySales)
-                    const pendingOrders = new Set(legacySales.filter(s => s.status === 'pending').map(s => s.checkout_id)).size
-                    setPendingOrdersCount(pendingOrders)
-                }
-            }
+            if (ordersData) setSales(ordersData.flatMap(o => o.order_items.map((i: any) => ({ ...i, created_at: o.created_at, status: o.status, checkout_id: o.checkout_id, buyer_id: o.buyer_id, buyer_name: o.buyer_name, buyer_profile_slug: o.buyer_profile_slug, store_id: o.store_id }))))
         }
-
-        const { data: purchaseDataLegacy } = await supabase
-            .from('store_sales')
-            .select('*, stores(name)')
-            .eq('buyer_id', user.id)
-            .order('created_at', { ascending: false })
-
-        const { data: purchaseDataNew } = await supabase
-            .from('orders')
-            .select('*, order_items(*), stores(name)')
-            .eq('buyer_id', user.id)
-            .order('created_at', { ascending: false })
 
         let allPurchases: any[] = []
+        const { data: purchaseDataLegacy } = await supabase.from('store_sales').select('*, stores(name)').eq('buyer_id', user.id).order('created_at', { ascending: false })
+        const { data: purchaseDataNew } = await supabase.from('orders').select('*, order_items(*), stores(name)').eq('buyer_id', user.id).order('created_at', { ascending: false })
 
-        if (purchaseDataLegacy) {
-            allPurchases = [...allPurchases, ...purchaseDataLegacy.map((p: any) => ({
-                ...p,
-                store_name: p.stores?.name || 'Loja'
-            }))]
-        }
+        if (purchaseDataLegacy) allPurchases = [...purchaseDataLegacy.map((p: any) => ({ ...p, store_name: p.stores?.name || 'Loja' }))]
+        if (purchaseDataNew) allPurchases = [...allPurchases, ...purchaseDataNew.flatMap(o => o.order_items.map((i: any) => ({ ...i, created_at: o.created_at, status: o.status, checkout_id: o.checkout_id, buyer_id: o.buyer_id, buyer_name: o.buyer_name, buyer_profile_slug: o.buyer_profile_slug, store_id: o.store_id, store_name: o.stores?.name || 'Loja' })))]
 
-        if (purchaseDataNew) {
-            const mappedNew = purchaseDataNew.flatMap(o => o.order_items.map((i: any) => ({
-                id: i.id,
-                product_id: i.product_id,
-                product_name: i.product_name,
-                quantity: i.quantity,
-                price: i.total_price,
-                created_at: o.created_at,
-                status: o.status,
-                checkout_id: o.checkout_id,
-                buyer_id: o.buyer_id,
-                buyer_name: o.buyer_name,
-                buyer_profile_slug: o.buyer_profile_slug,
-                store_id: o.store_id,
-                store_name: o.stores?.name || 'Loja'
-            })))
-            allPurchases = [...allPurchases, ...mappedNew]
-        }
-
-        // Remove duplicate items just in case and set
-        const uniquePurchases = Array.from(new Map(allPurchases.map(item => [item.id, item])).values())
-        setMyPurchases(uniquePurchases)
-
+        setMyPurchases(Array.from(new Map(allPurchases.map(item => [item.id, item])).values()))
         setLoading(false)
     }
 
     useEffect(() => {
         loadFinanceData()
-
-        // Subscription for real-time order updates
-        const channel = supabase
-            .channel('financeiro-updates')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'orders' },
-                () => {
-                    loadFinanceData()
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'store_sales' },
-                () => {
-                    loadFinanceData()
-                }
-            )
-            .subscribe()
-
-        // Fallback polling (garante atualização mesmo se o realtime não estiver ativo no Supabase)
-        const interval = setInterval(() => {
-            loadFinanceData()
-        }, 5000)
-
-        return () => {
-            supabase.removeChannel(channel)
-            clearInterval(interval)
-        }
+        const channel = supabase.channel('financeiro-updates').on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadFinanceData()).on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales' }, () => loadFinanceData()).subscribe()
+        const interval = setInterval(() => loadFinanceData(), 5000)
+        return () => { supabase.removeChannel(channel); clearInterval(interval); }
     }, [supabase])
 
     const toggleStoreStatus = async (storeId: string) => {
@@ -623,26 +580,26 @@ export default function FinanceiroPage() {
     }
 
     if (loading) return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 p-4">
-            <div className="w-8 h-8 border-2 border-green-500/20 border-t-green-500 rounded-full animate-spin" />
-            <p className="text-[8px] font-black uppercase tracking-wider animate-pulse">Carregando...</p>
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 p-4 font-sans">
+            <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+            <p className="text-[8px] font-black uppercase tracking-wider animate-pulse">Carregando Finanças...</p>
         </div>
     )
 
+    const userCoords = profile?.location ? parseCoords(profile.location) : null
+
     return (
-        <div className="min-h-screen pb-20 bg-background text-foreground">
+        <div className="min-h-screen pb-20 bg-background text-foreground font-sans">
             {/* Header Mobile Compacto */}
             <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border/50 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center text-green-500">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                             <TrendingUp size={16} />
                         </div>
                         <div>
                             <h1 className="text-lg font-black italic uppercase tracking-tighter leading-none">Finanças</h1>
-                            <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Visão Geral
-                            </p>
+                            <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider">Visão Geral</p>
                         </div>
                     </div>
 
@@ -651,19 +608,13 @@ export default function FinanceiroPage() {
                             <button
                                 onClick={() => setViewOrder(['merchant', 'customer'])}
                                 className={`px-2 sm:px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'merchant' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
-                            >
-                                ↑ Vendas
-                            </button>
+                            >↑ Vendas</button>
                             <button
                                 onClick={() => setViewOrder(['customer', 'merchant'])}
                                 className={`px-2 sm:px-3 py-1.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'customer' ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
-                            >
-                                ↑ Compras
-                            </button>
+                            >↑ Compras</button>
                         </div>
-                        <Link href="/configuracoes" className="p-2 bg-secondary/50 border border-border rounded-lg">
-                            <Settings size={14} />
-                        </Link>
+                        <Link href="/configuracoes" className="p-2 bg-secondary/50 border border-border rounded-lg"><Settings size={14} /></Link>
                     </div>
                 </div>
             </div>
@@ -676,68 +627,75 @@ export default function FinanceiroPage() {
                                 {section === 'merchant' ? 'Painel Lojista' : 'Painel Cliente'}
                             </h2>
                             {section === 'merchant' && (
-                                <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider rounded-none">
-                                    criar loja
-                                </button>
+                                <button onClick={() => router.push('/criar-loja')} className="px-3 py-1.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider rounded-none">Nova Loja</button>
                             )}
                         </div>
+
                         {section === 'merchant' ? (
                             stores.length === 0 ? (
-                                <div className="py-16 flex flex-col items-center justify-center gap-4">
-                                    <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground opacity-30">
-                                        <StoreIcon size={32} />
-                                    </div>
-                                    <div className="text-center space-y-2">
-                                        <h2 className="text-lg font-black uppercase tracking-tighter">Sem lojas</h2>
-                                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Crie sua primeira loja</p>
-                                    </div>
-                                    <button onClick={() => router.push('/criar-loja')} className="px-6 py-3 bg-green-500 text-white rounded-lg font-black uppercase text-[9px] tracking-wider shadow-lg">
-                                        Criar Loja
-                                    </button>
+                                <div className="py-16 text-center border border-dashed border-border rounded-xl bg-card/40">
+                                    <StoreIcon size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+                                    <p className="text-muted-foreground font-black uppercase tracking-wider text-[10px]">Nenhuma loja ativa</p>
+                                    <button onClick={() => router.push('/criar-loja')} className="mt-4 px-6 py-2 bg-primary text-white font-black uppercase text-[8px] tracking-widest">Começar Agora</button>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 gap-4">
                                     {stores.map(store => (
-                                        <StoreFinancialCard
-                                            key={store.id}
-                                            store={store}
-                                            sales={sales.filter(s => s.store_id === store.id)}
-                                            supabase={supabase}
-                                            onToggleStatus={() => toggleStoreStatus(store.id)}
-                                            profile={profile}
-                                            onUpdateOrder={loadFinanceData}
-                                        />
+                                        <StoreFinancialCard key={store.id} store={store} sales={sales.filter(s => s.store_id === store.id)} supabase={supabase} onToggleStatus={() => toggleStoreStatus(store.id)} profile={profile} onUpdateOrder={loadFinanceData} />
                                     ))}
                                 </div>
                             )
                         ) : (
-                            /* Modo Cliente Compacto */
-                            <div className="space-y-4">
-                                {/* Minha Localização */}
-                                <div className="bg-card border border-border rounded-xl p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                            <MapPinned size={12} /> Minha Localização Atual
-                                        </h3>
-                                        {profile?.profiles_geo && (
-                                            <span className="text-[8px] font-black uppercase tracking-wider text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full">
-                                                Salva
-                                            </span>
+                            /* Painel Cliente Premium */
+                            <div className="space-y-6">
+                                {/* Localização Premium (Estilo /editar-loja) */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600">Minha Localização Atual</label>
+                                        {userCoords && (
+                                            <span className="text-[8px] font-black uppercase tracking-widest text-green-500 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">Sincronizada</span>
                                         )}
                                     </div>
-                                    <p className="text-xs font-bold text-foreground mb-4">
-                                        {profile?.profiles_geo 
-                                            ? 'Sua localização está salva e será usada para facilitar suas entregas nas lojas.' 
-                                            : 'Nenhuma localização salva. Atualize para facilitar suas entregas!'}
-                                    </p>
-                                    <button 
-                                        onClick={saveLocation} 
-                                        disabled={locLoading}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary hover:bg-foreground hover:text-background border border-border rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <MapPinned size={14} />
-                                        {locLoading ? 'Obtendo Localização...' : 'Atualizar Minha Localização'}
-                                    </button>
+
+                                    {userCoords ? (
+                                        <div className="group relative bg-white rounded-[24px] border border-neutral-100 overflow-hidden transition-all hover:border-primary/20 shadow-sm">
+                                            <div className="relative w-full h-44 bg-neutral-50">
+                                                {(() => {
+                                                    const [lng, lat] = userCoords;
+                                                    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+                                                    const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-l+primary(${lng},${lat})/${lng},${lat},15,0/600x350?access_token=${token}`;
+                                                    return (
+                                                        <img src={mapUrl} alt="Meu Mapa" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" />
+                                                    );
+                                                })()}
+                                                <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent pointer-events-none" />
+                                                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center shadow-lg"><MapPinned className="w-5 h-5" /></div>
+                                                        <div className="max-w-[180px]">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 leading-none mb-1">Endereço Atual</p>
+                                                            <p className="text-[10px] font-bold text-neutral-800 truncate leading-tight">{profile?.address || 'Localização Definida'}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => { const n = prompt("Digite o novo endereço:", profile?.address); if (n) fetchCoordsFromAddress(n); }} className="w-9 h-9 rounded-xl bg-white border border-neutral-200 text-black flex items-center justify-center shadow-sm hover:scale-110 transition-all" title="Editar"><Pencil className="w-4 h-4" /></button>
+                                                        <button onClick={() => { setLocLoading(true); supabase.from('profiles').update({ location: null, address: null }).eq('id', profile.id).then(() => { setProfile((p: any) => ({ ...p, location: null, address: null })); setLocLoading(false); toast.info('Localização removida'); }); }} className="w-9 h-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:scale-110 transition-all" title="Remover"><X className="w-4 h-4" /></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            disabled={locLoading}
+                                            onClick={saveLocation}
+                                            className="group w-full p-8 bg-neutral-50 border border-neutral-200 border-dashed hover:border-primary/30 hover:bg-white text-neutral-500 hover:text-primary rounded-[24px] transition-all flex flex-col items-center justify-center gap-3 font-black uppercase text-[10px] tracking-[0.3em] active:scale-95 shadow-inner"
+                                        >
+                                            <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                                                {locLoading ? <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin" /> : <MapPinned className="w-6 h-6" />}
+                                            </div>
+                                            {locLoading ? 'Capturando Sinal...' : 'Ativar Localização em Tempo Real'}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Header do Extrato */}
