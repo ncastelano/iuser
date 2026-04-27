@@ -5,7 +5,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, UserCircle, Star, Briefcase, CheckCircle2 } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, UserCircle, Star, Briefcase, CheckCircle2, Layers } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -79,7 +79,6 @@ export default function MapPage() {
     const [overrideList, setOverrideList] = useState<any[] | null>(null)
     const [showFilters, setShowFilters] = useState(false)
     const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets')
-
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -352,6 +351,11 @@ export default function MapPage() {
     const distanceValue = selectedItem ? calcDistanceKm((mode === 'lojas' ? selectedItem : selectedStore)?.location) : null
     const distanceFormatted = formatDistance(distanceValue)
 
+    // Alternar entre os estilos de mapa
+    const toggleMapStyle = () => {
+        setMapStyle(prev => prev === 'streets' ? 'satellite' : 'streets')
+    }
+
     return (
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
             <style>{`
@@ -501,8 +505,6 @@ export default function MapPage() {
                             </div>
                         </div>
 
-
-
                         <button
                             onClick={() => {
                                 if (mode === 'lojas') {
@@ -530,6 +532,20 @@ export default function MapPage() {
                         {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : 'Produtos'}
                     </span>
                 </div>
+            </div>
+
+            {/* Botão de Alternância de Estilo do Mapa - Canto Inferior Esquerdo */}
+            <div className="absolute z-50" style={{ bottom: '28px', left: '24px' }}>
+                <button
+                    onClick={toggleMapStyle}
+                    className="group relative flex items-center gap-2 px-4 py-2.5 bg-white/95 backdrop-blur-md border-2 border-black/10 rounded-none shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+                >
+                    <Layers className="w-4 h-4 text-black transition-all duration-300 group-hover:rotate-180" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black whitespace-nowrap">
+                        {mapStyle === 'streets' ? 'Original' : 'Satélite'}
+                    </span>
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-black/20 rounded-full transition-all duration-300 group-hover:w-12" />
+                </button>
             </div>
 
             {/* Filter Modal */}
@@ -569,22 +585,6 @@ export default function MapPage() {
                     </div>
                 </div>
             )}
-
-            {/* Alternador de Estilo de Mapa */}
-            <div className="absolute top-20 right-4 z-50 flex flex-col gap-2">
-                <button
-                    onClick={() => setMapStyle('streets')}
-                    className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border transition-all shadow-xl ${mapStyle === 'streets' ? 'bg-primary text-white border-primary' : 'bg-white text-black border-neutral-200'}`}
-                >
-                    Original
-                </button>
-                <button
-                    onClick={() => setMapStyle('satellite')}
-                    className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest border transition-all shadow-xl ${mapStyle === 'satellite' ? 'bg-primary text-white border-primary' : 'bg-white text-black border-neutral-200'}`}
-                >
-                    Satélite 3D
-                </button>
-            </div>
         </div>
     )
 }
