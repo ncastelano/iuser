@@ -68,7 +68,7 @@ function LoginContent() {
       <form onSubmit={handleLogin} className="relative z-10 w-full max-w-sm">
         {/* Logo e Título */}
         <div className="text-center space-y-3 mb-8 flex flex-col items-center">
-          <div className="bg-black p-3 border border-border">
+          <div className="p-2.5 flex-shrink-0">
             <img
               src="/logo.png"
               alt="iUser Logo"
