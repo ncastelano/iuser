@@ -380,7 +380,8 @@ export default function MapPage() {
             {/* TOP BAR UI */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                 <div className="flex items-center gap-3">
-                    <div className="bg-black p-2.5 rounded-none shadow-xl flex-shrink-0">
+                    <div className="p-2.5 flex-shrink-0">
+
                         <img src="/logo.png" alt="iUser" className="h-7 w-auto object-contain" />
                     </div>
 

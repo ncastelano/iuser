@@ -372,7 +372,7 @@ export default function Vitrine() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center gap-2 py-2">
             {/* Logo */}
-            <div className="bg-black p-1.5 flex-shrink-0">
+            <div className="p-2.5 flex-shrink-0">
               <img src="/logo.png" alt="iUser" className="h-6 w-auto object-contain" />
             </div>
 
