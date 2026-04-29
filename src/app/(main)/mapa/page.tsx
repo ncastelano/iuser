@@ -105,7 +105,7 @@ export default function MapPage() {
     const [clusterItems, setClusterItems] = useState<any[] | null>(null)
     const [clusterLocation, setClusterLocation] = useState<{ lng: number; lat: number; name: string } | null>(null)
     const [isLoggedIn, setIsLoggedIn] = useState(false)
-    // Novos estados para avatar e nome
+    const [userId, setUserId] = useState<string | null>(null) // guarda o ID do usuário
     const [userAvatar, setUserAvatar] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
 
@@ -116,7 +116,7 @@ export default function MapPage() {
         setMode('lojas')
     }, [appMode])
 
-    // GET USER AND PROFILE LOCATION
+    // GET USER AND PROFILE LOCATION (inicial)
     useEffect(() => {
         const getUserAndLocation = async () => {
             setLoadingLocation(true)
@@ -124,6 +124,7 @@ export default function MapPage() {
                 const supabase = createClient()
                 const { data: { user } } = await supabase.auth.getUser()
                 setIsLoggedIn(!!user)
+                setUserId(user?.id || null)
 
                 if (user) {
                     const { data: profile, error } = await supabase
@@ -138,7 +139,6 @@ export default function MapPage() {
                             const [lng, lat] = coords
                             setProfileLocation({ lat, lng })
                             setUserAddress(profile.address || await reverseGeocode(lng, lat))
-                            // Salva avatar e nome
                             setUserAvatar(profile.avatar_url || null)
                             const displayName = profile.name || profile.full_name || 'Usuário'
                             setUserName(displayName)
@@ -174,6 +174,52 @@ export default function MapPage() {
 
         getUserAndLocation()
     }, [])
+
+    // REALTIME: escuta mudanças no perfil do usuário logado
+    useEffect(() => {
+        if (!isLoggedIn || !userId) return
+
+        const supabase = createClient()
+        const channel = supabase
+            .channel('profile-updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'profiles',
+                    filter: `id=eq.${userId}`,
+                },
+                async (payload) => {
+                    const newProfile = payload.new as any
+                    if (newProfile.location) {
+                        const coords = parseCoords(newProfile.location)
+                        if (coords) {
+                            const [lng, lat] = coords
+                            setProfileLocation({ lat, lng })
+                            const address = newProfile.address || await reverseGeocode(lng, lat)
+                            setUserAddress(address)
+                            setUserAvatar(newProfile.avatar_url || null)
+                            setUserName(newProfile.name || newProfile.full_name || 'Usuário')
+
+                            // Opcional: centraliza o mapa na nova localização
+                            if (mapRef.current) {
+                                mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
+                            }
+                        }
+                    } else {
+                        // Se a localização foi removida
+                        setProfileLocation(null)
+                        setUserAddress(null)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [isLoggedIn, userId])
 
     const referenceLocation = profileLocation || deviceLocation
 
@@ -274,67 +320,77 @@ export default function MapPage() {
         }
     }
 
-    // Salvar localização no perfil
+    // Salvar localização no perfil - VERSÃO CORRIGIDA (já ok)
     const saveLocationToProfile = async (lng: number, lat: number, address: string) => {
         try {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
-                console.error('Usuário não logado')
+                alert('Você precisa estar logado para salvar uma localização.')
                 return false
             }
 
-            // Formatar como WKT Point
-            const locationWKT = `POINT(${lng} ${lat})`;
-            const { data, error } = await supabase
+            const locationWKT = `POINT(${lng} ${lat})`
+
+            const { error: updateError, data: updatedData } = await supabase
                 .from('profiles')
                 .update({
                     location: locationWKT,
                     address: address,
                 })
                 .eq('id', user.id)
-                .select();
+                .select()
 
-            if (error) {
-                console.error('Erro ao salvar localização:', error)
-                alert(`Erro ao salvar: ${error.message}`)
-                return false
-            }
-            
-            // Se nenhuma linha foi atualizada, o perfil pode não existir ainda
-            if (!data || data.length === 0) {
-                const { error: insertError } = await supabase
+            if (updateError) {
+                console.error('Erro no UPDATE:', updateError)
+                const { data: existingProfile } = await supabase
                     .from('profiles')
-                    .insert({
-                        id: user.id,
-                        location: locationWKT,
-                        address: address
-                    });
+                    .select('id')
+                    .eq('id', user.id)
+                    .single()
 
-                if (insertError) {
-                    alert('Aviso: Sua localização NÃO foi salva! O banco de dados bloqueou a edição (Erro RLS). Vá no Supabase > SQL Editor e permita UPDATE/INSERT na tabela profiles para o próprio usuário.');
-                    console.error('Erro de Insert (provável RLS):', insertError);
+                if (!existingProfile) {
+                    const { error: insertError } = await supabase
+                        .from('profiles')
+                        .insert({
+                            id: user.id,
+                            location: locationWKT,
+                            address: address,
+                        })
+
+                    if (insertError) {
+                        console.error('Erro no INSERT:', insertError)
+                        alert(`Erro ao salvar: ${insertError.message}. Verifique as políticas RLS.`)
+                        return false
+                    } else {
+                        console.log('Perfil criado com sucesso!')
+                    }
+                } else {
+                    alert(`Erro ao atualizar: ${updateError.message}. Verifique a política de UPDATE.`)
+                    return false
                 }
+            } else {
+                console.log('Localização atualizada com sucesso!', updatedData)
             }
 
             setProfileLocation({ lat, lng })
             setUserAddress(address)
-            setShowLocationDialog(false)
-            setEditingLocation(false)
-            setSearchAddress('')
-            setAddressSuggestions([])
 
-            // Atualiza o nome/avatar caso o perfil tenha mudado (opcional, mas bom)
-            const { data: updatedProfile } = await supabase
+            const { data: freshProfile } = await supabase
                 .from('profiles')
                 .select('avatar_url, name, full_name')
                 .eq('id', user.id)
                 .single()
-            if (updatedProfile) {
-                setUserAvatar(updatedProfile.avatar_url || null)
-                setUserName(updatedProfile.name || updatedProfile.full_name || 'Usuário')
+            if (freshProfile) {
+                setUserAvatar(freshProfile.avatar_url || null)
+                setUserName(freshProfile.name || freshProfile.full_name || 'Usuário')
             }
+
+            setShowLocationDialog(false)
+            setEditingLocation(false)
+            setSearchAddress('')
+            setAddressSuggestions([])
 
             if (mapRef.current) {
                 mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
@@ -342,12 +398,13 @@ export default function MapPage() {
 
             return true
         } catch (error) {
-            console.error('Erro:', error)
+            console.error('Erro inesperado:', error)
+            alert('Ocorreu um erro inesperado ao salvar a localização.')
             return false
         }
     }
 
-    // MARKERS
+    // MARKERS (sem alterações, fiel ao original)
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
         const map = mapRef.current
@@ -478,7 +535,7 @@ export default function MapPage() {
         })
     }, [filtered, mode, stores, mapReady])
 
-    // PROFILE MARKER (agora com avatar ou inicial)
+    // PROFILE MARKER (avatar/inicial)
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
 
@@ -486,8 +543,7 @@ export default function MapPage() {
             profileMarkerRef.current.remove()
         }
 
-        if (profileLocation && (userAvatar || userName)) {
-            // Criar elemento para o marcador personalizado
+        if (profileLocation && isLoggedIn && (userAvatar || userName)) {
             const el = document.createElement('div')
             el.style.cssText = `
                 width: 44px;
@@ -506,7 +562,6 @@ export default function MapPage() {
                 img.src = userAvatar
                 img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
                 img.onerror = () => {
-                    // Fallback para primeira letra se imagem falhar
                     el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:20px">${userName.charAt(0).toUpperCase()}</div>`
                 }
                 el.appendChild(img)
@@ -514,7 +569,6 @@ export default function MapPage() {
                 el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:18px">${userName.charAt(0).toUpperCase()}</div>`
             }
 
-            // Efeito hover
             el.addEventListener('mouseenter', () => {
                 el.style.transform = 'scale(1.1)'
             })
@@ -522,7 +576,6 @@ export default function MapPage() {
                 el.style.transform = 'scale(1)'
             })
 
-            // Opcional: ao clicar no marcador, talvez centralizar ou mostrar endereço
             el.addEventListener('click', () => {
                 if (mapRef.current && profileLocation) {
                     mapRef.current.flyTo({ center: [profileLocation.lng, profileLocation.lat], zoom: 17, duration: 800 })
@@ -533,7 +586,7 @@ export default function MapPage() {
                 .setLngLat([profileLocation.lng, profileLocation.lat])
                 .addTo(mapRef.current)
         }
-    }, [mapReady, profileLocation, userAvatar, userName])
+    }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn])
 
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
@@ -632,7 +685,7 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Banner (mesmo local salvo) */}
+            {/* Location Banner (mostra a localização salva ou atual) */}
             <div className="absolute left-6 z-20" style={{ bottom: '85px', maxWidth: 'calc(100vw - 80px)' }}>
                 <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
                     {isLoggedIn ? (
@@ -683,7 +736,7 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Dialog */}
+            {/* Location Dialog (mesmo, sem mudanças) */}
             {showLocationDialog && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => {
@@ -992,8 +1045,6 @@ export default function MapPage() {
                     </span>
                 </button>
             </div>
-
-            {/* Center on User Button removido conforme solicitado */}
 
             {/* Filter Modal */}
             {showFilters && (
