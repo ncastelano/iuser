@@ -1,11 +1,26 @@
+// src/app/(auth)/register/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, ArrowRight, CheckCircle2 } from 'lucide-react'
+import {
+  User,
+  Link as LinkIcon,
+  Mail,
+  Lock,
+  ArrowRight,
+  CheckCircle2,
+  Store,
+  Zap,
+  Sparkles,
+  Eye,
+  EyeOff
+} from 'lucide-react'
+import { BottomNav } from '@/components/BottomNav'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
-export default function Register() {
+function RegisterContent() {
   const router = useRouter()
   const [name, setName] = useState('')
   const [profileSlug, setProfileSlug] = useState('')
@@ -14,8 +29,8 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const [registered, setRegistered] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,7 +44,7 @@ export default function Register() {
     }
 
     if (!profileSlug || !/^[a-z0-9-]+$/.test(profileSlug)) {
-      setError('O link do perfil deve conter apenas letras minúsculas, números e hifens (-)')
+      setError('O link deve conter apenas letras minúsculas, números e hifens (-)')
       setLoading(false)
       return
     }
@@ -37,7 +52,6 @@ export default function Register() {
     const supabase = createClient()
 
     try {
-      // 0. Verificar se profileSlug já existe
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -50,7 +64,6 @@ export default function Register() {
         return
       }
 
-      // 1. Criar usuário no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -64,7 +77,6 @@ export default function Register() {
       if (authError) throw authError
 
       if (authData.user) {
-        // 2. Buscar o cookie de referral (quem convidou)
         const getReferralSlug = async () => {
           try {
             const res = await fetch('/api/get-referral-cookie')
@@ -78,7 +90,6 @@ export default function Register() {
         const referralSlug = await getReferralSlug()
         let uplineId = null
 
-        // 3. Se veio de convite, buscar o ID do upline
         if (referralSlug) {
           const { data: upline } = await supabase
             .from('profiles')
@@ -89,7 +100,6 @@ export default function Register() {
           uplineId = upline?.id || null
         }
 
-        // 4. Criar/Atualizar perfil com upline_id (se houver) e profileSlug
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
@@ -101,13 +111,10 @@ export default function Register() {
 
         if (profileError) {
           console.error('Erro ao criar perfil:', profileError)
-          // Mesmo com erro no perfil, o usuário foi criado no Auth
         }
 
-        // 5. Limpar cookie de referral
         await fetch('/api/clear-referral-cookie', { method: 'POST' })
 
-        // 6. Set success state
         setRegistered(true)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
@@ -118,135 +125,186 @@ export default function Register() {
     }
   }
 
-  return (
-    <div className="relative flex items-center justify-center min-h-screen bg-background px-4 py-12 overflow-hidden selection:bg-primary selection:text-white transition-colors duration-500">
-      {/* Background Glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-primary/10 blur-[130px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-secondary/10 blur-[120px] rounded-full" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--foreground)/0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
-      </div>
-
-      <form onSubmit={handleRegister} className="relative z-10 w-full max-w-lg p-12 bg-card/40 backdrop-blur-3xl border border-border dark:border-white/5 rounded-none shadow-2xl animate-in fade-in zoom-in duration-700">
-        <div className="text-center space-y-4 mb-10 flex flex-col items-center">
-          <div className="flex justify-center mb-2">
-            <div className="p-2.5 flex-shrink-0">
-              <img src="/logo.png" alt="iUser Logo" className="h-14 md:h-16 object-contain" />
-            </div>
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground italic mt-2">Inicie sua Jornada Digital</p>
-        </div>
-
-        {registered ? (
-          <div className="space-y-8 py-4">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-primary" />
+  // Tela de sucesso após cadastro
+  if (registered) {
+    return (
+      <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+        <AnimatedBackground />
+        <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl">
+                <CheckCircle2 className="w-10 h-10 text-white" />
               </div>
-              <div className="flex justify-center mb-2">
-                <div className="p-2.5 flex-shrink-0">
-                  <img src="/logo.png" alt="iUser Logo" className="h-8 md:h-12 object-contain" />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Sua jornada começou! Enviamos um link de <span className="text-foreground font-bold">ativação</span> para o seu e-mail.
-                Por favor, verifique sua caixa de entrada (e a pasta de spam) para confirmar sua conta.
-              </p>
             </div>
+            <h2 className="text-2xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
+              Perfil criado! 🎉
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Enviamos um link de <span className="font-bold text-gray-900">ativação</span> para o seu e-mail.
+            </p>
+            <p className="text-sm text-gray-600 mb-6">
+              Após confirmar, seu perfil <span className="font-mono text-xs bg-white/60 px-1 py-0.5 rounded border border-orange-200">/{profileSlug}</span> estará no ar
+              e você poderá <span className="font-bold text-gray-900">criar sua primeira loja</span>!
+            </p>
             <button
               onClick={() => router.push('/login')}
-              className="w-full bg-foreground text-background py-6 rounded-none font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white"
+              className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95"
             >
               Ir para o Login
+              <ArrowRight className="w-4 h-4 inline-block ml-2 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
-        ) : (
-          <>
-            {error && (
-              <div className="p-5 mb-8 text-[10px] font-black uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/20 rounded-none animate-shake">
-                {error}
-              </div>
-            )}
+        </div>
+        <BottomNav />
+      </div>
+    )
+  }
 
-            <div className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
-                  <User className="w-3 h-3" /> Nome Completo / Identidade
-                </label>
+  return (
+    <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+      <AnimatedBackground />
+
+      {/* Main content */}
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+        <form onSubmit={handleRegister} className="w-full max-w-md mb-8">
+          {/* Logo Avatar Circular */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mx-auto">
+                <img src="/logo.png" alt="iUser" className="w-12 h-12 object-contain rounded-full" />
+              </div>
+            </div>
+
+            <h1 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
+              Crie seu perfil
+            </h1>
+            <p className="text-sm text-gray-600">
+              Comece a vender em minutos. É grátis!
+            </p>
+
+            {/* Feature badges */}
+            <div className="flex items-center justify-center gap-4 mt-4">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                <Store className="w-3 h-3" />
+                <span>Sua loja</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
+                <Zap className="w-3 h-3" />
+                <span>Venda em tempo real</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                <span>Grátis</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-3 text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Form Fields */}
+          <div className="space-y-5">
+            {/* Nome */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                <User className="w-4 h-4 text-orange-500" />
+                SEU NOME
+              </label>
+              <input
+                type="text"
+                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                placeholder="Como você quer ser chamado?"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            {/* Slug (link) */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                <LinkIcon className="w-4 h-4 text-orange-500" />
+                SEU LINK
+              </label>
+              <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl focus-within:border-orange-500 transition-all overflow-hidden">
+                <span className="pl-4 pr-1 text-xs font-mono text-gray-400 bg-white py-3">
+                  iuser.com.br/
+                </span>
                 <input
                   type="text"
-                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
-                  placeholder="Como devemos lhe chamar?"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  className="flex-1 py-3 pl-0 pr-4 bg-white text-gray-900 outline-none text-sm font-mono"
+                  placeholder="seu-nome"
+                  value={profileSlug}
+                  onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                   required
                   disabled={loading}
                 />
               </div>
+              <p className="text-[11px] text-gray-500 ml-1">
+                🔗 Seu link público: <span className="font-mono font-bold">/{profileSlug || "seu-nome"}</span>
+              </p>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
-                  <LinkIcon className="w-3 h-3" /> Link do Perfil / Slug Único
+            {/* Email */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                <Mail className="w-4 h-4 text-orange-500" />
+                E-MAIL
+              </label>
+              <input
+                type="email"
+                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            {/* Senha e Confirmar senha lado a lado */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                  <Lock className="w-4 h-4 text-orange-500" />
+                  SENHA
                 </label>
-                <div className="flex items-center bg-muted/30 border border-border dark:border-white/5 rounded-none focus-within:border-primary/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all duration-500 overflow-hidden group">
-                  <span className="pl-6 pr-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest h-full flex items-center">iuser.com.br/</span>
+                <div className="relative">
                   <input
-                    type="text"
-                    className="w-full py-4 pl-1 pr-6 bg-transparent text-foreground outline-none placeholder:text-muted-foreground/30"
-                    placeholder="seu-link"
-                    value={profileSlug}
-                    onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    type={showPassword ? 'text' : 'password'}
+                    className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 pr-10"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                     disabled={loading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
-                  <Mail className="w-3 h-3" /> E-mail de Registro
+              <div className="space-y-2">
+                <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
+                  <Lock className="w-4 h-4 text-orange-500" />
+                  CONFIRMAR
                 </label>
-                <input
-                  type="email"
-                  className="w-full px-8 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
-                  placeholder="Seu melhor e-mail"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
-                    <Lock className="w-3 h-3" /> Senha
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500 pr-12"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-all"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-4 flex items-center gap-2">
-                    <Lock className="w-3 h-3" /> Confirmar
-                  </label>
+                <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    className="w-full px-6 py-4 bg-muted/30 border border-border dark:border-white/5 rounded-none text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 focus:ring-4 focus:ring-primary/5 transition-all duration-500"
+                    className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                    placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -255,26 +313,80 @@ export default function Register() {
                 </div>
               </div>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="group w-full mt-10 bg-foreground text-background py-5 rounded-none font-black uppercase text-sm tracking-widest transition-all hover:bg-neutral-200 dark:hover:bg-white active:scale-[0.96] disabled:opacity-30 shadow-2xl flex items-center justify-center gap-3"
-            >
-              {loading ? 'Processando...' : (
+          {/* Botão de cadastro */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="group relative w-full mt-8 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
                 <>
-                  Finalizar Ativação <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  Criar meu perfil
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
-            </button>
+            </span>
+          </button>
 
-            <p className="mt-10 text-center text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-              Já faz parte da rede?{' '}
-              <a href="/login" className="text-foreground hover:text-primary transition ml-2 border-b border-muted-foreground/20">Login</a>
+          {/* Termos */}
+          <div className="mt-6 text-center">
+            <p className="text-[10px] text-gray-500">
+              Ao criar uma conta, você concorda com nossos{' '}
+              <a href="/termos" className="font-bold text-orange-600 hover:underline">
+                Termos de Uso
+              </a>
             </p>
-          </>
-        )}
-      </form>
+          </div>
+
+          {/* Divisor */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-orange-200/50"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-2 bg-white/40 backdrop-blur-sm text-gray-500 text-[9px] font-bold">Já tem perfil?</span>
+            </div>
+          </div>
+
+          {/* Botão de login */}
+          <button
+            type="button"
+            onClick={() => router.push('/login')}
+            className="w-full py-3.5 bg-white border-2 border-orange-200 text-gray-700 rounded-xl font-black uppercase text-sm tracking-wider hover:bg-orange-50 transition-all"
+          >
+            Fazer login
+          </button>
+
+          {/* Mensagem motivacional */}
+          <div className="mt-8 pt-4 border-t border-orange-200/30">
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50">
+              <p className="text-[11px] text-gray-600 text-center leading-relaxed">
+                ✨ <span className="font-black text-orange-600">Mostre para todos ao redor</span> o que você tem de melhor.<br />
+                Sua loja, suas vendas, seu sucesso.
+              </p>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <BottomNav />
     </div>
+  )
+}
+
+export default function Register() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+      </div>
+    }>
+      <RegisterContent />
+    </Suspense>
   )
 }

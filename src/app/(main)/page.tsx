@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X, ChevronRight, Store, ShoppingBag, Plus } from 'lucide-react'
+import { MapPin, Star, Clock, ArrowDownWideNarrow, ArrowUpNarrowWide, Search as SearchIcon, Filter, X, ChevronRight, Store, ShoppingBag, Plus, Building2, Package, TrendingUp, Award, Flame, Zap, Truck, CreditCard, Gift } from 'lucide-react'
 
 type StoreStats = {
   ratings_count: number
@@ -38,13 +38,12 @@ type ProductType = {
   slug: string | null
 }
 
-const PREVIEW_COUNT = 20
+const PREVIEW_COUNT = 12
 
 // Função para parsear coordenadas (suporta WKT, GeoJSON e PostGIS Hex Binary)
 function parseCoords(location: any): [number, number] | null {
   if (!location) return null
 
-  // 1. Se for string JSON, tenta parsear
   if (typeof location === 'string' && (location.startsWith('{') || location.startsWith('['))) {
     try {
       const parsed = JSON.parse(location)
@@ -54,19 +53,16 @@ function parseCoords(location: any): [number, number] | null {
     } catch { /* Ignora */ }
   }
 
-  // 2. Formato GeoJSON (Objeto)
   if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
     const [lng, lat] = location.coordinates
     return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
   }
 
-  // 3. Formato WKT string (ex: POINT(-46.123 -23.456))
   if (typeof location === 'string' && location.toUpperCase().includes('POINT')) {
     const match = location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
     if (match) return [parseFloat(match[1]), parseFloat(match[2])]
   }
 
-  // 4. Formato PostGIS Binary Hex (WKB/EWKB)
   if (typeof location === 'string' && location.length >= 42 && /^[0-9A-F]+$/i.test(location)) {
     try {
       const hexToDouble = (hex: string) => {
@@ -90,8 +86,11 @@ function parseCoords(location: any): [number, number] | null {
   return null
 }
 
+type TabType = 'stores' | 'products'
+
 export default function Vitrine() {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<TabType>('stores')
 
   const [allStores, setAllStores] = useState<StoreType[]>([])
   const [allProducts, setAllProducts] = useState<ProductType[]>([])
@@ -100,19 +99,15 @@ export default function Vitrine() {
 
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [showAllProducts, setShowAllProducts] = useState(false)
-  const [showAllStores, setShowAllStores] = useState(false)
+  const [showAllItems, setShowAllItems] = useState(false)
 
-  // Começar com filtro de "Melhor avaliado" ao invés de "distância"
-  const [sortBy, setSortBy] = useState<
-    'distance' | 'rating' | 'prepTime' | 'priceMin' | 'priceMax'
-  >('rating')
+  const [sortBy, setSortBy] = useState<'distance' | 'rating' | 'priceMin' | 'priceMax'>('rating')
 
   const filters = [
-    { label: 'Mais próximo', value: 'distance', icon: MapPin },
-    { label: 'Melhor avaliado', value: 'rating', icon: Star },
-    { label: 'Menor valor', value: 'priceMin', icon: ArrowDownWideNarrow },
-    { label: 'Maior valor', value: 'priceMax', icon: ArrowUpNarrowWide },
+    { label: 'Mais próximo', value: 'distance', icon: MapPin, description: 'Lojas perto de você', color: 'text-blue-500' },
+    { label: 'Melhor avaliado', value: 'rating', icon: Star, description: 'Os favoritos do público', color: 'text-yellow-500' },
+    { label: 'Menor valor', value: 'priceMin', icon: ArrowDownWideNarrow, description: 'Economize dinheiro', color: 'text-green-500' },
+    { label: 'Maior valor', value: 'priceMax', icon: ArrowUpNarrowWide, description: 'Produtos premium', color: 'text-purple-500' },
   ]
 
   const getActiveFilterLabel = () => {
@@ -126,23 +121,7 @@ export default function Vitrine() {
     return <Icon className="w-3.5 h-3.5" />
   }
 
-  // Função para obter o título dinâmico baseado no filtro
-  const getSectionTitle = () => {
-    switch (sortBy) {
-      case 'distance':
-        return 'Próximos de Você'
-      case 'rating':
-        return 'Melhores do iUser'
-      case 'priceMin':
-        return 'Mais Baratos'
-      case 'priceMax':
-        return 'Mais Requintados'
-      default:
-        return 'Melhores do iUser'
-    }
-  }
-
-  // 📍 DISTÂNCIA - USANDO PARSE COORDENADAS ROBUSTO
+  // 📍 DISTÂNCIA
   const calcDistanceKm = (storeLocation: any): number | null => {
     if (!userLocation || !storeLocation) return null
 
@@ -152,7 +131,7 @@ export default function Vitrine() {
     const [lon, lat] = coords
 
     const toRad = (v: number) => (v * Math.PI) / 180
-    const R = 6371 // Raio da Terra em km
+    const R = 6371
 
     const dLat = toRad(lat - userLocation.lat)
     const dLon = toRad(lon - userLocation.lng)
@@ -169,16 +148,12 @@ export default function Vitrine() {
     return km
   }
 
-  // Função para formatar distância
   const formatDistance = (distance: number | null): string | null => {
     if (distance === null) return null
-
     if (distance < 1) {
-      // Menos de 1km, mostrar em metros
       const meters = Math.round(distance * 1000)
       return `${meters}m`
     } else {
-      // Mais de 1km, mostrar em km com 1 casa decimal
       return `${distance.toFixed(1)}km`
     }
   }
@@ -199,7 +174,8 @@ export default function Vitrine() {
 
     if (search.trim()) {
       filtered = filtered.filter(store =>
-        store.name.toLowerCase().includes(search.toLowerCase())
+        store.name.toLowerCase().includes(search.toLowerCase()) ||
+        (store.description?.toLowerCase() || '').includes(search.toLowerCase())
       )
     }
 
@@ -216,7 +192,6 @@ export default function Vitrine() {
           return distA - distB
         }
         case 'rating': return (bStats.ratings_avg ?? 0) - (aStats.ratings_avg ?? 0)
-        case 'prepTime': return (aStats.prep_time_min ?? 9999) - (bStats.prep_time_min ?? 9999)
         case 'priceMin': return (aStats.price_min ?? 9999) - (bStats.price_min ?? 9999)
         case 'priceMax': return (bStats.price_max ?? 0) - (aStats.price_max ?? 0)
         default: return 0
@@ -250,7 +225,6 @@ export default function Vitrine() {
           return distA - distB
         }
         case 'rating': return (storeB.store_stats.ratings_avg ?? 0) - (storeA.store_stats.ratings_avg ?? 0)
-        case 'prepTime': return (storeA.store_stats.prep_time_min ?? 9999) - (storeB.store_stats.prep_time_min ?? 9999)
         case 'priceMin': return (a.price ?? 9999) - (b.price ?? 9999)
         case 'priceMax': return (b.price ?? 0) - (a.price ?? 0)
         default: return 0
@@ -340,55 +314,80 @@ export default function Vitrine() {
     init()
   }, [])
 
-  // Reset show-all when search/sort changes
   useEffect(() => {
-    setShowAllProducts(false)
-    setShowAllStores(false)
-  }, [search, sortBy])
+    setShowAllItems(false)
+  }, [search, sortBy, activeTab])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-6 h-6 border-2 border-green-500/20 border-t-green-500 rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+          </div>
+        </div>
       </div>
     )
   }
 
   const sortedProducts = getSortedProducts()
   const sortedStores = getSortedStores()
+  const currentItems = activeTab === 'stores' ? sortedStores : sortedProducts
+  const visibleItems = showAllItems ? currentItems : currentItems.slice(0, PREVIEW_COUNT)
+  const hasMoreItems = currentItems.length > PREVIEW_COUNT
 
-  const visibleProducts = showAllProducts ? sortedProducts : sortedProducts.slice(0, PREVIEW_COUNT)
-  const visibleStores = showAllStores ? sortedStores : sortedStores.slice(0, PREVIEW_COUNT)
-
-  const hasMoreProducts = sortedProducts.length > PREVIEW_COUNT
-  const hasMoreStores = sortedStores.length > PREVIEW_COUNT
-
-  const sectionTitle = getSectionTitle()
+  const getSectionTitle = () => {
+    if (activeTab === 'stores') {
+      switch (sortBy) {
+        case 'distance': return 'Lojas Próximas a Você'
+        case 'rating': return 'Mais Recomendados'
+        case 'priceMin': return 'Melhores Ofertas'
+        case 'priceMax': return 'Lojas Premium'
+        default: return 'Destaques da Semana'
+      }
+    } else {
+      switch (sortBy) {
+        case 'distance': return 'Produtos na Sua Região'
+        case 'rating': return 'Produtos Mais Amados'
+        case 'priceMin': return 'Baratinhos'
+        case 'priceMax': return 'Produtos Especiais'
+        default: return 'Novidades'
+      }
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-background font-sans">
-      {/* Header Fixo no Topo - Logo e Input Colados */}
-      <div className="sticky top-0 z-40 bg-background border-b border-border">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center gap-2 py-2">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
+      {/* Header Sticky */}
+      <div className="sticky top-0 z-50 bg-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3 py-3 sm:py-4">
             {/* Logo */}
-            <div className="p-2.5 flex-shrink-0">
-              <img src="/logo.png" alt="iUser" className="h-6 w-auto object-contain" />
+            <div className="flex-shrink-0 cursor-pointer hover:scale-105 transition-transform" onClick={() => router.push('/')}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-md">
+                  <Store className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent hidden sm:inline">
+                  iUser Market
+                </span>
+              </div>
             </div>
 
             {/* Search Input */}
             <div className="relative group flex-1">
-              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400 group-focus-within:text-orange-500 transition-colors" />
               <input
                 type="text"
-                placeholder="Procurar lojas ou produtos..."
+                placeholder={activeTab === 'stores' ? "🔍 Buscar lojas incríveis..." : "🔍 O que você procura?"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-7 py-1.5 bg-card border border-border text-foreground placeholder:text-muted-foreground text-xs focus:outline-none focus:border-green-500/50 transition-all"
+                className="w-full pl-10 pr-8 py-2.5 bg-orange-50 border-2 border-orange-200 focus:border-orange-500 text-gray-700 placeholder:text-orange-300 text-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                  <X className="w-3 h-3" />
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-orange-400 hover:text-orange-600 transition-colors">
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -396,7 +395,7 @@ export default function Vitrine() {
             {/* Filter Button */}
             <button
               onClick={() => setShowFilters(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border text-[9px] font-black uppercase tracking-wider text-foreground hover:bg-muted transition-all"
+              className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl text-sm font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all"
             >
               {getActiveFilterIcon()}
               <span className="hidden sm:inline">{getActiveFilterLabel()}</span>
@@ -405,26 +404,69 @@ export default function Vitrine() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Filter Modal/Popup */}
+      {/* Tabs */}
+      <div className="sticky top-[73px] sm:top-[81px] z-40 bg-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('stores')}
+              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === 'stores'
+                  ? 'text-orange-600'
+                  : 'text-gray-500 hover:text-orange-500'
+                }`}
+            >
+              <Store className="w-4 h-4" />
+              <span>Lojas</span>
+              <span className="text-xs font-normal ml-1 bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                {sortedStores.length}
+              </span>
+              {activeTab === 'stores' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full"></div>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === 'products'
+                  ? 'text-orange-600'
+                  : 'text-gray-500 hover:text-orange-500'
+                }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>Produtos e Serviços</span>
+              <span className="text-xs font-normal ml-1 bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                {sortedProducts.length}
+              </span>
+              {activeTab === 'products' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full"></div>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+        {/* Filter Modal */}
         {showFilters && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowFilters(false)}>
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" />
             <div
-              className="relative bg-card border border-border w-full sm:max-w-md mx-auto shadow-2xl"
+              className="relative bg-white rounded-3xl shadow-2xl w-full sm:max-w-md mx-auto animate-in slide-in-from-bottom-4 duration-300 overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between p-4 border-b border-border">
-                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Ordenar por</h3>
-                <button
-                  onClick={() => setShowFilters(false)}
-                  className="p-1 hover:bg-muted transition-colors"
-                >
-                  <X className="w-4 h-4 text-muted-foreground" />
-                </button>
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-white">Ordenar por</h3>
+                  <button
+                    onClick={() => setShowFilters(false)}
+                    className="p-1 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                  >
+                    <X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
 
-              <div className="p-2">
+              <div className="p-3">
                 {filters.map((option) => {
                   const Icon = option.icon
                   const isActive = sortBy === option.value
@@ -435,30 +477,33 @@ export default function Vitrine() {
                         setSortBy(option.value as any)
                         setShowFilters(false)
                       }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${isActive
-                        ? 'bg-green-500/10 text-green-500'
-                        : 'text-foreground hover:bg-muted'
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${isActive
+                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-500'
+                          : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-green-500' : 'text-muted-foreground'}`} />
-                      <span className={`flex-1 text-left text-xs font-black uppercase tracking-wider ${isActive ? 'text-green-500' : 'text-foreground'}`}>
-                        {option.label}
-                      </span>
+                      <Icon className={`w-5 h-5 ${isActive ? 'text-orange-500' : 'text-gray-400'}`} />
+                      <div className="flex-1 text-left">
+                        <div className={`text-sm font-bold ${isActive ? 'text-orange-600' : 'text-gray-900'}`}>
+                          {option.label}
+                        </div>
+                        <div className="text-xs text-gray-500">{option.description}</div>
+                      </div>
                       {isActive && (
-                        <div className="w-1.5 h-1.5 bg-green-500" />
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                       )}
                     </button>
                   )
                 })}
               </div>
 
-              <div className="p-4 border-t border-border">
+              <div className="p-4 border-t border-gray-100">
                 <button
                   onClick={() => {
                     setSortBy('rating')
                     setShowFilters(false)
                   }}
-                  className="w-full py-2 text-[9px] font-black uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                  className="w-full py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   Limpar filtros
                 </button>
@@ -467,113 +512,169 @@ export default function Vitrine() {
           </div>
         )}
 
-        {/* Lojas Section */}
-        <section className="mb-10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">{sectionTitle}</h2>
-              <span className="text-[9px] font-black text-muted-foreground">({sortedStores.length})</span>
+        {/* Header Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
+                <h1 className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  {getSectionTitle()}
+                </h1>
+              </div>
+              <p className="text-sm text-gray-600">
+                🎉 {currentItems.length} {activeTab === 'stores' ? 'lojas parceiras' : 'itens disponíveis'} prontos para você
+              </p>
             </div>
-            {hasMoreStores && (
+            {hasMoreItems && (
               <button
-                onClick={() => setShowAllStores(!showAllStores)}
-                className="text-[8px] font-black text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-wider"
+                onClick={() => setShowAllItems(!showAllItems)}
+                className="text-sm font-bold text-orange-600 hover:text-orange-700 transition-colors flex items-center gap-1 bg-orange-50 px-4 py-2 rounded-full"
               >
-                {showAllStores ? 'Menos' : `Ver tudo`}
-                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllStores ? 'rotate-90' : ''}`} />
+                {showAllItems ? 'Ver menos' : `Ver todos (${currentItems.length})`}
+                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllItems ? 'rotate-90' : ''}`} />
               </button>
             )}
           </div>
+        </div>
 
-          {sortedStores.length === 0 ? (
-            <div className="py-12 text-center border border-dashed border-border bg-card/20">
-              <Store className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Nenhuma loja encontrada</p>
+        {/* Content Grid */}
+        {currentItems.length === 0 ? (
+          <div className="py-16 text-center bg-white rounded-3xl shadow-sm">
+            <div className="inline-flex p-4 bg-gradient-to-br from-orange-100 to-red-100 rounded-full mb-4">
+              {activeTab === 'stores' ? (
+                <Building2 className="w-12 h-12 text-orange-500" />
+              ) : (
+                <Package className="w-12 h-12 text-orange-500" />
+              )}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {visibleStores.map((store, idx) => {
-                const stats = store.store_stats ?? {}
-                const distance = calcDistanceKm(store.location)
-                const distanceFormatted = formatDistance(distance)
-                return (
-                  <div
-                    key={store.id + idx}
-                    onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
-                    className="group relative bg-card border border-border overflow-hidden transition-all duration-300 cursor-pointer hover:border-green-500/30 hover:shadow-lg"
-                  >
-                    <div className="relative h-24 bg-muted overflow-hidden">
-                      {store.logo_url ? (
-                        <img src={store.logo_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={store.name} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xl font-black italic">{store.name?.charAt(0)}</div>
-                      )}
+            <h3 className="text-xl font-bold text-gray-900 mb-2">
+              Nenhum resultado encontrado
+            </h3>
+            <p className="text-gray-500">
+              😕 Tente buscar por outro termo ou ajustar os filtros
+            </p>
+          </div>
+        ) : activeTab === 'stores' ? (
+          /* Store Cards - Grid Responsivo */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {(visibleItems as StoreType[]).map((store, idx) => {
+              const stats = store.store_stats ?? {}
+              const distance = calcDistanceKm(store.location)
+              const distanceFormatted = formatDistance(distance)
+              const productCount = allProducts.filter(p => p.store_id === store.id).length
 
-                      <div className="absolute top-1 left-1 flex items-center gap-1 px-1.5 py-0.5 bg-background/90 border border-border/50">
-                        <div className={`w-1 h-1 ${store.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                        <span className="text-[6px] font-black uppercase tracking-wider text-foreground">{store.is_open ? 'Aberto' : 'Fechado'}</span>
+              return (
+                <div
+                  key={store.id + idx}
+                  onClick={() => router.push(`/${store.profileSlug}/${store.storeSlug}`)}
+                  className="group relative bg-white rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-2xl hover:scale-105 border-2 border-transparent hover:border-orange-500"
+                >
+                  {/* Store Banner */}
+                  <div className="relative h-36 bg-gradient-to-br from-orange-400 to-red-500 overflow-hidden">
+                    {store.logo_url ? (
+                      <img
+                        src={store.logo_url}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        alt={store.name}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Building2 className="w-16 h-16 text-white/30" />
                       </div>
+                    )}
 
-                      {distanceFormatted && (
-                        <div className="absolute top-1 right-1 px-1.5 py-0.5 bg-background/90 border border-border/50 flex items-center gap-0.5">
-                          <MapPin className="w-2 h-2 text-muted-foreground" />
-                          <span className="text-[6px] font-black text-foreground">{distanceFormatted}</span>
-                        </div>
-                      )}
+                    {/* Status Badge */}
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-xl shadow-md">
+                      <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                      <span className="text-xs font-bold text-gray-700">{store.is_open ? 'Aberto' : 'Fechado'}</span>
                     </div>
 
-                    <div className="p-2">
-                      <h3 className="text-xs font-black uppercase tracking-tighter text-foreground mb-0.5 truncate">{store.name}</h3>
-                      <div className="flex items-center gap-1 mb-1.5">
-                        <div className="flex items-center gap-0.5">
-                          <Star className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
-                          <span className="text-[9px] font-black text-foreground/80">{stats.ratings_avg?.toFixed(1) ?? '0.0'}</span>
+                    {/* Distance Badge */}
+                    {distanceFormatted && (
+                      <div className="absolute top-3 right-3 px-2.5 py-1.5 bg-white rounded-xl shadow-md">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-orange-500" />
+                          <span className="text-xs font-bold text-gray-700">{distanceFormatted}</span>
                         </div>
-                        <span className="text-[7px] text-muted-foreground font-bold">({stats.ratings_count ?? 0})</span>
                       </div>
+                    )}
 
-                      <div className="flex items-center justify-between pt-1.5 border-t border-border">
-                        <div className="flex -space-x-1">
-                          {allProducts.filter(p => p.store_id === store.id).slice(0, 2).map(p => (
-                            <div key={p.id} className="w-5 h-5 bg-muted border border-card overflow-hidden">
-                              {p.image_url ? (
-                                <img src={p.image_url} className="w-full h-full object-cover" alt="" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[5px] text-muted-foreground/40 font-black">{p.name.charAt(0)}</div>
-                              )}
-                            </div>
-                          ))}
+                    {/* Featured Badge */}
+                    {stats.ratings_avg > 4.5 && (
+                      <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg shadow-md">
+                        <div className="flex items-center gap-1">
+                          <Award className="w-3 h-3 text-white" />
+                          <span className="text-xs font-bold text-white">Destaque</span>
                         </div>
-                        <span className="text-[7px] font-black text-muted-foreground group-hover:text-green-500 transition-colors uppercase tracking-wider">Entrar →</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Store Info */}
+                  <div className="p-4">
+                    <h3 className="text-lg font-black text-gray-900 mb-1 line-clamp-1">
+                      {store.name}
+                    </h3>
+
+                    {store.description && (
+                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                        {store.description}
+                      </p>
+                    )}
+
+                    {/* Rating & Stats */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        <span className="font-bold text-gray-900">
+                          {stats.ratings_avg?.toFixed(1) ?? '0.0'}
+                        </span>
+                        <span className="text-xs text-gray-500">({stats.ratings_count ?? 0})</span>
+                      </div>
+                      <div className="w-px h-4 bg-gray-300" />
+                      <div className="text-sm text-gray-600 flex items-center gap-1">
+                        <ShoppingBag className="w-3 h-3" />
+                        {productCount} itens
+                      </div>
+                    </div>
+
+                    {/* Price Range */}
+                    {(stats.price_min || stats.price_max) && (
+                      <div className="mb-3 p-2 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">💰 Faixa de preço</span>
+                          <span className="font-bold text-orange-600">
+                            {stats.price_min && `R$ ${stats.price_min.toFixed(2)}`}
+                            {stats.price_min && stats.price_max && ' - '}
+                            {stats.price_max && `R$ ${stats.price_max.toFixed(2)}`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Button */}
+                    <div className="pt-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-orange-600 font-bold group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                          Conhecer loja
+                          <ChevronRight className="w-4 h-4" />
+                        </span>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Truck className="w-3 h-3" />
+                          <span>Entrega rápida</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* Produtos Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-lg font-black italic uppercase tracking-tighter text-foreground">Produtos e Serviços</h2>
-              <span className="text-[9px] font-black text-muted-foreground">({sortedProducts.length})</span>
-            </div>
-            {hasMoreProducts && (
-              <button
-                onClick={() => setShowAllProducts(!showAllProducts)}
-                className="text-[8px] font-black text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 uppercase tracking-wider"
-              >
-                {showAllProducts ? 'Menos' : 'Ver tudo'}
-                <ChevronRight className={`w-3 h-3 transition-transform duration-300 ${showAllProducts ? 'rotate-90' : ''}`} />
-              </button>
-            )}
+                </div>
+              )
+            })}
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {visibleProducts.map((product, idx) => {
+        ) : (
+          /* Product Cards - Grid Responsivo */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-5">
+            {(visibleItems as ProductType[]).map((product, idx) => {
               const store = getStore(product.store_id)
               const distance = store ? calcDistanceKm(store.location) : null
               const distanceFormatted = formatDistance(distance)
@@ -584,61 +685,117 @@ export default function Vitrine() {
                 <div
                   key={product.id + idx}
                   onClick={() => store && router.push(`/${store.profileSlug}/${store.storeSlug}/${product.slug || product.id}`)}
-                  className="group relative bg-card border border-border overflow-hidden transition-all duration-300 cursor-pointer hover:border-green-500/30 hover:shadow-lg"
+                  className="group relative bg-white rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-2xl hover:scale-105 border-2 border-transparent hover:border-orange-500"
                 >
-                  <div className="relative aspect-square bg-muted overflow-hidden border-b border-border/50">
+                  {/* Product Image */}
+                  <div className="relative aspect-square bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden">
                     {product.image_url ? (
-                      <img src={product.image_url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={product.name} />
+                      <img
+                        src={product.image_url}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        alt={product.name}
+                      />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-muted">
-                        <ShoppingBag className="w-6 h-6 text-muted-foreground/20" />
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ShoppingBag className="w-12 h-12 text-orange-300" />
                       </div>
                     )}
 
-                    <div className="absolute top-1 left-1">
-                      <div className="bg-background/90 border border-border/50 px-1 py-0.5 text-[6px] font-black uppercase tracking-wider text-foreground">
+                    {/* Type Badge */}
+                    <div className="absolute top-2 left-2">
+                      <div className="px-2.5 py-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl text-xs font-bold text-white shadow-md">
                         {typeLabel}
                       </div>
                     </div>
 
+                    {/* Discount Badge */}
+                    {price > 100 && (
+                      <div className="absolute top-2 right-2">
+                        <div className="px-2 py-1 bg-green-500 rounded-xl text-xs font-bold text-white shadow-md animate-pulse">
+                          -10%
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Distance Badge */}
                     {distanceFormatted && (
-                      <div className="absolute bottom-1 right-1">
-                        <div className="flex items-center gap-0.5 px-1 py-0.5 bg-background/90 border border-border/50">
-                          <MapPin className="w-2 h-2 text-muted-foreground" />
-                          <span className="text-[6px] font-black text-foreground">{distanceFormatted}</span>
+                      <div className="absolute bottom-2 right-2">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-xl shadow-md">
+                          <MapPin className="w-3 h-3 text-orange-500" />
+                          <span className="text-xs font-bold text-gray-700">{distanceFormatted}</span>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="p-2">
-                    <h4 className="font-black text-foreground mb-0.5 line-clamp-1 text-[10px] uppercase tracking-tighter">{product.name}</h4>
+                  {/* Product Info */}
+                  <div className="p-3">
+                    <h4 className="font-bold text-gray-900 mb-1 line-clamp-2 text-sm">
+                      {product.name}
+                    </h4>
 
+                    {/* Store Name */}
                     {store && (
-                      <div className="flex items-center gap-1 mb-1.5 opacity-60">
-                        <div className="w-3 h-3 bg-muted overflow-hidden border border-border/50">
+                      <div className="flex items-center gap-1.5 mb-2 p-1.5 bg-orange-50 rounded-lg">
+                        <div className="w-5 h-5 bg-gradient-to-br from-orange-400 to-red-500 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center">
                           {store.logo_url ? (
                             <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <Store className="w-1.5 h-1.5 text-muted-foreground/30" />
+                            <Store className="w-2.5 h-2.5 text-white" />
                           )}
                         </div>
-                        <span className="text-[6px] font-black uppercase tracking-wider text-muted-foreground truncate">{store.name}</span>
+                        <span className="text-xs font-semibold text-gray-700 truncate">{store.name}</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-1.5 border-t border-border">
-                      <span className="text-xs font-black text-foreground italic">R$ {price.toFixed(2).replace('.', ',')}</span>
-                      <div className="w-5 h-5 bg-foreground text-background flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:bg-green-500">
-                        <Plus className="w-2.5 h-2.5" />
+                    {/* Price & Action */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <div>
+                        <span className="text-xl font-black text-orange-600">
+                          R$ {price.toFixed(2).replace('.', ',')}
+                        </span>
+                        {store?.store_stats.ratings_avg && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                            <span className="text-xs text-gray-600">{store.store_stats.ratings_avg.toFixed(1)}</span>
+                          </div>
+                        )}
                       </div>
+                      <button className="w-9 h-9 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl flex items-center justify-center transition-all group-hover:scale-110 shadow-md">
+                        <Plus className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
               )
             })}
           </div>
-        </section>
+        )}
+
+        {/* Load More Button */}
+        {!showAllItems && hasMoreItems && (
+          <div className="mt-10 text-center">
+            <button
+              onClick={() => setShowAllItems(true)}
+              className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all hover:scale-105"
+            >
+              <Zap className="w-5 h-5" />
+              Carregar mais {currentItems.length - PREVIEW_COUNT} itens
+            </button>
+          </div>
+        )}
+
+        {/* Promotional Banner */}
+        <div className="mt-12 bg-gradient-to-r from-orange-500 via-red-500 to-yellow-500 rounded-3xl p-6 text-center shadow-xl">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Gift className="w-6 h-6 text-white" />
+            <h3 className="text-xl font-black text-white">Ganhe Frete Grátis</h3>
+          </div>
+          <p className="text-white/90 text-sm mb-3">Nas primeiras 3 compras com pagamento via PIX</p>
+          <button className="px-6 py-2 bg-white text-orange-600 rounded-xl font-bold hover:scale-105 transition-transform shadow-md">
+            Saiba mais →
+          </button>
+        </div>
       </div>
     </div>
   )

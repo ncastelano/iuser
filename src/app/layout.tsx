@@ -5,7 +5,7 @@ import './globals.css'
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#ffffff',
+  themeColor: '#f97316',
   colorScheme: 'light',
 }
 
@@ -14,10 +14,17 @@ export const metadata: Metadata = {
   title: 'iUser | Catálogo Digital Inteligente',
   description: 'Os melhores produtos e serviços, você encontra aqui!',
   icons: {
-    icon: '/icon.png',
-    shortcut: '/icon.png',
-    apple: '/icon.png',
+    icon: [
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: [
+      { url: '/apple-touch-icon.png' },
+    ],
   },
+  manifest: '/manifest.json',
   openGraph: {
     title: 'iUser | Catálogo Digital Inteligente',
     description: 'Os melhores produtos e serviços, você encontra aqui!',

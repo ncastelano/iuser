@@ -4,7 +4,8 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* Branco puro */
+    --background: 0 0% 100%;
+    /* Branco puro */
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -13,10 +14,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 142.1 76.2% 36.3%; /* Verde Premium */
+    --primary: 142.1 76.2% 36.3%;
+    /* Verde Premium */
     --primary-foreground: 355.7 100% 97.3%;
 
-    --secondary: 142.1 10% 95%; 
+    --secondary: 142.1 10% 95%;
     --secondary-foreground: 142.1 76.2% 10%;
 
     --muted: 142.1 10% 95%;
@@ -39,7 +41,8 @@
 .font-iuser {
   font-family: 'Microsoft PhagsPa', sans-serif;
   font-weight: 700;
-  text-transform: none; /* Evita que o navegador force algo que não queremos */
+  text-transform: none;
+  /* Evita que o navegador force algo que não queremos */
 }
 
 @layer base {
@@ -118,4 +121,50 @@
 
 .group:hover .animate-spin-fast {
   animation: spin-fast 1s linear infinite;
+}
+
+/* Adicione ao seu globals.css */
+
+/* Animações suaves */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Power button hover effect */
+.power-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.power-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Input focus animation */
+.input-focus-effect {
+  position: relative;
+}
+
+.input-focus-effect::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: black;
+  transition: all 0.3s ease;
+}
+
+.input-focus-effect:focus-within::after {
+  width: 100%;
+  left: 0;
 }

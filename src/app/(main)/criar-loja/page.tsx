@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Camera, MapPinned, Edit3, X, ArrowLeft } from 'lucide-react'
+import { Camera, MapPinned, Edit3, X, ArrowLeft, Store, Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function CriarLoja() {
     const router = useRouter()
@@ -186,41 +187,43 @@ export default function CriarLoja() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans selection:bg-primary selection:text-primary-foreground pb-40">
-            <div className="max-w-2xl mx-auto space-y-10 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+            <AnimatedBackground />
 
+            <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
                 {/* Header */}
-                <div className="flex items-center gap-6 border-b border-border pb-8">
+                <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
                     <button
                         onClick={() => router.back()}
-                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border hover:bg-secondary transition-all active:scale-95 flex-shrink-0 rounded-none"
+                        className="w-10 h-10 flex items-center justify-center bg-white/90 border-2 border-orange-200 rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-red-500 hover:text-white transition-all"
                     >
-                        <ArrowLeft className="w-6 h-6" />
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-                            Criar Loja<span className="text-primary">.</span>
+                        <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
+                            Criar Loja
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
                             Comece seu negócio digital
                         </p>
                     </div>
-                </div>
+                </header>
 
-                <div className="bg-card/40 backdrop-blur-xl p-8 border border-border shadow-2xl space-y-8 rounded-none">
+                {/* Form Card */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
                     {/* LOGO */}
-                    <div className="space-y-4">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground text-center">
+                    <div className="space-y-3">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 text-center">
                             Logo da Loja
                         </label>
                         <div
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-32 h-32 mx-auto border border-dashed border-primary/50 bg-primary/5 hover:bg-primary/10 flex items-center justify-center cursor-pointer overflow-hidden transition-all group rounded-none"
+                            className="w-28 h-28 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
                         >
                             {preview ? (
                                 <img src={preview} className="w-full h-full object-cover" />
                             ) : (
-                                <Camera className="text-primary group-hover:scale-110 transition-transform" size={32} />
+                                <Camera className="text-orange-500 group-hover:scale-110 transition-transform" size={32} />
                             )}
                         </div>
                         <input
@@ -233,59 +236,77 @@ export default function CriarLoja() {
 
                     {/* NOME */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                            <Store className="w-3 h-3 text-orange-500" />
                             Nome da Loja
                         </label>
                         <input
                             placeholder="Minha Super Loja"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 rounded-none"
+                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
                         />
                     </div>
 
                     {/* SLUG */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                            <Zap className="w-3 h-3 text-orange-500" />
                             Endereço (Link)
                         </label>
-                        <div className="flex bg-secondary/30 border border-border focus-within:border-primary overflow-hidden transition-all rounded-none">
-                            <span className="flex items-center px-4 bg-muted text-muted-foreground border-r border-border text-xs font-bold whitespace-nowrap">
+                        <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
+                            <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
                                 iuser.com.br/
                             </span>
                             <input
                                 placeholder="minha-loja"
                                 value={storeSlug}
                                 onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                className="w-full p-4 bg-transparent text-foreground font-bold outline-none"
+                                className="flex-1 px-3 py-3 bg-white text-gray-900 text-sm outline-none"
                             />
                         </div>
-                        {storeSlug && slugStatus === 'checking' && <p className="text-[10px] font-bold text-muted-foreground mt-2 animate-pulse uppercase tracking-wider">Verificando...</p>}
-                        {storeSlug && slugStatus === 'available' && <p className="text-[10px] font-bold text-green-500 mt-2 uppercase tracking-wider">✓ Link Disponível</p>}
-                        {storeSlug && slugStatus === 'taken' && <p className="text-[10px] font-bold text-destructive mt-2 uppercase tracking-wider">✗ Indisponível, adaptado</p>}
+                        {storeSlug && slugStatus === 'checking' && (
+                            <div className="flex items-center gap-2 text-[9px] font-bold text-gray-500 mt-1">
+                                <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                                Verificando...
+                            </div>
+                        )}
+                        {storeSlug && slugStatus === 'available' && (
+                            <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                Link disponível
+                            </div>
+                        )}
+                        {storeSlug && slugStatus === 'taken' && (
+                            <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
+                                <AlertCircle className="w-3 h-3" />
+                                Indisponível, adaptado
+                            </div>
+                        )}
                     </div>
 
                     {/* DESCRIÇÃO */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
                             Descrição
                         </label>
                         <textarea
                             placeholder="O que você vende?"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 min-h-[100px] rounded-none"
+                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all min-h-[100px]"
                         />
                     </div>
 
                     {/* LOCALIZAÇÃO */}
-                    <div className="space-y-4">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
+                    <div className="space-y-3">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                            <MapPinned className="w-3 h-3 text-orange-500" />
                             Localização
                         </label>
 
                         {!location && !editingAddress && (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 <button
                                     disabled={loadingLocation}
                                     onClick={() => {
@@ -302,9 +323,9 @@ export default function CriarLoja() {
                                             }
                                         )
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-black uppercase text-[10px] tracking-widest transition-all rounded-none"
+                                    className="w-full flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-700 border-2 border-orange-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-orange-100 transition-all"
                                 >
-                                    <MapPinned size={16} />
+                                    <MapPinned size={14} />
                                     {loadingLocation ? 'Buscando...' : 'Usar minha localização atual'}
                                 </button>
 
@@ -316,15 +337,15 @@ export default function CriarLoja() {
                                             setManualAddress(e.target.value)
                                             setEditingAddress(true)
                                         }}
-                                        className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 rounded-none"
+                                        className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
                                     />
                                     {suggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border overflow-hidden z-50 shadow-2xl rounded-none">
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-orange-200 rounded-xl overflow-hidden shadow-lg z-50">
                                             {suggestions.map((s, i) => (
                                                 <div
                                                     key={i}
                                                     onClick={() => selectSuggestion(s)}
-                                                    className="p-4 hover:bg-muted cursor-pointer border-b border-border/50 last:border-0 text-sm font-bold"
+                                                    className="p-3 hover:bg-orange-50 cursor-pointer border-b border-orange-100 last:border-0 text-sm text-gray-700"
                                                 >
                                                     {s.place_name}
                                                 </div>
@@ -336,13 +357,13 @@ export default function CriarLoja() {
                         )}
 
                         {location && !editingAddress && (
-                            <div className="p-5 border border-primary/30 bg-primary/5 space-y-3 rounded-none">
-                                <p className="text-sm font-bold text-foreground">{address}</p>
+                            <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-200 space-y-2">
+                                <p className="text-sm font-medium text-gray-800">{address}</p>
                                 <button
                                     onClick={() => setEditingAddress(true)}
-                                    className="flex items-center gap-2 text-primary hover:text-primary/80 text-[10px] uppercase font-black tracking-widest transition-colors"
+                                    className="flex items-center gap-2 text-orange-600 hover:text-orange-700 text-[9px] uppercase font-black tracking-wider"
                                 >
-                                    <Edit3 size={14} />
+                                    <Edit3 size={12} />
                                     Editar Local
                                 </button>
                             </div>
@@ -354,15 +375,15 @@ export default function CriarLoja() {
                                     placeholder="Digite um novo endereço"
                                     value={manualAddress}
                                     onChange={(e) => setManualAddress(e.target.value)}
-                                    className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 rounded-none"
+                                    className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
                                 />
                                 {suggestions.length > 0 && (
-                                    <div className="absolute top-[52px] left-0 right-0 bg-card border border-border overflow-hidden z-50 shadow-2xl rounded-none">
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-orange-200 rounded-xl overflow-hidden shadow-lg z-50">
                                         {suggestions.map((s, i) => (
                                             <div
                                                 key={i}
                                                 onClick={() => selectSuggestion(s)}
-                                                className="p-4 hover:bg-muted cursor-pointer border-b border-border/50 last:border-0 text-sm font-bold"
+                                                className="p-3 hover:bg-orange-50 cursor-pointer border-b border-orange-100 last:border-0 text-sm text-gray-700"
                                             >
                                                 {s.place_name}
                                             </div>
@@ -370,23 +391,33 @@ export default function CriarLoja() {
                                     </div>
                                 )}
                                 <button
-                                    onClick={() => setEditingAddress(false)}
-                                    className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2 hover:text-foreground transition-colors"
+                                    onClick={() => {
+                                        setEditingAddress(false)
+                                        setSuggestions([])
+                                    }}
+                                    className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-[9px] uppercase font-black tracking-wider"
                                 >
-                                    <X size={14} />
-                                    Cancelar edição
+                                    <X size={12} />
+                                    Cancelar
                                 </button>
                             </div>
                         )}
                     </div>
 
-                    {/* BOTÃO */}
+                    {/* BOTÃO CRIAR */}
                     <button
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl mt-4 rounded-none"
+                        className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                        {loading ? 'Criando...' : 'Criar Loja'}
+                        {loading ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <>
+                                <Sparkles className="w-4 h-4" />
+                                Criar Loja
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

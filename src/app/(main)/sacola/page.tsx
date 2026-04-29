@@ -2,11 +2,12 @@
 
 import { useCartStore } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart, Store, ChevronRight, Trash2, ArrowLeft, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, Package } from 'lucide-react'
+import { ShoppingCart, Store, ChevronRight, Trash2, ArrowLeft, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, Package, Flame, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function Sacola() {
     const { itemsByStore, storeDetails, updateQuantity, removeItem, clearStoreCart } = useCartStore()
@@ -231,9 +232,9 @@ export default function Sacola() {
             .channel(`buyer-status-${currentUserId}`)
             .on(
                 'postgres_changes',
-                { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
                     table: 'orders',
                     filter: `buyer_id=eq.${currentUserId}`
                 },
@@ -258,9 +259,9 @@ export default function Sacola() {
             )
             .on(
                 'postgres_changes',
-                { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
                     table: 'store_sales',
                     filter: `buyer_id=eq.${currentUserId}`
                 },
@@ -270,7 +271,6 @@ export default function Sacola() {
             )
             .subscribe()
 
-        // Fallback polling
         const interval = setInterval(() => {
             loadUserData(currentUserId)
         }, 8000)
@@ -328,7 +328,6 @@ export default function Sacola() {
                         console.warn('Fallback to legacy store_sales: ', orderError.message)
                     }
 
-                    // Sempre adicionar ao finalOrders e salvar no store_sales para não quebrar o fluxo
                     finalOrders.push({
                         id: orderData?.id || checkout_id,
                         store_id: storeData.id,
@@ -395,7 +394,6 @@ export default function Sacola() {
                 await loadUserData(currentUserId)
             }
 
-
             if (storeSlugs.length === 1 && finalOrders.length > 0) {
                 const slug = storeSlugs[0]
                 const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id').eq('storeSlug', slug).single()
@@ -424,21 +422,25 @@ export default function Sacola() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground font-sans selection:bg-green-500 selection:text-white pb-32">
-            <div className="max-w-3xl mx-auto px-4 py-6">
+        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+            {/* Fundo animado compartilhado */}
+            <AnimatedBackground />
+
+            {/* Conteúdo principal */}
+            <div className="relative z-10 max-w-3xl mx-auto px-4 py-6">
                 {/* Header */}
-                <header className="flex items-center gap-3 mb-6 border-b border-border pb-4">
+                <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
                     <button
                         onClick={() => router.back()}
-                        className="w-8 h-8 flex items-center justify-center bg-secondary/50 border border-border hover:bg-foreground hover:text-background transition-all"
+                        className="w-8 h-8 flex items-center justify-center bg-white/90 border-2 border-orange-200 rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-red-500 hover:text-white transition-all"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                        <h1 className="text-xl sm:text-2xl font-black tracking-tighter italic uppercase text-foreground leading-none">
-                            {finishedOrders.length > 0 ? 'Pedidos' : 'Carrinho'}<span className="text-green-500">.</span>
+                        <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
+                            {finishedOrders.length > 0 ? 'Pedidos' : 'Carrinho'}
                         </h1>
-                        <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground mt-0.5">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
                             {finishedOrders.length > 0 ? 'Acompanhe suas compras' : `${storeSlugs.length} loja(s)`}
                         </p>
                     </div>
@@ -447,48 +449,46 @@ export default function Sacola() {
                 {/* TELA DE PEDIDOS REALIZADOS */}
                 {finishedOrders.length > 0 ? (
                     <div className="space-y-6">
-                        {/* Banner de confirmação menor */}
-                        <div className="flex items-center gap-3 p-3 border border-green-500/20 bg-green-500/5">
-                            <div className="w-8 h-8 bg-green-500/10 flex items-center justify-center border border-green-500/20">
-                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        {/* Banner de confirmação */}
+                        <div className="flex items-center gap-3 p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-green-500/30">
+                            <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
                             </div>
                             <div>
-                                <h2 className="text-xs font-black italic uppercase tracking-tighter text-foreground">Pedido Realizado!</h2>
-                                <p className="text-[7px] text-muted-foreground">Acompanhe o status abaixo</p>
+                                <h2 className="text-sm font-black text-gray-900">Pedido Realizado!</h2>
+                                <p className="text-[8px] text-gray-500">Acompanhe o status abaixo</p>
                             </div>
                         </div>
 
                         {/* Comprador Info */}
-                        <div className="flex items-center gap-3 p-3 border border-border bg-secondary/10">
-                            <div className="w-10 h-10 bg-background border border-border flex-shrink-0">
+                        <div className="flex items-center gap-3 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-orange-200/50">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-md">
                                 {currentUserAvatar ? (
-                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-secondary">
-                                        <User className="w-5 h-5" />
-                                    </div>
+                                    <User className="w-6 h-6 text-white" />
                                 )}
                             </div>
                             <div>
-                                <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground">Comprador</p>
-                                <p className="text-sm font-black italic text-foreground leading-none mt-0.5">@{currentUserSlug}</p>
+                                <p className="text-[7px] font-black uppercase text-gray-500">Comprador</p>
+                                <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
                             </div>
                         </div>
 
                         {/* Lista de pedidos */}
                         <div className="space-y-3">
                             {finishedOrders.map((order, index) => (
-                                <div key={order.id || index} className="border border-border p-4 space-y-3 bg-card/20">
-                                    <div className="flex justify-between items-center border-b border-border/50 pb-2">
+                                <div key={order.id || index} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-3 shadow-sm">
+                                    <div className="flex justify-between items-center border-b border-orange-100 pb-2">
                                         <div>
-                                            <span className="text-[7px] font-black uppercase text-muted-foreground block mb-0.5">Loja</span>
-                                            <span className="text-sm font-black text-foreground uppercase">{order.storeName}</span>
+                                            <span className="text-[7px] font-black uppercase text-gray-500">Loja</span>
+                                            <p className="text-sm font-black text-gray-900">{order.storeName}</p>
                                         </div>
-                                        <span className={`px-2 py-1 text-[7px] font-black uppercase tracking-wider border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
-                                            order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
-                                                order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
-                                                    order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
-                                                        'border-destructive/30 bg-destructive/10 text-destructive'
+                                        <span className={`px-2 py-1 rounded-full text-[7px] font-black uppercase border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-600' :
+                                                order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-600' :
+                                                    order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-600' :
+                                                        order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-600' :
+                                                            'border-red-500/30 bg-red-500/10 text-red-600'
                                             }`}>
                                             {order.status === 'pending' ? 'Pendente' :
                                                 order.status === 'preparing' ? 'Preparo' :
@@ -499,16 +499,16 @@ export default function Sacola() {
 
                                     <div className="space-y-1.5">
                                         {order.items.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex justify-between items-center text-xs">
-                                                <span className="font-bold text-foreground">{item.quantity}x {item.product.name}</span>
-                                                <span className="font-black text-muted-foreground">R$ {(item.product.price * item.quantity).toFixed(2)}</span>
+                                            <div key={idx} className="flex justify-between text-sm">
+                                                <span className="font-bold text-gray-700">{item.quantity}x {item.product.name}</span>
+                                                <span className="font-black text-gray-600">R$ {(item.product.price * item.quantity).toFixed(2)}</span>
                                             </div>
                                         ))}
                                     </div>
 
-                                    <div className="border-t border-border/50 pt-2 flex justify-between items-center">
-                                        <span className="text-[7px] font-black uppercase text-muted-foreground">Total</span>
-                                        <span className="text-base font-black italic text-foreground">R$ {order.total_amount.toFixed(2)}</span>
+                                    <div className="border-t border-orange-100 pt-2 flex justify-between items-center">
+                                        <span className="text-[7px] font-black uppercase text-gray-500">Total</span>
+                                        <span className="text-lg font-black text-orange-600">R$ {order.total_amount.toFixed(2)}</span>
                                     </div>
                                 </div>
                             ))}
@@ -520,33 +520,26 @@ export default function Sacola() {
                                 setFinishedOrders([])
                                 setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100)
                             }}
-                            className="block w-full text-center px-6 py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all"
+                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
                         >
-                            Acompanhar em Meus Pedidos
+                            Ver Meus Pedidos
                         </button>
                     </div>
                 ) : storeSlugs.length === 0 ? (
-                    /* CARRINHO VAZIO - BEM MENOR */
-                    <div className="py-8 px-4 border border-dashed border-border bg-card/10">
-                        <div className="flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
-                            <div className="flex items-center gap-4">
-                                <div className="p-2 bg-secondary/50 border border-border">
-                                    <ShoppingCart className="w-5 h-5 text-muted-foreground/30" />
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-black italic uppercase tracking-tighter text-foreground">Carrinho vazio</h2>
-                                    <p className="text-muted-foreground text-[7px] font-bold uppercase tracking-wider">
-                                        acesse o vitrine para ver lojas , produtos ou serviços.
-                                    </p>
-                                </div>
-                            </div>
-                            <Link
-                                href="/"
-                                className="px-5 py-2 bg-foreground text-background font-black uppercase text-[8px] tracking-wider hover:bg-green-500 hover:text-white transition-all whitespace-nowrap"
-                            >
-                                Ver Vitrine
-                            </Link>
+                    /* CARRINHO VAZIO */
+                    <div className="bg-white/60 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 text-center">
+                        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <ShoppingCart className="w-8 h-8 text-orange-400" />
                         </div>
+                        <h2 className="text-lg font-black text-gray-900 mb-1">Carrinho vazio</h2>
+                        <p className="text-xs text-gray-500 mb-4">Acesse a vitrine para ver lojas, produtos ou serviços.</p>
+                        <Link
+                            href="/"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all"
+                        >
+                            Ver Vitrine
+                            <ChevronRight className="w-3 h-3" />
+                        </Link>
                     </div>
                 ) : (
                     /* CARRINHO COM ITENS */
@@ -559,56 +552,58 @@ export default function Sacola() {
                                 const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
 
                                 return (
-                                    <div key={slug} className="border border-border overflow-hidden">
-                                        <div className="bg-secondary/20 px-3 py-2 border-b border-border flex items-center justify-between">
+                                    <div key={slug} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 overflow-hidden shadow-sm">
+                                        <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-2.5 border-b border-orange-200/50 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <Store className="w-3 h-3 text-green-500" />
-                                                <span className="text-[8px] font-black uppercase tracking-wider">{details?.name || slug}</span>
+                                                <div className="w-5 h-5 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+                                                    <Store className="w-3 h-3 text-white" />
+                                                </div>
+                                                <span className="text-xs font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</span>
                                             </div>
-                                            <span className="text-[8px] font-black text-muted-foreground">R$ {storeTotal.toFixed(2)}</span>
+                                            <span className="text-xs font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
                                         </div>
 
-                                        <div className="divide-y divide-border">
+                                        <div className="divide-y divide-orange-100">
                                             {items.map((item) => (
-                                                <div key={item.product.id} className="flex gap-3 p-3">
-                                                    <div className="w-12 h-12 bg-secondary border border-border flex-shrink-0">
+                                                <div key={item.product.id} className="flex gap-3 p-4">
+                                                    <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
                                                         {item.product.image_url ? (
                                                             <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground/20 text-xs font-black italic">
+                                                            <div className="w-full h-full flex items-center justify-center text-orange-400 text-xs font-black italic">
                                                                 {item.product.name.charAt(0)}
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <h4 className="text-xs font-black uppercase tracking-tighter text-foreground truncate">{item.product.name}</h4>
-                                                        <p className="text-[8px] font-black text-green-500">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                        <div className="flex items-center gap-2 mt-1.5">
-                                                            <div className="flex items-center bg-secondary border border-border">
+                                                        <h4 className="text-sm font-black text-gray-900 truncate">{item.product.name}</h4>
+                                                        <p className="text-xs font-black text-orange-600 mt-0.5">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                        <div className="flex items-center gap-2 mt-2">
+                                                            <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
                                                                 <button
                                                                     onClick={() => updateQuantity(slug, item.product.id, -1)}
-                                                                    className="w-5 h-5 flex items-center justify-center bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                                    className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-orange-200 transition-all"
                                                                 >
-                                                                    <Minus className="w-2 h-2" />
+                                                                    <Minus className="w-3 h-3" />
                                                                 </button>
-                                                                <span className="w-5 text-center text-[9px] font-black italic">{item.quantity}</span>
+                                                                <span className="w-6 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
                                                                 <button
                                                                     onClick={() => updateQuantity(slug, item.product.id, 1)}
-                                                                    className="w-5 h-5 flex items-center justify-center bg-background text-foreground hover:bg-foreground hover:text-background transition-all"
+                                                                    className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-orange-200 transition-all"
                                                                 >
-                                                                    <Plus className="w-2 h-2" />
+                                                                    <Plus className="w-3 h-3" />
                                                                 </button>
                                                             </div>
                                                             <button
                                                                 onClick={() => removeItem(slug, item.product.id)}
-                                                                className="w-5 h-5 flex items-center justify-center bg-destructive/5 text-destructive/50 hover:bg-destructive hover:text-white transition-all border border-destructive/10"
+                                                                className="w-6 h-6 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-all"
                                                             >
-                                                                <Trash2 className="w-2.5 h-2.5" />
+                                                                <Trash2 className="w-3 h-3" />
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-xs font-black italic text-foreground">
+                                                        <p className="text-sm font-black text-gray-900">
                                                             R$ {(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                         </p>
                                                     </div>
@@ -621,30 +616,26 @@ export default function Sacola() {
                         </div>
 
                         {/* Total e Finalização */}
-                        <div className="border-t border-border pt-4 space-y-4">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-4">
                             <div className="flex items-center justify-between">
-                                <span className="text-[8px] font-black uppercase tracking-wider text-muted-foreground">Total Geral</span>
-                                <span className="text-2xl font-black italic tracking-tighter text-foreground">
-                                    R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </span>
+                                <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
+                                <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
 
                             {currentUserId ? (
-                                <div className="w-full flex flex-col gap-3">
-                                    <div className="flex items-center justify-between gap-3 bg-green-500/10 border border-green-500/20 p-3">
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-200">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 bg-background border border-border flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                                                 {currentUserAvatar ? (
-                                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-secondary">
-                                                        <User className="w-4 h-4" />
-                                                    </div>
+                                                    <User className="w-5 h-5 text-white" />
                                                 )}
                                             </div>
                                             <div>
-                                                <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground">Comprar como</p>
-                                                <p className="text-xs font-black italic text-foreground leading-none mt-0.5">@{currentUserSlug}</p>
+                                                <p className="text-[7px] font-black uppercase text-gray-500">Comprar como</p>
+                                                <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
                                             </div>
                                         </div>
                                         <button
@@ -654,7 +645,7 @@ export default function Sacola() {
                                                 setMyPurchases([])
                                                 setAuthMode('login')
                                             }}
-                                            className="px-2 py-1 bg-background border border-border text-[6px] font-black uppercase tracking-wider text-muted-foreground hover:text-destructive transition-colors"
+                                            className="px-2 py-1 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
                                         >
                                             Sair
                                         </button>
@@ -662,13 +653,13 @@ export default function Sacola() {
                                     <button
                                         onClick={handleFinalizarTudo}
                                         disabled={checkoutLoading}
-                                        className="w-full py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {checkoutLoading ? (
-                                            <div className="w-3.5 h-3.5 border-2 border-background/20 border-t-background rounded-full animate-spin" />
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                         ) : (
                                             <>
-                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                <CheckCircle2 className="w-4 h-4" />
                                                 Finalizar Pedido
                                             </>
                                         )}
@@ -677,7 +668,7 @@ export default function Sacola() {
                             ) : (
                                 <button
                                     onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="w-full py-3 bg-foreground text-background font-black uppercase text-[9px] tracking-wider hover:bg-green-500 hover:text-white transition-all"
+                                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
                                 >
                                     Identificar para Finalizar
                                 </button>
@@ -686,34 +677,34 @@ export default function Sacola() {
 
                         {/* Auth Section */}
                         {!currentUserId && (
-                            <div id="auth-section" className="border-t border-border pt-4 space-y-3">
-                                <div className="flex gap-1">
+                            <div id="auth-section" className="bg-white/60 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-3">
+                                <div className="flex gap-2">
                                     <button
                                         onClick={() => setAuthMode('login')}
-                                        className={`flex-1 py-2 text-[8px] font-black uppercase tracking-wider transition-all border ${authMode === 'login' ? 'bg-foreground text-background border-foreground' : 'bg-secondary/30 text-muted-foreground border-border'}`}
+                                        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
                                     >
                                         Entrar
                                     </button>
                                     <button
                                         onClick={() => setAuthMode('register')}
-                                        className={`flex-1 py-2 text-[8px] font-black uppercase tracking-wider transition-all border ${authMode === 'register' ? 'bg-foreground text-background border-foreground' : 'bg-secondary/30 text-muted-foreground border-border'}`}
+                                        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
                                     >
                                         Criar Conta
                                     </button>
                                 </div>
 
                                 {authError && (
-                                    <div className="p-2 bg-destructive/10 border border-destructive/20 text-destructive text-[7px] font-black uppercase tracking-wider text-center">
-                                        {authError}
+                                    <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[7px] font-black uppercase text-center">
+                                        ⚠️ {authError}
                                     </div>
                                 )}
 
                                 {authMode === 'login' ? (
-                                    <form onSubmit={handleInlineLogin} className="space-y-2">
+                                    <form onSubmit={handleInlineLogin} className="space-y-3">
                                         <input
                                             type="email"
                                             placeholder="seu@email.com"
-                                            className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50"
+                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 transition-all"
                                             value={authEmail}
                                             onChange={(e) => setAuthEmail(e.target.value)}
                                             required
@@ -722,7 +713,7 @@ export default function Sacola() {
                                             <input
                                                 type={showPassword ? 'text' : 'password'}
                                                 placeholder="sua senha"
-                                                className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50 pr-8"
+                                                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
                                                 value={authPassword}
                                                 onChange={(e) => setAuthPassword(e.target.value)}
                                                 required
@@ -730,40 +721,40 @@ export default function Sacola() {
                                             <button
                                                 type="button"
                                                 onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500"
                                             >
-                                                {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                             </button>
                                         </div>
                                         <button
                                             disabled={authLoading}
-                                            className="w-full py-2.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
+                                            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50"
                                         >
                                             {authLoading ? 'Acessando...' : 'Acessar'}
                                         </button>
                                     </form>
                                 ) : (
-                                    <form onSubmit={handleInlineRegister} className="space-y-2">
+                                    <form onSubmit={handleInlineRegister} className="space-y-3">
                                         <input
                                             type="text"
                                             placeholder="Nome Completo"
-                                            className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50"
+                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
                                             value={authName}
                                             onChange={(e) => setAuthName(e.target.value)}
                                             required
                                         />
-                                        <div className="flex items-center gap-1 bg-secondary/50 border border-border px-2">
-                                            <span className="text-[7px] font-black text-muted-foreground">iuser.com.br/</span>
+                                        <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
+                                            <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
                                             <input
                                                 type="text"
                                                 placeholder="link-do-perfil"
-                                                className="flex-1 py-2 bg-transparent text-xs outline-none"
+                                                className="flex-1 py-2.5 bg-transparent text-sm outline-none"
                                                 value={authProfileSlug}
                                                 onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                                                 required
                                             />
                                             {isSlugAvailable !== null && (
-                                                <span className={`text-[7px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
+                                                <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
                                                     {isSlugAvailable ? '✓' : '✗'}
                                                 </span>
                                             )}
@@ -771,7 +762,7 @@ export default function Sacola() {
                                         <input
                                             type="email"
                                             placeholder="seu@email.com"
-                                            className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50"
+                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
                                             value={authEmail}
                                             onChange={(e) => setAuthEmail(e.target.value)}
                                             required
@@ -779,7 +770,7 @@ export default function Sacola() {
                                         <input
                                             type={showPassword ? 'text' : 'password'}
                                             placeholder="Senha"
-                                            className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50"
+                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
                                             value={authPassword}
                                             onChange={(e) => setAuthPassword(e.target.value)}
                                             required
@@ -787,14 +778,14 @@ export default function Sacola() {
                                         <input
                                             type={showPassword ? 'text' : 'password'}
                                             placeholder="Confirmar senha"
-                                            className="w-full bg-secondary/50 border border-border px-3 py-2 text-xs focus:outline-none focus:border-green-500/50"
+                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
                                             value={authConfirmPassword}
                                             onChange={(e) => setAuthConfirmPassword(e.target.value)}
                                             required
                                         />
                                         <button
                                             disabled={authLoading || isSlugAvailable === false}
-                                            className="w-full py-2.5 bg-foreground text-background font-black uppercase text-[8px] tracking-wider hover:bg-green-500 hover:text-white transition-all disabled:opacity-50"
+                                            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50"
                                         >
                                             {authLoading ? 'Cadastrando...' : 'Cadastrar'}
                                         </button>
@@ -805,13 +796,13 @@ export default function Sacola() {
                     </div>
                 )}
 
-                {/* MINHAS COMPRAS - DESTAQUE MAIOR */}
+                {/* MINHAS COMPRAS - DESTAQUE */}
                 {currentUserId && myPurchases.length > 0 && finishedOrders.length === 0 && (
-                    <div className="mt-10 pt-6 border-t border-border">
+                    <div className="mt-10 pt-6 border-t border-orange-200/50">
                         <div className="flex items-center gap-2 mb-4">
-                            <Package className="w-4 h-4 text-green-500" />
-                            <h2 className="text-sm font-black italic uppercase tracking-tighter text-foreground">Meus Pedidos</h2>
-                            <span className="text-[7px] font-black text-muted-foreground">({myPurchases.length} itens)</span>
+                            <Package className="w-5 h-5 text-orange-500" />
+                            <h2 className="text-lg font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
+                            <span className="text-[8px] font-black text-gray-500 bg-white/50 px-2 py-0.5 rounded-full">({myPurchases.length})</span>
                         </div>
 
                         <div className="space-y-3">
@@ -830,19 +821,19 @@ export default function Sacola() {
                                 groups[p.checkout_id].items.push(p)
                                 return groups
                             }, {})).slice(0, 5).map((order: any) => (
-                                <div key={order.checkout_id} className="border border-border p-3 hover:border-green-500/30 transition-all bg-card/10">
+                                <div key={order.checkout_id} className="bg-white/70 backdrop-blur-sm rounded-xl border border-orange-200/50 p-3 hover:border-orange-300 transition-all">
                                     <div className="flex items-center justify-between mb-2">
                                         <div>
-                                            <p className="text-[7px] font-black text-muted-foreground uppercase tracking-wider">
+                                            <p className="text-[7px] font-black text-gray-500 uppercase tracking-wider">
                                                 {new Date(order.created_at).toLocaleDateString('pt-BR')}
                                             </p>
-                                            <h3 className="text-xs font-black italic uppercase tracking-tighter">{order.store_name}</h3>
+                                            <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
                                         </div>
-                                        <div className={`px-2 py-0.5 text-[6px] font-black uppercase tracking-wider border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
-                                            order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
-                                                order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
-                                                    order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
-                                                        'border-destructive/30 bg-destructive/10 text-destructive'
+                                        <div className={`px-2 py-0.5 rounded-full text-[6px] font-black uppercase border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-600' :
+                                                order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-600' :
+                                                    order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-600' :
+                                                        order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-600' :
+                                                            'border-red-500/30 bg-red-500/10 text-red-600'
                                             }`}>
                                             {order.status === 'pending' ? 'Pendente' :
                                                 order.status === 'preparing' ? 'Preparo' :
@@ -853,18 +844,18 @@ export default function Sacola() {
 
                                     <div className="flex flex-wrap gap-1 mb-2">
                                         {order.items.slice(0, 2).map((item: any, idx: number) => (
-                                            <span key={idx} className="text-[7px] font-bold text-muted-foreground bg-secondary/30 px-1.5 py-0.5">
+                                            <span key={idx} className="text-[7px] font-bold text-gray-600 bg-orange-50 px-2 py-0.5 rounded-full">
                                                 {item.quantity}x {item.product_name}
                                             </span>
                                         ))}
                                         {order.items.length > 2 && (
-                                            <span className="text-[7px] font-bold text-muted-foreground">+{order.items.length - 2}</span>
+                                            <span className="text-[7px] font-bold text-gray-500">+{order.items.length - 2}</span>
                                         )}
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                                        <span className="text-[7px] font-black uppercase text-muted-foreground">Total</span>
-                                        <span className="text-sm font-black italic text-foreground">R$ {order.total.toFixed(2)}</span>
+                                    <div className="flex items-center justify-between pt-2 border-t border-orange-100">
+                                        <span className="text-[7px] font-black uppercase text-gray-500">Total</span>
+                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
                                     </div>
                                 </div>
                             ))}
@@ -874,7 +865,7 @@ export default function Sacola() {
                             if (!groups[p.checkout_id]) groups[p.checkout_id] = true
                             return groups
                         }, {})).length > 5 && (
-                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[7px] font-black uppercase tracking-wider text-muted-foreground hover:text-green-500 transition-colors border border-border">
+                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors border border-orange-200 rounded-xl bg-white/30">
                                     Ver todos os pedidos
                                 </Link>
                             )}
