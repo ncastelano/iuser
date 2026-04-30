@@ -46,6 +46,81 @@ export function BottomNav() {
         prevPendingRef.current = pendingOrdersCount
     }, [pendingOrdersCount])
 
+    // Define a cor do ícone da sacola baseada no status do pedido
+    const getCartIconColor = () => {
+        if (!customerOrderStatuses || customerOrderStatuses.length === 0) {
+            return pathname === '/sacola' ? 'text-white' : 'text-gray-500'
+        }
+
+        // Prioridade: pending > preparing > ready > paid
+        if (customerOrderStatuses.includes('pending')) {
+            return pathname === '/sacola' ? 'text-white' : 'text-blue-500'
+        }
+        if (customerOrderStatuses.includes('preparing')) {
+            return pathname === '/sacola' ? 'text-white' : 'text-yellow-500'
+        }
+        if (customerOrderStatuses.includes('ready')) {
+            return pathname === '/sacola' ? 'text-white' : 'text-purple-500'
+        }
+        if (customerOrderStatuses.includes('paid')) {
+            return pathname === '/sacola' ? 'text-white' : 'text-green-500'
+        }
+
+        return pathname === '/sacola' ? 'text-white' : 'text-gray-500'
+    }
+
+    // Define o gradiente do fundo do botão da sacola
+    const getCartButtonGradient = () => {
+        if (pathname === '/sacola') {
+            return 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
+        }
+
+        if (!customerOrderStatuses || customerOrderStatuses.length === 0) {
+            return 'text-gray-500 hover:text-orange-500'
+        }
+
+        if (customerOrderStatuses.includes('pending')) {
+            return 'text-blue-500 hover:text-blue-600'
+        }
+        if (customerOrderStatuses.includes('preparing')) {
+            return 'text-yellow-500 hover:text-yellow-600'
+        }
+        if (customerOrderStatuses.includes('ready')) {
+            return 'text-purple-500 hover:text-purple-600'
+        }
+        if (customerOrderStatuses.includes('paid')) {
+            return 'text-green-500 hover:text-green-600'
+        }
+
+        return 'text-gray-500 hover:text-orange-500'
+    }
+
+    // Define a cor do texto do label da sacola
+    const getCartLabelColor = () => {
+        if (pathname === '/sacola') {
+            return 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
+        }
+
+        if (!customerOrderStatuses || customerOrderStatuses.length === 0) {
+            return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
+        }
+
+        if (customerOrderStatuses.includes('pending')) {
+            return 'opacity-100 text-blue-500'
+        }
+        if (customerOrderStatuses.includes('preparing')) {
+            return 'opacity-100 text-yellow-500'
+        }
+        if (customerOrderStatuses.includes('ready')) {
+            return 'opacity-100 text-purple-500'
+        }
+        if (customerOrderStatuses.includes('paid')) {
+            return 'opacity-100 text-green-500'
+        }
+
+        return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
+    }
+
     return (
         <>
             <style jsx global>{`
@@ -66,10 +141,6 @@ export function BottomNav() {
                     0% { transform: scale(0); opacity: 0; }
                     50% { transform: scale(1.5); }
                     100% { transform: scale(1); opacity: 1; }
-                }
-                @keyframes pulse-ring {
-                    0% { transform: scale(0.8); opacity: 0.5; }
-                    100% { transform: scale(1.5); opacity: 0; }
                 }
                 @keyframes glow-pulse {
                     0%, 100% { 
@@ -93,9 +164,6 @@ export function BottomNav() {
                 }
                 .animate-badge-pop {
                     animation: badge-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                }
-                .animate-pulse-ring {
-                    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
                 }
                 .animate-glow-pulse {
                     animation: glow-pulse 2s ease-in-out infinite;
@@ -140,26 +208,54 @@ export function BottomNav() {
                             </span>
                         </Link>
 
-                        {/* Sacola */}
+                        {/* Sacola - COM CORES DINÂMICAS POR STATUS */}
                         <Link href="/sacola" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
                             <div className={`p-2 rounded-xl transition-all duration-300 ${pathname === '/sacola'
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500'
+                                    ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
+                                    : getCartButtonGradient()
                                 } ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    <ShoppingCart size={22} className={`transition-all duration-300 ${pathname === '/sacola' ? '' : 'group-hover/item:scale-110'} ${isCartAnimating ? 'animate-cart-shake' : ''}`} />
+                                    <ShoppingCart
+                                        size={22}
+                                        className={`transition-all duration-300 ${pathname === '/sacola'
+                                                ? ''
+                                                : 'group-hover/item:scale-110'
+                                            } ${isCartAnimating ? 'animate-cart-shake' : ''}`}
+                                        style={{
+                                            color: pathname === '/sacola' ? undefined : getCartIconColor().replace('text-', '')
+                                        }}
+                                    />
 
-                                    {/* Status badges dos pedidos */}
-                                    {customerOrderStatuses?.length > 0 && (
+                                    {/* Status badges dos pedidos na sacola */}
+                                    {customerOrderStatuses && customerOrderStatuses.length > 0 && (
                                         <div className="absolute -top-1 -left-3 flex gap-0.5 z-10">
                                             {customerOrderStatuses.includes('pending') && (
-                                                <div className="w-2 h-2 rounded-full bg-yellow-500 border border-white shadow-sm animate-pulse" title="Pendente" />
+                                                <div
+                                                    className="w-2.5 h-2.5 rounded-full border border-white shadow-sm animate-pulse"
+                                                    style={{ backgroundColor: '#3b82f6' }}
+                                                    title="Pendente"
+                                                />
                                             )}
                                             {customerOrderStatuses.includes('preparing') && (
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 border border-white shadow-sm animate-pulse" title="Em Preparo" />
+                                                <div
+                                                    className="w-2.5 h-2.5 rounded-full border border-white shadow-sm animate-pulse"
+                                                    style={{ backgroundColor: '#eab308' }}
+                                                    title="Em Preparo"
+                                                />
                                             )}
                                             {customerOrderStatuses.includes('ready') && (
-                                                <div className="w-2 h-2 rounded-full bg-green-500 border border-white shadow-sm animate-pulse" title="Pronto" />
+                                                <div
+                                                    className="w-2.5 h-2.5 rounded-full border border-white shadow-sm animate-pulse"
+                                                    style={{ backgroundColor: '#a855f7' }}
+                                                    title="Pronto"
+                                                />
+                                            )}
+                                            {customerOrderStatuses.includes('paid') && (
+                                                <div
+                                                    className="w-2.5 h-2.5 rounded-full border border-white shadow-sm"
+                                                    style={{ backgroundColor: '#22c55e' }}
+                                                    title="Finalizado"
+                                                />
                                             )}
                                         </div>
                                     )}
@@ -175,8 +271,8 @@ export function BottomNav() {
                             </div>
                             <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/sacola'
                                 ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
-                                } ${isCartAnimating ? 'scale-110 text-orange-600' : ''}`}>
+                                : getCartLabelColor()
+                                } ${isCartAnimating ? 'scale-110' : ''}`}>
                                 Sacola
                             </span>
 
@@ -186,17 +282,13 @@ export function BottomNav() {
                             )}
                         </Link>
 
-                        {/* Financeiro */}
+                        {/* Financeiro - SEM ALTERAÇÕES, mantém laranja/vermelho */}
                         <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
                             <div className={`p-2 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro')
                                 ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
                                 : 'text-gray-500 hover:text-orange-500'
                                 } ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    {/* Anel pulsante para novos pedidos */}
-                                    {pendingOrdersCount > 0 && (
-                                        <div className="absolute inset-0 bg-orange-500/30 rounded-full animate-pulse-ring" />
-                                    )}
                                     <TrendingUp size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/financeiro') ? '' : 'group-hover/item:scale-110'
                                         } ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
 
