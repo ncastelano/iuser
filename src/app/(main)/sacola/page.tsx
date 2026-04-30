@@ -1,8 +1,9 @@
+// src/app/(app)/sacola/page.tsx
 'use client'
 
 import { useCartStore } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
-import { ShoppingCart, Store, ChevronRight, Trash2, ArrowLeft, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Link as LinkIcon, Mail, Lock, Package, Flame, Sparkles } from 'lucide-react'
+import { Store, ChevronRight, Trash2, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Package, ShoppingBag, History, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -14,6 +15,7 @@ export default function Sacola() {
     const router = useRouter()
     const supabase = createClient()
     const [mounted, setMounted] = useState(false)
+    const [viewOrder, setViewOrder] = useState<'carrinho' | 'pedidos'>('carrinho') // Novo estado para ordem
 
     // Auth & Checkout States
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -421,74 +423,95 @@ export default function Sacola() {
         }
     }
 
+    // Decide a ordem: se viewOrder for 'carrinho', Carrinho vem primeiro; se for 'pedidos', Pedidos vem primeiro
+    const showCartFirst = viewOrder === 'carrinho'
+    const showOrdersFirst = viewOrder === 'pedidos'
+
     return (
-        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-            {/* Fundo animado compartilhado */}
+        <div className="relative min-h-screen pb-24 bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
             <AnimatedBackground />
 
-            {/* Conteúdo principal */}
-            <div className="relative z-10 max-w-3xl mx-auto px-4 py-6">
-                {/* Header */}
-                <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
-                    <button
-                        onClick={() => router.back()}
-                        className="w-8 h-8 flex items-center justify-center bg-white/90 border-2 border-orange-200 rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-red-500 hover:text-white transition-all"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                    </button>
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
-                            {finishedOrders.length > 0 ? 'Pedidos' : 'Carrinho'}
-                        </h1>
-                        <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-                            {finishedOrders.length > 0 ? 'Acompanhe suas compras' : `${storeSlugs.length} loja(s)`}
-                        </p>
+            {/* Header estilo iUser - igual ao financeiro */}
+            <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-orange-100 px-4 py-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg">
+                            <ShoppingBag size={18} className="text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                                {finishedOrders.length > 0 ? 'Pedidos' : 'Sacola'}
+                            </h1>
+                            <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider">
+                                {finishedOrders.length > 0 ? 'Acompanhe suas compras' : `${storeSlugs.length} loja(s)`}
+                            </p>
+                        </div>
                     </div>
-                </header>
 
-                {/* TELA DE PEDIDOS REALIZADOS */}
+                    {/* Toggle para alternar ordem entre Carrinho e Meus Pedidos */}
+                    {!finishedOrders.length && (
+                        <div className="flex bg-orange-100 rounded-full p-0.5">
+                            <button
+                                onClick={() => setViewOrder('carrinho')}
+                                className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${viewOrder === 'carrinho'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                    : 'text-gray-600'
+                                    }`}
+                            >
+                                <ShoppingBag size={10} />
+                                Carrinho
+                            </button>
+                            <button
+                                onClick={() => setViewOrder('pedidos')}
+                                className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${viewOrder === 'pedidos'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                    : 'text-gray-600'
+                                    }`}
+                            >
+                                <History size={10} />
+                                Pedidos
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="relative z-10 max-w-3xl mx-auto px-4 py-6">
                 {finishedOrders.length > 0 ? (
+                    /* ==================== TELA DE PEDIDOS REALIZADOS ==================== */
                     <div className="space-y-6">
-                        {/* Banner de confirmação */}
-                        <div className="flex items-center gap-3 p-4 bg-white/60 backdrop-blur-sm rounded-2xl border border-green-500/30">
-                            <div className="w-10 h-10 bg-green-500/10 rounded-xl flex items-center justify-center">
-                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <div className="bg-white/40 rounded-2xl p-5 text-center border border-orange-100">
+                            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <CheckCircle2 className="w-8 h-8 text-white" />
                             </div>
-                            <div>
-                                <h2 className="text-sm font-black text-gray-900">Pedido Realizado!</h2>
-                                <p className="text-[8px] text-gray-500">Acompanhe o status abaixo</p>
-                            </div>
+                            <h2 className="text-lg font-black text-gray-900">Pedido Realizado!</h2>
+                            <p className="text-[10px] text-gray-500 mt-1">Acompanhe o status abaixo em tempo real</p>
                         </div>
 
-                        {/* Comprador Info */}
-                        <div className="flex items-center gap-3 p-4 bg-white/50 backdrop-blur-sm rounded-2xl border border-orange-200/50">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-md">
+                        <div className="bg-white/40 rounded-2xl p-4 border border-orange-100 flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
                                 {currentUserAvatar ? (
-                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                                    <img src={currentUserAvatar} alt="" className="w-full h-full rounded-full object-cover" />
                                 ) : (
                                     <User className="w-6 h-6 text-white" />
                                 )}
                             </div>
                             <div>
-                                <p className="text-[7px] font-black uppercase text-gray-500">Comprador</p>
-                                <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
+                                <p className="text-[8px] font-black uppercase text-gray-500">Comprador</p>
+                                <p className="text-base font-black text-gray-900">@{currentUserSlug}</p>
                             </div>
                         </div>
 
-                        {/* Lista de pedidos */}
                         <div className="space-y-3">
                             {finishedOrders.map((order, index) => (
-                                <div key={order.id || index} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-3 shadow-sm">
-                                    <div className="flex justify-between items-center border-b border-orange-100 pb-2">
-                                        <div>
-                                            <span className="text-[7px] font-black uppercase text-gray-500">Loja</span>
-                                            <p className="text-sm font-black text-gray-900">{order.storeName}</p>
-                                        </div>
-                                        <span className={`px-2 py-1 rounded-full text-[7px] font-black uppercase border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-600' :
-                                                order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-600' :
-                                                    order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-600' :
-                                                        order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-600' :
-                                                            'border-red-500/30 bg-red-500/10 text-red-600'
+                                <div key={index} className="border-b border-orange-100 last:border-b-0 pb-4 last:pb-0">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-lg font-black italic text-gray-900">{order.storeName}</h3>
+                                        <span className={`text-[8px] font-black px-2 py-1 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
+                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
+                                                    order.status === 'paid' ? 'bg-green-100 text-green-600' :
+                                                        'bg-red-100 text-red-600'
                                             }`}>
                                             {order.status === 'pending' ? 'Pendente' :
                                                 order.status === 'preparing' ? 'Preparo' :
@@ -496,19 +519,17 @@ export default function Sacola() {
                                                         order.status === 'paid' ? 'Finalizado' : 'Recusado'}
                                         </span>
                                     </div>
-
-                                    <div className="space-y-1.5">
+                                    <div className="space-y-2">
                                         {order.items.map((item: any, idx: number) => (
                                             <div key={idx} className="flex justify-between text-sm">
                                                 <span className="font-bold text-gray-700">{item.quantity}x {item.product.name}</span>
-                                                <span className="font-black text-gray-600">R$ {(item.product.price * item.quantity).toFixed(2)}</span>
+                                                <span className="font-black text-gray-900">R$ {(item.product.price * item.quantity).toFixed(2)}</span>
                                             </div>
                                         ))}
                                     </div>
-
-                                    <div className="border-t border-orange-100 pt-2 flex justify-between items-center">
-                                        <span className="text-[7px] font-black uppercase text-gray-500">Total</span>
-                                        <span className="text-lg font-black text-orange-600">R$ {order.total_amount.toFixed(2)}</span>
+                                    <div className="flex justify-between items-center mt-3 pt-2 border-t border-orange-100">
+                                        <span className="text-[8px] font-black uppercase text-gray-500">Total</span>
+                                        <span className="text-xl font-black text-orange-600">R$ {order.total_amount.toFixed(2)}</span>
                                     </div>
                                 </div>
                             ))}
@@ -518,357 +539,537 @@ export default function Sacola() {
                             onClick={async () => {
                                 if (currentUserId) await loadUserData(currentUserId)
                                 setFinishedOrders([])
-                                setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100)
+                                setViewOrder('carrinho')
                             }}
-                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
+                            className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
                         >
                             Ver Meus Pedidos
                         </button>
                     </div>
-                ) : storeSlugs.length === 0 ? (
-                    /* CARRINHO VAZIO */
-                    <div className="bg-white/60 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 text-center">
-                        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <ShoppingCart className="w-8 h-8 text-orange-400" />
+                ) : storeSlugs.length === 0 && myPurchases.length === 0 ? (
+                    /* ==================== SACOLA VAZIA E SEM PEDIDOS ==================== */
+                    <div className="text-center py-16">
+                        <div className="w-24 h-24 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
+                            <ShoppingBag className="w-12 h-12 text-orange-400" />
                         </div>
-                        <h2 className="text-lg font-black text-gray-900 mb-1">Carrinho vazio</h2>
-                        <p className="text-xs text-gray-500 mb-4">Acesse a vitrine para ver lojas, produtos ou serviços.</p>
-                        <Link
-                            href="/"
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all"
-                        >
+                        <h2 className="text-xl font-black text-gray-900 mb-2">Sua sacola está vazia</h2>
+                        <p className="text-sm text-gray-500 mb-6">Explore as lojas e encontre o que você procura</p>
+                        <Link href="/" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all">
                             Ver Vitrine
-                            <ChevronRight className="w-3 h-3" />
+                            <ChevronRight className="w-4 h-4" />
                         </Link>
                     </div>
                 ) : (
-                    /* CARRINHO COM ITENS */
-                    <div className="space-y-6">
-                        {/* Lista de Itens */}
-                        <div className="space-y-4">
-                            {storeSlugs.map((slug) => {
-                                const details = storeDetails[slug]
-                                const items = itemsByStore[slug]
-                                const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+                    /* ==================== AMBOS VISÍVEIS COM ORDEM DEFINIDA PELO TOGGLE ==================== */
+                    <div className="space-y-8">
+                        {showCartFirst ? (
+                            // ========== CARRINHO EM PRIMEIRO ==========
+                            <>
+                                {/* Seção Carrinho */}
+                                <div>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                            <ShoppingCart size={16} className="text-white" />
+                                        </div>
+                                        <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
+                                        {storeSlugs.length > 0 && (
+                                            <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{storeSlugs.length} loja(s)</span>
+                                        )}
+                                    </div>
 
-                                return (
-                                    <div key={slug} className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 overflow-hidden shadow-sm">
-                                        <div className="bg-gradient-to-r from-orange-50 to-red-50 px-4 py-2.5 border-b border-orange-200/50 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-5 h-5 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-                                                    <Store className="w-3 h-3 text-white" />
+                                    {storeSlugs.length === 0 ? (
+                                        <div className="bg-white/40 rounded-2xl p-8 text-center border border-orange-100">
+                                            <ShoppingBag className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                                            <p className="text-gray-500 font-bold text-sm">Carrinho vazio</p>
+                                        </div>
+                                    ) : (
+                                        storeSlugs.map((slug) => {
+                                            const details = storeDetails[slug]
+                                            const items = itemsByStore[slug]
+                                            const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+
+                                            return (
+                                                <div key={slug} className="border-b border-orange-100 last:border-b-0 pb-5 mb-5 last:pb-0">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <Store size={14} className="text-orange-500" />
+                                                            <h3 className="text-sm font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</h3>
+                                                        </div>
+                                                        <span className="text-sm font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        {items.map((item) => (
+                                                            <div key={item.product.id} className="flex gap-3">
+                                                                <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
+                                                                    {item.product.image_url ? (
+                                                                        <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-orange-400 text-lg font-black italic">
+                                                                            {item.product.name.charAt(0)}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <h4 className="text-sm font-black text-gray-900">{item.product.name}</h4>
+                                                                    <p className="text-xs font-black text-orange-600">R$ {item.product.price.toFixed(2)}</p>
+                                                                    <div className="flex items-center gap-2 mt-2">
+                                                                        <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
+                                                                            <button
+                                                                                onClick={() => updateQuantity(slug, item.product.id, -1)}
+                                                                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
+                                                                            >
+                                                                                <Minus className="w-3 h-3" />
+                                                                            </button>
+                                                                            <span className="w-7 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
+                                                                            <button
+                                                                                onClick={() => updateQuantity(slug, item.product.id, 1)}
+                                                                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
+                                                                            >
+                                                                                <Plus className="w-3 h-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => removeItem(slug, item.product.id)}
+                                                                            className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white"
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-sm font-black text-gray-900">
+                                                                        R$ {(item.product.price * item.quantity).toFixed(2)}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <span className="text-xs font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</span>
-                                            </div>
-                                            <span className="text-xs font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
+                                            )
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Total e Finalização do Carrinho */}
+                                {storeSlugs.length > 0 && (
+                                    <div className="pt-4 border-t border-orange-200">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
+                                            <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
 
-                                        <div className="divide-y divide-orange-100">
-                                            {items.map((item) => (
-                                                <div key={item.product.id} className="flex gap-3 p-4">
-                                                    <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
-                                                        {item.product.image_url ? (
-                                                            <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-orange-400 text-xs font-black italic">
-                                                                {item.product.name.charAt(0)}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="text-sm font-black text-gray-900 truncate">{item.product.name}</h4>
-                                                        <p className="text-xs font-black text-orange-600 mt-0.5">R$ {item.product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                                                        <div className="flex items-center gap-2 mt-2">
-                                                            <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
-                                                                <button
-                                                                    onClick={() => updateQuantity(slug, item.product.id, -1)}
-                                                                    className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-orange-200 transition-all"
-                                                                >
-                                                                    <Minus className="w-3 h-3" />
-                                                                </button>
-                                                                <span className="w-6 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
-                                                                <button
-                                                                    onClick={() => updateQuantity(slug, item.product.id, 1)}
-                                                                    className="w-6 h-6 flex items-center justify-center text-gray-600 hover:bg-orange-200 transition-all"
-                                                                >
-                                                                    <Plus className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => removeItem(slug, item.product.id)}
-                                                                className="w-6 h-6 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white transition-all"
-                                                            >
-                                                                <Trash2 className="w-3 h-3" />
-                                                            </button>
+                                        {currentUserId ? (
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                                            {currentUserAvatar ? (
+                                                                <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                                                            ) : (
+                                                                <User className="w-5 h-5 text-white" />
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[7px] font-black uppercase text-gray-500">Comprar como</p>
+                                                            <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-sm font-black text-gray-900">
-                                                            R$ {(item.product.price * item.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                        </p>
+                                                    <button
+                                                        onClick={async () => {
+                                                            await supabase.auth.signOut()
+                                                            setCurrentUserId(null)
+                                                            setMyPurchases([])
+                                                            setAuthMode('login')
+                                                        }}
+                                                        className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
+                                                    >
+                                                        Sair
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    onClick={handleFinalizarTudo}
+                                                    disabled={checkoutLoading}
+                                                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                >
+                                                    {checkoutLoading ? (
+                                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                    ) : (
+                                                        <>Finalizar Pedido <CheckCircle2 className="w-5 h-5" /></>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
+                                                className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
+                                            >
+                                                Identificar para Finalizar
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Auth Section */}
+                                {!currentUserId && storeSlugs.length > 0 && (
+                                    <div id="auth-section" className="pt-4">
+                                        <div className="bg-white/40 rounded-2xl p-5 border border-orange-100">
+                                            <div className="flex gap-2 mb-4">
+                                                <button
+                                                    onClick={() => setAuthMode('login')}
+                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                                                >
+                                                    Entrar
+                                                </button>
+                                                <button
+                                                    onClick={() => setAuthMode('register')}
+                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                                                >
+                                                    Criar Conta
+                                                </button>
+                                            </div>
+
+                                            {authError && (
+                                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[8px] font-black uppercase text-center">
+                                                    ⚠️ {authError}
+                                                </div>
+                                            )}
+
+                                            {authMode === 'login' ? (
+                                                <form onSubmit={handleInlineLogin} className="space-y-3">
+                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                                                    <div className="relative">
+                                                        <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
+                                                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
+                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                        </button>
+                                                    </div>
+                                                    <button disabled={authLoading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                                                        {authLoading ? 'Acessando...' : 'Acessar minha conta'}
+                                                    </button>
+                                                </form>
+                                            ) : (
+                                                <form onSubmit={handleInlineRegister} className="space-y-3">
+                                                    <input type="text" placeholder="Nome Completo" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authName} onChange={(e) => setAuthName(e.target.value)} required />
+                                                    <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
+                                                        <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
+                                                        <input type="text" placeholder="seu-perfil" className="flex-1 py-3 bg-transparent text-sm outline-none"
+                                                            value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required />
+                                                        {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓ Disponível' : '✗ Indisponível'}</span>}
+                                                    </div>
+                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required />
+                                                    <button disabled={authLoading || isSlugAvailable === false} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                                                        {authLoading ? 'Cadastrando...' : 'Criar minha conta'}
+                                                    </button>
+                                                </form>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Seção Meus Pedidos (depois do Carrinho) */}
+                                {currentUserId && myPurchases.length > 0 && (
+                                    <div className="mt-8 pt-6 border-t border-orange-200">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <History size={18} className="text-orange-500" />
+                                            <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
+                                            <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {Object.values(myPurchases.reduce((groups: any, p) => {
+                                                if (!groups[p.checkout_id]) {
+                                                    groups[p.checkout_id] = {
+                                                        checkout_id: p.checkout_id,
+                                                        store_name: p.store_name,
+                                                        created_at: p.created_at,
+                                                        status: p.status,
+                                                        total: 0,
+                                                        items: []
+                                                    }
+                                                }
+                                                groups[p.checkout_id].total += p.price
+                                                groups[p.checkout_id].items.push(p)
+                                                return groups
+                                            }, {})).slice(0, 3).map((order: any) => (
+                                                <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                                        <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
+                                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
+                                                                    'bg-green-100 text-green-600'
+                                                            }`}>
+                                                            {order.status === 'pending' ? 'Pendente' :
+                                                                order.status === 'preparing' ? 'Preparo' :
+                                                                    order.status === 'ready' ? 'Pronto' : 'Finalizado'}
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
+                                                    <div className="flex justify-between items-center mt-2">
+                                                        <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
+                                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {Object.values(myPurchases.reduce((groups: any, p) => {
+                                            if (!groups[p.checkout_id]) groups[p.checkout_id] = true
+                                            return groups
+                                        }, {})).length > 3 && (
+                                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
+                                                    Ver todos os {Object.values(myPurchases.reduce((groups: any, p) => {
+                                                        if (!groups[p.checkout_id]) groups[p.checkout_id] = true
+                                                        return groups
+                                                    }, {})).length} pedidos →
+                                                </Link>
+                                            )}
                                     </div>
-                                )
-                            })}
-                        </div>
+                                )}
+                            </>
+                        ) : (
+                            // ========== PEDIDOS EM PRIMEIRO ==========
+                            <>
+                                {/* Seção Meus Pedidos (em primeiro) */}
+                                {currentUserId && myPurchases.length > 0 && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <History size={18} className="text-orange-500" />
+                                            <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
+                                            <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
+                                        </div>
 
-                        {/* Total e Finalização */}
-                        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
-                                <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
+                                        <div className="space-y-3">
+                                            {Object.values(myPurchases.reduce((groups: any, p) => {
+                                                if (!groups[p.checkout_id]) {
+                                                    groups[p.checkout_id] = {
+                                                        checkout_id: p.checkout_id,
+                                                        store_name: p.store_name,
+                                                        created_at: p.created_at,
+                                                        status: p.status,
+                                                        total: 0,
+                                                        items: []
+                                                    }
+                                                }
+                                                groups[p.checkout_id].total += p.price
+                                                groups[p.checkout_id].items.push(p)
+                                                return groups
+                                            }, {})).slice(0, 5).map((order: any) => (
+                                                <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                                        <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
+                                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
+                                                                    'bg-green-100 text-green-600'
+                                                            }`}>
+                                                            {order.status === 'pending' ? 'Pendente' :
+                                                                order.status === 'preparing' ? 'Preparo' :
+                                                                    order.status === 'ready' ? 'Pronto' : 'Finalizado'}
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
+                                                    <div className="flex justify-between items-center mt-2">
+                                                        <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
+                                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
 
-                            {currentUserId ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-200">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                                                {currentUserAvatar ? (
-                                                    <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-                                                ) : (
-                                                    <User className="w-5 h-5 text-white" />
+                                        {Object.values(myPurchases.reduce((groups: any, p) => {
+                                            if (!groups[p.checkout_id]) groups[p.checkout_id] = true
+                                            return groups
+                                        }, {})).length > 5 && (
+                                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
+                                                    Ver todos os pedidos →
+                                                </Link>
+                                            )}
+                                    </div>
+                                )}
+
+                                {/* Seção Carrinho (depois dos Pedidos) */}
+                                <div className={currentUserId && myPurchases.length > 0 ? "mt-8 pt-6 border-t border-orange-200" : ""}>
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                            <ShoppingCart size={16} className="text-white" />
+                                        </div>
+                                        <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
+                                        {storeSlugs.length > 0 && (
+                                            <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{storeSlugs.length} loja(s)</span>
+                                        )}
+                                    </div>
+
+                                    {storeSlugs.length === 0 ? (
+                                        <div className="bg-white/40 rounded-2xl p-8 text-center border border-orange-100">
+                                            <ShoppingBag className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                                            <p className="text-gray-500 font-bold text-sm">Carrinho vazio</p>
+                                            <Link href="/" className="inline-block mt-3 text-orange-500 font-black text-[9px] uppercase tracking-wider">Explorar vitrine →</Link>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {storeSlugs.map((slug) => {
+                                                const details = storeDetails[slug]
+                                                const items = itemsByStore[slug]
+                                                const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+
+                                                return (
+                                                    <div key={slug} className="border-b border-orange-100 last:border-b-0 pb-5 mb-5 last:pb-0">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <Store size={14} className="text-orange-500" />
+                                                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</h3>
+                                                            </div>
+                                                            <span className="text-sm font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
+                                                        </div>
+
+                                                        <div className="space-y-3">
+                                                            {items.map((item) => (
+                                                                <div key={item.product.id} className="flex gap-3">
+                                                                    <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
+                                                                        {item.product.image_url ? (
+                                                                            <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center text-orange-400 text-lg font-black italic">
+                                                                                {item.product.name.charAt(0)}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <h4 className="text-sm font-black text-gray-900">{item.product.name}</h4>
+                                                                        <p className="text-xs font-black text-orange-600">R$ {item.product.price.toFixed(2)}</p>
+                                                                        <div className="flex items-center gap-2 mt-2">
+                                                                            <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
+                                                                                <button
+                                                                                    onClick={() => updateQuantity(slug, item.product.id, -1)}
+                                                                                    className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
+                                                                                >
+                                                                                    <Minus className="w-3 h-3" />
+                                                                                </button>
+                                                                                <span className="w-7 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
+                                                                                <button
+                                                                                    onClick={() => updateQuantity(slug, item.product.id, 1)}
+                                                                                    className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
+                                                                                >
+                                                                                    <Plus className="w-3 h-3" />
+                                                                                </button>
+                                                                            </div>
+                                                                            <button
+                                                                                onClick={() => removeItem(slug, item.product.id)}
+                                                                                className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white"
+                                                                            >
+                                                                                <Trash2 className="w-3 h-3" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-sm font-black text-gray-900">
+                                                                            R$ {(item.product.price * item.quantity).toFixed(2)}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+
+                                            {/* Resumo do Carrinho */}
+                                            <div className="pt-4 border-t border-orange-200">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <span className="text-xs font-black uppercase text-gray-500">Total do Carrinho</span>
+                                                    <span className="text-xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                                </div>
+
+                                                {!currentUserId && (
+                                                    <button
+                                                        onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
+                                                        className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all"
+                                                    >
+                                                        Identificar para Finalizar
+                                                    </button>
                                                 )}
                                             </div>
-                                            <div>
-                                                <p className="text-[7px] font-black uppercase text-gray-500">Comprar como</p>
-                                                <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Auth Section */}
+                                {!currentUserId && storeSlugs.length > 0 && (
+                                    <div id="auth-section" className="pt-4">
+                                        <div className="bg-white/40 rounded-2xl p-5 border border-orange-100">
+                                            {/* ... mesmo conteúdo de auth ... */}
+                                            <div className="flex gap-2 mb-4">
+                                                <button
+                                                    onClick={() => setAuthMode('login')}
+                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                                                >
+                                                    Entrar
+                                                </button>
+                                                <button
+                                                    onClick={() => setAuthMode('register')}
+                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                                                >
+                                                    Criar Conta
+                                                </button>
                                             </div>
-                                        </div>
-                                        <button
-                                            onClick={async () => {
-                                                await supabase.auth.signOut()
-                                                setCurrentUserId(null)
-                                                setMyPurchases([])
-                                                setAuthMode('login')
-                                            }}
-                                            className="px-2 py-1 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
-                                        >
-                                            Sair
-                                        </button>
-                                    </div>
-                                    <button
-                                        onClick={handleFinalizarTudo}
-                                        disabled={checkoutLoading}
-                                        className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                    >
-                                        {checkoutLoading ? (
-                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        ) : (
-                                            <>
-                                                <CheckCircle2 className="w-4 h-4" />
-                                                Finalizar Pedido
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
-                                >
-                                    Identificar para Finalizar
-                                </button>
-                            )}
-                        </div>
 
-                        {/* Auth Section */}
-                        {!currentUserId && (
-                            <div id="auth-section" className="bg-white/60 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-4 space-y-3">
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setAuthMode('login')}
-                                        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                    >
-                                        Entrar
-                                    </button>
-                                    <button
-                                        onClick={() => setAuthMode('register')}
-                                        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                    >
-                                        Criar Conta
-                                    </button>
-                                </div>
+                                            {authError && (
+                                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[8px] font-black uppercase text-center">
+                                                    ⚠️ {authError}
+                                                </div>
+                                            )}
 
-                                {authError && (
-                                    <div className="p-2 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[7px] font-black uppercase text-center">
-                                        ⚠️ {authError}
-                                    </div>
-                                )}
-
-                                {authMode === 'login' ? (
-                                    <form onSubmit={handleInlineLogin} className="space-y-3">
-                                        <input
-                                            type="email"
-                                            placeholder="seu@email.com"
-                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 transition-all"
-                                            value={authEmail}
-                                            onChange={(e) => setAuthEmail(e.target.value)}
-                                            required
-                                        />
-                                        <div className="relative">
-                                            <input
-                                                type={showPassword ? 'text' : 'password'}
-                                                placeholder="sua senha"
-                                                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
-                                                value={authPassword}
-                                                onChange={(e) => setAuthPassword(e.target.value)}
-                                                required
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500"
-                                            >
-                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                        <button
-                                            disabled={authLoading}
-                                            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50"
-                                        >
-                                            {authLoading ? 'Acessando...' : 'Acessar'}
-                                        </button>
-                                    </form>
-                                ) : (
-                                    <form onSubmit={handleInlineRegister} className="space-y-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Nome Completo"
-                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                            value={authName}
-                                            onChange={(e) => setAuthName(e.target.value)}
-                                            required
-                                        />
-                                        <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
-                                            <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
-                                            <input
-                                                type="text"
-                                                placeholder="link-do-perfil"
-                                                className="flex-1 py-2.5 bg-transparent text-sm outline-none"
-                                                value={authProfileSlug}
-                                                onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                                required
-                                            />
-                                            {isSlugAvailable !== null && (
-                                                <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
-                                                    {isSlugAvailable ? '✓' : '✗'}
-                                                </span>
+                                            {authMode === 'login' ? (
+                                                <form onSubmit={handleInlineLogin} className="space-y-3">
+                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                                                    <div className="relative">
+                                                        <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
+                                                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
+                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                        </button>
+                                                    </div>
+                                                    <button disabled={authLoading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                                                        {authLoading ? 'Acessando...' : 'Acessar minha conta'}
+                                                    </button>
+                                                </form>
+                                            ) : (
+                                                <form onSubmit={handleInlineRegister} className="space-y-3">
+                                                    <input type="text" placeholder="Nome Completo" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authName} onChange={(e) => setAuthName(e.target.value)} required />
+                                                    <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
+                                                        <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
+                                                        <input type="text" placeholder="seu-perfil" className="flex-1 py-3 bg-transparent text-sm outline-none"
+                                                            value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required />
+                                                        {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓ Disponível' : '✗ Indisponível'}</span>}
+                                                    </div>
+                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                        value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required />
+                                                    <button disabled={authLoading || isSlugAvailable === false} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                                                        {authLoading ? 'Cadastrando...' : 'Criar minha conta'}
+                                                    </button>
+                                                </form>
                                             )}
                                         </div>
-                                        <input
-                                            type="email"
-                                            placeholder="seu@email.com"
-                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                            value={authEmail}
-                                            onChange={(e) => setAuthEmail(e.target.value)}
-                                            required
-                                        />
-                                        <input
-                                            type={showPassword ? 'text' : 'password'}
-                                            placeholder="Senha"
-                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                            value={authPassword}
-                                            onChange={(e) => setAuthPassword(e.target.value)}
-                                            required
-                                        />
-                                        <input
-                                            type={showPassword ? 'text' : 'password'}
-                                            placeholder="Confirmar senha"
-                                            className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                            value={authConfirmPassword}
-                                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                                            required
-                                        />
-                                        <button
-                                            disabled={authLoading || isSlugAvailable === false}
-                                            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50"
-                                        >
-                                            {authLoading ? 'Cadastrando...' : 'Cadastrar'}
-                                        </button>
-                                    </form>
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )}
-                    </div>
-                )}
-
-                {/* MINHAS COMPRAS - DESTAQUE */}
-                {currentUserId && myPurchases.length > 0 && finishedOrders.length === 0 && (
-                    <div className="mt-10 pt-6 border-t border-orange-200/50">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Package className="w-5 h-5 text-orange-500" />
-                            <h2 className="text-lg font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
-                            <span className="text-[8px] font-black text-gray-500 bg-white/50 px-2 py-0.5 rounded-full">({myPurchases.length})</span>
-                        </div>
-
-                        <div className="space-y-3">
-                            {Object.values(myPurchases.reduce((groups: any, p) => {
-                                if (!groups[p.checkout_id]) {
-                                    groups[p.checkout_id] = {
-                                        checkout_id: p.checkout_id,
-                                        store_name: (p as any).store_name,
-                                        created_at: p.created_at,
-                                        status: p.status,
-                                        total: 0,
-                                        items: []
-                                    }
-                                }
-                                groups[p.checkout_id].total += p.price
-                                groups[p.checkout_id].items.push(p)
-                                return groups
-                            }, {})).slice(0, 5).map((order: any) => (
-                                <div key={order.checkout_id} className="bg-white/70 backdrop-blur-sm rounded-xl border border-orange-200/50 p-3 hover:border-orange-300 transition-all">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <div>
-                                            <p className="text-[7px] font-black text-gray-500 uppercase tracking-wider">
-                                                {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                            </p>
-                                            <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
-                                        </div>
-                                        <div className={`px-2 py-0.5 rounded-full text-[6px] font-black uppercase border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-600' :
-                                                order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-600' :
-                                                    order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-600' :
-                                                        order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-600' :
-                                                            'border-red-500/30 bg-red-500/10 text-red-600'
-                                            }`}>
-                                            {order.status === 'pending' ? 'Pendente' :
-                                                order.status === 'preparing' ? 'Preparo' :
-                                                    order.status === 'ready' ? 'Pronto' :
-                                                        order.status === 'paid' ? 'Finalizado' : 'Cancelado'}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-wrap gap-1 mb-2">
-                                        {order.items.slice(0, 2).map((item: any, idx: number) => (
-                                            <span key={idx} className="text-[7px] font-bold text-gray-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                                                {item.quantity}x {item.product_name}
-                                            </span>
-                                        ))}
-                                        {order.items.length > 2 && (
-                                            <span className="text-[7px] font-bold text-gray-500">+{order.items.length - 2}</span>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-2 border-t border-orange-100">
-                                        <span className="text-[7px] font-black uppercase text-gray-500">Total</span>
-                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {Object.values(myPurchases.reduce((groups: any, p) => {
-                            if (!groups[p.checkout_id]) groups[p.checkout_id] = true
-                            return groups
-                        }, {})).length > 5 && (
-                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors border border-orange-200 rounded-xl bg-white/30">
-                                    Ver todos os pedidos
-                                </Link>
-                            )}
                     </div>
                 )}
             </div>

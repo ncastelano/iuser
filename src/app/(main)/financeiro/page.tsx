@@ -25,7 +25,11 @@ import {
     Eye,
     EyeOff,
     Zap,
-    Sparkles
+    Sparkles,
+    HandCoins,
+    History,
+    BanknoteArrowUp,
+    BanknoteArrowDown
 } from 'lucide-react'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { parseCoords } from '@/lib/geo'
@@ -411,7 +415,7 @@ function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onUpdateOr
                             href={`/${profile?.profileSlug}/${store.storeSlug}/pedidos`}
                             className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-600 transition-colors"
                         >
-                            Ver histórico completo ({groupedOrders.length}) <ArrowUpRight size={12} />
+                            Ver histórico desta loja ({groupedOrders.length}) <ArrowUpRight size={12} />
                         </Link>
                     </div>
                 )}
@@ -598,17 +602,26 @@ export default function FinanceiroPage() {
                         <div className="flex bg-orange-100 rounded-full p-0.5">
                             <button
                                 onClick={() => setViewOrder(['merchant', 'customer'])}
-                                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'merchant' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm' : 'text-gray-600'}`}
+                                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewOrder[0] === 'merchant'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                    : 'text-gray-600'
+                                    }`}
                             >
+                                <BanknoteArrowDown size={12} />
                                 Vendas
                             </button>
                             <button
                                 onClick={() => setViewOrder(['customer', 'merchant'])}
-                                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all ${viewOrder[0] === 'customer' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm' : 'text-gray-600'}`}
+                                className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewOrder[0] === 'customer'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                    : 'text-gray-600'
+                                    }`}
                             >
+                                <BanknoteArrowUp size={12} />
                                 Compras
                             </button>
                         </div>
+
                         <Link href="/configuracoes" className="p-2 bg-orange-100 rounded-full hover:bg-orange-200 transition-all">
                             <Settings size={16} className="text-orange-600" />
                         </Link>
@@ -715,6 +728,8 @@ export default function FinanceiroPage() {
                         )}
                     </div>
                 ))}
+
+
             </div>
         </div>
     )

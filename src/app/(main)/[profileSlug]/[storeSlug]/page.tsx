@@ -14,7 +14,6 @@ import {
     Plus,
     Search,
     Share2,
-    ShoppingCart,
     Trash2,
     Clock,
     Star,

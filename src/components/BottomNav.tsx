@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Store, MapPinned, ShoppingCart, Flame, TrendingUp, Zap } from 'lucide-react'
+import { Store, MapPinned, Flame, TrendingUp, Zap, ShoppingBag } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef } from 'react'
@@ -211,15 +211,15 @@ export function BottomNav() {
                         {/* Sacola - COM CORES DINÂMICAS POR STATUS */}
                         <Link href="/sacola" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
                             <div className={`p-2 rounded-xl transition-all duration-300 ${pathname === '/sacola'
-                                    ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                    : getCartButtonGradient()
+                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
+                                : getCartButtonGradient()
                                 } ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    <ShoppingCart
+                                    <ShoppingBag
                                         size={22}
                                         className={`transition-all duration-300 ${pathname === '/sacola'
-                                                ? ''
-                                                : 'group-hover/item:scale-110'
+                                            ? ''
+                                            : 'group-hover/item:scale-110'
                                             } ${isCartAnimating ? 'animate-cart-shake' : ''}`}
                                         style={{
                                             color: pathname === '/sacola' ? undefined : getCartIconColor().replace('text-', '')

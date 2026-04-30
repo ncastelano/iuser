@@ -10,13 +10,13 @@ import {
     User,
     LogOut,
     MapPinned,
-    ShoppingCart,
     Settings,
     Flame,
     Zap,
     Gift,
     Sparkles,
-    TrendingUp
+    TrendingUp,
+    ShoppingBag
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
@@ -184,10 +184,10 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 {totalCartItems > 0 && (
                     <div className="fixed bottom-24 right-4 z-50 animate-slide-in-right">
                         <button
-                            onClick={() => router.push('/carrinho')}
+                            onClick={() => router.push('/sacola')}
                             className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
                         >
-                            <ShoppingCart className="w-4 h-4" />
+                            <ShoppingBag className="w-4 h-4" />
                             <span className="text-sm font-bold">{totalCartItems} itens</span>
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
                         </button>

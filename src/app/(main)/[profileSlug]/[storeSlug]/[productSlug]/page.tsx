@@ -8,7 +8,6 @@ import {
     ArrowLeft,
     Briefcase,
     CheckCircle2,
-    ShoppingCart,
     Store,
     Heart,
     Users,
@@ -16,7 +15,8 @@ import {
     ChevronRight,
     Star,
     Clock,
-    MapPin
+    MapPin,
+    ShoppingBag
 } from 'lucide-react'
 
 import { useCartStore } from '@/store/useCartStore'
@@ -414,7 +414,7 @@ export default function ProductPage() {
                                         : 'bg-foreground text-background border-transparent hover:bg-green-500'
                                         }`}
                                 >
-                                    {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+                                    {isInCart ? <CheckCircle2 className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
                                     {isInCart ? 'No carrinho' : 'Adicionar'}
                                 </button>
                             )}
