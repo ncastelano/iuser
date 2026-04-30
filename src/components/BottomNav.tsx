@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Store, MapPinned, ShoppingCart, DollarSign, Flame, TrendingUp, Zap } from 'lucide-react'
+import { Store, MapPinned, ShoppingCart, Flame, TrendingUp, Zap } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef } from 'react'
@@ -197,12 +197,12 @@ export function BottomNav() {
                                     {pendingOrdersCount > 0 && (
                                         <div className="absolute inset-0 bg-orange-500/30 rounded-full animate-pulse-ring" />
                                     )}
-                                    <DollarSign size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/financeiro') ? '' : 'group-hover/item:scale-110'
+                                    <TrendingUp size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/financeiro') ? '' : 'group-hover/item:scale-110'
                                         } ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
 
                                     {/* Badge de novos pedidos */}
                                     {pendingOrdersCount > 0 && (
-                                        <div className={`absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black shadow-lg px-1 ${isFinanceAnimating ? 'animate-badge-pop' : ''
+                                        <div className={`absolute -bottom-2 -right-5 min-w-[18px] h-[18px] bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black shadow-lg px-1 ${isFinanceAnimating ? 'animate-badge-pop' : ''
                                             }`}>
                                             {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
                                         </div>

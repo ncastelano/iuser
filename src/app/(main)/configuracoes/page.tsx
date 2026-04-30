@@ -1,11 +1,13 @@
+// src/app/(app)/configuracoes/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Save, LogOut, Type } from 'lucide-react'
+import { ArrowLeft, Save, LogOut, Type, Bell, Smartphone, Sparkles } from 'lucide-react'
 import { useFontStore } from '@/store/useFontStore'
 import { toast } from 'sonner'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
@@ -38,8 +40,6 @@ export default function ConfiguracoesPage() {
                 } else {
                     setUseWhatsapp(false)
                 }
-
-
             }
 
             setLoading(false)
@@ -87,145 +87,216 @@ export default function ConfiguracoesPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background flex justify-center items-center text-foreground font-sans">
-                Carregando...
+            <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 flex items-center justify-center">
+                <AnimatedBackground />
+                <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                    <p className="text-[10px] font-black uppercase tracking-wider text-gray-600 animate-pulse">
+                        Carregando configurações...
+                    </p>
+                </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans selection:bg-primary selection:text-primary-foreground">
-            <div className="max-w-2xl mx-auto space-y-10 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="relative min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
+            <AnimatedBackground />
 
-                {/* Header */}
-                <div className="flex items-center gap-6 border-b border-border pb-8">
+            <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 pb-24">
+
+                {/* Header - Estilo iUser */}
+                <div className="mb-8">
                     <button
                         onClick={() => router.back()}
-                        className="w-12 h-12 flex items-center justify-center bg-secondary/50 border border-border  hover:bg-secondary transition-all active:scale-95 rounded-none"
+                        className="group w-12 h-12 rounded-full bg-white shadow-md border border-orange-100 flex items-center justify-center hover:shadow-lg transition-all active:scale-95 mb-6"
                     >
-                        <ArrowLeft className="w-6 h-6" />
+                        <ArrowLeft className="w-5 h-5 text-orange-600 group-hover:-translate-x-0.5 transition-transform" />
                     </button>
 
-                    <div>
-                        <h1 className="text-4xl font-black italic uppercase tracking-tighter leading-none">
-                            Configurações<span className="text-primary">.</span>
+                    <div className="text-center">
+                        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 shadow-md">
+                            <Sparkles size={12} />
+                            Personalize sua experiência
+                        </div>
+                        <h1 className="text-4xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                            Configurações
                         </h1>
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mt-1">
-                            Configure sua experiência no iUser
+                        <p className="text-sm text-gray-600 mt-2">
+                            Ajuste o app do seu jeito
                         </p>
                     </div>
                 </div>
 
-                {/* Card */}
-                <div className="bg-card/40 backdrop-blur-xl p-8 border border-border shadow-2xl space-y-8 rounded-none">
+                {/* Cards de Configuração - Estilo iUser */}
+                <div className="space-y-6">
 
-                    {/* WhatsApp */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-                                Notificações via WhatsApp
-                            </label>
+                    {/* WhatsApp Card */}
+                    <div className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                                    <Smartphone className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black uppercase tracking-tighter text-gray-900">
+                                        WhatsApp
+                                    </h3>
+                                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
+                                        Notificações em tempo real
+                                    </p>
+                                </div>
+                            </div>
+
                             <button
                                 onClick={() => setUseWhatsapp(!useWhatsapp)}
-                                className={`w-10 h-6 p-1 transition-colors rounded-none ${useWhatsapp ? 'bg-green-500' : 'bg-secondary border border-border'}`}
+                                className={`relative w-12 h-6 rounded-full transition-all ${useWhatsapp ? 'bg-green-500' : 'bg-gray-200'
+                                    }`}
                             >
-                                <div className={`w-4 h-4 bg-background shadow-sm transition-transform rounded-none ${useWhatsapp ? 'translate-x-4' : 'translate-x-0'}`} />
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${useWhatsapp ? 'right-1' : 'left-1'
+                                    }`} />
                             </button>
                         </div>
 
                         {useWhatsapp && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                                <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
-                                    Cadastre seu número para receber avisos de pedidos em tempo real diretamente no seu celular.
-                                </p>
-
-                                <div className="bg-primary/5 border border-primary/20 p-5 rounded-none">
-                                    <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">
-                                        Atenção Lojista:
+                            <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                                <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+                                    <p className="text-[9px] font-black text-green-700 uppercase tracking-wider mb-1">
+                                        ✨ Receba alertas no celular
                                     </p>
-                                    <p className="text-[11px] text-muted-foreground font-medium leading-normal">
-                                        Ao clicar em comprar, o cliente enviará os detalhes do pedido para este número.
+                                    <p className="text-xs text-gray-700 leading-relaxed">
+                                        Quando um cliente comprar na sua loja, você receberá os detalhes do pedido diretamente no WhatsApp.
                                     </p>
                                 </div>
 
-                                <input
-                                    type="text"
-                                    placeholder="(00) 00000-0000"
-                                    value={whatsapp}
-                                    onChange={(e) => setWhatsapp(e.target.value)}
-                                    inputMode="tel"
-                                    className="w-full bg-secondary/30 border border-border px-6 py-4 text-foreground font-bold outline-none focus:border-primary transition-all placeholder:text-muted-foreground/30 rounded-none"
-                                />
+                                <div>
+                                    <label className="block text-[9px] font-black uppercase tracking-wider text-gray-600 mb-2">
+                                        Seu número com DDD
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        placeholder="(00) 00000-0000"
+                                        value={whatsapp}
+                                        onChange={(e) => setWhatsapp(e.target.value)}
+                                        className="w-full px-5 py-4 bg-orange-50 border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                                    />
+                                    <p className="text-[8px] text-gray-500 mt-2">
+                                        Exemplo: (11) 99999-9999
+                                    </p>
+                                </div>
                             </div>
                         )}
+
                         {!useWhatsapp && (
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider p-3 bg-secondary/20 border border-dashed border-border text-center rounded-none">
-                                Você receberá notificações apenas na aba Financeiro.
-                            </p>
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 text-center">
+                                <Bell className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                                <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wider">
+                                    Notificações apenas no app
+                                </p>
+                                <p className="text-[9px] text-gray-500 mt-1">
+                                    Você verá os pedidos na aba Financeiro
+                                </p>
+                            </div>
                         )}
                     </div>
 
-                    {/* Fonte */}
-                    <div className="space-y-4 pt-4 border-t border-border/50">
-                        <div className="flex items-center gap-2">
-                            <Type className="w-4 h-4 text-primary" />
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">
-                                Tamanho das Letras
-                            </label>
+                    {/* Tamanho da Fonte Card */}
+                    <div className="bg-white rounded-2xl p-6 border border-orange-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                                <Type className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tighter text-gray-900">
+                                    Tamanho da Fonte
+                                </h3>
+                                <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
+                                    Para melhor leitura
+                                </p>
+                            </div>
                         </div>
-                        
-                        <p className="text-xs text-muted-foreground/80 font-medium leading-relaxed">
-                            Aumente o tamanho dos textos de todo o aplicativo para facilitar a leitura.
+
+                        <p className="text-xs text-gray-600 mb-4">
+                            Aumente ou diminua o tamanho dos textos em todo o aplicativo.
                         </p>
 
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-3 gap-3">
                             <button
                                 onClick={() => setFontSize('normal')}
-                                className={`py-4 font-bold text-xs transition-all border rounded-none ${fontSize === 'normal' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal'
+                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    }`}
                             >
                                 Padrão
                             </button>
                             <button
                                 onClick={() => setFontSize('large')}
-                                className={`py-4 font-bold text-sm transition-all border rounded-none ${fontSize === 'large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large'
+                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    }`}
                             >
                                 Grande
                             </button>
                             <button
                                 onClick={() => setFontSize('extra-large')}
-                                className={`py-4 font-bold text-base transition-all border rounded-none ${fontSize === 'extra-large' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 border-border text-foreground hover:bg-secondary/50'}`}
+                                className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large'
+                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    }`}
                             >
                                 Enorme
                             </button>
                         </div>
+
+                        {/* Preview da fonte */}
+                        <div className="mt-4 p-3 bg-orange-50 rounded-xl border border-orange-100">
+                            <p className={`text-gray-600 ${fontSize === 'normal' ? 'text-sm' : fontSize === 'large' ? 'text-base' : 'text-lg'
+                                }`}>
+                                🔤 Exemplo de texto com esta fonte
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Save */}
+                    {/* Botão Salvar */}
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="w-full py-5 bg-foreground text-background font-black uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl rounded-none"
+                        className="group relative w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {saving ? (
-                            'Guardando...'
-                        ) : (
-                            <>
-                                <Save className="w-5 h-5" />
-                                Salvar Alterações
-                            </>
-                        )}
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                            {saving ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <Save className="w-5 h-5" />
+                                    Salvar Configurações
+                                </>
+                            )}
+                        </span>
                     </button>
-                </div>
 
-                {/* Logout */}
-                <div className="pt-4 px-4">
+                    {/* Botão Sair */}
                     <button
                         onClick={handleLogout}
-                        className="flex items-center gap-3 px-8 py-5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 font-black uppercase text-[10px] tracking-[0.3em] transition-all w-full justify-center group rounded-none"
+                        className="group w-full bg-red-50 border-2 border-red-200 text-red-600 py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-lg active:scale-95"
                     >
-                        <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        Sair da conta
+                        <span className="flex items-center justify-center gap-2">
+                            <LogOut className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                            Sair da Conta
+                        </span>
                     </button>
+
+                    {/* Versão do App */}
+                    <div className="text-center pt-4">
+                        <p className="text-[8px] font-black uppercase tracking-wider text-gray-400">
+                            iUser App • Versão 2.0.0
+                        </p>
+                        <p className="text-[7px] text-gray-400 mt-1">
+                            Mostre ao mundo o que você tem de melhor
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

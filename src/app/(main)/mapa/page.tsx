@@ -5,8 +5,9 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
+import { toast } from 'sonner'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -105,9 +106,10 @@ export default function MapPage() {
     const [clusterItems, setClusterItems] = useState<any[] | null>(null)
     const [clusterLocation, setClusterLocation] = useState<{ lng: number; lat: number; name: string } | null>(null)
     const [isLoggedIn, setIsLoggedIn] = useState(false)
-    const [userId, setUserId] = useState<string | null>(null) // guarda o ID do usuário
+    const [userId, setUserId] = useState<string | null>(null)
     const [userAvatar, setUserAvatar] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
+    const [profileData, setProfileData] = useState<any>(null)
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -116,57 +118,136 @@ export default function MapPage() {
         setMode('lojas')
     }, [appMode])
 
-    // GET USER AND PROFILE LOCATION (inicial)
+    // Função para carregar o perfil do usuário (REUSÁVEL)
+    const loadUserProfile = async (userId: string) => {
+        try {
+            const supabase = createClient()
+            console.log('[MapPage] 🔍 Carregando perfil para userId:', userId)
+
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single()
+
+            if (error) {
+                console.error('[MapPage] ❌ Erro ao carregar perfil:', error)
+                return null
+            }
+
+            console.log('[MapPage] ✅ Perfil carregado:', profile)
+            return profile
+        } catch (error) {
+            console.error('[MapPage] ❌ Erro inesperado ao carregar perfil:', error)
+            return null
+        }
+    }
+
+    // GET USER AND PROFILE LOCATION (inicial) - CORRIGIDO
     useEffect(() => {
         const getUserAndLocation = async () => {
             setLoadingLocation(true)
+            console.log('[MapPage] 🚀 Iniciando carregamento de localização...')
+
             try {
                 const supabase = createClient()
-                const { data: { user } } = await supabase.auth.getUser()
+                const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+                console.log('[MapPage] 👤 Usuário autenticado:', user ? 'Sim' : 'Não', user?.id)
+
+                if (userError) {
+                    console.error('[MapPage] ❌ Erro ao obter usuário:', userError)
+                }
+
                 setIsLoggedIn(!!user)
                 setUserId(user?.id || null)
 
                 if (user) {
-                    const { data: profile, error } = await supabase
-                        .from('profiles')
-                        .select('id, location, address, avatar_url, name, full_name')
-                        .eq('id', user.id)
-                        .single()
+                    // CARREGA O PERFIL COMPLETO DO USUÁRIO
+                    const profile = await loadUserProfile(user.id)
 
-                    if (profile && !error && profile.location) {
-                        const coords = parseCoords(profile.location)
-                        if (coords) {
-                            const [lng, lat] = coords
-                            setProfileLocation({ lat, lng })
-                            setUserAddress(profile.address || await reverseGeocode(lng, lat))
-                            setUserAvatar(profile.avatar_url || null)
-                            const displayName = profile.name || profile.full_name || 'Usuário'
-                            setUserName(displayName)
-                            setLoadingLocation(false)
-                            return
+                    if (profile) {
+                        setProfileData(profile)
+
+                        // Verifica se tem localização salva
+                        if (profile.location) {
+                            console.log('[MapPage] 📍 Localização encontrada no perfil:', profile.location)
+                            const coords = parseCoords(profile.location)
+
+                            if (coords) {
+                                const [lng, lat] = coords
+                                console.log('[MapPage] 🗺️ Coordenadas parseadas:', { lng, lat })
+
+                                setProfileLocation({ lat, lng })
+
+                                // Usa o endereço do perfil ou faz reverse geocode
+                                if (profile.address) {
+                                    console.log('[MapPage] 📝 Endereço do perfil:', profile.address)
+                                    setUserAddress(profile.address)
+                                } else {
+                                    console.log('[MapPage] 🔄 Buscando endereço por coordenadas...')
+                                    const address = await reverseGeocode(lng, lat)
+                                    console.log('[MapPage] 📝 Endereço obtido:', address)
+                                    setUserAddress(address)
+
+                                    // Salva o endereço no perfil para não precisar buscar de novo
+                                    await supabase
+                                        .from('profiles')
+                                        .update({ address })
+                                        .eq('id', user.id)
+                                }
+                            } else {
+                                console.warn('[MapPage] ⚠️ Não foi possível parsear as coordenadas:', profile.location)
+                                // Localização inválida, vamos limpar
+                                setProfileLocation(null)
+                                setUserAddress(null)
+                            }
+                        } else {
+                            console.log('[MapPage] 📍 Nenhuma localização salva no perfil')
+                            setProfileLocation(null)
+                            setUserAddress(null)
                         }
+
+                        // Atualiza avatar e nome
+                        setUserAvatar(profile.avatar_url || null)
+                        const displayName = profile.name || profile.full_name || 'Usuário'
+                        setUserName(displayName)
+
+                        setLoadingLocation(false)
+                        return
+                    } else {
+                        console.warn('[MapPage] ⚠️ Perfil não encontrado para o usuário')
+                        setProfileLocation(null)
+                        setUserAddress(null)
                     }
+                } else {
+                    console.log('[MapPage] 👤 Usuário não está logado')
                 }
 
+                // Fallback para geolocalização do dispositivo
+                console.log('[MapPage] 📱 Tentando geolocalização do dispositivo...')
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
-                        async (pos) => {
+                        (pos) => {
                             const location = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+                            console.log('[MapPage] 📱 Localização do dispositivo:', location)
                             setDeviceLocation(location)
                             setLoadingLocation(false)
                         },
                         (error) => {
-                            console.error('Erro na geolocalização:', error)
+                            console.error('[MapPage] ❌ Erro na geolocalização:', error)
                             setLoadingLocation(false)
                             setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
-                        }
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     )
                 } else {
+                    console.warn('[MapPage] ⚠️ Geolocalização não suportada')
                     setLoadingLocation(false)
                     setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
                 }
             } catch (error) {
-                console.error('Erro ao buscar perfil:', error)
+                console.error('[MapPage] ❌ Erro geral:', error)
                 setLoadingLocation(false)
                 setDeviceLocation({ lat: -15.7939, lng: -47.8828 })
             }
@@ -175,13 +256,16 @@ export default function MapPage() {
         getUserAndLocation()
     }, [])
 
-    // REALTIME: escuta mudanças no perfil do usuário logado
+    // REALTIME: escuta mudanças no perfil do usuário logado (SINCRONIZAÇÃO BIDIRECIONAL)
     useEffect(() => {
         if (!isLoggedIn || !userId) return
 
         const supabase = createClient()
+
+        console.log('[MapPage] 🔄 Configurando listener Realtime para perfil, userId:', userId)
+
         const channel = supabase
-            .channel('profile-updates')
+            .channel('profile-updates-map')
             .on(
                 'postgres_changes',
                 {
@@ -191,32 +275,66 @@ export default function MapPage() {
                     filter: `id=eq.${userId}`,
                 },
                 async (payload) => {
+                    console.log('[MapPage] 📡 Mudança de perfil detectada via Realtime:', payload.new)
                     const newProfile = payload.new as any
+
+                    // Atualiza o estado do perfil completo
+                    setProfileData(newProfile)
+                    setUserAvatar(newProfile.avatar_url || null)
+                    setUserName(newProfile.name || newProfile.full_name || 'Usuário')
+
                     if (newProfile.location) {
                         const coords = parseCoords(newProfile.location)
                         if (coords) {
                             const [lng, lat] = coords
+                            console.log('[MapPage] 📡 Atualizando localização via Realtime:', { lng, lat })
                             setProfileLocation({ lat, lng })
+
+                            // Busca o endereço formatado se não veio junto
                             const address = newProfile.address || await reverseGeocode(lng, lat)
                             setUserAddress(address)
-                            setUserAvatar(newProfile.avatar_url || null)
-                            setUserName(newProfile.name || newProfile.full_name || 'Usuário')
 
-                            // Opcional: centraliza o mapa na nova localização
+                            // Se o mapa existir, centraliza na nova localização
                             if (mapRef.current) {
-                                mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
+                                mapRef.current.flyTo({
+                                    center: [lng, lat],
+                                    zoom: 15,
+                                    duration: 1000
+                                })
                             }
+
+                            // Notifica o usuário que a localização foi atualizada externamente
+                            toast.success('📍 Localização atualizada!', {
+                                description: address.split(',')[0],
+                                duration: 3000,
+                            })
                         }
                     } else {
                         // Se a localização foi removida
+                        console.log('[MapPage] 📡 Localização removida via Realtime')
                         setProfileLocation(null)
                         setUserAddress(null)
+                        toast.info('Localização removida do perfil')
+
+                        // Remove o marcador do perfil
+                        if (profileMarkerRef.current) {
+                            profileMarkerRef.current.remove()
+                            profileMarkerRef.current = null
+                        }
                     }
                 }
             )
-            .subscribe()
+            .subscribe((status) => {
+                console.log('[MapPage] 📡 Status do canal Realtime:', status)
+                if (status === 'SUBSCRIBED') {
+                    console.log('[MapPage] ✅ Canal Realtime inscrito com sucesso!')
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error('[MapPage] ❌ Erro no canal Realtime')
+                }
+            })
 
         return () => {
+            console.log('[MapPage] 🧹 Removendo canal Realtime de perfil')
             supabase.removeChannel(channel)
         }
     }, [isLoggedIn, userId])
@@ -226,6 +344,8 @@ export default function MapPage() {
     // INIT MAP
     useEffect(() => {
         if (!mapContainerRef.current || !referenceLocation) return
+
+        console.log('[MapPage] 🗺️ Inicializando mapa em:', referenceLocation)
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
@@ -242,7 +362,10 @@ export default function MapPage() {
             showUserHeading: true
         }), 'bottom-right')
 
-        map.on('load', () => setMapReady(true))
+        map.on('load', () => {
+            setMapReady(true)
+            console.log('[MapPage] ✅ Mapa carregado e pronto')
+        })
 
         mapRef.current = map
 
@@ -315,23 +438,26 @@ export default function MapPage() {
             setAddressSuggestions(data.features || [])
         } catch (error) {
             console.error('Erro na busca:', error)
+            toast.error('Erro ao buscar endereço')
         } finally {
             setSearchingAddress(false)
         }
     }
 
-    // Salvar localização no perfil - VERSÃO CORRIGIDA (já ok)
+    // Salvar localização no perfil
     const saveLocationToProfile = async (lng: number, lat: number, address: string) => {
         try {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
-                alert('Você precisa estar logado para salvar uma localização.')
+                toast.error('Você precisa estar logado para salvar uma localização.')
                 return false
             }
 
             const locationWKT = `POINT(${lng} ${lat})`
+
+            console.log('[MapPage] 💾 Salvando localização:', { locationWKT, address, userId: user.id })
 
             const { error: updateError, data: updatedData } = await supabase
                 .from('profiles')
@@ -343,7 +469,9 @@ export default function MapPage() {
                 .select()
 
             if (updateError) {
-                console.error('Erro no UPDATE:', updateError)
+                console.error('[MapPage] ❌ Erro no UPDATE:', updateError)
+
+                // Tenta criar o perfil se não existir
                 const { data: existingProfile } = await supabase
                     .from('profiles')
                     .select('id')
@@ -360,51 +488,104 @@ export default function MapPage() {
                         })
 
                     if (insertError) {
-                        console.error('Erro no INSERT:', insertError)
-                        alert(`Erro ao salvar: ${insertError.message}. Verifique as políticas RLS.`)
+                        console.error('[MapPage] ❌ Erro no INSERT:', insertError)
+                        toast.error(`Erro ao salvar: ${insertError.message}`)
                         return false
                     } else {
-                        console.log('Perfil criado com sucesso!')
+                        console.log('[MapPage] ✅ Perfil criado com sucesso!')
                     }
                 } else {
-                    alert(`Erro ao atualizar: ${updateError.message}. Verifique a política de UPDATE.`)
+                    toast.error(`Erro ao atualizar: ${updateError.message}`)
                     return false
                 }
             } else {
-                console.log('Localização atualizada com sucesso!', updatedData)
+                console.log('[MapPage] ✅ Localização atualizada com sucesso!', updatedData)
             }
 
+            // Atualiza o estado local IMEDIATAMENTE
             setProfileLocation({ lat, lng })
             setUserAddress(address)
 
-            const { data: freshProfile } = await supabase
-                .from('profiles')
-                .select('avatar_url, name, full_name')
-                .eq('id', user.id)
-                .single()
-            if (freshProfile) {
-                setUserAvatar(freshProfile.avatar_url || null)
-                setUserName(freshProfile.name || freshProfile.full_name || 'Usuário')
+            // Recarrega o perfil completo
+            if (user.id) {
+                const freshProfile = await loadUserProfile(user.id)
+                if (freshProfile) {
+                    setProfileData(freshProfile)
+                    setUserAvatar(freshProfile.avatar_url || null)
+                    setUserName(freshProfile.name || freshProfile.full_name || 'Usuário')
+                }
             }
 
+            // Fecha o diálogo e limpa
             setShowLocationDialog(false)
             setEditingLocation(false)
             setSearchAddress('')
             setAddressSuggestions([])
 
+            // Centraliza o mapa na nova localização
             if (mapRef.current) {
                 mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
             }
 
+            toast.success('📍 Localização salva com sucesso!', {
+                description: address.split(',')[0],
+                duration: 3000,
+            })
+
             return true
         } catch (error) {
-            console.error('Erro inesperado:', error)
-            alert('Ocorreu um erro inesperado ao salvar a localização.')
+            console.error('[MapPage] ❌ Erro inesperado:', error)
+            toast.error('Ocorreu um erro inesperado ao salvar a localização.')
             return false
         }
     }
 
-    // MARKERS (sem alterações, fiel ao original)
+    // Remover localização do perfil
+    const removeLocation = async () => {
+        try {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) {
+                toast.error('Você precisa estar logado para remover a localização.')
+                return
+            }
+
+            console.log('[MapPage] 🗑️ Removendo localização do perfil')
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({ location: null, address: null })
+                .eq('id', user.id)
+
+            if (error) {
+                console.error('[MapPage] ❌ Erro ao remover localização:', error)
+                toast.error('Erro ao remover localização')
+                return
+            }
+
+            console.log('[MapPage] ✅ Localização removida com sucesso')
+
+            // Atualiza o estado local
+            setProfileLocation(null)
+            setUserAddress(null)
+
+            // Remove o marcador do perfil
+            if (profileMarkerRef.current) {
+                profileMarkerRef.current.remove()
+                profileMarkerRef.current = null
+            }
+
+            toast.success('Localização removida com sucesso!')
+        } catch (error) {
+            console.error('[MapPage] ❌ Erro ao remover:', error)
+            toast.error('Erro ao remover localização')
+        }
+    }
+
+    // ... (resto do código permanece igual: MARKERS, PROFILE MARKER, etc.)
+
+    // MARKERS (sem alterações)
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
         const map = mapRef.current
@@ -536,6 +717,7 @@ export default function MapPage() {
     }, [filtered, mode, stores, mapReady])
 
     // PROFILE MARKER (avatar/inicial)
+
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
 
@@ -546,16 +728,18 @@ export default function MapPage() {
         if (profileLocation && isLoggedIn && (userAvatar || userName)) {
             const el = document.createElement('div')
             el.style.cssText = `
-                width: 44px;
-                height: 44px;
-                border-radius: 50%;
-                overflow: hidden;
-                background: white;
-                border: 3px solid #f97316;
-                box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
-                cursor: pointer;
-                transition: transform 0.2s;
-            `
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: white;
+            border: 3px solid #f97316;
+            box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.2s;
+            /* CORREÇÃO: Centraliza o elemento */
+            transform: translate(-50%, -50%);
+        `
 
             if (userAvatar) {
                 const img = document.createElement('img')
@@ -570,24 +754,30 @@ export default function MapPage() {
             }
 
             el.addEventListener('mouseenter', () => {
-                el.style.transform = 'scale(1.1)'
+                el.style.transform = 'translate(-50%, -50%) scale(1.1)'
             })
             el.addEventListener('mouseleave', () => {
-                el.style.transform = 'scale(1)'
+                el.style.transform = 'translate(-50%, -50%) scale(1)'
             })
 
             el.addEventListener('click', () => {
                 if (mapRef.current && profileLocation) {
                     mapRef.current.flyTo({ center: [profileLocation.lng, profileLocation.lat], zoom: 17, duration: 800 })
+                    setShowLocationDialog(true)
+                    setEditingLocation(true)
+                    setSearchAddress(userAddress || '')
                 }
             })
 
-            profileMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+            // CORREÇÃO: Usa anchor 'center' igual aos outros pins
+            profileMarkerRef.current = new mapboxgl.Marker({
+                element: el,
+                anchor: 'center'  // Alterado de 'bottom' para 'center'
+            })
                 .setLngLat([profileLocation.lng, profileLocation.lat])
                 .addTo(mapRef.current)
         }
-    }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn])
-
+    }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress])
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
@@ -649,9 +839,26 @@ export default function MapPage() {
                         <span className="text-white text-xl font-black animate-pulse">
                             {loadingLocation ? 'Buscando sua localização...' : 'Carregando mapa...'}
                         </span>
+                        {loadingLocation && (
+                            <p className="text-white/70 text-sm mt-2">
+                                Verificando endereço salvo...
+                            </p>
+                        )}
                     </div>
                 </div>
             )}
+
+            {/* Debug Info (remova em produção) 
+             {process.env.NODE_ENV === 'development' && (
+                <div className="absolute top-20 right-4 z-50 bg-black/70 text-white p-2 rounded-lg text-[10px] font-mono max-w-[300px] overflow-auto max-h-[200px]">
+                    <p>📍 Profile Location: {profileLocation ? `${profileLocation.lat.toFixed(4)}, ${profileLocation.lng.toFixed(4)}` : 'null'}</p>
+                    <p>📝 User Address: {userAddress || 'null'}</p>
+                    <p>👤 Logged In: {isLoggedIn ? 'Yes' : 'No'}</p>
+                    <p>🆔 User ID: {userId || 'null'}</p>
+                </div>
+            )}
+            */}
+
 
             {/* TOP BAR UI */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
@@ -693,26 +900,36 @@ export default function MapPage() {
                             <>
                                 <MapPin className="w-4 h-4 text-white" />
                                 <span className="text-xs font-black text-white tracking-tight">
-                                    {userAddress?.split(',').slice(0, 3).join(',') || 'Localização salva'}
+                                    {userAddress?.split(',').slice(0, 2).join(',') || 'Localização salva'}
                                 </span>
                                 <button
                                     onClick={() => {
                                         setEditingLocation(true)
                                         setShowLocationDialog(true)
+                                        setSearchAddress(userAddress || '')
                                     }}
                                     className="ml-2 p-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                    title="Editar localização"
                                 >
                                     <Edit2 className="w-3 h-3 text-white" />
+                                </button>
+                                <button
+                                    onClick={removeLocation}
+                                    className="ml-1 p-1 bg-white/20 rounded-lg hover:bg-red-300/30 transition-colors"
+                                    title="Remover localização"
+                                >
+                                    <XCircle className="w-3 h-3 text-white" />
                                 </button>
                             </>
                         ) : (
                             <>
                                 <Compass className="w-4 h-4 text-white" />
-                                <span className="text-xs font-bold text-white">Localização atual</span>
+                                <span className="text-xs font-bold text-white">Localização não definida</span>
                                 <button
                                     onClick={() => {
                                         setEditingLocation(false)
                                         setShowLocationDialog(true)
+                                        setSearchAddress('')
                                     }}
                                     className="ml-2 px-2 py-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
                                 >
@@ -736,7 +953,7 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Dialog (mesmo, sem mudanças) */}
+            {/* Location Dialog */}
             {showLocationDialog && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity" onClick={() => {
@@ -831,6 +1048,7 @@ export default function MapPage() {
                 </div>
             )}
 
+            {/* Resto do código permanece igual (Cluster, Horizontal List, Selected Item, etc.) */}
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
                 <div className="absolute top-36 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30">
@@ -853,7 +1071,6 @@ export default function MapPage() {
                             <XCircle className="w-5 h-5 text-white" />
                         </button>
                     </div>
-
                     <div className="mt-2 bg-white rounded-2xl shadow-xl overflow-hidden max-h-80 overflow-y-auto">
                         {clusterItems.map((item, idx) => (
                             <button
@@ -878,11 +1095,7 @@ export default function MapPage() {
                             >
                                 <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                                     {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
-                                        <img
-                                            src={mode === 'lojas' ? item.logo_url : item.image_url}
-                                            className="w-full h-full object-cover"
-                                            alt=""
-                                        />
+                                        <img src={mode === 'lojas' ? item.logo_url : item.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">
                                             {item.name?.charAt(0)}
@@ -912,9 +1125,8 @@ export default function MapPage() {
                                 onClick={() => {
                                     setSelectedItem(item)
                                     let loc = null
-                                    if (mode === 'lojas') {
-                                        loc = item.location
-                                    } else {
+                                    if (mode === 'lojas') loc = item.location
+                                    else {
                                         const store = stores.find(s => s.id === item.store_id)
                                         loc = store?.location
                                     }
@@ -934,11 +1146,7 @@ export default function MapPage() {
                                     : 'border-orange-200'
                                     } bg-white`}>
                                     {(mode === 'lojas' ? item.logo_url : item.image_url) ? (
-                                        <img
-                                            src={mode === 'lojas' ? item.logo_url : item.image_url}
-                                            className="w-full h-full object-cover"
-                                            alt=""
-                                        />
+                                        <img src={mode === 'lojas' ? item.logo_url : item.image_url} className="w-full h-full object-cover" alt="" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-xs font-black italic bg-gradient-to-br from-orange-100 to-red-100 text-orange-500">
                                             {item.name?.charAt(0)}
@@ -958,7 +1166,6 @@ export default function MapPage() {
                         <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-orange-100 hover:bg-orange-500 hover:text-white transition-all z-10 shadow-md">
                             <X className="w-4 h-4" />
                         </button>
-
                         <div className="p-4">
                             <div className="flex gap-4 items-center">
                                 <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-orange-500'}`}>
@@ -968,7 +1175,6 @@ export default function MapPage() {
                                         <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-orange-300">?</div>
                                     )}
                                 </div>
-
                                 <div className="flex-1 min-w-0 space-y-1">
                                     <h3 className="text-lg font-black text-gray-900 truncate">{selectedItem.name}</h3>
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -992,27 +1198,21 @@ export default function MapPage() {
                                     </div>
                                 </div>
                             </div>
-
                             {(mode === 'servicos' || mode === 'produtos') && selectedItem.price && (
                                 <div className="mt-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl">
                                     <p className="text-xl font-black text-orange-600">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                 </div>
                             )}
-
                             {mode === 'lojas' && selectedItem.description && (
                                 <p className="mt-2 text-xs text-gray-600 line-clamp-2">{selectedItem.description}</p>
                             )}
                         </div>
-
                         <button
                             onClick={() => {
-                                if (mode === 'lojas') {
-                                    router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
-                                } else {
+                                if (mode === 'lojas') router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}`)
+                                else {
                                     const store = stores.find(s => s.id === selectedItem.store_id)
-                                    if (store) {
-                                        router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
-                                    }
+                                    if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
                                 }
                             }}
                             className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider transition-all hover:shadow-lg active:scale-95 rounded-b-2xl"

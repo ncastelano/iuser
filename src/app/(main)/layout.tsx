@@ -11,12 +11,12 @@ import {
     LogOut,
     MapPinned,
     ShoppingCart,
-    DollarSign,
     Settings,
     Flame,
     Zap,
     Gift,
-    Sparkles
+    Sparkles,
+    TrendingUp
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
@@ -64,7 +64,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (latestOrderNotification) {
             toast.success(latestOrderNotification, {
-                icon: <DollarSign className="w-4 h-4 text-green-400" />,
+                icon: <TrendingUp className="w-4 h-4 text-green-400" />,
                 duration: 8000,
                 style: {
                     background: 'linear-gradient(135deg, rgb(34, 197, 94), rgb(16, 185, 129))',
