@@ -29,7 +29,13 @@ import {
     HandCoins,
     History,
     BanknoteArrowUp,
-    BanknoteArrowDown
+    BanknoteArrowDown,
+    Award,
+    Calendar,
+    Wallet,
+    Building2,
+    Star,
+    Crown
 } from 'lucide-react'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { parseCoords } from '@/lib/geo'
@@ -56,6 +62,7 @@ interface Sale {
     store_id: string
     status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'paid' | 'rejected'
     checkout_id: string
+    store_name?: string
 }
 
 interface GroupedOrder {
@@ -428,6 +435,299 @@ function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onUpdateOr
     )
 }
 
+// ── COMPONENT: CUSTOMER DASHBOARD ────────────────────────────────────────────
+function CustomerDashboard({ purchases, profile }: { purchases: Sale[], profile: any }) {
+    const [viewMode, setViewMode] = useState<'dashboard' | 'history'>('dashboard')
+
+    // Métricas do consumidor
+    const metrics = useMemo(() => {
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+
+        const completedPurchases = purchases.filter(p => p.status === 'paid')
+
+        const daily = completedPurchases.filter(p => new Date(p.created_at).getTime() >= today)
+        const monthly = completedPurchases.filter(p => new Date(p.created_at).getTime() >= firstDayOfMonth)
+
+        const dailyTotal = daily.reduce((acc, p) => acc + p.price, 0)
+        const monthlyTotal = monthly.reduce((acc, p) => acc + p.price, 0)
+        const totalSpent = completedPurchases.reduce((acc, p) => acc + p.price, 0)
+
+        const dailyOrders = new Set(daily.map(p => p.checkout_id)).size
+        const monthlyOrders = new Set(monthly.map(p => p.checkout_id)).size
+        const totalOrders = new Set(completedPurchases.map(p => p.checkout_id)).size
+
+        return {
+            daily: { spent: dailyTotal, orders: dailyOrders, avgTicket: dailyOrders > 0 ? dailyTotal / dailyOrders : 0 },
+            monthly: { spent: monthlyTotal, orders: monthlyOrders, avgTicket: monthlyOrders > 0 ? monthlyTotal / monthlyOrders : 0 },
+            total: { spent: totalSpent, orders: totalOrders, avgTicket: totalOrders > 0 ? totalSpent / totalOrders : 0 }
+        }
+    }, [purchases])
+
+    // Top produtos comprados
+    const topProducts = useMemo(() => {
+        const counts: Record<string, { count: number, total: number, store_name: string }> = {}
+        purchases.filter(p => p.status === 'paid').forEach(p => {
+            if (!counts[p.product_name]) {
+                counts[p.product_name] = { count: 0, total: 0, store_name: p.store_name || '' }
+            }
+            counts[p.product_name].count += p.quantity
+            counts[p.product_name].total += p.price
+        })
+        return Object.entries(counts).sort((a, b) => b[1].count - a[1].count).slice(0, 5)
+    }, [purchases])
+
+    // Top lojas compradas
+    const topStores = useMemo(() => {
+        const stores: Record<string, { spent: number, orders: number, items: number }> = {}
+        purchases.filter(p => p.status === 'paid').forEach(p => {
+            const storeName = p.store_name || 'Loja Desconhecida'
+            if (!stores[storeName]) {
+                stores[storeName] = { spent: 0, orders: 0, items: 0 }
+            }
+            stores[storeName].spent += p.price
+            stores[storeName].orders += 1
+            stores[storeName].items += p.quantity
+        })
+        return Object.entries(stores)
+            .sort((a, b) => b[1].spent - a[1].spent)
+            .slice(0, 3)
+            .map(([name, data]) => ({ name, ...data }))
+    }, [purchases])
+
+    // Compras agrupadas para histórico
+    const groupedPurchases = useMemo(() => {
+        const groups: Record<string, GroupedOrder> = {}
+        purchases.forEach(p => {
+            if (!groups[p.checkout_id]) {
+                groups[p.checkout_id] = {
+                    checkout_id: p.checkout_id,
+                    buyer_name: p.buyer_name,
+                    buyer_profile_slug: p.buyer_profile_slug,
+                    created_at: p.created_at,
+                    status: p.status,
+                    items: [],
+                    totalPrice: 0,
+                    store_name: p.store_name
+                }
+            }
+            groups[p.checkout_id].items.push(p)
+            groups[p.checkout_id].totalPrice += p.price
+        })
+        return Object.values(groups).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    }, [purchases])
+
+    // Nível do consumidor baseado no total gasto
+    const customerLevel = useMemo(() => {
+        const total = metrics.total.spent
+        if (total >= 5000) return { name: 'DIAMOND', icon: Crown, color: 'from-blue-400 to-purple-500', bg: 'bg-gradient-to-r from-blue-50 to-purple-50' }
+        if (total >= 2000) return { name: 'PLATINUM', icon: Award, color: 'from-gray-400 to-gray-500', bg: 'bg-gradient-to-r from-gray-50 to-gray-100' }
+        if (total >= 500) return { name: 'GOLD', icon: Star, color: 'from-yellow-500 to-amber-500', bg: 'bg-gradient-to-r from-yellow-50 to-amber-50' }
+        if (total >= 100) return { name: 'SILVER', icon: Star, color: 'from-gray-400 to-gray-500', bg: 'bg-gradient-to-r from-gray-50 to-gray-100' }
+        return { name: 'BRONZE', icon: Star, color: 'from-orange-600 to-red-600', bg: 'bg-gradient-to-r from-orange-50 to-red-50' }
+    }, [metrics.total.spent])
+
+    const CustomerLevelIcon = customerLevel.icon
+
+    if (purchases.length === 0) {
+        return (
+            <div className="text-center py-16 bg-white/50 rounded-2xl">
+                <ShoppingBag size={48} className="mx-auto mb-3 text-gray-400" />
+                <p className="text-gray-500 font-black text-sm">Nenhuma compra ainda</p>
+                <Link href="/" className="inline-block mt-4 text-orange-600 font-black text-[10px] uppercase tracking-wider">
+                    Explorar lojas →
+                </Link>
+            </div>
+        )
+    }
+
+    return (
+        <div>
+            {/* Seletor de visualização */}
+            <div className="flex gap-2 mb-6">
+                <button
+                    onClick={() => setViewMode('dashboard')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${viewMode === 'dashboard'
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                        : 'bg-white/50 text-gray-600 border border-orange-200'
+                        }`}
+                >
+                    📊 Painel
+                </button>
+                <button
+                    onClick={() => setViewMode('history')}
+                    className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${viewMode === 'history'
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                        : 'bg-white/50 text-gray-600 border border-orange-200'
+                        }`}
+                >
+                    📜 Histórico
+                </button>
+            </div>
+
+            {viewMode === 'dashboard' ? (
+                <div className="space-y-6">
+                    {/* Perfil do consumidor */}
+                    <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-5 border border-orange-100">
+                        <div className="flex items-center gap-4">
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg">
+                                {profile?.avatar_url ? (
+                                    <img src={profile.avatar_url} className="w-full h-full rounded-full object-cover" alt={profile.name} />
+                                ) : (
+                                    <span className="text-2xl font-black text-white">
+                                        {profile?.name?.charAt(0) || profile?.profileSlug?.charAt(0) || 'U'}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-xl font-black italic text-gray-900">{profile?.name || 'Consumidor'}</h3>
+                                    <div className={`${customerLevel.bg} px-2 py-0.5 rounded-full flex items-center gap-1`}>
+                                        <CustomerLevelIcon size={10} className="text-orange-500" />
+                                        <span className="text-[8px] font-black uppercase">{customerLevel.name}</span>
+                                    </div>
+                                </div>
+                                <p className="text-[9px] font-bold text-gray-500 mt-1">@{profile?.profileSlug || 'usuario'}</p>
+                                <p className="text-[8px] text-gray-400 mt-1">🎉 {metrics.total.orders} pedidos • {metrics.total.spent > 0 ? `R$ ${metrics.total.spent.toFixed(2)} gastos` : 'nenhuma compra ainda'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cards de gastos */}
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white rounded-xl p-3 border border-orange-100 text-center">
+                            <Calendar size={14} className="text-orange-500 mx-auto mb-1" />
+                            <p className="text-[7px] font-black uppercase text-gray-500">Hoje</p>
+                            <p className="text-sm font-black italic text-gray-900">R$ {metrics.daily.spent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-[8px] font-bold text-gray-400">{metrics.daily.orders} pedidos</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-orange-100 text-center">
+                            <Calendar size={14} className="text-orange-500 mx-auto mb-1" />
+                            <p className="text-[7px] font-black uppercase text-gray-500">Este Mês</p>
+                            <p className="text-sm font-black italic text-gray-900">R$ {metrics.monthly.spent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-[8px] font-bold text-gray-400">{metrics.monthly.orders} pedidos</p>
+                        </div>
+                        <div className="bg-white rounded-xl p-3 border border-orange-100 text-center">
+                            <Wallet size={14} className="text-orange-500 mx-auto mb-1" />
+                            <p className="text-[7px] font-black uppercase text-gray-500">Total</p>
+                            <p className="text-sm font-black italic text-gray-900">R$ {metrics.total.spent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-[8px] font-bold text-gray-400">{metrics.total.orders} pedidos</p>
+                        </div>
+                    </div>
+
+                    {/* Ticket médio */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-orange-50/50 rounded-xl p-3 border border-orange-100">
+                            <p className="text-[7px] font-black uppercase text-gray-500">Ticket Médio (Mês)</p>
+                            <p className="text-lg font-black italic text-orange-600">R$ {metrics.monthly.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-orange-50/50 rounded-xl p-3 border border-orange-100">
+                            <p className="text-[7px] font-black uppercase text-gray-500">Ticket Médio (Geral)</p>
+                            <p className="text-lg font-black italic text-orange-600">R$ {metrics.total.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+
+                    {/* Top produtos */}
+                    {topProducts.length > 0 && (
+                        <div className="bg-white/50 rounded-xl p-4 border border-orange-100">
+                            <h4 className="text-[9px] font-black uppercase tracking-wider text-orange-600 mb-3 flex items-center gap-2">
+                                <TrendingUp size={12} /> O que mais comprei
+                            </h4>
+                            <div className="space-y-2">
+                                {topProducts.map(([name, data], i) => (
+                                    <div key={i} className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[8px] font-black text-gray-400 w-4">{i + 1}°</span>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-gray-800">{name}</span>
+                                                <p className="text-[7px] text-gray-400">{data.store_name}</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-[9px] font-black text-gray-900">{data.count}x</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Top lojas */}
+                    {topStores.length > 0 && (
+                        <div className="bg-white/50 rounded-xl p-4 border border-orange-100">
+                            <h4 className="text-[9px] font-black uppercase tracking-wider text-orange-600 mb-3 flex items-center gap-2">
+                                <Building2 size={12} /> Onde mais comprei
+                            </h4>
+                            <div className="space-y-3">
+                                {topStores.map((store, i) => (
+                                    <div key={i} className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[8px] font-black text-gray-400 w-4">{i + 1}°</span>
+                                            <span className="text-[9px] font-bold text-gray-800">{store.name}</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[9px] font-black text-orange-600">R$ {store.spent.toFixed(2)}</span>
+                                            <p className="text-[6px] text-gray-400">{store.orders} pedidos</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                /* Histórico de compras */
+                <div className="space-y-4">
+                    {groupedPurchases.map((order) => (
+                        <div key={order.checkout_id} className="bg-white rounded-xl p-4 border border-orange-100">
+                            <div className="flex items-center justify-between mb-2">
+                                <div>
+                                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider">
+                                        {new Date(order.created_at).toLocaleDateString('pt-BR')} • {new Date(order.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                    <h3 className="text-sm font-black italic text-gray-900 mt-1">{order.store_name}</h3>
+                                </div>
+                                <div className={`px-2 py-1 rounded-full text-[7px] font-black uppercase tracking-wider ${order.status === 'paid' ? 'bg-green-100 text-green-700' :
+                                    order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700' :
+                                        order.status === 'ready' ? 'bg-purple-100 text-purple-700' :
+                                            'bg-blue-100 text-blue-700'
+                                    }`}>
+                                    {order.status === 'paid' ? 'Finalizado' :
+                                        order.status === 'preparing' ? 'Preparando' :
+                                            order.status === 'ready' ? 'Pronto' : 'Processando'}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1 mb-3">
+                                {order.items.slice(0, 3).map((item, idx) => (
+                                    <div key={idx} className="flex justify-between text-[9px]">
+                                        <span className="text-gray-600">{item.quantity}x {item.product_name}</span>
+                                        <span className="font-bold text-gray-800">R$ {(item.price).toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                {order.items.length > 3 && (
+                                    <p className="text-[8px] text-gray-400">+{order.items.length - 3} outros itens</p>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between items-center pt-2 border-t border-orange-100">
+                                <span className="text-[8px] font-black uppercase text-gray-500">Total</span>
+                                <span className="text-base font-black italic text-orange-600">R$ {order.totalPrice.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    ))}
+
+                    {groupedPurchases.length === 0 && (
+                        <div className="text-center py-8">
+                            <Package size={32} className="mx-auto mb-2 text-gray-300" />
+                            <p className="text-gray-500 font-bold text-sm">Nenhum pedido encontrado</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function FinanceiroPage() {
     const supabase = createClient()
@@ -478,7 +778,7 @@ export default function FinanceiroPage() {
                                     formattedSales.push({
                                         id: item.id,
                                         created_at: order.created_at,
-                                        price: item.price,
+                                        price: item.total_price || item.price,
                                         quantity: item.quantity,
                                         product_name: item.product_name,
                                         buyer_id: order.buyer_id,
@@ -492,7 +792,6 @@ export default function FinanceiroPage() {
                             }
                         })
                         setSales(formattedSales)
-                        console.log('Pedidos carregados:', formattedSales.length)
                     } else {
                         // Se não tem na orders, busca na store_sales (legado)
                         const { data: storeSalesData } = await supabase
@@ -503,13 +802,12 @@ export default function FinanceiroPage() {
 
                         if (storeSalesData) {
                             setSales(storeSalesData as Sale[])
-                            console.log('Pedidos legado carregados:', storeSalesData.length)
                         }
                     }
                 }
             }
 
-            // Carrega compras do usuário
+            // Carrega compras do usuário (Painel do Consumidor)
             const { data: userPurchases } = await supabase
                 .from('orders')
                 .select('*, order_items(*), stores(name)')
@@ -524,7 +822,7 @@ export default function FinanceiroPage() {
                             formattedPurchases.push({
                                 id: item.id,
                                 created_at: order.created_at,
-                                price: item.price,
+                                price: item.total_price || item.price,
                                 quantity: item.quantity,
                                 product_name: item.product_name,
                                 buyer_id: order.buyer_id,
@@ -534,11 +832,25 @@ export default function FinanceiroPage() {
                                 status: order.status,
                                 checkout_id: order.checkout_id,
                                 store_name: order.stores?.name
-                            } as any)
+                            })
                         })
                     }
                 })
                 setMyPurchases(formattedPurchases)
+            } else {
+                // Fallback para store_sales legado
+                const { data: legacyPurchases } = await supabase
+                    .from('store_sales')
+                    .select('*, stores(name)')
+                    .eq('buyer_id', user.id)
+                    .order('created_at', { ascending: false })
+
+                if (legacyPurchases) {
+                    setMyPurchases(legacyPurchases.map((p: any) => ({
+                        ...p,
+                        store_name: p.stores?.name
+                    })))
+                }
             }
 
         } catch (error) {
@@ -634,7 +946,7 @@ export default function FinanceiroPage() {
                     <div key={section} className="mb-12">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-sm font-black italic uppercase tracking-wider text-gray-700">
-                                {section === 'merchant' ? 'Minhas Lojas' : 'Meu Histórico'}
+                                {section === 'merchant' ? '🏪 Minhas Lojas' : '🛍️ Painel do Consumidor'}
                             </h2>
                             {section === 'merchant' && stores.length > 0 && (
                                 <button onClick={() => router.push('/criar-loja')} className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all">
@@ -670,66 +982,10 @@ export default function FinanceiroPage() {
                                 </div>
                             )
                         ) : (
-                            <div className="space-y-4">
-                                {myPurchases.length === 0 ? (
-                                    <div className="text-center py-16 bg-white/50 rounded-2xl">
-                                        <ShoppingBag size={48} className="mx-auto mb-3 text-gray-400" />
-                                        <p className="text-gray-500 font-black text-sm">Nenhuma compra ainda</p>
-                                        <Link href="/" className="inline-block mt-4 text-orange-600 font-black text-[10px] uppercase tracking-wider">
-                                            Explorar lojas →
-                                        </Link>
-                                    </div>
-                                ) : (
-                                    Object.values(myPurchases.reduce((groups: any, p) => {
-                                        if (!groups[p.checkout_id]) {
-                                            groups[p.checkout_id] = {
-                                                checkout_id: p.checkout_id,
-                                                store_name: (p as any).store_name,
-                                                created_at: p.created_at,
-                                                status: p.status,
-                                                total: 0,
-                                                items: []
-                                            }
-                                        }
-                                        groups[p.checkout_id].total += p.price
-                                        groups[p.checkout_id].items.push(p)
-                                        return groups
-                                    }, {})).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((order: any) => (
-                                        <div key={order.checkout_id} className="bg-white rounded-xl p-5 border border-orange-100">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div>
-                                                    <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider">
-                                                        {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                                    </p>
-                                                    <h3 className="text-lg font-black italic text-gray-900 mt-1">{order.store_name}</h3>
-                                                </div>
-                                                <div className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-wider ${order.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                                    {order.status === 'paid' ? 'Pago' : order.status === 'preparing' ? 'Preparando' : order.status === 'ready' ? 'Pronto' : 'Processando'}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-between pt-3 border-t border-orange-100">
-                                                <div className="flex gap-1 flex-wrap">
-                                                    {order.items.slice(0, 2).map((item: any, idx: number) => (
-                                                        <span key={idx} className="text-[9px] font-bold text-gray-600 bg-orange-50 px-2 py-0.5 rounded">
-                                                            {item.quantity}x {item.product_name}
-                                                        </span>
-                                                    ))}
-                                                    {order.items.length > 2 && (
-                                                        <span className="text-[9px] font-bold text-gray-500">+{order.items.length - 2}</span>
-                                                    )}
-                                                </div>
-                                                <p className="text-xl font-black italic text-gray-900">R$ {order.total.toFixed(2)}</p>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
+                            <CustomerDashboard purchases={myPurchases} profile={profile} />
                         )}
                     </div>
                 ))}
-
-
             </div>
         </div>
     )
