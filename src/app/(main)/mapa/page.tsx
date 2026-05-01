@@ -1,3 +1,5 @@
+//app/(main)/mapa/page.tsx
+
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
@@ -8,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
+import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -110,13 +113,15 @@ export default function MapPage() {
     const [userAvatar, setUserAvatar] = useState<string | null>(null)
     const [userName, setUserName] = useState<string>('')
     const [profileData, setProfileData] = useState<any>(null)
+    const [mapInitialized, setMapInitialized] = useState(false)
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
 
+    // Debug do modo atual
     useEffect(() => {
-        setMode('lojas')
-    }, [appMode])
+        console.log('[MapPage] Modo atual do mapa:', mode)
+    }, [mode])
 
     // Função para carregar o perfil do usuário (REUSÁVEL)
     const loadUserProfile = async (userId: string) => {
@@ -143,7 +148,7 @@ export default function MapPage() {
         }
     }
 
-    // GET USER AND PROFILE LOCATION (inicial) - CORRIGIDO
+    // GET USER AND PROFILE LOCATION (inicial)
     useEffect(() => {
         const getUserAndLocation = async () => {
             setLoadingLocation(true)
@@ -163,13 +168,11 @@ export default function MapPage() {
                 setUserId(user?.id || null)
 
                 if (user) {
-                    // CARREGA O PERFIL COMPLETO DO USUÁRIO
                     const profile = await loadUserProfile(user.id)
 
                     if (profile) {
                         setProfileData(profile)
 
-                        // Verifica se tem localização salva
                         if (profile.location) {
                             console.log('[MapPage] 📍 Localização encontrada no perfil:', profile.location)
                             const coords = parseCoords(profile.location)
@@ -180,7 +183,6 @@ export default function MapPage() {
 
                                 setProfileLocation({ lat, lng })
 
-                                // Usa o endereço do perfil ou faz reverse geocode
                                 if (profile.address) {
                                     console.log('[MapPage] 📝 Endereço do perfil:', profile.address)
                                     setUserAddress(profile.address)
@@ -190,7 +192,6 @@ export default function MapPage() {
                                     console.log('[MapPage] 📝 Endereço obtido:', address)
                                     setUserAddress(address)
 
-                                    // Salva o endereço no perfil para não precisar buscar de novo
                                     await supabase
                                         .from('profiles')
                                         .update({ address })
@@ -198,7 +199,6 @@ export default function MapPage() {
                                 }
                             } else {
                                 console.warn('[MapPage] ⚠️ Não foi possível parsear as coordenadas:', profile.location)
-                                // Localização inválida, vamos limpar
                                 setProfileLocation(null)
                                 setUserAddress(null)
                             }
@@ -208,7 +208,6 @@ export default function MapPage() {
                             setUserAddress(null)
                         }
 
-                        // Atualiza avatar e nome
                         setUserAvatar(profile.avatar_url || null)
                         const displayName = profile.name || profile.full_name || 'Usuário'
                         setUserName(displayName)
@@ -256,7 +255,7 @@ export default function MapPage() {
         getUserAndLocation()
     }, [])
 
-    // REALTIME: escuta mudanças no perfil do usuário logado (SINCRONIZAÇÃO BIDIRECIONAL)
+    // REALTIME: escuta mudanças no perfil do usuário logado
     useEffect(() => {
         if (!isLoggedIn || !userId) return
 
@@ -278,7 +277,6 @@ export default function MapPage() {
                     console.log('[MapPage] 📡 Mudança de perfil detectada via Realtime:', payload.new)
                     const newProfile = payload.new as any
 
-                    // Atualiza o estado do perfil completo
                     setProfileData(newProfile)
                     setUserAvatar(newProfile.avatar_url || null)
                     setUserName(newProfile.name || newProfile.full_name || 'Usuário')
@@ -290,12 +288,10 @@ export default function MapPage() {
                             console.log('[MapPage] 📡 Atualizando localização via Realtime:', { lng, lat })
                             setProfileLocation({ lat, lng })
 
-                            // Busca o endereço formatado se não veio junto
                             const address = newProfile.address || await reverseGeocode(lng, lat)
                             setUserAddress(address)
 
-                            // Se o mapa existir, centraliza na nova localização
-                            if (mapRef.current) {
+                            if (mapRef.current && mapInitialized) {
                                 mapRef.current.flyTo({
                                     center: [lng, lat],
                                     zoom: 15,
@@ -303,20 +299,17 @@ export default function MapPage() {
                                 })
                             }
 
-                            // Notifica o usuário que a localização foi atualizada externamente
                             toast.success('📍 Localização atualizada!', {
                                 description: address.split(',')[0],
                                 duration: 3000,
                             })
                         }
                     } else {
-                        // Se a localização foi removida
                         console.log('[MapPage] 📡 Localização removida via Realtime')
                         setProfileLocation(null)
                         setUserAddress(null)
                         toast.info('Localização removida do perfil')
 
-                        // Remove o marcador do perfil
                         if (profileMarkerRef.current) {
                             profileMarkerRef.current.remove()
                             profileMarkerRef.current = null
@@ -326,54 +319,69 @@ export default function MapPage() {
             )
             .subscribe((status) => {
                 console.log('[MapPage] 📡 Status do canal Realtime:', status)
-                if (status === 'SUBSCRIBED') {
-                    console.log('[MapPage] ✅ Canal Realtime inscrito com sucesso!')
-                } else if (status === 'CHANNEL_ERROR') {
-                    console.error('[MapPage] ❌ Erro no canal Realtime')
-                }
             })
 
         return () => {
             console.log('[MapPage] 🧹 Removendo canal Realtime de perfil')
             supabase.removeChannel(channel)
         }
-    }, [isLoggedIn, userId])
+    }, [isLoggedIn, userId, mapInitialized])
 
     const referenceLocation = profileLocation || deviceLocation
 
-    // INIT MAP
+    // INIT MAP - CORRIGIDO COM FALLBACK
     useEffect(() => {
-        if (!mapContainerRef.current || !referenceLocation) return
+        if (!mapContainerRef.current) return
 
-        console.log('[MapPage] 🗺️ Inicializando mapa em:', referenceLocation)
+        // Fallback para Brasília caso não tenha localização
+        const centerLocation = referenceLocation || { lat: -15.7939, lng: -47.8828 }
+
+        console.log('[MapPage] 🗺️ Inicializando mapa em:', centerLocation)
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
             style: mapStyle === 'streets' ? 'mapbox://styles/mapbox/streets-v12' : 'mapbox://styles/mapbox/satellite-streets-v12',
-            center: [referenceLocation.lng, referenceLocation.lat],
+            center: [centerLocation.lng, centerLocation.lat],
             zoom: 14,
             attributionControl: false
         })
 
-        map.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
+        // Adiciona controles de navegação com opções completas
+        map.addControl(new mapboxgl.NavigationControl({
+            showCompass: true,
+            showZoom: true,
+            visualizePitch: true
+        }), 'bottom-right')
+
+        // Adiciona controle de geolocalização
         map.addControl(new mapboxgl.GeolocateControl({
             positionOptions: { enableHighAccuracy: true },
             trackUserLocation: true,
-            showUserHeading: true
+            showUserHeading: true,
+            showAccuracyCircle: true
         }), 'bottom-right')
 
         map.on('load', () => {
             setMapReady(true)
+            setMapInitialized(true)
             console.log('[MapPage] ✅ Mapa carregado e pronto')
+        })
+
+        map.on('error', (error) => {
+            console.error('[MapPage] ❌ Erro no mapa:', error)
         })
 
         mapRef.current = map
 
         return () => {
             setMapReady(false)
-            map.remove()
+            setMapInitialized(false)
+            if (mapRef.current) {
+                mapRef.current.remove()
+                mapRef.current = null
+            }
         }
-    }, [referenceLocation, mapStyle])
+    }, [referenceLocation?.lat, referenceLocation?.lng, mapStyle])
 
     // LOAD DATA
     useEffect(() => {
@@ -402,6 +410,7 @@ export default function MapPage() {
 
             setStores(mappedStores)
             setProducts(mappedProducts)
+            console.log('[MapPage] 📦 Dados carregados:', { stores: mappedStores.length, products: mappedProducts.length })
         }
 
         load()
@@ -423,7 +432,9 @@ export default function MapPage() {
         }
 
         const q = search.toLowerCase()
-        setFiltered(q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items)
+        const result = q ? items.filter(i => i.name?.toLowerCase().includes(q)) : items
+        setFiltered(result)
+        console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
     }, [search, mode, stores, products, overrideList])
 
     // Buscar endereço
@@ -459,19 +470,17 @@ export default function MapPage() {
 
             console.log('[MapPage] 💾 Salvando localização:', { locationWKT, address, userId: user.id })
 
-            const { error: updateError, data: updatedData } = await supabase
+            const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
                     location: locationWKT,
                     address: address,
                 })
                 .eq('id', user.id)
-                .select()
 
             if (updateError) {
                 console.error('[MapPage] ❌ Erro no UPDATE:', updateError)
 
-                // Tenta criar o perfil se não existir
                 const { data: existingProfile } = await supabase
                     .from('profiles')
                     .select('id')
@@ -499,14 +508,12 @@ export default function MapPage() {
                     return false
                 }
             } else {
-                console.log('[MapPage] ✅ Localização atualizada com sucesso!', updatedData)
+                console.log('[MapPage] ✅ Localização atualizada com sucesso!')
             }
 
-            // Atualiza o estado local IMEDIATAMENTE
             setProfileLocation({ lat, lng })
             setUserAddress(address)
 
-            // Recarrega o perfil completo
             if (user.id) {
                 const freshProfile = await loadUserProfile(user.id)
                 if (freshProfile) {
@@ -516,14 +523,12 @@ export default function MapPage() {
                 }
             }
 
-            // Fecha o diálogo e limpa
             setShowLocationDialog(false)
             setEditingLocation(false)
             setSearchAddress('')
             setAddressSuggestions([])
 
-            // Centraliza o mapa na nova localização
-            if (mapRef.current) {
+            if (mapRef.current && mapInitialized) {
                 mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
             }
 
@@ -566,11 +571,9 @@ export default function MapPage() {
 
             console.log('[MapPage] ✅ Localização removida com sucesso')
 
-            // Atualiza o estado local
             setProfileLocation(null)
             setUserAddress(null)
 
-            // Remove o marcador do perfil
             if (profileMarkerRef.current) {
                 profileMarkerRef.current.remove()
                 profileMarkerRef.current = null
@@ -583,15 +586,23 @@ export default function MapPage() {
         }
     }
 
-    // ... (resto do código permanece igual: MARKERS, PROFILE MARKER, etc.)
-
-    // MARKERS (sem alterações)
+    // MARKERS - CORRIGIDO COM LOGS
     useEffect(() => {
-        if (!mapReady || !mapRef.current) return
+        if (!mapReady || !mapRef.current) {
+            console.log('[MapPage] ⏳ Aguardando mapa ficar pronto para renderizar marcadores...', { mapReady, hasMap: !!mapRef.current })
+            return
+        }
+
         const map = mapRef.current
+        console.log('[MapPage] 🎨 Renderizando marcadores...', { mode, filteredCount: filtered.length })
 
         markersRef.current.forEach(m => m.remove())
         markersRef.current = []
+
+        if (filtered.length === 0) {
+            console.log('[MapPage] 📭 Nenhum item para marcar')
+            return
+        }
 
         const coordGroups: Record<string, any[]> = {}
 
@@ -605,12 +616,17 @@ export default function MapPage() {
                 coords = parseCoords(item.location) || parseCoords(store?.location)
             }
 
-            if (!coords) return
+            if (!coords) {
+                console.warn('[MapPage] ⚠️ Sem coordenadas para item:', item.name)
+                return
+            }
 
             const key = `${coords[0].toFixed(4)},${coords[1].toFixed(4)}`
             if (!coordGroups[key]) coordGroups[key] = []
             coordGroups[key].push({ item, coords })
         })
+
+        console.log('[MapPage] 📍 Grupos de coordenadas encontrados:', Object.keys(coordGroups).length)
 
         Object.values(coordGroups).forEach(group => {
             group.forEach((entry, index) => {
@@ -714,10 +730,11 @@ export default function MapPage() {
                 markersRef.current.push(marker)
             })
         })
+
+        console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
     }, [filtered, mode, stores, mapReady])
 
-    // PROFILE MARKER (avatar/inicial)
-
+    // PROFILE MARKER
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
 
@@ -728,18 +745,17 @@ export default function MapPage() {
         if (profileLocation && isLoggedIn && (userAvatar || userName)) {
             const el = document.createElement('div')
             el.style.cssText = `
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            overflow: hidden;
-            background: white;
-            border: 3px solid #f97316;
-            box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
-            cursor: pointer;
-            transition: transform 0.2s;
-            /* CORREÇÃO: Centraliza o elemento */
-            transform: translate(-50%, -50%);
-        `
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                overflow: hidden;
+                background: white;
+                border: 3px solid #f97316;
+                box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
+                cursor: pointer;
+                transition: transform 0.2s;
+                transform: translate(-50%, -50%);
+            `
 
             if (userAvatar) {
                 const img = document.createElement('img')
@@ -769,15 +785,17 @@ export default function MapPage() {
                 }
             })
 
-            // CORREÇÃO: Usa anchor 'center' igual aos outros pins
             profileMarkerRef.current = new mapboxgl.Marker({
                 element: el,
-                anchor: 'center'  // Alterado de 'bottom' para 'center'
+                anchor: 'center'
             })
                 .setLngLat([profileLocation.lng, profileLocation.lat])
                 .addTo(mapRef.current)
+
+            console.log('[MapPage] 👤 Marcador de perfil adicionado')
         }
     }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress])
+
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
@@ -833,32 +851,18 @@ export default function MapPage() {
             />
 
             {(!mapReady || loadingLocation) && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-orange-500/90 to-red-500/90 backdrop-blur-xl z-10">
-                    <div className="text-center">
-                        <div className="w-16 h-16 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-                        <span className="text-white text-xl font-black animate-pulse">
-                            {loadingLocation ? 'Buscando sua localização...' : 'Carregando mapa...'}
-                        </span>
-                        {loadingLocation && (
-                            <p className="text-white/70 text-sm mt-2">
-                                Verificando endereço salvo...
+                <div className="absolute inset-0 z-10">
+                    <LoadingSpinner />
+                    {/* Overlay adicional com texto informativo */}
+                    {loadingLocation && (
+                        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
+                            <p className="text-white text-sm font-medium">
+                                🔍 Verificando endereço salvo...
                             </p>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
-
-            {/* Debug Info (remova em produção) 
-             {process.env.NODE_ENV === 'development' && (
-                <div className="absolute top-20 right-4 z-50 bg-black/70 text-white p-2 rounded-lg text-[10px] font-mono max-w-[300px] overflow-auto max-h-[200px]">
-                    <p>📍 Profile Location: {profileLocation ? `${profileLocation.lat.toFixed(4)}, ${profileLocation.lng.toFixed(4)}` : 'null'}</p>
-                    <p>📝 User Address: {userAddress || 'null'}</p>
-                    <p>👤 Logged In: {isLoggedIn ? 'Yes' : 'No'}</p>
-                    <p>🆔 User ID: {userId || 'null'}</p>
-                </div>
-            )}
-            */}
-
 
             {/* TOP BAR UI */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
@@ -892,7 +896,7 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Banner (mostra a localização salva ou atual) */}
+            {/* Location Banner */}
             <div className="absolute left-6 z-20" style={{ bottom: '85px', maxWidth: 'calc(100vw - 80px)' }}>
                 <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
                     {isLoggedIn ? (
@@ -1048,7 +1052,6 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* Resto do código permanece igual (Cluster, Horizontal List, Selected Item, etc.) */}
             {/* Cluster Header */}
             {clusterItems && clusterLocation && (
                 <div className="absolute top-36 left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-30">

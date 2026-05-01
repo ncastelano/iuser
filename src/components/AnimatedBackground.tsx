@@ -1,4 +1,3 @@
-// components/AnimatedBackground.tsx
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -22,15 +21,21 @@ interface PulsingBall {
 }
 
 export default function AnimatedBackground() {
+  const [isMounted, setIsMounted] = useState(false)
   const [bubbles, setBubbles] = useState<Bubble[]>([])
   const [pulsingBalls, setPulsingBalls] = useState<PulsingBall[]>([])
+
+  // Garantir que a animação só execute no cliente
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const createBubble = useCallback(() => {
     const newBubble: Bubble = {
       id: Date.now() + Math.random(),
       left: `${Math.random() * 100}%`,
       startSize: Math.random() * 80 + 40,
-      duration: Math.random() * 8 + 8, // Mais lento: 8-16 segundos
+      duration: Math.random() * 8 + 8,
       delay: Math.random() * 3,
     }
     setBubbles(prev => [...prev, newBubble])
@@ -52,8 +57,8 @@ export default function AnimatedBackground() {
       id: Date.now() + Math.random(),
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
-      size: Math.random() * 120 + 80, // Maior: 80-200px
-      duration: Math.random() * 6 + 6, // Mais lento: 6-12 segundos
+      size: Math.random() * 120 + 80,
+      duration: Math.random() * 6 + 6,
       delay: Math.random() * 8,
       color: colors[Math.floor(Math.random() * colors.length)]
     }
@@ -65,25 +70,51 @@ export default function AnimatedBackground() {
   }, [])
 
   useEffect(() => {
+    // Só iniciar as animações após montagem no cliente
+    if (!isMounted) return
+
     const bubbleInterval = setInterval(() => {
-      const bubbleCount = Math.floor(Math.random() * 2) + 1 // Menos bolhas por vez
+      const bubbleCount = Math.floor(Math.random() * 2) + 1
       for (let i = 0; i < bubbleCount; i++) {
         setTimeout(() => createBubble(), i * 300)
       }
-    }, 1200) // Mais espaçado
+    }, 1200)
 
     const pulseInterval = setInterval(() => {
       const ballCount = Math.floor(Math.random() * 2) + 1
       for (let i = 0; i < ballCount; i++) {
         setTimeout(() => createPulsingBall(), i * 500)
       }
-    }, 5000) // A cada 5 segundos
+    }, 5000)
 
     return () => {
       clearInterval(bubbleInterval)
       clearInterval(pulseInterval)
     }
-  }, [createBubble, createPulsingBall])
+  }, [createBubble, createPulsingBall, isMounted])
+
+  // Prevenir renderização durante SSR
+  if (!isMounted) {
+    return <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-white" />
+  }
+
+  // Gerar bolhas ambiente apenas no cliente com valores fixos
+  const ambientBubbles = [...Array(8)].map((_, i) => {
+    // Usar valores baseados no índice para consistência
+    const seed = i * 12345
+    const duration = 15 + (seed % 15) // 15-30 segundos
+    const delay = (seed % 20)
+    const startSize = 25 + (seed % 50) // 25-75px
+    const left = (seed % 100)
+
+    return {
+      key: `ambient-${i}`,
+      duration,
+      delay,
+      startSize,
+      left
+    }
+  })
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 bg-white">
@@ -128,7 +159,7 @@ export default function AnimatedBackground() {
           key={`small-${bubble.id}`}
           className="absolute rounded-full will-change-transform"
           style={{
-            left: `calc(${bubble.left} + ${Math.random() * 20 - 10}px)`,
+            left: `calc(${bubble.left} + ${(bubble.id % 20) - 10}px)`, // Usar ID para consistência
             bottom: '-30px',
             width: `${bubble.startSize * 0.5}px`,
             height: `${bubble.startSize * 0.5}px`,
@@ -139,27 +170,22 @@ export default function AnimatedBackground() {
         />
       ))}
 
-      {/* Bolhas ambiente - OPACIDADE CONSTANTE */}
+      {/* Bolhas ambiente - OPACIDADE CONSTANTE (agora com valores consistentes) */}
       <div className="absolute inset-0">
-        {[...Array(8)].map((_, i) => {
-          const duration = Math.random() * 15 + 15 // 15-30 segundos (bem lento)
-          const delay = Math.random() * 20
-          const startSize = Math.random() * 50 + 25
-          return (
-            <div
-              key={`ambient-${i}`}
-              className="absolute rounded-full will-change-transform"
-              style={{
-                left: `${Math.random() * 100}%`,
-                bottom: '-30px',
-                width: `${startSize}px`,
-                height: `${startSize}px`,
-                background: `radial-gradient(circle at 30% 30%, rgba(249, 115, 22, 0.08), rgba(239, 68, 68, 0.04))`,
-                animation: `floatUpAmbientSmooth ${duration}s linear ${delay}s infinite`,
-              }}
-            />
-          )
-        })}
+        {ambientBubbles.map((bubble) => (
+          <div
+            key={bubble.key}
+            className="absolute rounded-full will-change-transform"
+            style={{
+              left: `${bubble.left}%`,
+              bottom: '-30px',
+              width: `${bubble.startSize}px`,
+              height: `${bubble.startSize}px`,
+              background: `radial-gradient(circle at 30% 30%, rgba(249, 115, 22, 0.08), rgba(239, 68, 68, 0.04))`,
+              animation: `floatUpAmbientSmooth ${bubble.duration}s linear ${bubble.delay}s infinite`,
+            }}
+          />
+        ))}
       </div>
 
       <style jsx global>{`

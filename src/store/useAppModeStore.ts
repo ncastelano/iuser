@@ -1,3 +1,5 @@
+// app/store/useAppModeStore.ts
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -13,8 +15,8 @@ export const useAppModeStore = create<AppState>()(
   persist(
     (set) => ({
       mode: 'commercial',
-      toggleMode: () => set((state) => ({ 
-        mode: state.mode === 'commercial' ? 'personal' : 'commercial' 
+      toggleMode: () => set((state) => ({
+        mode: state.mode === 'commercial' ? 'personal' : 'commercial'
       })),
       setMode: (mode) => set({ mode }),
     }),
