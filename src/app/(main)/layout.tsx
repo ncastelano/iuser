@@ -100,6 +100,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
     }
 
     const isMapRoute = pathname === '/mapa'
+    // 🔥 NOVO: Verifica se é a rota da vitrine (página inicial)
+    const isVitrineRoute = pathname === '/'
 
     return (
         <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
@@ -178,8 +180,11 @@ export default function MainLayout({ children }: { children: ReactNode }) {
                 <Sparkles className="absolute bottom-[25%] left-[10%] w-6 h-6 text-yellow-500/20 animate-pulse" style={{ animationDelay: '1s' }} />
             </div>
 
-            {/* Conteúdo */}
-            <main className={`relative z-10 flex-1 w-full flex flex-col pb-24 ${isMapRoute ? '' : 'max-w-7xl mx-auto px-4 md:px-8 pt-4'}`}>
+            {/* Conteúdo - MODIFICADO AQUI */}
+            <main className={`relative z-10 flex-1 w-full flex flex-col pb-24 ${isMapRoute || isVitrineRoute
+                    ? '' // SEM padding e SEM max-width para vitrine e mapa
+                    : 'max-w-7xl mx-auto px-4 md:px-8 pt-4' // Com padding para outras páginas
+                }`}>
                 {/* Indicador de carrinho animado flutuante (opcional) */}
                 {totalCartItems > 0 && (
                     <div className="fixed bottom-24 right-4 z-50 animate-slide-in-right">

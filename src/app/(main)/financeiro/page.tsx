@@ -946,7 +946,7 @@ export default function FinanceiroPage() {
                     <div key={section} className="mb-12">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-sm font-black italic uppercase tracking-wider text-gray-700">
-                                {section === 'merchant' ? '🏪 Minhas Lojas' : '🛍️ Painel do Consumidor'}
+                                {section === 'merchant' ? '🏪 Painel do Vendedor' : '🛍️ Painel do Consumidor'}
                             </h2>
                             {section === 'merchant' && stores.length > 0 && (
                                 <button onClick={() => router.push('/criar-loja')} className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-black uppercase text-[8px] tracking-wider hover:shadow-lg transition-all">

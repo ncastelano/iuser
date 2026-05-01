@@ -359,10 +359,10 @@ export default function Vitrine() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
-      {/* Header Sticky */}
+      {/* Header Sticky - SEM PADDING EXTERNO */}
       <div className="sticky top-0 z-50 bg-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 py-3 sm:py-4">
+        <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-center gap-3">
             {/* Logo */}
             <div className="flex-shrink-0 cursor-pointer hover:scale-105 transition-transform" onClick={() => router.push('/')}>
               <div className="flex items-center gap-2">
@@ -380,13 +380,13 @@ export default function Vitrine() {
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400 group-focus-within:text-orange-500 transition-colors" />
               <input
                 type="text"
-                placeholder={activeTab === 'stores' ? "🔍 Buscar lojas incríveis..." : "🔍 O que você procura?"}
+                placeholder={activeTab === "stores" ? "🔍 Buscar lojas incríveis..." : "🔍 O que você procura?"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-8 py-2.5 bg-orange-50 border-2 border-orange-200 focus:border-orange-500 text-gray-700 placeholder:text-orange-300 text-sm rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all"
               />
               {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-orange-400 hover:text-orange-600 transition-colors">
+                <button onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-orange-400 hover:text-orange-600 transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -404,15 +404,15 @@ export default function Vitrine() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - SEM PADDING EXTERNO */}
       <div className="sticky top-[73px] sm:top-[81px] z-40 bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('stores')}
-              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === 'stores'
-                  ? 'text-orange-600'
-                  : 'text-gray-500 hover:text-orange-500'
+              onClick={() => setActiveTab("stores")}
+              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === "stores"
+                  ? "text-orange-600"
+                  : "text-gray-500 hover:text-orange-500"
                 }`}
             >
               <Store className="w-4 h-4" />
@@ -420,15 +420,15 @@ export default function Vitrine() {
               <span className="text-xs font-normal ml-1 bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                 {sortedStores.length}
               </span>
-              {activeTab === 'stores' && (
+              {activeTab === "stores" && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full"></div>
               )}
             </button>
             <button
-              onClick={() => setActiveTab('products')}
-              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === 'products'
-                  ? 'text-orange-600'
-                  : 'text-gray-500 hover:text-orange-500'
+              onClick={() => setActiveTab("products")}
+              className={`flex items-center gap-2 px-5 sm:px-7 py-3.5 text-sm font-bold transition-all relative ${activeTab === "products"
+                  ? "text-orange-600"
+                  : "text-gray-500 hover:text-orange-500"
                 }`}
             >
               <Package className="w-4 h-4" />
@@ -436,7 +436,7 @@ export default function Vitrine() {
               <span className="text-xs font-normal ml-1 bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
                 {sortedProducts.length}
               </span>
-              {activeTab === 'products' && (
+              {activeTab === "products" && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full"></div>
               )}
             </button>
@@ -478,13 +478,13 @@ export default function Vitrine() {
                         setShowFilters(false)
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${isActive
-                          ? 'bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-500'
-                          : 'text-gray-700 hover:bg-gray-50'
+                          ? "bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-500"
+                          : "text-gray-700 hover:bg-gray-50"
                         }`}
                     >
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-orange-500' : 'text-gray-400'}`} />
+                      <Icon className={`w-5 h-5 ${isActive ? "text-orange-500" : "text-gray-400"}`} />
                       <div className="flex-1 text-left">
-                        <div className={`text-sm font-bold ${isActive ? 'text-orange-600' : 'text-gray-900'}`}>
+                        <div className={`text-sm font-bold ${isActive ? "text-orange-600" : "text-gray-900"}`}>
                           {option.label}
                         </div>
                         <div className="text-xs text-gray-500">{option.description}</div>
@@ -500,7 +500,7 @@ export default function Vitrine() {
               <div className="p-4 border-t border-gray-100">
                 <button
                   onClick={() => {
-                    setSortBy('rating')
+                    setSortBy("rating")
                     setShowFilters(false)
                   }}
                   className="w-full py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
@@ -523,7 +523,7 @@ export default function Vitrine() {
                 </h1>
               </div>
               <p className="text-sm text-gray-600">
-                🎉 {currentItems.length} {activeTab === 'stores' ? 'lojas parceiras' : 'itens disponíveis'} prontos para você
+                🎉 {currentItems.length} {activeTab === "stores" ? "lojas parceiras" : "itens disponíveis"} prontos para você
               </p>
             </div>
             {hasMoreItems && (
@@ -531,8 +531,8 @@ export default function Vitrine() {
                 onClick={() => setShowAllItems(!showAllItems)}
                 className="text-sm font-bold text-orange-600 hover:text-orange-700 transition-colors flex items-center gap-1 bg-orange-50 px-4 py-2 rounded-full"
               >
-                {showAllItems ? 'Ver menos' : `Ver todos (${currentItems.length})`}
-                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllItems ? 'rotate-90' : ''}`} />
+                {showAllItems ? "Ver menos" : `Ver todos (${currentItems.length})`}
+                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showAllItems ? "rotate-90" : ""}`} />
               </button>
             )}
           </div>
@@ -542,7 +542,7 @@ export default function Vitrine() {
         {currentItems.length === 0 ? (
           <div className="py-16 text-center bg-white rounded-3xl shadow-sm">
             <div className="inline-flex p-4 bg-gradient-to-br from-orange-100 to-red-100 rounded-full mb-4">
-              {activeTab === 'stores' ? (
+              {activeTab === "stores" ? (
                 <Building2 className="w-12 h-12 text-orange-500" />
               ) : (
                 <Package className="w-12 h-12 text-orange-500" />
@@ -555,7 +555,7 @@ export default function Vitrine() {
               😕 Tente buscar por outro termo ou ajustar os filtros
             </p>
           </div>
-        ) : activeTab === 'stores' ? (
+        ) : activeTab === "stores" ? (
           /* Store Cards - Grid Responsivo */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {(visibleItems as StoreType[]).map((store, idx) => {
@@ -586,8 +586,8 @@ export default function Vitrine() {
 
                     {/* Status Badge */}
                     <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-xl shadow-md">
-                      <div className={`w-2 h-2 rounded-full ${store.is_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                      <span className="text-xs font-bold text-gray-700">{store.is_open ? 'Aberto' : 'Fechado'}</span>
+                      <div className={`w-2 h-2 rounded-full ${store.is_open ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                      <span className="text-xs font-bold text-gray-700">{store.is_open ? "Aberto" : "Fechado"}</span>
                     </div>
 
                     {/* Distance Badge */}
@@ -628,7 +628,7 @@ export default function Vitrine() {
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                         <span className="font-bold text-gray-900">
-                          {stats.ratings_avg?.toFixed(1) ?? '0.0'}
+                          {stats.ratings_avg?.toFixed(1) ?? "0.0"}
                         </span>
                         <span className="text-xs text-gray-500">({stats.ratings_count ?? 0})</span>
                       </div>
@@ -646,7 +646,7 @@ export default function Vitrine() {
                           <span className="text-gray-600">💰 Faixa de preço</span>
                           <span className="font-bold text-orange-600">
                             {stats.price_min && `R$ ${stats.price_min.toFixed(2)}`}
-                            {stats.price_min && stats.price_max && ' - '}
+                            {stats.price_min && stats.price_max && " - "}
                             {stats.price_max && `R$ ${stats.price_max.toFixed(2)}`}
                           </span>
                         </div>
@@ -678,8 +678,8 @@ export default function Vitrine() {
               const store = getStore(product.store_id)
               const distance = store ? calcDistanceKm(store.location) : null
               const distanceFormatted = formatDistance(distance)
-              const price = typeof product.price === 'number' ? product.price : 0
-              const typeLabel = translateType(product.type) || product.category || 'Produto'
+              const price = typeof product.price === "number" ? product.price : 0
+              const typeLabel = translateType(product.type) || product.category || "Produto"
 
               return (
                 <div
@@ -752,7 +752,7 @@ export default function Vitrine() {
                     <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                       <div>
                         <span className="text-xl font-black text-orange-600">
-                          R$ {price.toFixed(2).replace('.', ',')}
+                          R$ {price.toFixed(2).replace(".", ",")}
                         </span>
                         {store?.store_stats.ratings_avg && (
                           <div className="flex items-center gap-1 mt-0.5">
