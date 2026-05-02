@@ -532,7 +532,7 @@ export default function MapPage() {
                 mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 1000 })
             }
 
-            toast.success('📍 Localização salva com sucesso!', {
+            toast.success('Localização salva com sucesso!', {
                 description: address.split(',')[0],
                 duration: 3000,
             })
@@ -545,6 +545,7 @@ export default function MapPage() {
         }
     }
 
+    // Remover localização do perfil
     // Remover localização do perfil
     const removeLocation = async () => {
         try {
@@ -571,9 +572,11 @@ export default function MapPage() {
 
             console.log('[MapPage] ✅ Localização removida com sucesso')
 
+            // Apenas remove o estado da localização, sem mover o mapa
             setProfileLocation(null)
             setUserAddress(null)
 
+            // Remove o marcador do perfil
             if (profileMarkerRef.current) {
                 profileMarkerRef.current.remove()
                 profileMarkerRef.current = null
@@ -735,6 +738,7 @@ export default function MapPage() {
     }, [filtered, mode, stores, mapReady])
 
     // PROFILE MARKER
+    // PROFILE MARKER
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
 
@@ -743,47 +747,140 @@ export default function MapPage() {
         }
 
         if (profileLocation && isLoggedIn && (userAvatar || userName)) {
+            // Criar container principal
             const el = document.createElement('div')
             el.style.cssText = `
-                width: 44px;
-                height: 44px;
-                border-radius: 50%;
-                overflow: hidden;
-                background: white;
-                border: 3px solid #f97316;
-                box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
-                cursor: pointer;
-                transition: transform 0.2s;
-                transform: translate(-50%, -50%);
-            `
+            position: relative;
+            width: 44px;
+            height: 44px;
+        `
 
+            // Criar o círculo pulsante (efeito de onda)
+            const pulseRing = document.createElement('div')
+            pulseRing.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 3px solid #f97316;
+            animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+            pointer-events: none;
+        `
+
+            // Criar o avatar circular
+            const avatarCircle = document.createElement('div')
+            avatarCircle.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: white;
+            border: 3px solid #f97316;
+            box-shadow: 0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.3s;
+            z-index: 1;
+        `
+
+            // Adicionar conteúdo do avatar
             if (userAvatar) {
                 const img = document.createElement('img')
                 img.src = userAvatar
                 img.style.cssText = 'width:100%;height:100%;object-fit:cover;'
                 img.onerror = () => {
-                    el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:20px">${userName.charAt(0).toUpperCase()}</div>`
+                    avatarCircle.innerHTML = `
+                    <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:20px">
+                        ${userName.charAt(0).toUpperCase()}
+                    </div>
+                `
                 }
-                el.appendChild(img)
+                avatarCircle.appendChild(img)
             } else {
-                el.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:18px">${userName.charAt(0).toUpperCase()}</div>`
+                avatarCircle.innerHTML = `
+                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ef4444);color:white;font-weight:bold;font-size:18px">
+                    ${userName.charAt(0).toUpperCase()}
+                </div>
+            `
             }
 
-            el.addEventListener('mouseenter', () => {
-                el.style.transform = 'translate(-50%, -50%) scale(1.1)'
-            })
-            el.addEventListener('mouseleave', () => {
-                el.style.transform = 'translate(-50%, -50%) scale(1)'
+            // Criar um segundo anel pulsante (para efeito mais suave)
+            const pulseRing2 = document.createElement('div')
+            pulseRing2.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 3px solid #f97316;
+            animation: profilePulse 2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s infinite;
+            pointer-events: none;
+        `
+
+            // Adicionar elementos ao container
+            el.appendChild(pulseRing)
+            el.appendChild(pulseRing2)
+            el.appendChild(avatarCircle)
+
+            // Eventos de hover
+            avatarCircle.addEventListener('mouseenter', () => {
+                avatarCircle.style.transform = 'translate(-50%, -50%) scale(1.1)'
+                avatarCircle.style.boxShadow = '0 0 0 6px rgba(249,115,22,0.4), 0 12px 28px rgba(0,0,0,0.3)'
             })
 
+            avatarCircle.addEventListener('mouseleave', () => {
+                avatarCircle.style.transform = 'translate(-50%, -50%) scale(1)'
+                avatarCircle.style.boxShadow = '0 0 0 3px rgba(249,115,22,0.3), 0 8px 20px rgba(0,0,0,0.2)'
+            })
+
+            // Evento de clique
             el.addEventListener('click', () => {
                 if (mapRef.current && profileLocation) {
-                    mapRef.current.flyTo({ center: [profileLocation.lng, profileLocation.lat], zoom: 17, duration: 800 })
+                    mapRef.current.flyTo({
+                        center: [profileLocation.lng, profileLocation.lat],
+                        zoom: 17,
+                        duration: 800
+                    })
                     setShowLocationDialog(true)
                     setEditingLocation(true)
                     setSearchAddress(userAddress || '')
                 }
             })
+
+            // Injetar a animação CSS
+            const styleId = 'profile-pulse-animation'
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style')
+                style.id = styleId
+                style.textContent = `
+                @keyframes profilePulse {
+                    0% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                        border-color: #f97316;
+                    }
+                    50% {
+                        transform: translate(-50%, -50%) scale(1.5);
+                        opacity: 0.5;
+                        border-color: #fb923c;
+                    }
+                    100% {
+                        transform: translate(-50%, -50%) scale(1.8);
+                        opacity: 0;
+                        border-color: #fdba74;
+                    }
+                }
+            `
+                document.head.appendChild(style)
+            }
 
             profileMarkerRef.current = new mapboxgl.Marker({
                 element: el,
@@ -792,9 +889,10 @@ export default function MapPage() {
                 .setLngLat([profileLocation.lng, profileLocation.lat])
                 .addTo(mapRef.current)
 
-            console.log('[MapPage] 👤 Marcador de perfil adicionado')
+            console.log('[MapPage] 👤 Marcador de perfil adicionado com efeito pulsante')
         }
     }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress])
+
 
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
@@ -874,7 +972,7 @@ export default function MapPage() {
                     <div className="relative group flex-1">
                         <input
                             type="text"
-                            placeholder={mode === 'lojas' ? "Buscar lojas incríveis..." : mode === 'servicos' ? "Encontrar serviços..." : "Procurar produtos..."}
+                            placeholder={mode === 'lojas' ? "Procurar lojas" : mode === 'servicos' ? "Procurar serviços" : "Procurar produtos"}
                             value={search}
                             onChange={(e) => { setSearch(e.target.value); setOverrideList(null) }}
                             className="w-full pl-4 pr-10 py-3.5 bg-white/95 backdrop-blur-xl border-2 border-orange-200 focus:border-orange-500 rounded-2xl text-gray-700 placeholder:text-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all duration-300 shadow-2xl"
@@ -903,7 +1001,14 @@ export default function MapPage() {
                         profileLocation ? (
                             <>
                                 <MapPin className="w-4 h-4 text-white" />
-                                <span className="text-xs font-black text-white tracking-tight">
+                                <span
+                                    className="text-xs font-black text-white tracking-tight cursor-pointer hover:underline"
+                                    onClick={() => {
+                                        setEditingLocation(true)
+                                        setShowLocationDialog(true)
+                                        setSearchAddress(userAddress || '')
+                                    }}
+                                >
                                     {userAddress?.split(',').slice(0, 2).join(',') || 'Localização salva'}
                                 </span>
                                 <button
@@ -912,14 +1017,14 @@ export default function MapPage() {
                                         setShowLocationDialog(true)
                                         setSearchAddress(userAddress || '')
                                     }}
-                                    className="ml-2 p-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                    className="ml-2 p-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
                                     title="Editar localização"
                                 >
                                     <Edit2 className="w-3 h-3 text-white" />
                                 </button>
                                 <button
                                     onClick={removeLocation}
-                                    className="ml-1 p-1 bg-white/20 rounded-lg hover:bg-red-300/30 transition-colors"
+                                    className="ml-1 p-1 bg-transparent rounded-lg hover:bg-red-300/30 transition-colors"
                                     title="Remover localização"
                                 >
                                     <XCircle className="w-3 h-3 text-white" />
@@ -928,14 +1033,23 @@ export default function MapPage() {
                         ) : (
                             <>
                                 <Compass className="w-4 h-4 text-white" />
-                                <span className="text-xs font-bold text-white">Localização não definida</span>
+                                <span
+                                    className="text-xs font-bold text-white cursor-pointer hover:underline"
+                                    onClick={() => {
+                                        setEditingLocation(false)
+                                        setShowLocationDialog(true)
+                                        setSearchAddress('')
+                                    }}
+                                >
+                                    Localização não definida
+                                </span>
                                 <button
                                     onClick={() => {
                                         setEditingLocation(false)
                                         setShowLocationDialog(true)
                                         setSearchAddress('')
                                     }}
-                                    className="ml-2 px-2 py-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
+                                    className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
                                 >
                                     <Plus className="w-3 h-3 text-white" />
                                     <span className="text-[10px] font-bold text-white">Adicionar</span>
@@ -945,10 +1059,15 @@ export default function MapPage() {
                     ) : (
                         <>
                             <XCircle className="w-4 h-4 text-white" />
-                            <span className="text-xs font-bold text-white">Você não está logado</span>
+                            <span
+                                className="text-xs font-bold text-white cursor-pointer hover:underline"
+                                onClick={() => router.push('/login')}
+                            >
+                                Você não está logado
+                            </span>
                             <button
                                 onClick={() => router.push('/login')}
-                                className="ml-2 px-2 py-1 bg-white/20 rounded-lg hover:bg-white/30 transition-colors"
+                                className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
                             >
                                 Entrar
                             </button>

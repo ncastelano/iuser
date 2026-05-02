@@ -31,7 +31,7 @@ export function VitrineHeader({
                                 <Store className="w-5 h-5 text-white" />
                             </div>
                             <span className="text-xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent hidden sm:inline">
-                                iUser Market
+                                Vitrine
                             </span>
                         </div>
                     </div>
