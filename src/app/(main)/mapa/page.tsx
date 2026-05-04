@@ -336,7 +336,7 @@ export default function MapPage() {
         // Fallback para Brasília caso não tenha localização
         const centerLocation = referenceLocation || { lat: -15.7939, lng: -47.8828 }
 
-        console.log('[MapPage] 🗺️ Inicializando mapa em:', centerLocation)
+        console.log('[MapPage]  Inicializando mapa em:', centerLocation)
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
@@ -955,7 +955,7 @@ export default function MapPage() {
                     {loadingLocation && (
                         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
                             <p className="text-white text-sm font-medium">
-                                🔍 Verificando endereço salvo...
+                                Verificando endereço salvo...
                             </p>
                         </div>
                     )}
@@ -1356,7 +1356,7 @@ export default function MapPage() {
             </div>
 
             {/* Map Style Toggle */}
-            <div className="absolute z-50" style={{ bottom: '140px', left: '24px' }}>
+            <div className="absolute z-50" style={{ bottom: '160px', left: '24px' }}>
                 <button
                     onClick={toggleMapStyle}
                     className="group relative flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 border-2 border-orange-200"
