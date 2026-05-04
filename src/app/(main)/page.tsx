@@ -5,7 +5,6 @@ import { Flame, ChevronRight, Zap } from 'lucide-react'
 import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
 import { EmptyState } from '@/components/vitrine/EmptyState'
 import { VitrineHeader } from '@/components/vitrine/VitrineHeader'
-import { VitrineTabs } from '@/components/vitrine/VitrineTabs'
 import { FilterModal } from '@/components/vitrine/FilterModal'
 import { StoreCard } from '@/components/vitrine/StoreCard'
 import { ProductCard } from '@/components/vitrine/ProductCard'
@@ -87,9 +86,6 @@ export default function Vitrine() {
         activeFilterLabel={getActiveFilterLabel()}
         activeFilterIcon={getActiveFilterIcon()}
         onLogoClick={() => router.push('/')}
-      />
-
-      <VitrineTabs
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab)
@@ -97,7 +93,10 @@ export default function Vitrine() {
         }}
         storesCount={sortedStores.length}
         productsCount={sortedProducts.length}
+        sortBy={sortBy}
       />
+
+
 
       <FilterModal
         isOpen={showFilters}
