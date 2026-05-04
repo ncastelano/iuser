@@ -1075,7 +1075,7 @@ export default function MapPage() {
             <div className="absolute left-0 z-50" style={{ bottom: '130px' }}>
                 <button
                     onClick={toggleMapStyle}
-                    className="group flex items-center gap-2 pl-3 pr-4 py-2.5 bg-white rounded-r-2xl shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-orange-200 border-l-0"
+                    className="group relative flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 border-2 border-orange-200"
                 >
                     <Layers className="w-4 h-4 text-orange-500 transition-all duration-300 group-hover:rotate-180" />
                     <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
@@ -1247,7 +1247,7 @@ export default function MapPage() {
 
             {/* Horizontal List - com mais espaço abaixo do input */}
             {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[100px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="absolute top-[90px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button
