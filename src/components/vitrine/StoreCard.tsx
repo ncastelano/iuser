@@ -1,4 +1,5 @@
 import { StoreType } from '@/app/(main)/hooks/useVitrineData'
+import { RatingStars } from '@/components/ratings/RatingStars'
 import { MapPin, Star, Award, ShoppingBag, ChevronRight, Truck, Building2 } from 'lucide-react'
 
 
@@ -83,16 +84,18 @@ export function StoreCard({ store, distance, productCount, onNavigate }: StoreCa
 
                 {/* Rating & Stats */}
                 <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        <span className="font-bold text-gray-900">
-                            {stats.ratings_avg?.toFixed(1) ?? "0.0"}
+                    <div className="flex items-center gap-1.5">
+                        <RatingStars value={Number(store.ratings_avg ?? stats.ratings_avg ?? 0)} size={12} className="pointer-events-none" />
+                        <span className="font-black text-gray-900 text-sm">
+                            {Number(store.ratings_avg ?? stats.ratings_avg ?? 0).toFixed(1)}
                         </span>
-                        <span className="text-xs text-gray-500">({stats.ratings_count ?? 0})</span>
+                        <span className="text-[10px] font-bold text-gray-400">
+                            ({store.ratings_count ?? stats.ratings_count ?? 0})
+                        </span>
                     </div>
-                    <div className="w-px h-4 bg-gray-300" />
-                    <div className="text-sm text-gray-600 flex items-center gap-1">
-                        <ShoppingBag className="w-3 h-3" />
+                    <div className="w-px h-3 bg-gray-200" />
+                    <div className="text-[11px] font-bold text-gray-500 flex items-center gap-1">
+                        <ShoppingBag className="w-3 h-3 text-orange-500" />
                         {productCount} itens
                     </div>
                 </div>

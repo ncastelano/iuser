@@ -3,7 +3,7 @@
 
 import { useCartStore } from '@/store/useCartStore'
 import { useRouter } from 'next/navigation'
-import { Store, ChevronRight, Trash2, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Package, ShoppingBag, History, ShoppingCart } from 'lucide-react'
+import { Store, ChevronRight, Trash2, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Package, ShoppingBag, History, ShoppingCart, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -37,13 +37,18 @@ export default function Sacola() {
     const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
     const [currentUserName, setCurrentUserName] = useState<string | null>(null)
     const [myPurchases, setMyPurchases] = useState<any[]>([])
+    const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao'>('pix')
+    const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada'>('entrega')
+    const [userAddress, setUserAddress] = useState<string | null>(null)
+    const [addressInput, setAddressInput] = useState('')
+    const [isEditingAddress, setIsEditingAddress] = useState(false)
 
     const loadUserData = async (userId: string) => {
         setCurrentUserId(userId)
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('profileSlug, avatar_url, name')
+            .select('profileSlug, avatar_url, name, address')
             .eq('id', userId)
             .single()
 
@@ -51,6 +56,8 @@ export default function Sacola() {
             setCurrentUserSlug(profile.profileSlug)
             setCurrentUserAvatar(profile.avatar_url)
             setCurrentUserName(profile.name)
+            setUserAddress(profile.address)
+            if (profile.address) setAddressInput(profile.address)
         }
 
         const { data: purchaseDataLegacy } = await supabase
@@ -406,9 +413,13 @@ export default function Sacola() {
                 }
 
                 if (whatsapp) {
+                    const paymentLabel = paymentMethod === 'pix' ? 'PIX' : 'Cartão'
+                    const deliveryLabel = deliveryOption === 'entrega' ? `Entrega (${addressInput})` : 'Retirada no Balcão'
                     const message = encodeURIComponent(
                         `*Novo Pedido - iUser*\n\n` +
                         `*Cliente:* @${currentUserSlug}\n` +
+                        `*Pagamento:* ${paymentLabel}\n` +
+                        `*Entrega:* ${deliveryLabel}\n` +
                         `*Itens:*\n${finalOrders[0].items.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${i.product.price.toFixed(2)})`).join('\n')}\n\n` +
                         `*Total: R$ ${finalOrders[0].total_amount.toFixed(2)}*`
                     )
@@ -654,6 +665,107 @@ export default function Sacola() {
                                 {/* Total e Finalização do Carrinho */}
                                 {storeSlugs.length > 0 && (
                                     <div className="pt-4 border-t border-orange-200">
+                                        <div className="mb-6 space-y-3">
+                                            <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => setDeliveryOption('entrega')}
+                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
+                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                        }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                        <span className="text-xs">📍</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeliveryOption('retirada')}
+                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
+                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                        }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                        <span className="text-xs">🏪</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black uppercase ${deliveryOption === 'retirada' ? 'text-orange-600' : 'text-gray-500'}`}>Retirada</span>
+                                                </button>
+                                            </div>
+
+                                            {deliveryOption === 'entrega' && (
+                                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
+                                                    {userAddress && !isEditingAddress ? (
+                                                        <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
+                                                            <div className="flex items-start gap-2">
+                                                                <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
+                                                                <p className="text-sm font-bold text-gray-800">{userAddress}</p>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => setIsEditingAddress(true)}
+                                                                className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
+                                                            >
+                                                                Mudar
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            <div className="relative">
+                                                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Rua, número, bairro, cidade..."
+                                                                    className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                                    value={addressInput}
+                                                                    onChange={(e) => setAddressInput(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            {isEditingAddress && (
+                                                                <button 
+                                                                    onClick={() => setIsEditingAddress(false)}
+                                                                    className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
+                                                                >
+                                                                    Cancelar
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="mb-6 space-y-3">
+                                            <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => setPaymentMethod('pix')}
+                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
+                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                        }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                        <span className="text-xs font-black">PIX</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setPaymentMethod('cartao')}
+                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'cartao'
+                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                        }`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'cartao' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                        <span className="text-xs font-black">💳</span>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black uppercase ${paymentMethod === 'cartao' ? 'text-orange-600' : 'text-gray-500'}`}>Cartão</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         <div className="flex items-center justify-between mb-4">
                                             <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
                                             <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>

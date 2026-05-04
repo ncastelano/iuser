@@ -41,13 +41,14 @@ export function useVitrineData() {
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
+        const supabase = createClient()
+        let storesSubscription: any = null
+
         const fetchData = async () => {
             setLoading(true)
             setError(null)
 
             try {
-                const supabase = createClient()
-
                 const [{ data: storesList, error: sErr }, { data: profilesList, error: prErr }, { data: productsList, error: pErr }] = await Promise.all([
                     supabase.from('stores').select('*'),
                     supabase.from('profiles').select('id, "profileSlug"'),
@@ -55,8 +56,11 @@ export function useVitrineData() {
                 ])
 
                 if (sErr || prErr || pErr) {
-                    console.error('[Vitrine] Erro ao carregar dados:', { sErr, prErr, pErr })
-                    setError('Erro ao carregar dados')
+                    const errorMsg = sErr?.message || prErr?.message || pErr?.message || 'Erro desconhecido'
+                    console.error('[Vitrine] Detalhes do erro:', { sErr, prErr, pErr })
+                    setError(`Erro ao carregar dados: ${errorMsg}`)
+                    setLoading(false)
+                    return
                 }
 
                 const mappedProducts = (productsList || []).map(product => {
@@ -78,7 +82,7 @@ export function useVitrineData() {
                     }
                 })
 
-                const mappedStores = (storesList || []).map(store => {
+                const mapStores = (sList: any[]) => sList.map(store => {
                     try {
                         const prof = (profilesList || []).find(p => p.id === store.owner_id)
                         const storeProducts = mappedProducts.filter(p => p.store_id === store.id)
@@ -110,17 +114,49 @@ export function useVitrineData() {
                     }
                 })
 
-                setAllStores(mappedStores as any)
+                setAllStores(mapStores(storesList || []) as any)
                 setAllProducts(mappedProducts as any)
-            } catch (globalErr) {
+
+            } catch (globalErr: any) {
                 console.error('[Vitrine] Erro global:', globalErr)
-                setError('Erro ao carregar dados')
+                setError(`Erro crítico: ${globalErr.message || 'Erro de conexão'}`)
             } finally {
                 setLoading(false)
             }
         }
 
         fetchData()
+
+        // Inscrição Realtime configurada fora da função assíncrona para evitar erros de callback após subscribe
+        storesSubscription = supabase
+            .channel('stores-realtime-changes')
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'stores' }, 
+                (payload) => {
+                    console.log('[Vitrine] Mudança detectada via Realtime:', payload)
+                    setAllStores(current => current.map(s => {
+                        if (s.id === payload.new.id) {
+                            return {
+                                ...s,
+                                ...payload.new,
+                                store_stats: {
+                                    ...s.store_stats,
+                                    ratings_count: payload.new.ratings_count ?? s.store_stats.ratings_count,
+                                    ratings_avg: payload.new.ratings_avg ?? s.store_stats.ratings_avg,
+                                }
+                            }
+                        }
+                        return s
+                    }))
+                }
+            )
+            .subscribe()
+
+        return () => {
+            if (storesSubscription) {
+                supabase.removeChannel(storesSubscription)
+            }
+        }
     }, [])
 
     return { allStores, allProducts, loading, error }

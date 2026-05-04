@@ -13,6 +13,7 @@ import { useFinanceiroData } from './hooks/useFinanceiroData'
 import { PainelVendedor } from './components/PainelVendedor'
 import { PainelConsumidor } from './components/PainelConsumidor'
 import AnimatedBackground from '@/components/AnimatedBackground'
+import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
 
 export default function FinanceiroPage() {
     const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])
@@ -64,13 +65,7 @@ export default function FinanceiroPage() {
         return viewOrder
     }, [stores.length, viewOrder])
 
-    if (loading) return (
-        <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 flex flex-col items-center justify-center gap-3">
-            <AnimatedBackground />
-            <div className="relative z-10 w-10 h-10 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-            <p className="relative z-10 text-[10px] font-black uppercase tracking-wider text-gray-600 animate-pulse">Carregando iUser Finanças...</p>
-        </div>
-    )
+    if (loading) return <LoadingSpinner />
 
     return (
         <div className="relative min-h-screen pb-24 bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
+import { RatingStars } from '@/components/ratings/RatingStars'
 
 type RatingRow = {
     id: string
@@ -44,12 +44,31 @@ export default function StoreRatingsPage() {
                 .eq('store_id', storeData.id)
                 .order('created_at', { ascending: false })
 
-            setStore({ ...storeData, logo_url: logoUrl })
             const rows = (ratingsData || []).map((r: any) => ({
                 ...r,
                 profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
             })) as RatingRow[]
+
+            // Calcular média e contagem reais
+            const count = rows.length
+            const avg = count > 0 ? rows.reduce((acc, r) => acc + r.rating, 0) / count : 0
+
+            setStore({ 
+                ...storeData, 
+                logo_url: logoUrl, 
+                ratings_avg: avg, 
+                ratings_count: count 
+            })
             setRatings(rows)
+
+            // Sincronizar com a tabela 'stores' para garantir que vitrine e outros fiquem "certinhos"
+            if (avg !== storeData.ratings_avg || count !== storeData.ratings_count) {
+                await supabase
+                    .from('stores')
+                    .update({ ratings_avg: avg, ratings_count: count })
+                    .eq('id', storeData.id)
+            }
+
             setLoading(false)
         }
 

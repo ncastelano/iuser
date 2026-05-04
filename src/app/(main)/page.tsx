@@ -12,6 +12,7 @@ import { PromotionalBanner } from '@/components/vitrine/PromotionalBanner'
 import { useStoreFilters } from './hooks/useStoreFilters'
 import { useVitrineData } from './hooks/useVitrineData'
 import { useGeolocation } from './hooks/useGeolocation'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 const PREVIEW_COUNT = 12
 
@@ -58,9 +59,7 @@ export default function Vitrine() {
     return active ? active.label : 'Filtrar'
   }
 
-  // Helper para criar ícone do filtro ativo (simplificado)
   const getActiveFilterIcon = () => {
-    // Ícone simplificado - você pode importar os ícones específicos se quiser
     return <span className="w-3.5 h-3.5">🔍</span>
   }
 
@@ -75,7 +74,16 @@ export default function Vitrine() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
+    <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+      <AnimatedBackground />
+
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-15px) rotate(5deg); }
+        }
+      `}</style>
+
       <VitrineHeader
         search={search}
         setSearch={(value) => {
@@ -96,8 +104,6 @@ export default function Vitrine() {
         sortBy={sortBy}
       />
 
-
-
       <FilterModal
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
@@ -108,7 +114,7 @@ export default function Vitrine() {
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-10">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -188,6 +194,16 @@ export default function Vitrine() {
         )}
 
         <PromotionalBanner />
+
+        {/* Mensagem final igual ao login */}
+        <div className="mt-12 pt-6 pb-4 border-t border-orange-200/30">
+          <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50">
+            <p className="text-[11px] text-gray-600 text-center leading-relaxed">
+              ✨ <span className="font-black text-orange-600">Mostre para todos ao redor</span> o que você tem de melhor.<br />
+              Sua loja, suas vendas, seu sucesso.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

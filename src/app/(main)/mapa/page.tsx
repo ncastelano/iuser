@@ -955,7 +955,7 @@ export default function MapPage() {
                     {loadingLocation && (
                         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
                             <p className="text-white text-sm font-medium">
-                                Verificando endereço salvo...
+                                Verificando se há endereço salvo...
                             </p>
                         </div>
                     )}
@@ -995,7 +995,7 @@ export default function MapPage() {
             </div>
 
             {/* Location Banner */}
-            <div className="absolute left-6 z-20" style={{ bottom: '85px', maxWidth: 'calc(100vw - 80px)' }}>
+            <div className="absolute left-0 z-20" style={{ bottom: '90px', maxWidth: 'calc(100vw - 80px)' }}>
                 <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
                     {isLoggedIn ? (
                         profileLocation ? (
@@ -1356,7 +1356,7 @@ export default function MapPage() {
             </div>
 
             {/* Map Style Toggle */}
-            <div className="absolute z-50" style={{ bottom: '140px', left: '24px' }}>
+            <div className="absolute z-50" style={{ bottom: '150px', left: '0px' }}>
                 <button
                     onClick={toggleMapStyle}
                     className="group relative flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 border-2 border-orange-200"

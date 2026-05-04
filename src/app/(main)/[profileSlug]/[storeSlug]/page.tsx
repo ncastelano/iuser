@@ -36,9 +36,9 @@ import {
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { useCartStore } from '@/store/useCartStore'
-import { RatingStars } from '@/components/ratings/RatingStars'
 import { getAvatarUrl } from '@/lib/avatar'
 import AnimatedBackground from '@/components/AnimatedBackground'
+import { RatingStars } from '@/components/ratings/RatingStars'
 
 type RatingRow = {
     id: string
@@ -423,15 +423,38 @@ export default function StorePage() {
                 profile_id: user.id,
                 rating,
             }, { onConflict: 'store_id,profile_id' })
+
         if (upsertError) {
             console.error('[StorePage] Erro ao salvar avaliação:', upsertError)
             toast.error('Não foi possível salvar sua avaliação agora.')
             setRatingLoading(false)
             return
         }
+
+        // Buscar todas as avaliações para atualizar a tabela 'stores' manualmente
+        // Isso garante que o reflexo na vitrine seja imediato e correto
+        const { data: allRatings } = await supabase
+            .from('store_ratings')
+            .select('rating')
+            .eq('store_id', store.id)
+
+        if (allRatings && allRatings.length > 0) {
+            const count = allRatings.length
+            const avg = allRatings.reduce((sum, r) => sum + r.rating, 0) / count
+
+            await supabase
+                .from('stores')
+                .update({
+                    ratings_avg: avg,
+                    ratings_count: count
+                })
+                .eq('id', store.id)
+        }
+
         setMyRating(rating)
         await loadStore()
         setRatingLoading(false)
+        toast.success('Avaliação enviada com sucesso!')
     }
 
     if (loading) {
@@ -633,7 +656,7 @@ export default function StorePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50 shadow-sm">
                     <div className="flex items-center gap-3">
                         <RatingStars
-                            value={myRating > 0 ? myRating : Number(store.ratings_avg || 0)}
+                            value={Number(store.ratings_avg || 0)}
                             size={14}
                             onChange={!isOwner ? submitRating : undefined}
                         />
