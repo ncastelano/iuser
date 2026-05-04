@@ -336,7 +336,7 @@ export default function MapPage() {
         // Fallback para Brasília caso não tenha localização
         const centerLocation = referenceLocation || { lat: -15.7939, lng: -47.8828 }
 
-        console.log('[MapPage]  Inicializando mapa em:', centerLocation)
+        console.log('[MapPage] 🗺️ Inicializando mapa em:', centerLocation)
 
         const map = new mapboxgl.Map({
             container: mapContainerRef.current,
@@ -546,7 +546,6 @@ export default function MapPage() {
     }
 
     // Remover localização do perfil
-    // Remover localização do perfil
     const removeLocation = async () => {
         try {
             const supabase = createClient()
@@ -589,7 +588,7 @@ export default function MapPage() {
         }
     }
 
-    // MARKERS - CORRIGIDO COM LOGS
+    // MARKERS
     useEffect(() => {
         if (!mapReady || !mapRef.current) {
             console.log('[MapPage] ⏳ Aguardando mapa ficar pronto para renderizar marcadores...', { mapReady, hasMap: !!mapRef.current })
@@ -737,7 +736,6 @@ export default function MapPage() {
         console.log('[MapPage] ✅ Marcadores criados:', markersRef.current.length)
     }, [filtered, mode, stores, mapReady])
 
-    // PROFILE MARKER
     // PROFILE MARKER
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
@@ -949,15 +947,12 @@ export default function MapPage() {
             />
 
             {(!mapReady || loadingLocation) && (
-                <div className="absolute inset-0 z-10">
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
                     <LoadingSpinner />
-                    {/* Overlay adicional com texto informativo */}
                     {loadingLocation && (
-                        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-2">
-                            <p className="text-white text-sm font-medium">
-                                Verificando endereço salvo...
-                            </p>
-                        </div>
+                        <p className="mt-4 text-white/80 text-sm font-medium animate-pulse">
+                            Verificando endereço salvo...
+                        </p>
                     )}
                 </div>
             )}
@@ -994,15 +989,15 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Banner */}
-            <div className="absolute left-6 z-20" style={{ bottom: '85px', maxWidth: 'calc(100vw - 80px)' }}>
-                <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
+            {/* Location Banner - colado no canto esquerdo */}
+            <div className="absolute left-0 z-20" style={{ bottom: '85px' }}>
+                <div className={`${profileLocation ? 'bg-gradient-to-r from-orange-500 to-red-500' : (isLoggedIn ? 'bg-orange-500' : 'bg-gray-500')} rounded-r-2xl pl-3 pr-4 py-2.5 shadow-xl flex items-center gap-2 backdrop-blur-md border border-white/20 w-fit`}>
                     {isLoggedIn ? (
                         profileLocation ? (
                             <>
                                 <MapPin className="w-4 h-4 text-white" />
                                 <span
-                                    className="text-xs font-black text-white tracking-tight cursor-pointer hover:underline"
+                                    className="text-xs font-black text-white tracking-tight cursor-pointer hover:underline max-w-[200px] truncate"
                                     onClick={() => {
                                         setEditingLocation(true)
                                         setShowLocationDialog(true)
@@ -1017,7 +1012,7 @@ export default function MapPage() {
                                         setShowLocationDialog(true)
                                         setSearchAddress(userAddress || '')
                                     }}
-                                    className="ml-2 p-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
+                                    className="ml-1 p-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
                                     title="Editar localização"
                                 >
                                     <Edit2 className="w-3 h-3 text-white" />
@@ -1049,7 +1044,7 @@ export default function MapPage() {
                                         setShowLocationDialog(true)
                                         setSearchAddress('')
                                     }}
-                                    className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
+                                    className="ml-1 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors flex items-center gap-1"
                                 >
                                     <Plus className="w-3 h-3 text-white" />
                                     <span className="text-[10px] font-bold text-white">Adicionar</span>
@@ -1067,13 +1062,26 @@ export default function MapPage() {
                             </span>
                             <button
                                 onClick={() => router.push('/login')}
-                                className="ml-2 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
+                                className="ml-1 px-2 py-1 bg-transparent rounded-lg hover:bg-white/30 transition-colors"
                             >
                                 Entrar
                             </button>
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* Map Style Toggle - colado no canto esquerdo, abaixo do location banner */}
+            <div className="absolute left-0 z-50" style={{ bottom: '130px' }}>
+                <button
+                    onClick={toggleMapStyle}
+                    className="group flex items-center gap-2 pl-3 pr-4 py-2.5 bg-white rounded-r-2xl shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 border-2 border-orange-200 border-l-0"
+                >
+                    <Layers className="w-4 h-4 text-orange-500 transition-all duration-300 group-hover:rotate-180" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
+                        {mapStyle === 'streets' ? 'Mapa' : 'Satélite'}
+                    </span>
+                </button>
             </div>
 
             {/* Location Dialog */}
@@ -1237,9 +1245,9 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* Horizontal List */}
+            {/* Horizontal List - com mais espaço abaixo do input */}
             {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[78px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="absolute top-[100px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button
@@ -1345,27 +1353,14 @@ export default function MapPage() {
                 </div>
             )}
 
-            {/* Totals Badge */}
-            <div className="absolute bottom-24 left-6 z-10 pointer-events-none sm:block hidden">
+            {/* Totals Badge - apenas em telas maiores, escondido no mobile para não conflitar */}
+            <div className="absolute bottom-24 right-4 z-10 hidden sm:block">
                 <div className="bg-white/95 backdrop-blur-xl rounded-2xl px-4 py-2 shadow-2xl flex items-center gap-2 border border-orange-200">
                     <Flame className="w-4 h-4 text-orange-500" />
                     <span className="text-xs font-black text-gray-700">
                         {filtered.length} {mode === 'lojas' ? 'Lojas' : mode === 'servicos' ? 'Serviços' : 'Produtos'}
                     </span>
                 </div>
-            </div>
-
-            {/* Map Style Toggle */}
-            <div className="absolute z-50" style={{ bottom: '160px', left: '24px' }}>
-                <button
-                    onClick={toggleMapStyle}
-                    className="group relative flex items-center gap-2 px-4 py-2.5 bg-white rounded-2xl shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 border-2 border-orange-200"
-                >
-                    <Layers className="w-4 h-4 text-orange-500 transition-all duration-300 group-hover:rotate-180" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-700">
-                        {mapStyle === 'streets' ? 'Mapa' : 'Satélite'}
-                    </span>
-                </button>
             </div>
 
             {/* Filter Modal */}
