@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Globe } from 'lucide-react'
+import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Globe, Store, Sparkles, Zap } from 'lucide-react'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function EditarLoja() {
     const router = useRouter()
@@ -73,18 +74,23 @@ export default function EditarLoja() {
 
             if (store.location) {
                 let coords: { lat: number, lng: number } | null = null;
+                
                 if (typeof store.location === 'string') {
                     const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
                     if (match) {
                         coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
                     }
-                } else if (store.location.type === 'Point' && store.location.coordinates) {
-                    coords = { lng: store.location.coordinates[0], lat: store.location.coordinates[1] };
+                } else if (typeof store.location === 'object' && store.location !== null) {
+                    if (store.location.type === 'Point' && Array.isArray(store.location.coordinates)) {
+                        coords = { lng: store.location.coordinates[0], lat: store.location.coordinates[1] };
+                    }
                 }
 
                 if (coords) {
                     setLocation(coords);
-                    fetchAddressFromCoords(coords.lat, coords.lng);
+                    if (!store.address) {
+                        fetchAddressFromCoords(coords.lat, coords.lng);
+                    }
                 }
             }
 
@@ -217,160 +223,189 @@ export default function EditarLoja() {
 
     if (pageLoading) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center text-white">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-white/20" />
-                    <span className="text-neutral-500 font-black uppercase tracking-widest text-[10px]">Lendo dados da loja...</span>
+                    <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                    <p className="text-orange-600 text-sm font-bold">Carregando loja...</p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex justify-center pb-40 selection:bg-white selection:text-black">
-            <div className="w-full max-w-lg mt-8 space-y-12">
-                <div className="flex justify-between items-end">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3 text-neutral-500 mb-4">
-                            <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-2xl border border-white/5 hover:bg-white hover:text-black transition-all">
-                                <ArrowLeft className="w-5 h-5" />
-                            </button>
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em]">Gerenciamento Geral</span>
-                        </div>
-                        <h1 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter">Editar Loja</h1>
-                        <p className="text-neutral-400 text-[10px] font-bold uppercase tracking-widest">Painel Administrativo iUser</p>
+        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+            <AnimatedBackground />
+
+            <style jsx global>{`
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-15px) rotate(5deg); }
+                }
+            `}</style>
+
+            {/* Header */}
+            <header className="sticky top-0 z-50 px-4 py-3 border-b border-orange-200/30 bg-white/60 backdrop-blur-xl">
+                <div className="max-w-lg mx-auto flex items-center gap-3">
+                    <button
+                        onClick={() => router.back()}
+                        className="flex w-10 h-10 items-center justify-center bg-white/80 border-2 border-orange-200 rounded-2xl hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all duration-300 shadow-md"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-lg font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                            Editar Loja
+                        </h1>
+                        <p className="text-[9px] font-bold text-gray-500 uppercase tracking-wider">Painel Administrativo</p>
                     </div>
                 </div>
+            </header>
 
-                <div className="bg-neutral-900/40 backdrop-blur-xl border border-white/5 p-8 rounded-[40px] shadow-2xl space-y-8">
-                    {/* Image Upload */}
-                    <div className="space-y-4">
-                        <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 mb-2 ml-1">Identidade Visual (Logo)</label>
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="relative w-40 h-40 mx-auto rounded-[32px] overflow-hidden bg-black p-1 border border-white/10 group cursor-pointer hover:border-white transition-all duration-500 shadow-2xl"
-                        >
-                            {preview ? (
-                                <img src={preview} className="w-full h-full object-cover rounded-[28px]" alt="Store Logo" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-neutral-800 text-5xl font-black italic">!</div>
-                            )}
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
-                                <Camera className="w-10 h-10 text-white" />
-                            </div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
-                            />
+            <main className="relative z-10 flex-1 px-4 py-6 flex justify-center">
+                <div className="w-full max-w-lg space-y-8">
+                    {/* Feature badges */}
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                            <Store className="w-3 h-3" />
+                            <span>Personalize</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
+                            <Zap className="w-3 h-3" />
+                            <span>Atualize</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Destaque-se</span>
                         </div>
                     </div>
 
-                    <div className="space-y-8">
-                        {/* NOME */}
+                    {/* Form Card */}
+                    <div className="bg-white/60 backdrop-blur-sm border-2 border-orange-200/50 rounded-3xl p-6 shadow-xl space-y-6">
+                        {/* Image Upload */}
+                        <div className="space-y-3">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                Logo da Loja
+                            </label>
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="relative w-32 h-32 mx-auto rounded-full overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 group cursor-pointer hover:border-orange-500 transition-all duration-500 shadow-lg"
+                            >
+                                {preview ? (
+                                    <img src={preview} className="w-full h-full object-cover" alt="Logo" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-orange-300 text-3xl font-black">!</div>
+                                )}
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
+                                    <Camera className="w-8 h-8 text-white" />
+                                </div>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Nome */}
                         <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 ml-1">Nome Oficial da Loja</label>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                Nome da Loja
+                            </label>
                             <input
                                 placeholder="Minha Loja iUser"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full p-4 bg-neutral-950 text-white rounded-2xl border border-white/5 focus:border-white/20 outline-none transition-all font-bold placeholder:text-neutral-800"
+                                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                             />
                         </div>
 
-                        {/* SLUG */}
+                        {/* Slug */}
                         <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 ml-1">URL Personalizada (Slug)</label>
-                            <div className="flex bg-neutral-950 rounded-2xl border border-white/5 focus-within:border-white/20 overflow-hidden transition-all">
-                                <span className="flex items-center px-4 bg-white/5 text-neutral-600 border-r border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                URL da Loja
+                            </label>
+                            <div className="flex bg-white rounded-xl border-2 border-orange-200 focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20 overflow-hidden transition-all">
+                                <span className="flex items-center px-3 bg-orange-50 text-orange-400 border-r border-orange-200 text-[10px] font-bold">
                                     iuser.com.br/
                                 </span>
                                 <input
                                     placeholder="minha-loja"
                                     value={storeSlug}
                                     onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                    className="w-full p-4 bg-transparent text-white outline-none font-bold"
+                                    className="w-full px-4 py-3 bg-transparent text-gray-900 placeholder:text-gray-400 text-sm outline-none"
                                 />
                             </div>
-                            {slugStatus === 'checking' && <p className="text-[9px] text-neutral-400 ml-1 uppercase font-bold animate-pulse">Verificando disponibilidade...</p>}
-                            {slugStatus === 'available' && <p className="text-[9px] text-emerald-600 ml-1 uppercase font-bold">✓ Endereço liberado!</p>}
-                            {slugStatus === 'taken' && <p className="text-[9px] text-red-500 ml-1 uppercase font-bold">✗ Endereço já ocupado.</p>}
-                            <p className="text-[9px] text-neutral-400 ml-1 uppercase font-black tracking-widest italic">Aviso: Mudar o slug alterará o link de acesso da sua loja.</p>
+                            {slugStatus === 'checking' && (
+                                <p className="text-[9px] text-gray-400 ml-1 font-bold animate-pulse">Verificando...</p>
+                            )}
+                            {slugStatus === 'available' && (
+                                <p className="text-[9px] text-green-600 ml-1 font-bold">✓ Disponível!</p>
+                            )}
+                            {slugStatus === 'taken' && (
+                                <p className="text-[9px] text-red-500 ml-1 font-bold">✗ Já está em uso</p>
+                            )}
                         </div>
 
-                        {/* DESCRIÇÃO */}
+                        {/* Descrição */}
                         <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400 ml-1">Biografia / Descrição</label>
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                Descrição
+                            </label>
                             <textarea
                                 placeholder="Conte a história da sua marca..."
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={4}
-                                className="w-full p-4 bg-neutral-50 text-neutral-800 rounded-2xl border border-neutral-200 focus:border-black/20 outline-none transition-all font-medium placeholder:text-neutral-400 resize-none leading-relaxed"
+                                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 resize-none"
                             />
                         </div>
 
-                        {/* LOCALIZAÇÃO */}
-                        <div className="space-y-4">
+                        {/* Localização */}
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between ml-1">
-                                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Sede da Loja (Localização)</label>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600">
+                                    Localização da Sede
+                                </label>
                                 {location && (
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                                        Sincronizada
+                                    <span className="text-[8px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                                        ✓ Definida
                                     </span>
                                 )}
                             </div>
 
                             {location ? (
-                                <div className="group relative bg-white rounded-[32px] border border-neutral-100 overflow-hidden transition-all hover:border-black/20 shadow-sm">
-                                    {/* Map Preview */}
-                                    <div className="relative w-full h-48 bg-neutral-50">
-                                        {(() => {
-                                            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-                                            const mapUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-l+000000(${location.lng},${location.lat})/${location.lng},${location.lat},15,0/600x350?access_token=${token}`;
-                                            return (
-                                                <img 
-                                                    src={mapUrl} 
-                                                    alt="Mapa da Sede" 
-                                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105"
-                                                />
-                                            );
-                                        })()}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-transparent to-transparent pointer-events-none" />
-                                        
-                                        <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-2xl bg-black text-white flex items-center justify-center shadow-lg">
-                                                    <MapPin className="w-5 h-5" />
-                                                </div>
-                                                <div className="max-w-[200px]">
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-neutral-400 leading-none mb-1">Endereço Atual</p>
-                                                    <p className="text-[10px] font-bold text-neutral-800 truncate leading-tight">{address || 'Localização Definida'}</p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        const newAddress = prompt("Digite o novo endereço completo:", address)
-                                                        if (newAddress) fetchCoordsFromAddress(newAddress)
-                                                    }}
-                                                    className="w-10 h-10 rounded-xl bg-white border border-neutral-200 text-black flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all"
-                                                    title="Editar Endereço"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => { setLocation(null); setAddress(''); }}
-                                                    className="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
-                                                    title="Limpar Localização"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                <div className="bg-white rounded-2xl border-2 border-orange-200 p-4 shadow-sm space-y-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                            <MapPin className="w-5 h-5 text-orange-500" />
                                         </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black uppercase text-gray-400 mb-1">Endereço Registrado</p>
+                                            <p className="text-sm font-bold text-gray-800 leading-tight">
+                                                {address || 'Localização Definida (sem endereço textual)'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex gap-2 pt-2 border-t border-orange-100">
+                                        <button
+                                            onClick={() => {
+                                                const newAddress = prompt("Digite o novo endereço completo:", address)
+                                                if (newAddress) fetchCoordsFromAddress(newAddress)
+                                            }}
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-orange-200 rounded-xl text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 transition-all"
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                            Mudar Endereço
+                                        </button>
+                                        <button
+                                            onClick={() => { setLocation(null); setAddress(''); }}
+                                            className="px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-[10px] font-black uppercase text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
                                     </div>
                                 </div>
                             ) : (
@@ -380,60 +415,82 @@ export default function EditarLoja() {
                                         setLoadingLocation(true)
                                         navigator.geolocation.getCurrentPosition(
                                             (pos) => {
-                                                setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-                                                fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude)
+                                                const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                                                setLocation(coords)
+                                                fetchAddressFromCoords(coords.lat, coords.lng)
                                                 setLoadingLocation(false)
                                             },
-                                            () => { alert('Erro ao buscar localização'); setLoadingLocation(false); }
+                                            (err) => { 
+                                                console.error(err);
+                                                alert('Não foi possível obter sua localização. Tente digitar o endereço.'); 
+                                                setLoadingLocation(false); 
+                                            }
                                         );
                                     }}
-                                    className="group w-full p-8 bg-neutral-950 border border-white/5 hover:border-white/20 text-neutral-600 hover:text-white rounded-[32px] transition-all flex flex-col items-center justify-center gap-4 font-black uppercase text-[10px] tracking-[0.3em] active:scale-95"
+                                    className="w-full p-6 bg-white border-2 border-dashed border-orange-200 hover:border-orange-500 text-gray-500 hover:text-orange-600 rounded-2xl transition-all flex flex-col items-center justify-center gap-3 font-bold text-sm"
                                 >
-                                    <div className="w-16 h-16 rounded-[24px] bg-white/5 flex items-center justify-center group-hover:bg-white group-hover:text-black transition-all">
-                                        {loadingLocation ? <Loader2 className="w-8 h-8 animate-spin" /> : <Globe className="w-8 h-8" />}
+                                    <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+                                        {loadingLocation ? (
+                                            <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                                        ) : (
+                                            <MapPin className="w-6 h-6 text-orange-400" />
+                                        )}
                                     </div>
-                                    {loadingLocation ? 'Sincronizando Coordenadas...' : 'Adicionar Localização da Sede'}
+                                    {loadingLocation ? 'Obtendo localização...' : 'Definir Localização Atual'}
                                 </button>
                             )}
                         </div>
 
-                        {/* WHATSAPP */}
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-neutral-600 ml-1">WhatsApp da Loja (Opcional)</label>
+                        {/* WhatsApp */}
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                WhatsApp (opcional)
+                            </label>
                             <input
                                 placeholder="(00) 00000-0000"
                                 value={whatsapp}
                                 onChange={(e) => setWhatsapp(e.target.value)}
-                                className="w-full p-4 bg-neutral-950 text-white rounded-2xl border border-white/5 focus:border-white/20 outline-none transition-all font-bold placeholder:text-neutral-800"
+                                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                             />
-                            <p className="text-[9px] text-neutral-600 ml-1 uppercase font-black tracking-widest italic leading-tight">
-                                Se vazio, usaremos o WhatsApp das suas <button onClick={() => router.push('/configuracoes')} className="text-white hover:underline">Configurações Gerais</button>. Esse número receberá os avisos de novos pedidos!
+                            <p className="text-[9px] text-gray-400 ml-1 font-medium">
+                                Se vazio, usaremos o WhatsApp das suas configurações.
                             </p>
+                        </div>
+
+                        {/* Botões */}
+                        <div className="pt-4 space-y-3">
+                            <button
+                                onClick={handleUpdate}
+                                disabled={loading || slugStatus === 'taken'}
+                                className="group relative w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loading ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <CheckCircle2 className="w-5 h-5" />
+                                )}
+                                {loading ? 'Salvando...' : 'Salvar Alterações'}
+                            </button>
+
+                            <button
+                                onClick={handleDelete}
+                                disabled={loading}
+                                className="w-full bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-wider border-2 border-red-200 hover:border-red-500 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Deletar Loja
+                            </button>
                         </div>
                     </div>
 
-                    {/* BOTÕES */}
-                    <div className="pt-8 space-y-4">
-                        <button
-                            onClick={handleUpdate}
-                            disabled={loading || slugStatus === 'taken'}
-                            className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] hover:bg-neutral-200 active:scale-[0.98] transition-all disabled:opacity-30 shadow-[0_10px_30px_rgba(255,255,255,0.1)] flex items-center justify-center gap-3"
-                        >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                            {loading ? 'Processando...' : 'Salvar Configurações'}
-                        </button>
-
-                        <button
-                            onClick={handleDelete}
-                            disabled={loading}
-                            className="w-full bg-red-500/5 hover:bg-red-500 text-red-500 hover:text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.3em] border border-red-500/20 transition-all flex items-center justify-center gap-3"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                            Deletar Loja Permanentemente
-                        </button>
+                    {/* Mensagem final */}
+                    <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50 text-center">
+                        <p className="text-[11px] text-gray-600">
+                            ✨ <span className="font-black text-orange-600">Mantenha sua loja</span> sempre atualizada para atrair mais clientes.
+                        </p>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     )
 }

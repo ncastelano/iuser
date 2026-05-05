@@ -1239,7 +1239,7 @@ export default function MapPage() {
 
             {/* Horizontal List */}
             {filtered.length > 0 && !clusterItems && (
-                <div className="absolute top-[78px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
+                <div className="absolute top-[90px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button

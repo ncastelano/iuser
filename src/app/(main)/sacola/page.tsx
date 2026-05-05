@@ -664,115 +664,119 @@ export default function Sacola() {
 
                                 {/* Total e Finalização do Carrinho */}
                                 {storeSlugs.length > 0 && (
-                                    <div className="pt-4 border-t border-orange-200">
-                                        <div className="mb-6 space-y-3">
-                                            <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button
-                                                    onClick={() => setDeliveryOption('entrega')}
-                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
-                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                        }`}
-                                                >
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                        <span className="text-xs">📍</span>
-                                                    </div>
-                                                    <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => setDeliveryOption('retirada')}
-                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
-                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                        }`}
-                                                >
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                        <span className="text-xs">🏪</span>
-                                                    </div>
-                                                    <span className={`text-[10px] font-black uppercase ${deliveryOption === 'retirada' ? 'text-orange-600' : 'text-gray-500'}`}>Retirada</span>
-                                                </button>
-                                            </div>
-
-                                            {deliveryOption === 'entrega' && (
-                                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                    <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
-                                                    {userAddress && !isEditingAddress ? (
-                                                        <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
-                                                            <div className="flex items-start gap-2">
-                                                                <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
-                                                                <p className="text-sm font-bold text-gray-800">{userAddress}</p>
-                                                            </div>
-                                                            <button 
-                                                                onClick={() => setIsEditingAddress(true)}
-                                                                className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
-                                                            >
-                                                                Mudar
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="space-y-2">
-                                                            <div className="relative">
-                                                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder="Rua, número, bairro, cidade..."
-                                                                    className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                                    value={addressInput}
-                                                                    onChange={(e) => setAddressInput(e.target.value)}
-                                                                />
-                                                            </div>
-                                                            {isEditingAddress && (
-                                                                <button 
-                                                                    onClick={() => setIsEditingAddress(false)}
-                                                                    className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
-                                                                >
-                                                                    Cancelar
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="mb-6 space-y-3">
-                                            <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <button
-                                                    onClick={() => setPaymentMethod('pix')}
-                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
-                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                        }`}
-                                                >
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                        <span className="text-xs font-black">PIX</span>
-                                                    </div>
-                                                    <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => setPaymentMethod('cartao')}
-                                                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'cartao'
-                                                        ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                        : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                        }`}
-                                                >
-                                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'cartao' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                        <span className="text-xs font-black">💳</span>
-                                                    </div>
-                                                    <span className={`text-[10px] font-black uppercase ${paymentMethod === 'cartao' ? 'text-orange-600' : 'text-gray-500'}`}>Cartão</span>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between mb-4">
+                                    <>
+                                        <div className="flex items-center justify-between mb-6">
                                             <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
                                             <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
 
                                         {currentUserId ? (
-                                            <div className="space-y-3">
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                {/* Opções de Entrega e Pagamento - SÓ APARECE LOGADO */}
+                                                <div className="space-y-6 pt-4 border-t border-orange-100">
+                                                    <div className="space-y-3">
+                                                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <button
+                                                                onClick={() => setDeliveryOption('entrega')}
+                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
+                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                    }`}
+                                                            >
+                                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                    <span className="text-xs">📍</span>
+                                                                </div>
+                                                                <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setDeliveryOption('retirada')}
+                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
+                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                    }`}
+                                                            >
+                                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                    <span className="text-xs">🏪</span>
+                                                                </div>
+                                                                <span className={`text-[10px] font-black uppercase ${deliveryOption === 'retirada' ? 'text-orange-600' : 'text-gray-500'}`}>Retirada</span>
+                                                            </button>
+                                                        </div>
+
+                                                        {deliveryOption === 'entrega' && (
+                                                            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
+                                                                {userAddress && !isEditingAddress ? (
+                                                                    <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
+                                                                        <div className="flex items-start gap-2">
+                                                                            <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
+                                                                            <p className="text-sm font-bold text-gray-800">{userAddress}</p>
+                                                                        </div>
+                                                                        <button 
+                                                                            onClick={() => setIsEditingAddress(true)}
+                                                                            className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
+                                                                        >
+                                                                            Mudar
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-2">
+                                                                        <div className="relative">
+                                                                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="Rua, número, bairro, cidade..."
+                                                                                className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                                                value={addressInput}
+                                                                                onChange={(e) => setAddressInput(e.target.value)}
+                                                                            />
+                                                                        </div>
+                                                                        {isEditingAddress && (
+                                                                            <button 
+                                                                                onClick={() => setIsEditingAddress(false)}
+                                                                                className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
+                                                                            >
+                                                                                Cancelar
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <button
+                                                                onClick={() => setPaymentMethod('pix')}
+                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
+                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                    }`}
+                                                            >
+                                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                    <span className="text-xs font-black">PIX</span>
+                                                                </div>
+                                                                <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setPaymentMethod('cartao')}
+                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'cartao'
+                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                    }`}
+                                                            >
+                                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'cartao' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                    <span className="text-xs font-black">💳</span>
+                                                                </div>
+                                                                <span className={`text-[10px] font-black uppercase ${paymentMethod === 'cartao' ? 'text-orange-600' : 'text-gray-500'}`}>Cartão</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 pt-6 border-t border-orange-100">
                                                 <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
@@ -819,7 +823,7 @@ export default function Sacola() {
                                                 Identificar para Finalizar
                                             </button>
                                         )}
-                                    </div>
+                                    </>
                                 )}
 
                                 {/* Auth Section */}
@@ -1095,17 +1099,156 @@ export default function Sacola() {
                                                 )
                                             })}
 
-                                            {/* Resumo do Carrinho */}
-                                            <div className="pt-4 border-t border-orange-200">
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <span className="text-xs font-black uppercase text-gray-500">Total do Carrinho</span>
-                                                    <span className="text-xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                            {/* Total e Finalização do Carrinho */}
+                                            <div className="mt-6 pt-6 border-t border-orange-200">
+                                                <div className="flex items-center justify-between mb-6">
+                                                    <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
+                                                    <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                 </div>
 
-                                                {!currentUserId && (
+                                                {currentUserId ? (
+                                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                        {/* Opções de Entrega e Pagamento - SÓ APARECE LOGADO */}
+                                                        <div className="space-y-6 pt-4 border-t border-orange-100">
+                                                            <div className="space-y-3">
+                                                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <button
+                                                                        onClick={() => setDeliveryOption('entrega')}
+                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
+                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                            <span className="text-xs">📍</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setDeliveryOption('retirada')}
+                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
+                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                            <span className="text-xs">🏪</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black uppercase ${deliveryOption === 'retirada' ? 'text-orange-600' : 'text-gray-500'}`}>Retirada</span>
+                                                                    </button>
+                                                                </div>
+
+                                                                {deliveryOption === 'entrega' && (
+                                                                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
+                                                                        {userAddress && !isEditingAddress ? (
+                                                                            <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
+                                                                                <div className="flex items-start gap-2">
+                                                                                    <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
+                                                                                    <p className="text-sm font-bold text-gray-800">{userAddress}</p>
+                                                                                </div>
+                                                                                <button 
+                                                                                    onClick={() => setIsEditingAddress(true)}
+                                                                                    className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
+                                                                                >
+                                                                                    Mudar
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="space-y-2">
+                                                                                <div className="relative">
+                                                                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        placeholder="Rua, número, bairro, cidade..."
+                                                                                        className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                                                        value={addressInput}
+                                                                                        onChange={(e) => setAddressInput(e.target.value)}
+                                                                                    />
+                                                                                </div>
+                                                                                {isEditingAddress && (
+                                                                                    <button 
+                                                                                        onClick={() => setIsEditingAddress(false)}
+                                                                                        className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
+                                                                                    >
+                                                                                        Cancelar
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="space-y-3">
+                                                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    <button
+                                                                        onClick={() => setPaymentMethod('pix')}
+                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
+                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                            <span className="text-xs">💎</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setPaymentMethod('entrega')}
+                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'entrega'
+                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
+                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
+                                                                            }`}
+                                                                    >
+                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
+                                                                            <span className="text-xs">💵</span>
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black uppercase ${paymentMethod === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>No Ato</span>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Logged User Info and Logout */}
+                                                        <div className="flex items-center justify-between p-3 bg-white/50 rounded-2xl border border-orange-100">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 font-black text-xs uppercase">
+                                                                    {currentUser?.full_name?.charAt(0) || 'U'}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-gray-400 uppercase leading-none">Logado como</p>
+                                                                    <p className="text-[10px] font-black text-gray-700 truncate max-w-[120px]">{currentUser?.full_name || 'Usuário'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    await supabase.auth.signOut();
+                                                                    window.location.reload();
+                                                                }}
+                                                                className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
+                                                            >
+                                                                Sair
+                                                            </button>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleFinalizarTudo}
+                                                            disabled={checkoutLoading}
+                                                            className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                        >
+                                                            {checkoutLoading ? (
+                                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                            ) : (
+                                                                <>Finalizar Pedido <CheckCircle2 className="w-5 h-5" /></>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                ) : (
                                                     <button
                                                         onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                                        className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all"
+                                                        className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
                                                     >
                                                         Identificar para Finalizar
                                                     </button>
