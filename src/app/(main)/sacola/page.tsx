@@ -815,7 +815,8 @@ export default function Sacola() {
                                                     )}
                                                 </button>
                                             </div>
-                                        ) : (
+                                        </div>
+                                    ) : (
                                             <button
                                                 onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
                                                 className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
@@ -1213,20 +1214,26 @@ export default function Sacola() {
                                                         </div>
 
                                                         {/* Logged User Info and Logout */}
-                                                        <div className="flex items-center justify-between p-3 bg-white/50 rounded-2xl border border-orange-100">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-500 font-black text-xs uppercase">
-                                                                    {currentUser?.full_name?.charAt(0) || 'U'}
+                                                        <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                                                    {currentUserAvatar ? (
+                                                                        <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+                                                                    ) : (
+                                                                        <User className="w-5 h-5 text-white" />
+                                                                    )}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-[9px] font-black text-gray-400 uppercase leading-none">Logado como</p>
-                                                                    <p className="text-[10px] font-black text-gray-700 truncate max-w-[120px]">{currentUser?.full_name || 'Usuário'}</p>
+                                                                    <p className="text-[7px] font-black uppercase text-gray-500">Comprar como</p>
+                                                                    <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
                                                                 </div>
                                                             </div>
                                                             <button
                                                                 onClick={async () => {
-                                                                    await supabase.auth.signOut();
-                                                                    window.location.reload();
+                                                                    await supabase.auth.signOut()
+                                                                    setCurrentUserId(null)
+                                                                    setMyPurchases([])
+                                                                    setAuthMode('login')
                                                                 }}
                                                                 className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
                                                             >
@@ -1245,7 +1252,8 @@ export default function Sacola() {
                                                             )}
                                                         </button>
                                                     </div>
-                                                ) : (
+                                                </div>
+                                            ) : (
                                                     <button
                                                         onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
                                                         className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
