@@ -16,7 +16,8 @@ import {
     Star,
     Clock,
     MapPin,
-    ShoppingBag
+    ShoppingBag,
+    Users2
 } from 'lucide-react'
 
 import { useCartStore } from '@/store/useCartStore'
@@ -442,7 +443,7 @@ export default function ProductPage() {
                                         {!r.is_anonymous && r.profiles?.avatar_url ? (
                                             <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <User size={12} className="text-muted-foreground/40" />
+                                            <Users2 size={12} className="text-muted-foreground/40" />
                                         )}
                                     </div>
                                     <div className="flex-1">
