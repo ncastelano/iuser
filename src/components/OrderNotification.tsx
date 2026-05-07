@@ -10,6 +10,7 @@ export function OrderNotification() {
     const setPendingOrdersCount = useMerchantStore(state => state.setPendingOrdersCount)
     const setLatestOrderNotification = useMerchantStore(state => state.setLatestOrderNotification)
     const setCustomerOrderStatuses = useMerchantStore(state => state.setCustomerOrderStatuses)
+    const setLatestCustomerNotification = useMerchantStore(state => state.setLatestCustomerNotification)
     
     const merchantChannelRef = useRef<any>(null)
     const customerChannelRef = useRef<any>(null)
@@ -18,6 +19,7 @@ export function OrderNotification() {
     const lastFetchedCountRef = useRef<number | null>(null)
     const isFirstLoadRef = useRef(true)
     const currentUserIdRef = useRef<string | null>(null)
+    const orderStatusMapRef = useRef<Record<string, string>>({})
 
     // Helper para disparar notificação do sistema
     const triggerSystemNotification = (title: string, body: string) => {
@@ -95,22 +97,49 @@ export function OrderNotification() {
                 // Busca orders novas
                 const { data: ordersData } = await supabase
                     .from('orders')
-                    .select('status')
+                    .select('id, status')
                     .eq('buyer_id', userId)
                     .in('status', ['pending', 'preparing', 'ready', 'paid'])
                 
                 // Busca orders legadas
                 const { data: legacyData } = await supabase
                     .from('store_sales')
-                    .select('status')
+                    .select('id, status')
                     .eq('buyer_id', userId)
                     .in('status', ['pending', 'preparing', 'ready', 'paid'])
 
-                const allStatuses = [
-                    ...(ordersData?.map(o => o.status) || []),
-                    ...(legacyData?.map(l => l.status) || [])
+                const allOrders = [
+                    ...(ordersData || []),
+                    ...(legacyData || [])
                 ]
-                // Deduplicar para pegar apenas quais status únicos estão ativos
+
+                // Check for transitions
+                if (!isFirstLoadRef.current) {
+                    allOrders.forEach(order => {
+                        const oldStatus = orderStatusMapRef.current[order.id];
+                        if (oldStatus && oldStatus !== order.status) {
+                            let msg = ''
+                            if (order.status === 'preparing') msg = 'Seu pedido está em preparo!'
+                            else if (order.status === 'ready') msg = 'Seu pedido está pronto!'
+                            else if (order.status === 'paid') msg = 'Seu pedido foi finalizado!'
+
+                            if (msg) {
+                                setLatestCustomerNotification(msg)
+                                triggerSystemNotification("Atualização do Pedido", msg)
+                            }
+                        }
+                    })
+                }
+
+                // Update the map
+                const newMap: Record<string, string> = {}
+                allOrders.forEach(order => {
+                    newMap[order.id] = order.status
+                })
+                orderStatusMapRef.current = newMap
+                isFirstLoadRef.current = false
+
+                const allStatuses = allOrders.map(o => o.status)
                 const uniqueStatuses = Array.from(new Set(allStatuses))
                 setCustomerOrderStatuses(uniqueStatuses)
             } catch (err) {
@@ -305,7 +334,7 @@ export function OrderNotification() {
             document.removeEventListener('visibilitychange', handleVisibility)
             subscription.unsubscribe()
         }
-    }, [setPendingOrdersCount, setLatestOrderNotification])
+    }, [setPendingOrdersCount, setLatestOrderNotification, setCustomerOrderStatuses, setLatestCustomerNotification])
 
     return null
 }

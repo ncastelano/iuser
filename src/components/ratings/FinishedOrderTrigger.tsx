@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
+import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart, ChefHat, CheckCircle, Package, PartyPopper } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
+import { toast } from 'sonner'
+import { useRef } from 'react'
 
 export function FinishedOrderTrigger() {
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
@@ -13,35 +15,42 @@ export function FinishedOrderTrigger() {
     const [showPrompt, setShowPrompt] = useState(false)
     const supabase = createClient()
     const setPendingReviewsCount = useMerchantStore(state => state.setPendingReviewsCount)
+    const notifiedRef = useRef<Record<string, string>>({})
 
     const checkOrders = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Fetch from store_sales as it's the most reliable source right now
+        // Fetch from both store_sales and orders
         const { data: sales, error: salesError } = await supabase
             .from('store_sales')
             .select('*')
             .eq('buyer_id', user.id)
             .eq('status', 'paid')
-            .order('created_at', { ascending: false })
+        
+        const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('buyer_id', user.id)
+            .eq('status', 'paid')
 
-        if (salesError) {
-            console.error('Error fetching store_sales:', salesError)
-        }
+        if (salesError) console.error('Error fetching store_sales:', salesError)
+        if (ordersError) console.error('Error fetching orders:', ordersError)
 
-        if (sales && sales.length > 0) {
+        const allPaidItems = [...(sales || []), ...(ordersData || [])]
+
+        if (allPaidItems.length > 0) {
             // Group by checkout_id to treat as orders
-            const grouped = sales.reduce((acc: any, sale: any) => {
-                if (!acc[sale.checkout_id]) {
-                    acc[sale.checkout_id] = {
-                        id: sale.checkout_id, // Use checkout_id as the order ID
-                        store_id: sale.store_id,
-                        created_at: sale.created_at,
+            const grouped = allPaidItems.reduce((acc: any, item: any) => {
+                if (!acc[item.checkout_id]) {
+                    acc[item.checkout_id] = {
+                        id: item.checkout_id, 
+                        store_id: item.store_id,
+                        created_at: item.created_at,
                         items: []
                     }
                 }
-                acc[sale.checkout_id].items.push(sale)
+                acc[item.checkout_id].items.push(item)
                 return acc
             }, {})
 
@@ -75,25 +84,79 @@ export function FinishedOrderTrigger() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user || !isMounted) return
 
-            const channelName = `finished-orders-${user.id}-${Date.now()}`
-            channel = supabase.channel(channelName)
-                .on(
-                    'postgres_changes',
-                    {
-                        event: '*', // Listen to all events to be safe
-                        schema: 'public',
-                        table: 'store_sales',
-                        filter: `buyer_id=eq.${user.id}`
-                    },
-                    (payload: any) => {
-                        const newStatus = payload.new?.status;
-                        if (newStatus === 'paid') {
-                            // Give a small delay to ensure all items are updated if it's a batch
-                            setTimeout(() => checkOrders(), 1000);
+            const handlePayload = (payload: any) => {
+                const newStatus = payload.new?.status;
+                const checkoutId = payload.new?.checkout_id;
+                const storeName = payload.new?.store_name || 'Loja';
+
+                if (!checkoutId || !newStatus) return;
+
+                if (notifiedRef.current[checkoutId] === newStatus) return;
+                notifiedRef.current[checkoutId] = newStatus;
+
+                if (newStatus === 'pending') {
+                     toast.success(`📦 Pedido Recebido!`, {
+                        description: `A loja ${storeName} recebeu seu pedido e logo irá confirmar.`,
+                        icon: <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse border-2 border-white" />,
+                        style: { 
+                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '1.5rem'
                         }
-                    }
-                )
+                     });
+                } else if (newStatus === 'preparing') {
+                     toast.success(`👨‍🍳 Em Preparo!`, {
+                        description: `Seu pedido na ${storeName} está sendo preparado agora.`,
+                        icon: <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce border-2 border-white" />,
+                        style: { 
+                            background: 'linear-gradient(135deg, #eab308, #d97706)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '1.5rem'
+                        }
+                     });
+                } else if (newStatus === 'ready') {
+                     toast.success(`✅ Pedido Pronto!`, {
+                        description: `Pode retirar seu pedido na ${storeName}!`,
+                        icon: <div className="w-3 h-3 bg-purple-500 rounded-full animate-ping border-2 border-white" />,
+                        style: { 
+                            background: 'linear-gradient(135deg, #a855f7, #9333ea)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '1.5rem'
+                        },
+                        duration: 10000
+                     });
+                } else if (newStatus === 'paid') {
+                    toast.success(`🎉 Pedido Finalizado!`, {
+                        description: `Obrigado por comprar na ${storeName}! Avalie agora.`,
+                        icon: <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" />,
+                        style: { 
+                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '1.5rem'
+                        }
+                    });
+                    setTimeout(() => checkOrders(), 2000);
+                }
+            }
+
+            const channelSales = supabase.channel(`finished-sales-${user.id}-${Date.now()}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales', filter: `buyer_id=eq.${user.id}` }, handlePayload)
                 .subscribe()
+
+            const channelOrders = supabase.channel(`finished-orders-${user.id}-${Date.now()}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${user.id}` }, handlePayload)
+                .subscribe()
+
+            channel = {
+                unsubscribe: () => {
+                    supabase.removeChannel(channelSales)
+                    supabase.removeChannel(channelOrders)
+                }
+            }
         }
 
         checkOrders()

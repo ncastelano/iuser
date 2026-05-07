@@ -8,6 +8,8 @@ interface MerchantStore {
   decrementPending: () => void
   latestOrderNotification: string | null
   setLatestOrderNotification: (message: string | null) => void
+  latestCustomerNotification: string | null
+  setLatestCustomerNotification: (message: string | null) => void
   customerOrderStatuses: string[]
   setCustomerOrderStatuses: (statuses: string[]) => void
   pendingReviewsCount: number
@@ -23,6 +25,8 @@ export const useMerchantStore = create<MerchantStore>()(
       decrementPending: () => set((state) => ({ pendingOrdersCount: Math.max(0, state.pendingOrdersCount - 1) })),
       latestOrderNotification: null,
       setLatestOrderNotification: (message) => set({ latestOrderNotification: message }),
+      latestCustomerNotification: null,
+      setLatestCustomerNotification: (message) => set({ latestCustomerNotification: message }),
       customerOrderStatuses: [],
       setCustomerOrderStatuses: (statuses) => set({ customerOrderStatuses: statuses }),
       pendingReviewsCount: 0,

@@ -16,7 +16,8 @@ import {
     Gift,
     Sparkles,
     TrendingUp,
-    ShoppingBag
+    ShoppingBag,
+    Package
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
@@ -61,6 +62,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
     const latestOrderNotification = useMerchantStore(state => state.latestOrderNotification)
     const setLatestOrderNotification = useMerchantStore(state => state.setLatestOrderNotification)
+    const latestCustomerNotification = useMerchantStore(state => state.latestCustomerNotification)
+    const setLatestCustomerNotification = useMerchantStore(state => state.setLatestCustomerNotification)
 
     useEffect(() => {
         if (latestOrderNotification) {
@@ -76,6 +79,21 @@ export default function MainLayout({ children }: { children: ReactNode }) {
             setLatestOrderNotification(null)
         }
     }, [latestOrderNotification, setLatestOrderNotification])
+
+    useEffect(() => {
+        if (latestCustomerNotification) {
+            toast.success(latestCustomerNotification, {
+                icon: <Package className="w-4 h-4 text-blue-400" />,
+                duration: 6000,
+                style: {
+                    background: 'linear-gradient(135deg, rgb(59, 130, 246), rgb(37, 99, 235))',
+                    color: 'white',
+                    border: 'none'
+                }
+            })
+            setLatestCustomerNotification(null)
+        }
+    }, [latestCustomerNotification, setLatestCustomerNotification])
 
     const handleLogout = async () => {
         const supabase = createClient()
