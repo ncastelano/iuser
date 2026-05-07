@@ -15,7 +15,7 @@ export default function Sacola() {
     const router = useRouter()
     const supabase = createClient()
     const [mounted, setMounted] = useState(false)
-    const [viewOrder, setViewOrder] = useState<'carrinho' | 'pedidos'>('carrinho') // Novo estado para ordem
+    const [viewOrder, setViewOrder] = useState<'carrinho' | 'pedidos'>('carrinho')
 
     // Auth & Checkout States
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -44,6 +44,7 @@ export default function Sacola() {
     const [isEditingAddress, setIsEditingAddress] = useState(false)
 
     const loadUserData = async (userId: string) => {
+        // ... (mantenha todo o código existente da função loadUserData)
         setCurrentUserId(userId)
 
         const { data: profile } = await supabase
@@ -115,6 +116,7 @@ export default function Sacola() {
         checkUser()
     }, [supabase])
 
+    // ... (mantenha todas as outras funções: handleInlineLogin, handleInlineRegister, etc.)
     const handleInlineLogin = async (e: React.FormEvent) => {
         e.preventDefault()
         setAuthLoading(true)
@@ -233,7 +235,6 @@ export default function Sacola() {
         }
     }, [finishedOrders, supabase])
 
-    // Real-time updates for myPurchases (Meus Pedidos)
     useEffect(() => {
         if (!currentUserId) return
 
@@ -299,6 +300,7 @@ export default function Sacola() {
     )
 
     const handleFinalizarTudo = async () => {
+        // ... (mantenha o código existente)
         if (!currentUserId) return
         setCheckoutLoading(true)
 
@@ -434,15 +436,76 @@ export default function Sacola() {
         }
     }
 
-    // Decide a ordem: se viewOrder for 'carrinho', Carrinho vem primeiro; se for 'pedidos', Pedidos vem primeiro
-    const showCartFirst = viewOrder === 'carrinho'
-    const showOrdersFirst = viewOrder === 'pedidos'
+    // Componente de Auth reutilizável
+    const AuthSection = () => (
+        <div id="auth-section" className="pt-4">
+            <div className="bg-white/40 rounded-2xl p-5 border border-orange-100">
+                <div className="flex gap-2 mb-4">
+                    <button
+                        onClick={() => setAuthMode('login')}
+                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                    >
+                        Entrar
+                    </button>
+                    <button
+                        onClick={() => setAuthMode('register')}
+                        className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
+                    >
+                        Criar Conta
+                    </button>
+                </div>
+
+                {authError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[8px] font-black uppercase text-center">
+                        ⚠️ {authError}
+                    </div>
+                )}
+
+                {authMode === 'login' ? (
+                    <form onSubmit={handleInlineLogin} className="space-y-3">
+                        <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                            value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                        <div className="relative">
+                            <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
+                                value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                        <button disabled={authLoading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                            {authLoading ? 'Acessando...' : 'Acessar minha conta'}
+                        </button>
+                    </form>
+                ) : (
+                    <form onSubmit={handleInlineRegister} className="space-y-3">
+                        <input type="text" placeholder="Nome Completo" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                            value={authName} onChange={(e) => setAuthName(e.target.value)} required />
+                        <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
+                            <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
+                            <input type="text" placeholder="seu-perfil" className="flex-1 py-3 bg-transparent text-sm outline-none"
+                                value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required />
+                            {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓ Disponível' : '✗ Indisponível'}</span>}
+                        </div>
+                        <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                            value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
+                        <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
+                        <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                            value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required />
+                        <button disabled={authLoading || isSlugAvailable === false} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
+                            {authLoading ? 'Cadastrando...' : 'Criar minha conta'}
+                        </button>
+                    </form>
+                )}
+            </div>
+        </div>
+    )
 
     return (
         <div className="relative min-h-screen pb-24 bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
             <AnimatedBackground />
 
-            {/* Header estilo iUser - igual ao financeiro */}
+            {/* Header */}
             <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-orange-100 px-4 py-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -459,7 +522,6 @@ export default function Sacola() {
                         </div>
                     </div>
 
-                    {/* Toggle para alternar ordem entre Carrinho e Meus Pedidos */}
                     {!finishedOrders.length && (
                         <div className="flex bg-orange-100 rounded-full p-0.5">
                             <button
@@ -489,7 +551,7 @@ export default function Sacola() {
 
             <div className="relative z-10 max-w-3xl mx-auto px-4 py-6">
                 {finishedOrders.length > 0 ? (
-                    /* ==================== TELA DE PEDIDOS REALIZADOS ==================== */
+                    /* TELA DE PEDIDOS REALIZADOS */
                     <div className="space-y-6">
                         <div className="bg-white/40 rounded-2xl p-5 text-center border border-orange-100">
                             <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -558,7 +620,7 @@ export default function Sacola() {
                         </button>
                     </div>
                 ) : storeSlugs.length === 0 && myPurchases.length === 0 ? (
-                    /* ==================== SACOLA VAZIA E SEM PEDIDOS ==================== */
+                    /* SACOLA VAZIA */
                     <div className="text-center py-16">
                         <div className="w-24 h-24 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-4">
                             <ShoppingBag className="w-12 h-12 text-orange-400" />
@@ -571,131 +633,155 @@ export default function Sacola() {
                         </Link>
                     </div>
                 ) : (
-                    /* ==================== AMBOS VISÍVEIS COM ORDEM DEFINIDA PELO TOGGLE ==================== */
+                    /* CONTEÚDO PRINCIPAL */
                     <div className="space-y-8">
-                        {showCartFirst ? (
-                            // ========== CARRINHO EM PRIMEIRO ==========
-                            <>
-                                {/* Seção Carrinho */}
-                                <div>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                                            <ShoppingCart size={16} className="text-white" />
-                                        </div>
-                                        <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
-                                        {storeSlugs.length > 0 && (
-                                            <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{storeSlugs.length} loja(s)</span>
-                                        )}
-                                    </div>
-
-                                    {storeSlugs.length === 0 ? (
-                                        <div className="bg-white/40 rounded-2xl p-8 text-center border border-orange-100">
-                                            <ShoppingBag className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                                            <p className="text-gray-500 font-bold text-sm">Carrinho vazio</p>
-                                        </div>
-                                    ) : (
-                                        storeSlugs.map((slug) => {
-                                            const details = storeDetails[slug]
-                                            const items = itemsByStore[slug]
-                                            const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-
-                                            return (
-                                                <div key={slug} className="border-b border-orange-100 last:border-b-0 pb-5 mb-5 last:pb-0">
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <Store size={14} className="text-orange-500" />
-                                                            <h3 className="text-sm font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</h3>
-                                                        </div>
-                                                        <span className="text-sm font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
-                                                    </div>
-
-                                                    <div className="space-y-3">
-                                                        {items.map((item) => (
-                                                            <div key={item.product.id} className="flex gap-3">
-                                                                <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
-                                                                    {item.product.image_url ? (
-                                                                        <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center text-orange-400 text-lg font-black italic">
-                                                                            {item.product.name.charAt(0)}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1">
-                                                                    <h4 className="text-sm font-black text-gray-900">{item.product.name}</h4>
-                                                                    <p className="text-xs font-black text-orange-600">R$ {item.product.price.toFixed(2)}</p>
-                                                                    <div className="flex items-center gap-2 mt-2">
-                                                                        <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
-                                                                            <button
-                                                                                onClick={() => updateQuantity(slug, item.product.id, -1)}
-                                                                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
-                                                                            >
-                                                                                <Minus className="w-3 h-3" />
-                                                                            </button>
-                                                                            <span className="w-7 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
-                                                                            <button
-                                                                                onClick={() => updateQuantity(slug, item.product.id, 1)}
-                                                                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
-                                                                            >
-                                                                                <Plus className="w-3 h-3" />
-                                                                            </button>
-                                                                        </div>
-                                                                        <button
-                                                                            onClick={() => removeItem(slug, item.product.id)}
-                                                                            className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white"
-                                                                        >
-                                                                            <Trash2 className="w-3 h-3" />
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className="text-sm font-black text-gray-900">
-                                                                        R$ {(item.product.price * item.quantity).toFixed(2)}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })
-                                    )}
+                        {/* Seção Meus Pedidos (se viewOrder for pedidos, mostra primeiro) */}
+                        {viewOrder === 'pedidos' && currentUserId && myPurchases.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <History size={18} className="text-orange-500" />
+                                    <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
+                                    <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
                                 </div>
 
-                                {/* Total e Finalização do Carrinho */}
+                                <div className="space-y-3">
+                                    {Object.values(myPurchases.reduce((groups: any, p) => {
+                                        if (!groups[p.checkout_id]) {
+                                            groups[p.checkout_id] = {
+                                                checkout_id: p.checkout_id,
+                                                store_name: p.store_name,
+                                                created_at: p.created_at,
+                                                status: p.status,
+                                                total: 0,
+                                                items: []
+                                            }
+                                        }
+                                        groups[p.checkout_id].total += p.price
+                                        groups[p.checkout_id].items.push(p)
+                                        return groups
+                                    }, {})).slice(0, 5).map((order: any) => (
+                                        <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                                <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                                                    order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
+                                                        order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
+                                                            'bg-green-100 text-green-600'
+                                                    }`}>
+                                                    {order.status === 'pending' ? 'Pendente' :
+                                                        order.status === 'preparing' ? 'Preparo' :
+                                                            order.status === 'ready' ? 'Pronto' : 'Finalizado'}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
+                                            <div className="flex justify-between items-center mt-2">
+                                                <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
+                                                <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
+                                    Ver todos os pedidos →
+                                </Link>
+                            </div>
+                        )}
+
+                        {/* Seção Carrinho */}
+                        <div className={viewOrder === 'pedidos' && currentUserId && myPurchases.length > 0 ? "mt-8 pt-6 border-t border-orange-200" : ""}>
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                    <ShoppingCart size={16} className="text-white" />
+                                </div>
+                                <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
                                 {storeSlugs.length > 0 && (
-                                    <>
+                                    <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{storeSlugs.length} loja(s)</span>
+                                )}
+                            </div>
+
+                            {storeSlugs.length === 0 ? (
+                                <div className="bg-white/40 rounded-2xl p-8 text-center border border-orange-100">
+                                    <ShoppingBag className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-gray-500 font-bold text-sm">Carrinho vazio</p>
+                                    <Link href="/" className="inline-block mt-3 text-orange-500 font-black text-[9px] uppercase tracking-wider">Explorar vitrine →</Link>
+                                </div>
+                            ) : (
+                                <>
+                                    {storeSlugs.map((slug) => {
+                                        const details = storeDetails[slug]
+                                        const items = itemsByStore[slug]
+                                        const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+
+                                        return (
+                                            <div key={slug} className="border-b border-orange-100 last:border-b-0 pb-5 mb-5 last:pb-0">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <Store size={14} className="text-orange-500" />
+                                                        <h3 className="text-sm font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</h3>
+                                                    </div>
+                                                    <span className="text-sm font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {items.map((item) => (
+                                                        <div key={item.product.id} className="flex gap-3">
+                                                            <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
+                                                                {item.product.image_url ? (
+                                                                    <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-orange-400 text-lg font-black italic">
+                                                                        {item.product.name.charAt(0)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="text-sm font-black text-gray-900">{item.product.name}</h4>
+                                                                <p className="text-xs font-black text-orange-600">R$ {item.product.price.toFixed(2)}</p>
+                                                                <div className="flex items-center gap-2 mt-2">
+                                                                    <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
+                                                                        <button onClick={() => updateQuantity(slug, item.product.id, -1)} className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200">
+                                                                            <Minus className="w-3 h-3" />
+                                                                        </button>
+                                                                        <span className="w-7 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
+                                                                        <button onClick={() => updateQuantity(slug, item.product.id, 1)} className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200">
+                                                                            <Plus className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                    <button onClick={() => removeItem(slug, item.product.id)} className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white">
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-sm font-black text-gray-900">R$ {(item.product.price * item.quantity).toFixed(2)}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+
+                                    {/* Total e Finalização */}
+                                    <div className="mt-6 pt-6 border-t border-orange-200">
                                         <div className="flex items-center justify-between mb-6">
                                             <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
                                             <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                         </div>
 
                                         {currentUserId ? (
-                                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                                {/* Opções de Entrega e Pagamento - SÓ APARECE LOGADO */}
+                                            <div className="space-y-6">
                                                 <div className="space-y-6 pt-4 border-t border-orange-100">
                                                     <div className="space-y-3">
                                                         <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <button
-                                                                onClick={() => setDeliveryOption('entrega')}
-                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
-                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                    }`}
-                                                            >
+                                                            <button onClick={() => setDeliveryOption('entrega')} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega' ? 'bg-orange-500/10 border-orange-500 shadow-sm' : 'bg-white/50 border-orange-100 hover:border-orange-200'}`}>
                                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
                                                                     <span className="text-xs">📍</span>
                                                                 </div>
                                                                 <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
                                                             </button>
-                                                            <button
-                                                                onClick={() => setDeliveryOption('retirada')}
-                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
-                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                    }`}
-                                                            >
+                                                            <button onClick={() => setDeliveryOption('retirada')} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada' ? 'bg-orange-500/10 border-orange-500 shadow-sm' : 'bg-white/50 border-orange-100 hover:border-orange-200'}`}>
                                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
                                                                     <span className="text-xs">🏪</span>
                                                                 </div>
@@ -704,7 +790,7 @@ export default function Sacola() {
                                                         </div>
 
                                                         {deliveryOption === 'entrega' && (
-                                                            <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                            <div className="mt-4">
                                                                 <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
                                                                 {userAddress && !isEditingAddress ? (
                                                                     <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
@@ -712,32 +798,17 @@ export default function Sacola() {
                                                                             <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
                                                                             <p className="text-sm font-bold text-gray-800">{userAddress}</p>
                                                                         </div>
-                                                                        <button 
-                                                                            onClick={() => setIsEditingAddress(true)}
-                                                                            className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
-                                                                        >
-                                                                            Mudar
-                                                                        </button>
+                                                                        <button onClick={() => setIsEditingAddress(true)} className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0">Mudar</button>
                                                                     </div>
                                                                 ) : (
                                                                     <div className="space-y-2">
                                                                         <div className="relative">
                                                                             <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
-                                                                            <input
-                                                                                type="text"
-                                                                                placeholder="Rua, número, bairro, cidade..."
-                                                                                className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                                                value={addressInput}
-                                                                                onChange={(e) => setAddressInput(e.target.value)}
-                                                                            />
+                                                                            <input type="text" placeholder="Rua, número, bairro, cidade..." className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
+                                                                                value={addressInput} onChange={(e) => setAddressInput(e.target.value)} />
                                                                         </div>
                                                                         {isEditingAddress && (
-                                                                            <button 
-                                                                                onClick={() => setIsEditingAddress(false)}
-                                                                                className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
-                                                                            >
-                                                                                Cancelar
-                                                                            </button>
+                                                                            <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500">Cancelar</button>
                                                                         )}
                                                                     </div>
                                                                 )}
@@ -748,27 +819,15 @@ export default function Sacola() {
                                                     <div className="space-y-3">
                                                         <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <button
-                                                                onClick={() => setPaymentMethod('pix')}
-                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
-                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                    }`}
-                                                            >
+                                                            <button onClick={() => setPaymentMethod('pix')} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix' ? 'bg-orange-500/10 border-orange-500 shadow-sm' : 'bg-white/50 border-orange-100 hover:border-orange-200'}`}>
                                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                    <span className="text-xs font-black">PIX</span>
+                                                                    <span className="text-xs">PIX</span>
                                                                 </div>
                                                                 <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
                                                             </button>
-                                                            <button
-                                                                onClick={() => setPaymentMethod('cartao')}
-                                                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'cartao'
-                                                                    ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                    : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                    }`}
-                                                            >
+                                                            <button onClick={() => setPaymentMethod('cartao')} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'cartao' ? 'bg-orange-500/10 border-orange-500 shadow-sm' : 'bg-white/50 border-orange-100 hover:border-orange-200'}`}>
                                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'cartao' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                    <span className="text-xs font-black">💳</span>
+                                                                    <span className="text-xs">💳</span>
                                                                 </div>
                                                                 <span className={`text-[10px] font-black uppercase ${paymentMethod === 'cartao' ? 'text-orange-600' : 'text-gray-500'}`}>Cartão</span>
                                                             </button>
@@ -776,7 +835,6 @@ export default function Sacola() {
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-3 pt-6 border-t border-orange-100">
                                                 <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
@@ -791,23 +849,17 @@ export default function Sacola() {
                                                             <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={async () => {
-                                                            await supabase.auth.signOut()
-                                                            setCurrentUserId(null)
-                                                            setMyPurchases([])
-                                                            setAuthMode('login')
-                                                        }}
-                                                        className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
-                                                    >
+                                                    <button onClick={async () => {
+                                                        await supabase.auth.signOut()
+                                                        setCurrentUserId(null)
+                                                        setMyPurchases([])
+                                                        setAuthMode('login')
+                                                    }} className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all">
                                                         Sair
                                                     </button>
                                                 </div>
-                                                <button
-                                                    onClick={handleFinalizarTudo}
-                                                    disabled={checkoutLoading}
-                                                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                                >
+
+                                                <button onClick={handleFinalizarTudo} disabled={checkoutLoading} className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                                                     {checkoutLoading ? (
                                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                                     ) : (
@@ -815,523 +867,69 @@ export default function Sacola() {
                                                     )}
                                                 </button>
                                             </div>
-                                        </div>
-                                    ) : (
-                                            <button
-                                                onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                                className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
-                                            >
+                                        ) : (
+                                            <button onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })} className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all">
                                                 Identificar para Finalizar
                                             </button>
                                         )}
-                                    </>
-                                )}
-
-                                {/* Auth Section */}
-                                {!currentUserId && storeSlugs.length > 0 && (
-                                    <div id="auth-section" className="pt-4">
-                                        <div className="bg-white/40 rounded-2xl p-5 border border-orange-100">
-                                            <div className="flex gap-2 mb-4">
-                                                <button
-                                                    onClick={() => setAuthMode('login')}
-                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                                >
-                                                    Entrar
-                                                </button>
-                                                <button
-                                                    onClick={() => setAuthMode('register')}
-                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                                >
-                                                    Criar Conta
-                                                </button>
-                                            </div>
-
-                                            {authError && (
-                                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[8px] font-black uppercase text-center">
-                                                    ⚠️ {authError}
-                                                </div>
-                                            )}
-
-                                            {authMode === 'login' ? (
-                                                <form onSubmit={handleInlineLogin} className="space-y-3">
-                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
-                                                    <div className="relative">
-                                                        <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
-                                                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
-                                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
-                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                        </button>
-                                                    </div>
-                                                    <button disabled={authLoading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
-                                                        {authLoading ? 'Acessando...' : 'Acessar minha conta'}
-                                                    </button>
-                                                </form>
-                                            ) : (
-                                                <form onSubmit={handleInlineRegister} className="space-y-3">
-                                                    <input type="text" placeholder="Nome Completo" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authName} onChange={(e) => setAuthName(e.target.value)} required />
-                                                    <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
-                                                        <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
-                                                        <input type="text" placeholder="seu-perfil" className="flex-1 py-3 bg-transparent text-sm outline-none"
-                                                            value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required />
-                                                        {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓ Disponível' : '✗ Indisponível'}</span>}
-                                                    </div>
-                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
-                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
-                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required />
-                                                    <button disabled={authLoading || isSlugAvailable === false} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
-                                                        {authLoading ? 'Cadastrando...' : 'Criar minha conta'}
-                                                    </button>
-                                                </form>
-                                            )}
-                                        </div>
                                     </div>
-                                )}
+                                </>
+                            )}
+                        </div>
 
-                                {/* Seção Meus Pedidos (depois do Carrinho) */}
-                                {currentUserId && myPurchases.length > 0 && (
-                                    <div className="mt-8 pt-6 border-t border-orange-200">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <History size={18} className="text-orange-500" />
-                                            <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
-                                            <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
-                                        </div>
+                        {/* Auth Section */}
+                        {!currentUserId && storeSlugs.length > 0 && <AuthSection />}
 
-                                        <div className="space-y-3">
-                                            {Object.values(myPurchases.reduce((groups: any, p) => {
-                                                if (!groups[p.checkout_id]) {
-                                                    groups[p.checkout_id] = {
-                                                        checkout_id: p.checkout_id,
-                                                        store_name: p.store_name,
-                                                        created_at: p.created_at,
-                                                        status: p.status,
-                                                        total: 0,
-                                                        items: []
-                                                    }
-                                                }
-                                                groups[p.checkout_id].total += p.price
-                                                groups[p.checkout_id].items.push(p)
-                                                return groups
-                                            }, {})).slice(0, 3).map((order: any) => (
-                                                <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
-                                                        <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
-                                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
-                                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
-                                                                    'bg-green-100 text-green-600'
-                                                            }`}>
-                                                            {order.status === 'pending' ? 'Pendente' :
-                                                                order.status === 'preparing' ? 'Preparo' :
-                                                                    order.status === 'ready' ? 'Pronto' : 'Finalizado'}
-                                                        </span>
-                                                    </div>
-                                                    <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
-                                                    <div className="flex justify-between items-center mt-2">
-                                                        <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
-                                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {Object.values(myPurchases.reduce((groups: any, p) => {
-                                            if (!groups[p.checkout_id]) groups[p.checkout_id] = true
-                                            return groups
-                                        }, {})).length > 3 && (
-                                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
-                                                    Ver todos os {Object.values(myPurchases.reduce((groups: any, p) => {
-                                                        if (!groups[p.checkout_id]) groups[p.checkout_id] = true
-                                                        return groups
-                                                    }, {})).length} pedidos →
-                                                </Link>
-                                            )}
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            // ========== PEDIDOS EM PRIMEIRO ==========
-                            <>
-                                {/* Seção Meus Pedidos (em primeiro) */}
-                                {currentUserId && myPurchases.length > 0 && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <History size={18} className="text-orange-500" />
-                                            <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
-                                            <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {Object.values(myPurchases.reduce((groups: any, p) => {
-                                                if (!groups[p.checkout_id]) {
-                                                    groups[p.checkout_id] = {
-                                                        checkout_id: p.checkout_id,
-                                                        store_name: p.store_name,
-                                                        created_at: p.created_at,
-                                                        status: p.status,
-                                                        total: 0,
-                                                        items: []
-                                                    }
-                                                }
-                                                groups[p.checkout_id].total += p.price
-                                                groups[p.checkout_id].items.push(p)
-                                                return groups
-                                            }, {})).slice(0, 5).map((order: any) => (
-                                                <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
-                                                        <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
-                                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
-                                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
-                                                                    'bg-green-100 text-green-600'
-                                                            }`}>
-                                                            {order.status === 'pending' ? 'Pendente' :
-                                                                order.status === 'preparing' ? 'Preparo' :
-                                                                    order.status === 'ready' ? 'Pronto' : 'Finalizado'}
-                                                        </span>
-                                                    </div>
-                                                    <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
-                                                    <div className="flex justify-between items-center mt-2">
-                                                        <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
-                                                        <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        {Object.values(myPurchases.reduce((groups: any, p) => {
-                                            if (!groups[p.checkout_id]) groups[p.checkout_id] = true
-                                            return groups
-                                        }, {})).length > 5 && (
-                                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
-                                                    Ver todos os pedidos →
-                                                </Link>
-                                            )}
-                                    </div>
-                                )}
-
-                                {/* Seção Carrinho (depois dos Pedidos) */}
-                                <div className={currentUserId && myPurchases.length > 0 ? "mt-8 pt-6 border-t border-orange-200" : ""}>
-                                    <div className="flex items-center gap-2 mb-4">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                                            <ShoppingCart size={16} className="text-white" />
-                                        </div>
-                                        <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
-                                        {storeSlugs.length > 0 && (
-                                            <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">{storeSlugs.length} loja(s)</span>
-                                        )}
-                                    </div>
-
-                                    {storeSlugs.length === 0 ? (
-                                        <div className="bg-white/40 rounded-2xl p-8 text-center border border-orange-100">
-                                            <ShoppingBag className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                                            <p className="text-gray-500 font-bold text-sm">Carrinho vazio</p>
-                                            <Link href="/" className="inline-block mt-3 text-orange-500 font-black text-[9px] uppercase tracking-wider">Explorar vitrine →</Link>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {storeSlugs.map((slug) => {
-                                                const details = storeDetails[slug]
-                                                const items = itemsByStore[slug]
-                                                const storeTotal = items.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-
-                                                return (
-                                                    <div key={slug} className="border-b border-orange-100 last:border-b-0 pb-5 mb-5 last:pb-0">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <Store size={14} className="text-orange-500" />
-                                                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-800">{details?.name || slug}</h3>
-                                                            </div>
-                                                            <span className="text-sm font-black text-orange-600">R$ {storeTotal.toFixed(2)}</span>
-                                                        </div>
-
-                                                        <div className="space-y-3">
-                                                            {items.map((item) => (
-                                                                <div key={item.product.id} className="flex gap-3">
-                                                                    <div className="w-14 h-14 rounded-xl bg-orange-100 border-2 border-orange-200 overflow-hidden flex-shrink-0">
-                                                                        {item.product.image_url ? (
-                                                                            <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            <div className="w-full h-full flex items-center justify-center text-orange-400 text-lg font-black italic">
-                                                                                {item.product.name.charAt(0)}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex-1">
-                                                                        <h4 className="text-sm font-black text-gray-900">{item.product.name}</h4>
-                                                                        <p className="text-xs font-black text-orange-600">R$ {item.product.price.toFixed(2)}</p>
-                                                                        <div className="flex items-center gap-2 mt-2">
-                                                                            <div className="flex items-center bg-orange-50 border border-orange-200 rounded-lg">
-                                                                                <button
-                                                                                    onClick={() => updateQuantity(slug, item.product.id, -1)}
-                                                                                    className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
-                                                                                >
-                                                                                    <Minus className="w-3 h-3" />
-                                                                                </button>
-                                                                                <span className="w-7 text-center text-xs font-bold text-gray-800">{item.quantity}</span>
-                                                                                <button
-                                                                                    onClick={() => updateQuantity(slug, item.product.id, 1)}
-                                                                                    className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-orange-200"
-                                                                                >
-                                                                                    <Plus className="w-3 h-3" />
-                                                                                </button>
-                                                                            </div>
-                                                                            <button
-                                                                                onClick={() => removeItem(slug, item.product.id)}
-                                                                                className="w-7 h-7 flex items-center justify-center bg-red-50 text-red-400 rounded-lg hover:bg-red-500 hover:text-white"
-                                                                            >
-                                                                                <Trash2 className="w-3 h-3" />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <p className="text-sm font-black text-gray-900">
-                                                                            R$ {(item.product.price * item.quantity).toFixed(2)}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-
-                                            {/* Total e Finalização do Carrinho */}
-                                            <div className="mt-6 pt-6 border-t border-orange-200">
-                                                <div className="flex items-center justify-between mb-6">
-                                                    <span className="text-xs font-black uppercase text-gray-500">Total Geral</span>
-                                                    <span className="text-2xl font-black text-orange-600">R$ {totalGlobalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                                </div>
-
-                                                {currentUserId ? (
-                                                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                                        {/* Opções de Entrega e Pagamento - SÓ APARECE LOGADO */}
-                                                        <div className="space-y-6 pt-4 border-t border-orange-100">
-                                                            <div className="space-y-3">
-                                                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Como deseja receber?</p>
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    <button
-                                                                        onClick={() => setDeliveryOption('entrega')}
-                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'entrega'
-                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                            <span className="text-xs">📍</span>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-black uppercase ${deliveryOption === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>Entrega</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setDeliveryOption('retirada')}
-                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${deliveryOption === 'retirada'
-                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${deliveryOption === 'retirada' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                            <span className="text-xs">🏪</span>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-black uppercase ${deliveryOption === 'retirada' ? 'text-orange-600' : 'text-gray-500'}`}>Retirada</span>
-                                                                    </button>
-                                                                </div>
-
-                                                                {deliveryOption === 'entrega' && (
-                                                                    <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                                                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider mb-2">Endereço de Entrega</p>
-                                                                        {userAddress && !isEditingAddress ? (
-                                                                            <div className="bg-white/60 border-2 border-orange-100 rounded-2xl p-4 flex items-start justify-between gap-3">
-                                                                                <div className="flex items-start gap-2">
-                                                                                    <MapPin size={16} className="text-orange-500 mt-0.5 shrink-0" />
-                                                                                    <p className="text-sm font-bold text-gray-800">{userAddress}</p>
-                                                                                </div>
-                                                                                <button 
-                                                                                    onClick={() => setIsEditingAddress(true)}
-                                                                                    className="text-[9px] font-black uppercase text-orange-500 hover:underline shrink-0"
-                                                                                >
-                                                                                    Mudar
-                                                                                </button>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div className="space-y-2">
-                                                                                <div className="relative">
-                                                                                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-4 h-4" />
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        placeholder="Rua, número, bairro, cidade..."
-                                                                                        className="w-full bg-white border-2 border-orange-200 rounded-2xl pl-11 pr-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                                                        value={addressInput}
-                                                                                        onChange={(e) => setAddressInput(e.target.value)}
-                                                                                    />
-                                                                                </div>
-                                                                                {isEditingAddress && (
-                                                                                    <button 
-                                                                                        onClick={() => setIsEditingAddress(false)}
-                                                                                        className="text-[9px] font-black uppercase text-gray-500 hover:text-orange-500"
-                                                                                    >
-                                                                                        Cancelar
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="space-y-3">
-                                                                <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Forma de Pagamento</p>
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    <button
-                                                                        onClick={() => setPaymentMethod('pix')}
-                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'pix'
-                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'pix' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                            <span className="text-xs">💎</span>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-black uppercase ${paymentMethod === 'pix' ? 'text-orange-600' : 'text-gray-500'}`}>PIX</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setPaymentMethod('entrega')}
-                                                                        className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${paymentMethod === 'entrega'
-                                                                            ? 'bg-orange-500/10 border-orange-500 shadow-sm'
-                                                                            : 'bg-white/50 border-orange-100 hover:border-orange-200'
-                                                                            }`}
-                                                                    >
-                                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${paymentMethod === 'entrega' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-500'}`}>
-                                                                            <span className="text-xs">💵</span>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-black uppercase ${paymentMethod === 'entrega' ? 'text-orange-600' : 'text-gray-500'}`}>No Ato</span>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Logged User Info and Logout */}
-                                                        <div className="flex items-center justify-between gap-3 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                                                                    {currentUserAvatar ? (
-                                                                        <img src={currentUserAvatar} alt="Avatar" className="w-full h-full rounded-full object-cover" />
-                                                                    ) : (
-                                                                        <User className="w-5 h-5 text-white" />
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-[7px] font-black uppercase text-gray-500">Comprar como</p>
-                                                                    <p className="text-sm font-black text-gray-900">@{currentUserSlug}</p>
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={async () => {
-                                                                    await supabase.auth.signOut()
-                                                                    setCurrentUserId(null)
-                                                                    setMyPurchases([])
-                                                                    setAuthMode('login')
-                                                                }}
-                                                                className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-[7px] font-black uppercase text-gray-500 hover:text-red-500 transition-all"
-                                                            >
-                                                                Sair
-                                                            </button>
-                                                        </div>
-                                                        <button
-                                                            onClick={handleFinalizarTudo}
-                                                            disabled={checkoutLoading}
-                                                            className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                                        >
-                                                            {checkoutLoading ? (
-                                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                            ) : (
-                                                                <>Finalizar Pedido <CheckCircle2 className="w-5 h-5" /></>
-                                                            )}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                    <button
-                                                        onClick={() => document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' })}
-                                                        className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all"
-                                                    >
-                                                        Identificar para Finalizar
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </>
-                                    )}
+                        {/* Seção Meus Pedidos (se viewOrder for carrinho, mostra depois) */}
+                        {viewOrder === 'carrinho' && currentUserId && myPurchases.length > 0 && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                    <History size={18} className="text-orange-500" />
+                                    <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Meus Pedidos</h2>
+                                    <span className="text-[8px] font-black text-gray-500 bg-orange-100 px-2 py-0.5 rounded-full">{myPurchases.length}</span>
                                 </div>
 
-                                {/* Auth Section */}
-                                {!currentUserId && storeSlugs.length > 0 && (
-                                    <div id="auth-section" className="pt-4">
-                                        <div className="bg-white/40 rounded-2xl p-5 border border-orange-100">
-                                            {/* ... mesmo conteúdo de auth ... */}
-                                            <div className="flex gap-2 mb-4">
-                                                <button
-                                                    onClick={() => setAuthMode('login')}
-                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'login' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                                >
-                                                    Entrar
-                                                </button>
-                                                <button
-                                                    onClick={() => setAuthMode('register')}
-                                                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${authMode === 'register' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'bg-white/80 text-gray-600 border border-orange-200'}`}
-                                                >
-                                                    Criar Conta
-                                                </button>
+                                <div className="space-y-3">
+                                    {Object.values(myPurchases.reduce((groups: any, p) => {
+                                        if (!groups[p.checkout_id]) {
+                                            groups[p.checkout_id] = {
+                                                checkout_id: p.checkout_id,
+                                                store_name: p.store_name,
+                                                created_at: p.created_at,
+                                                status: p.status,
+                                                total: 0,
+                                                items: []
+                                            }
+                                        }
+                                        groups[p.checkout_id].total += p.price
+                                        groups[p.checkout_id].items.push(p)
+                                        return groups
+                                    }, {})).slice(0, 3).map((order: any) => (
+                                        <div key={order.checkout_id} className="border-b border-orange-100 last:border-b-0 pb-3 mb-3 last:pb-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <p className="text-[8px] font-black text-gray-500 uppercase">{new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                                                <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                                                    order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
+                                                        order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
+                                                            'bg-green-100 text-green-600'
+                                                    }`}>
+                                                    {order.status === 'pending' ? 'Pendente' :
+                                                        order.status === 'preparing' ? 'Preparo' :
+                                                            order.status === 'ready' ? 'Pronto' : 'Finalizado'}
+                                                </span>
                                             </div>
-
-                                            {authError && (
-                                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-[8px] font-black uppercase text-center">
-                                                    ⚠️ {authError}
-                                                </div>
-                                            )}
-
-                                            {authMode === 'login' ? (
-                                                <form onSubmit={handleInlineLogin} className="space-y-3">
-                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
-                                                    <div className="relative">
-                                                        <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500 pr-10"
-                                                            value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
-                                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500">
-                                                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                                        </button>
-                                                    </div>
-                                                    <button disabled={authLoading} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
-                                                        {authLoading ? 'Acessando...' : 'Acessar minha conta'}
-                                                    </button>
-                                                </form>
-                                            ) : (
-                                                <form onSubmit={handleInlineRegister} className="space-y-3">
-                                                    <input type="text" placeholder="Nome Completo" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authName} onChange={(e) => setAuthName(e.target.value)} required />
-                                                    <div className="flex items-center gap-1 bg-white border-2 border-orange-200 rounded-xl px-3">
-                                                        <span className="text-[9px] font-black text-gray-500">iuser.com.br/</span>
-                                                        <input type="text" placeholder="seu-perfil" className="flex-1 py-3 bg-transparent text-sm outline-none"
-                                                            value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required />
-                                                        {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓ Disponível' : '✗ Indisponível'}</span>}
-                                                    </div>
-                                                    <input type="email" placeholder="seu@email.com" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
-                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required />
-                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-orange-500"
-                                                        value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required />
-                                                    <button disabled={authLoading || isSlugAvailable === false} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-[9px] tracking-wider hover:shadow-lg transition-all disabled:opacity-50">
-                                                        {authLoading ? 'Cadastrando...' : 'Criar minha conta'}
-                                                    </button>
-                                                </form>
-                                            )}
+                                            <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
+                                            <div className="flex justify-between items-center mt-2">
+                                                <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
+                                                <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </>
+                                    ))}
+                                </div>
+                                <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
+                                    Ver todos os pedidos →
+                                </Link>
+                            </div>
                         )}
                     </div>
                 )}
