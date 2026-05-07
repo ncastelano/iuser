@@ -50,13 +50,13 @@ export default function EditarLoja() {
 
             if (error || !store) {
                 alert('Loja não encontrada.')
-                router.push('/financeiro')
+                router.push('/painel')
                 return
             }
 
             if (store.owner_id !== user.id) {
                 alert('Você não tem permissão para editar esta loja.')
-                router.push('/financeiro')
+                router.push('/painel')
                 return
             }
 
@@ -74,7 +74,7 @@ export default function EditarLoja() {
 
             if (store.location) {
                 let coords: { lat: number, lng: number } | null = null;
-                
+
                 if (typeof store.location === 'string') {
                     const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
                     if (match) {
@@ -218,7 +218,7 @@ export default function EditarLoja() {
         }
 
         alert("Loja deletada com sucesso.")
-        router.push('/financeiro')
+        router.push('/painel')
     }
 
     if (pageLoading) {
@@ -388,7 +388,7 @@ export default function EditarLoja() {
                                             </p>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="flex gap-2 pt-2 border-t border-orange-100">
                                         <button
                                             onClick={() => {
@@ -420,10 +420,10 @@ export default function EditarLoja() {
                                                 fetchAddressFromCoords(coords.lat, coords.lng)
                                                 setLoadingLocation(false)
                                             },
-                                            (err) => { 
+                                            (err) => {
                                                 console.error(err);
-                                                alert('Não foi possível obter sua localização. Tente digitar o endereço.'); 
-                                                setLoadingLocation(false); 
+                                                alert('Não foi possível obter sua localização. Tente digitar o endereço.');
+                                                setLoadingLocation(false);
                                             }
                                         );
                                     }}

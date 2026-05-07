@@ -1,4 +1,4 @@
-// app/financeiro/components/PainelConsumidor.tsx
+// app/painel/components/PainelConsumidor.tsx
 'use client'
 
 import { useState, useMemo, useRef } from 'react'
@@ -21,7 +21,7 @@ import {
 import { Sale, Profile, GroupedOrder } from '../types'
 import { createClient } from '@/lib/supabase/client'
 
-// Inicializar o cliente Supabase - sem argumentos
+// Inicializar o cliente Supabase
 const supabase = createClient()
 
 interface PainelConsumidorProps {
@@ -139,13 +139,11 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
             return
         }
 
-        // Validar tipo de arquivo
         if (!file.type.startsWith('image/')) {
             alert('Por favor, selecione uma imagem válida (JPEG, PNG, GIF, etc.)')
             return
         }
 
-        // Validar tamanho (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
             alert('A imagem deve ter no máximo 5MB')
             return
@@ -154,12 +152,10 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
         setUploading(true)
 
         try {
-            // Gerar nome único para o arquivo
             const fileExt = file.name.split('.').pop()
             const fileName = `${profile.id}-${Date.now()}.${fileExt}`
             const filePath = `avatars/${fileName}`
 
-            // Upload para o Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
                 .upload(filePath, file)
@@ -169,12 +165,10 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
                 throw new Error('Erro ao fazer upload da imagem')
             }
 
-            // Obter URL pública
             const { data: { publicUrl } } = supabase.storage
                 .from('avatars')
                 .getPublicUrl(filePath)
 
-            // Atualizar perfil no banco de dados
             const { error: updateError } = await supabase
                 .from('profiles')
                 .update({ avatar_url: publicUrl })
@@ -185,13 +179,11 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
                 throw new Error('Erro ao atualizar o perfil')
             }
 
-            // Atualizar estado local
             setAvatarUrl(publicUrl)
             if (profile) {
                 profile.avatar_url = publicUrl
             }
 
-            // Notificar o componente pai
             if (onProfileUpdate) {
                 onProfileUpdate()
             }
@@ -202,23 +194,10 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
             alert(error instanceof Error ? error.message : 'Erro ao fazer upload da imagem. Tente novamente.')
         } finally {
             setUploading(false)
-            // Limpar o input para permitir selecionar o mesmo arquivo novamente
             if (fileInputRef.current) {
                 fileInputRef.current.value = ''
             }
         }
-    }
-
-    if (purchases.length === 0) {
-        return (
-            <div className="text-center py-16 bg-white/50 rounded-2xl">
-                <ShoppingBag size={48} className="mx-auto mb-3 text-gray-400" />
-                <p className="text-gray-500 font-black text-sm">Nenhuma compra ainda</p>
-                <Link href="/" className="inline-block mt-4 text-orange-600 font-black text-[10px] uppercase tracking-wider">
-                    Explorar lojas →
-                </Link>
-            </div>
-        )
     }
 
     return (
@@ -233,7 +212,54 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
                 disabled={uploading}
             />
 
-            {/* Seletor de visualização */}
+            {/* Perfil do consumidor - SEMPRE VISÍVEL */}
+            <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-5 border border-orange-100 mb-6">
+                <div className="flex items-center gap-4">
+                    <div
+                        className="relative group cursor-pointer"
+                        onClick={handleAvatarClick}
+                    >
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg overflow-hidden">
+                            {uploading ? (
+                                <Loader2 size={24} className="text-white animate-spin" />
+                            ) : avatarUrl ? (
+                                <img
+                                    src={avatarUrl}
+                                    className="w-full h-full rounded-full object-cover"
+                                    alt={profile?.name || 'Avatar'}
+                                />
+                            ) : (
+                                <span className="text-2xl font-black text-white">
+                                    {profile?.name?.charAt(0) || profile?.profileSlug?.charAt(0) || 'U'}
+                                </span>
+                            )}
+                        </div>
+                        {!uploading && (
+                            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera size={20} className="text-white" />
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-xl font-black italic text-gray-900">{profile?.name || 'Consumidor'}</h3>
+                            <div className={`${customerLevel.bg} px-2 py-0.5 rounded-full flex items-center gap-1`}>
+                                <CustomerLevelIcon size={10} className="text-orange-500" />
+                                <span className="text-[8px] font-black uppercase">{customerLevel.name}</span>
+                            </div>
+                        </div>
+                        <p className="text-[9px] font-bold text-gray-500 mt-1">@{profile?.profileSlug || 'usuario'}</p>
+                        <p className="text-[8px] text-gray-400 mt-1">
+                            🎉 {metrics.total.orders} pedidos • {metrics.total.spent > 0 ? `R$ ${metrics.total.spent.toFixed(2)} gastos` : 'nenhuma compra ainda'}
+                        </p>
+                    </div>
+                </div>
+                <p className="text-[8px] text-orange-500 mt-3 text-center opacity-50 group-hover:opacity-100 transition-opacity">
+                    Clique no avatar para trocar a foto
+                </p>
+            </div>
+
+            {/* Seletor de visualização - ABAIXO DO PERFIL */}
             <div className="flex gap-2 mb-6">
                 <button
                     onClick={() => setViewMode('dashboard')}
@@ -257,57 +283,9 @@ export function PainelConsumidor({ purchases, profile, onProfileUpdate }: Painel
                 </button>
             </div>
 
+            {/* Conteúdo baseado na visualização */}
             {viewMode === 'dashboard' ? (
                 <div className="space-y-6">
-                    {/* Perfil do consumidor com avatar clicável */}
-                    <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-5 border border-orange-100">
-                        <div className="flex items-center gap-4">
-                            <div
-                                className="relative group cursor-pointer"
-                                onClick={handleAvatarClick}
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg overflow-hidden">
-                                    {uploading ? (
-                                        <Loader2 size={24} className="text-white animate-spin" />
-                                    ) : avatarUrl ? (
-                                        <img
-                                            src={avatarUrl}
-                                            className="w-full h-full rounded-full object-cover"
-                                            alt={profile?.name || 'Avatar'}
-                                        />
-                                    ) : (
-                                        <span className="text-2xl font-black text-white">
-                                            {profile?.name?.charAt(0) || profile?.profileSlug?.charAt(0) || 'U'}
-                                        </span>
-                                    )}
-                                </div>
-                                {/* Overlay de câmera */}
-                                {!uploading && (
-                                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Camera size={20} className="text-white" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="text-xl font-black italic text-gray-900">{profile?.name || 'Consumidor'}</h3>
-                                    <div className={`${customerLevel.bg} px-2 py-0.5 rounded-full flex items-center gap-1`}>
-                                        <CustomerLevelIcon size={10} className="text-orange-500" />
-                                        <span className="text-[8px] font-black uppercase">{customerLevel.name}</span>
-                                    </div>
-                                </div>
-                                <p className="text-[9px] font-bold text-gray-500 mt-1">@{profile?.profileSlug || 'usuario'}</p>
-                                <p className="text-[8px] text-gray-400 mt-1">
-                                    🎉 {metrics.total.orders} pedidos • {metrics.total.spent > 0 ? `R$ ${metrics.total.spent.toFixed(2)} gastos` : 'nenhuma compra ainda'}
-                                </p>
-                            </div>
-                        </div>
-                        <p className="text-[8px] text-orange-500 mt-3 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            Clique no avatar para trocar a foto
-                        </p>
-                    </div>
-
-                    {/* Resto do código permanece igual... */}
                     {/* Cards de gastos */}
                     <div className="grid grid-cols-3 gap-3">
                         <div className="bg-white rounded-xl p-3 border border-orange-100 text-center">

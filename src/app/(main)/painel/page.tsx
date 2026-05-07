@@ -9,13 +9,13 @@ import {
     BanknoteArrowDown,
     Plus
 } from 'lucide-react'
-import { useFinanceiroData } from './hooks/useFinanceiroData'
+import { usePainelData } from './hooks/usePainelData'
 import { PainelVendedor } from './components/PainelVendedor'
 import { PainelConsumidor } from './components/PainelConsumidor'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
 
-export default function FinanceiroPage() {
+export default function PainelPage() {
     const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])
 
     const {
@@ -27,7 +27,7 @@ export default function FinanceiroPage() {
         toggleStoreStatus,
         loadFinanceData,
         supabase
-    } = useFinanceiroData()
+    } = usePainelData()
 
     // Função para calcular o faturamento total de uma loja
     const getStoreRevenue = (storeId: string) => {
@@ -78,7 +78,7 @@ export default function FinanceiroPage() {
                             <TrendingUp size={18} className="text-white" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Finanças</h1>
+                            <h1 className="text-xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Painel</h1>
                             <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider">Gestão completa</p>
                         </div>
                     </div>

@@ -77,7 +77,7 @@ export default function ConvitePage() {
         }
 
         alert('Bem-vindo! Você agora faz parte da rede de ' + inviter.name)
-        router.push('/financeiro')
+        router.push('/painel')
     }
 
     if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Carregando convite...</div>
@@ -151,7 +151,7 @@ export default function ConvitePage() {
                                 <Users className="w-8 h-8 text-neutral-500" />
                                 <h3 className="font-bold text-white">Você já tem uma rede</h3>
                                 <p className="text-sm text-neutral-400">A sua conta atual já está conectada a um líder. Apenas contas isoladas ou novos cadastros podem aceitar convites.</p>
-                                <button onClick={() => router.push('/financeiro')} className="mt-4 text-white underline text-sm">Ir para meu Financeiro</button>
+                                <button onClick={() => router.push('/painel')} className="mt-4 text-white underline text-sm">Ir para meu Painel</button>
                             </div>
                         ) : (
                             <button

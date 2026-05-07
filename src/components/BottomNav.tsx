@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Store, MapPinned, Flame, TrendingUp, Zap, ShoppingBag } from 'lucide-react'
+import { Store, MapPinned, Flame, TrendingUp, Zap, ShoppingBag, Star } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef } from 'react'
@@ -21,6 +21,7 @@ export function BottomNav() {
 
     const pendingOrdersCount = useMerchantStore(state => state.pendingOrdersCount)
     const customerOrderStatuses = useMerchantStore(state => state.customerOrderStatuses)
+    const pendingReviewsCount = useMerchantStore(state => state.pendingReviewsCount)
     const [isFinanceAnimating, setIsFinanceAnimating] = useState(false)
     const prevPendingRef = useRef(pendingOrdersCount)
 
@@ -62,9 +63,8 @@ export function BottomNav() {
         if (customerOrderStatuses.includes('ready')) {
             return pathname === '/sacola' ? 'text-white' : 'text-purple-500'
         }
-        if (customerOrderStatuses.includes('paid')) {
-            return pathname === '/sacola' ? 'text-white' : 'text-green-500'
-        }
+        
+        // Removed paid (green) color as per user request
 
         return pathname === '/sacola' ? 'text-white' : 'text-gray-500'
     }
@@ -88,9 +88,8 @@ export function BottomNav() {
         if (customerOrderStatuses.includes('ready')) {
             return 'text-purple-500 hover:text-purple-600'
         }
-        if (customerOrderStatuses.includes('paid')) {
-            return 'text-green-500 hover:text-green-600'
-        }
+        
+        // Removed paid (green) color as per user request
 
         return 'text-gray-500 hover:text-orange-500'
     }
@@ -114,9 +113,8 @@ export function BottomNav() {
         if (customerOrderStatuses.includes('ready')) {
             return 'opacity-100 text-purple-500'
         }
-        if (customerOrderStatuses.includes('paid')) {
-            return 'opacity-100 text-green-500'
-        }
+        
+        // Removed paid (green) color as per user request
 
         return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
     }
@@ -173,14 +171,14 @@ export function BottomNav() {
                 }
             `}</style>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-orange-200/50 shadow-[0_-10px_30px_-5px_rgba(249,115,22,0.1)] pb-[env(safe-area-inset-bottom)]">
-                <nav className="px-2 py-1 relative">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-orange-500/20 shadow-[0_-20px_50px_-10px_rgba(249,115,22,0.3)]">
+                <nav className="px-2 pt-1.5 pb-[env(safe-area-inset-bottom)] relative">
                     <div className="max-w-md mx-auto flex justify-around items-center h-16">
                         {/* Vitrine */}
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`p-2 rounded-xl transition-all duration-300 ${pathname === '/'
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/'
                                 ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500'
+                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
                                 }`}>
                                 <Store size={22} className={`transition-all duration-300 ${pathname === '/' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
@@ -194,9 +192,9 @@ export function BottomNav() {
 
                         {/* Mapa */}
                         <Link href="/mapa" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`p-2 rounded-xl transition-all duration-300 ${pathname === '/mapa'
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/mapa'
                                 ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500'
+                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
                                 }`}>
                                 <MapPinned size={22} className={`transition-all duration-300 ${pathname === '/mapa' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
@@ -210,9 +208,9 @@ export function BottomNav() {
 
                         {/* Sacola - COM CORES DINÂMICAS POR STATUS */}
                         <Link href="/sacola" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`p-2 rounded-xl transition-all duration-300 ${pathname === '/sacola'
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/sacola'
                                 ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : getCartButtonGradient()
+                                : getCartButtonGradient() + ' hover:bg-opacity-10'
                                 } ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
                                     <ShoppingBag
@@ -250,12 +248,15 @@ export function BottomNav() {
                                                     title="Pronto"
                                                 />
                                             )}
-                                            {customerOrderStatuses.includes('paid') && (
+                                            
+                                            {/* Indicador de Avaliação pendente - substitui o círculo verde de Finalizado */}
+                                            {pendingReviewsCount > 0 && (
                                                 <div
-                                                    className="w-2.5 h-2.5 rounded-full border border-white shadow-sm"
-                                                    style={{ backgroundColor: '#22c55e' }}
-                                                    title="Finalizado"
-                                                />
+                                                    className="flex items-center justify-center w-3.5 h-3.5 bg-yellow-400 rounded-full border border-white shadow-sm animate-bounce"
+                                                    title="Avaliação Pendente"
+                                                >
+                                                    <Star size={8} className="text-white fill-white" />
+                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -282,14 +283,14 @@ export function BottomNav() {
                             )}
                         </Link>
 
-                        {/* Financeiro - SEM ALTERAÇÕES, mantém laranja/vermelho */}
-                        <Link href="/financeiro" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`p-2 rounded-xl transition-all duration-300 ${pathname?.startsWith('/financeiro')
+                        {/* Painel - SEM ALTERAÇÕES, mantém laranja/vermelho */}
+                        <Link href="/painel" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname?.startsWith('/painel')
                                 ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500'
+                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50'
                                 } ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    <TrendingUp size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/financeiro') ? '' : 'group-hover/item:scale-110'
+                                    <TrendingUp size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/painel') ? '' : 'group-hover/item:scale-110'
                                         } ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
 
                                     {/* Badge de novos pedidos */}
@@ -301,11 +302,11 @@ export function BottomNav() {
                                     )}
                                 </div>
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/financeiro')
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/painel')
                                 ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
                                 : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
                                 } ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}`}>
-                                Financeiro
+                                Painel
                             </span>
 
                             {/* Indicador de novidades */}

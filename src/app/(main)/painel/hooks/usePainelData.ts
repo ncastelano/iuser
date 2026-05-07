@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Store, Sale, Profile } from '../types'
 
-export function useFinanceiroData() {
+export function usePainelData() {
     const supabase = createClient()
     const router = useRouter()
 
@@ -126,7 +126,7 @@ export function useFinanceiroData() {
 
         } catch (error) {
             console.error('Erro ao carregar dados:', error)
-            toast.error('Erro ao carregar dados financeiros')
+            toast.error('Erro ao carregar dados do painel')
         } finally {
             setLoading(false)
         }
@@ -146,7 +146,7 @@ export function useFinanceiroData() {
     useEffect(() => {
         loadFinanceData()
 
-        const channel = supabase.channel('financeiro-updates')
+        const channel = supabase.channel('painel-updates')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => loadFinanceData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales' }, () => loadFinanceData())
             .subscribe()

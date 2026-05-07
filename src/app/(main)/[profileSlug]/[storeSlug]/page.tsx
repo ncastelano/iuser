@@ -212,7 +212,7 @@ export default function StorePage() {
 
     const loadRatings = useCallback(async (storeId: string, userId: string | null) => {
         const { data, error: ratingsError } = await supabase
-            .from('store_ratings')
+            .from('product_reviews')
             .select('id, rating, profile_id, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('store_id', storeId)
             .order('created_at', { ascending: false })
@@ -227,7 +227,8 @@ export default function StorePage() {
             const avg = sum / rows.length
             setStore((prev: StoreType | null) => prev ? { ...prev, ratings_avg: avg, ratings_count: rows.length } : null)
         }
-        setMyRating(rows.find((rating) => rating.profile_id === userId)?.rating ?? 0)
+        const myLatest = rows.find((rating) => rating.profile_id === userId)
+        setMyRating(myLatest?.rating ?? 0)
     }, [supabase])
 
     const loadStore = useCallback(async () => {
@@ -293,27 +294,6 @@ export default function StorePage() {
 
     useEffect(() => { loadStore() }, [loadStore])
 
-    const submitRating = async (rating: number) => {
-        if (!store) return
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { toast.info('Entre na sua conta para avaliar.'); router.push('/login'); return }
-        setRatingLoading(true)
-        const { error: upsertError } = await supabase.from('store_ratings').upsert({
-            store_id: store.id, profile_id: user.id, rating,
-        }, { onConflict: 'store_id,profile_id' })
-        if (upsertError) { toast.error('Não foi possível salvar sua avaliação.'); setRatingLoading(false); return }
-
-        const { data: allRatings } = await supabase.from('store_ratings').select('rating').eq('store_id', store.id)
-        if (allRatings?.length) {
-            const count = allRatings.length
-            const avg = allRatings.reduce((sum, r) => sum + r.rating, 0) / count
-            await supabase.from('stores').update({ ratings_avg: avg, ratings_count: count }).eq('id', store.id)
-        }
-        setMyRating(rating)
-        await loadStore()
-        setRatingLoading(false)
-        toast.success('Avaliação enviada!')
-    }
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
@@ -393,14 +373,6 @@ export default function StorePage() {
                             {store.name}
                         </h2>
                         {store.description && <p className="text-[11px] text-gray-500 line-clamp-1">{store.description}</p>}
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <div className="flex items-center gap-1 text-[10px] font-black text-orange-500">
-                                <Zap className="w-2.5 h-2.5" />
-                                {Number(store.ratings_avg || 0).toFixed(1)}
-                                <span className="text-gray-300">({store.ratings_count ?? 0})</span>
-                            </div>
-                            <RatingStars value={Number(store.ratings_avg || 0)} size={10} onChange={!isOwner ? submitRating : undefined} />
-                        </div>
                     </div>
                 </div>
 
@@ -439,7 +411,7 @@ export default function StorePage() {
                 {ratings.length > 0 && (
                     <div className="flex items-center justify-between bg-white/50 rounded-xl p-2.5 border border-orange-100">
                         <div className="flex items-center gap-2">
-                            <RatingStars value={Number(store.ratings_avg || 0)} size={12} onChange={!isOwner ? submitRating : undefined} />
+                            <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
                             <span className="text-xs font-black text-gray-700">{Number(store.ratings_avg || 0).toFixed(1)}</span>
                             <button onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
                                 className="text-[9px] font-bold text-orange-500">({store.ratings_count ?? 0})</button>
@@ -463,9 +435,7 @@ export default function StorePage() {
                     </div>
                 )}
 
-
-
-                {/* Agendamentos Hoje - NOVO DESIGN PREMIUM */}
+                {/* Agendamentos Hoje */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
@@ -588,67 +558,73 @@ export default function StorePage() {
 
                                     {!isCollapsed && (
                                         <div className="space-y-2">
-                                            {products.map((product) => (
-                                                <div key={product.id}
-                                                    onClick={() => {
-                                                        if (isOwner) router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                        else {
-                                                            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
-                                                            setCartAnimating(true)
-                                                            setTimeout(() => setCartAnimating(false), 500)
-                                                        }
-                                                    }}
-                                                    className="flex items-center gap-3 bg-white/70 border border-orange-100 rounded-xl p-2.5 hover:border-orange-300 hover:bg-white transition-all cursor-pointer shadow-sm"
-                                                >
-                                                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden flex-shrink-0 border border-orange-200">
-                                                        {product.image_url ? (
-                                                            <img src={product.image_url} className="w-full h-full object-cover" alt="" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-orange-300 text-[8px] font-bold">Sem foto</div>
-                                                        )}
-                                                    </div>
+                                            {products.map((product) => {
+                                                const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
+                                                return (
+                                                    <div key={product.id}
+                                                        onClick={() => {
+                                                            if (isOwner) router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+                                                            else {
+                                                                addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
+                                                                setCartAnimating(true)
+                                                                setTimeout(() => setCartAnimating(false), 500)
+                                                            }
+                                                        }}
+                                                        className={`flex items-center gap-3 rounded-xl p-2.5 transition-all cursor-pointer shadow-sm ${isSelected
+                                                            ? 'bg-white border-[3px] border-orange-500 shadow-lg shadow-orange-100 ring-2 ring-orange-200/50 scale-[1.02]'
+                                                            : 'bg-white/70 border border-orange-100 hover:border-orange-300 hover:bg-white'
+                                                            }`}
+                                                    >
+                                                        <div className={`w-14 h-14 rounded-lg bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden flex-shrink-0 border transition-all ${isSelected ? 'border-orange-400' : 'border-orange-200'}`}>
+                                                            {product.image_url ? (
+                                                                <img src={product.image_url} className="w-full h-full object-cover" alt="" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-orange-300 text-[8px] font-bold">Sem foto</div>
+                                                            )}
+                                                        </div>
 
-                                                    <div className="flex-1 min-w-0">
-                                                        <h4 className="text-sm font-bold text-gray-800 line-clamp-1">{product.name}</h4>
-                                                        <p className="text-[10px] text-gray-400 line-clamp-1">{product.description || "Sem descrição"}</p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <p className="text-sm font-black text-orange-600">
-                                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                            </p>
-                                                            {product.type && (
-                                                                <span className="text-[7px] font-bold uppercase text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded-full">
-                                                                    {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                                </span>
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="text-sm font-bold text-gray-800 line-clamp-1">{product.name}</h4>
+                                                            <p className="text-[10px] text-gray-400 line-clamp-1">{product.description || "Sem descrição"}</p>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <p className="text-sm font-black text-orange-600">
+                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                </p>
+                                                                {product.type && (
+                                                                    <span className="text-[7px] font-bold uppercase text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded-full">
+                                                                        {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex-shrink-0">
+                                                            {isOwner ? (
+                                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                    className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all">
+                                                                    Editar
+                                                                </button>
+                                                            ) : mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
+                                                                <div className="flex items-center gap-1">
+                                                                    <button onClick={(e) => { e.stopPropagation(); router.push('/sacola') }}
+                                                                        className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md">
+                                                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button onClick={(e) => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
+                                                                        className="w-7 h-7 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center justify-center">
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`) }}
+                                                                    className="w-7 h-7 rounded-full bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center shadow-sm">
+                                                                    <ExternalLink className="w-3 h-3" />
+                                                                </button>
                                                             )}
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex-shrink-0">
-                                                        {isOwner ? (
-                                                            <button onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
-                                                                className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all">
-                                                                Editar
-                                                            </button>
-                                                        ) : mounted && cartItems.some((item: any) => item.product.id === product.id) ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <button onClick={(e) => { e.stopPropagation(); router.push('/sacola') }}
-                                                                    className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md">
-                                                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button onClick={(e) => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
-                                                                    className="w-7 h-7 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center justify-center">
-                                                                    <Trash2 className="w-3 h-3" />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`) }}
-                                                                className="w-7 h-7 rounded-full bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center shadow-sm">
-                                                                <ExternalLink className="w-3 h-3" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                )
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -656,7 +632,8 @@ export default function StorePage() {
                         })
                     )}
                 </div>
-                {/* Vendas Recentes - NOVO DESIGN PREMIUM */}
+
+                {/* Vendas Recentes */}
                 {recentSales.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
@@ -738,6 +715,7 @@ export default function StorePage() {
                         )}
                     </div>
                 )}
+
                 {/* Mensagem final */}
                 <div className="pt-4 border-t border-orange-200/30">
                     <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-100">

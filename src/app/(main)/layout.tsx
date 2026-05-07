@@ -22,6 +22,7 @@ import { useCartStore } from '@/store/useCartStore'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { BottomNav } from '@/components/BottomNav'
+import { FinishedOrderTrigger } from '@/components/ratings/FinishedOrderTrigger'
 
 export default function MainLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname()
@@ -203,6 +204,9 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
             {/* Bottom Navbar - com cores vibrantes */}
             <BottomNav />
+
+            {/* Global Review Trigger */}
+            <FinishedOrderTrigger />
 
             {/* Toast personalizado para o tema */}
             <style jsx global>{`

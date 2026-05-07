@@ -54,12 +54,14 @@ type StoreData = {
 type RatingRow = {
     id: string
     rating: number
-    profile_id: string
+    comment?: string
+    is_anonymous?: boolean
     created_at: string
     profiles?: {
         id: string
         name: string | null
         avatar_url: string | null
+        profileSlug?: string | null
     } | null
 }
 
@@ -81,8 +83,6 @@ export default function ProductPage() {
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [buyerName, setBuyerName] = useState<string>('')
     const [ownerWhatsapp, setOwnerWhatsapp] = useState<string | null>(null)
-    const [myRating, setMyRating] = useState(0)
-    const [ratingLoading, setRatingLoading] = useState(false)
     const [buyLoading, setBuyLoading] = useState(false)
     const [recentBuyers, setRecentBuyers] = useState<any[]>([])
 
@@ -103,8 +103,8 @@ export default function ProductPage() {
 
     const loadRatings = useCallback(async (productId: string, userId?: string | null) => {
         const { data, error } = await supabase
-            .from('product_ratings')
-            .select('id, rating, profile_id, created_at, profiles(id, name, avatar_url)')
+            .from('product_reviews')
+            .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
             .eq('product_id', productId)
             .order('created_at', { ascending: false })
 
@@ -116,11 +116,9 @@ export default function ProductPage() {
         const rows = (data || []).map((r: any) => ({
             ...r,
             profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
-        })) as RatingRow[]
+        }))
         setRatings(rows)
-        const activeUserId = userId ?? currentUserId
-        setMyRating(rows.find((rating) => rating.profile_id === activeUserId)?.rating ?? 0)
-    }, [currentUserId, supabase])
+    }, [supabase])
 
     const loadProduct = useCallback(async () => {
         setLoading(true)
@@ -210,36 +208,6 @@ export default function ProductPage() {
         loadProduct()
     }, [loadProduct])
 
-    const submitRating = async (rating: number) => {
-        if (!product) return
-
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-            alert('Entre na sua conta para avaliar este item.')
-            router.push('/login')
-            return
-        }
-
-        setRatingLoading(true)
-        const { error } = await supabase
-            .from('product_ratings')
-            .upsert({
-                product_id: product.id,
-                profile_id: user.id,
-                rating,
-            }, { onConflict: 'product_id,profile_id' })
-
-        if (error) {
-            console.error('[ProductPage] Erro ao salvar avaliação:', error)
-            alert('Não foi possível salvar sua avaliação agora.')
-            setRatingLoading(false)
-            return
-        }
-
-        setMyRating(rating)
-        await loadProduct()
-        setRatingLoading(false)
-    }
 
     const handleBuyNow = async () => {
         if (!product || !store) return
@@ -391,7 +359,7 @@ export default function ProductPage() {
                         {/* Seção de Avaliação Rápida */}
                         <div className="flex items-center gap-2 px-2 py-1 border border-border bg-muted/20">
                             <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                            <RatingStars value={myRating} onChange={(v) => submitRating(v)} disabled={ratingLoading} size={10} />
+                            <RatingStars value={Number(product.ratings_avg || 0)} size={10} />
                         </div>
 
                         <div className="flex-1 flex gap-2">
@@ -470,18 +438,19 @@ export default function ProductPage() {
                         <div className="space-y-3">
                             {ratings.slice(0, 3).map((r) => (
                                 <div key={r.id} className="flex items-start gap-3">
-                                    <div className="w-8 h-8 bg-secondary border border-border overflow-hidden rounded-full flex-shrink-0">
-                                        {r.profiles?.avatar_url ? (
+                                    <div className="w-8 h-8 bg-secondary border border-border overflow-hidden rounded-full flex-shrink-0 flex items-center justify-center">
+                                        {!r.is_anonymous && r.profiles?.avatar_url ? (
                                             <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-[9px] font-black">
-                                                {r.profiles?.name?.charAt(0) || "?"}
-                                            </div>
+                                            <User size={12} className="text-muted-foreground/40" />
                                         )}
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-[9px] font-bold text-foreground">{r.profiles?.name || "Usuário"}</p>
+                                        <p className="text-[9px] font-bold text-foreground">
+                                            {r.is_anonymous ? "Consumidor Anônimo" : (r.profiles?.name || "Usuário")}
+                                        </p>
                                         <RatingStars value={r.rating} size={10} />
+                                        {r.comment && <p className="text-[8px] text-muted-foreground mt-1 italic line-clamp-2">"{r.comment}"</p>}
                                     </div>
                                 </div>
                             ))}

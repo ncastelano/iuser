@@ -34,10 +34,10 @@ export default function StoreOrdersPage() {
     const params = useParams()
     const router = useRouter()
     const supabase = createClient()
-    
+
     const profileSlug = params.profileSlug as string
     const storeSlug = params.storeSlug as string
-    
+
     const [store, setStore] = useState<any>(null)
     const [sales, setSales] = useState<Sale[]>([])
     const [loading, setLoading] = useState(true)
@@ -96,7 +96,7 @@ export default function StoreOrdersPage() {
                     .select('*')
                     .eq('store_id', storeData.id)
                     .order('created_at', { ascending: false })
-                    
+
                 if (legacySales) {
                     allSales = legacySales
                 }
@@ -107,7 +107,7 @@ export default function StoreOrdersPage() {
         }
 
         loadStoreOrders()
-        
+
         // Subscription for real-time updates
         const channel = supabase
             .channel('store-orders-updates')
@@ -192,7 +192,7 @@ export default function StoreOrdersPage() {
             <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border/50 px-4 py-3">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => router.push('/financeiro')}
+                        onClick={() => router.push('/painel')}
                         className="w-8 h-8 flex items-center justify-center bg-secondary/50 border border-border rounded-lg hover:bg-foreground hover:text-background transition-all"
                     >
                         <ArrowLeft className="w-4 h-4" />
@@ -213,22 +213,21 @@ export default function StoreOrdersPage() {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Filters */}
                 <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
                     {Object.entries(statusMap).map(([key, data]) => {
                         const isSelected = filter === key
                         const count = key === 'all' ? groupedOrders.length : groupedOrders.filter(o => o.status === key).length
-                        
+
                         return (
                             <button
                                 key={key}
                                 onClick={() => setFilter(key as any)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider whitespace-nowrap transition-all border border-transparent ${
-                                    isSelected 
-                                        ? 'bg-foreground text-background scale-105 shadow-md' 
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider whitespace-nowrap transition-all border border-transparent ${isSelected
+                                        ? 'bg-foreground text-background scale-105 shadow-md'
                                         : `bg-secondary/30 text-muted-foreground hover:bg-secondary/50`
-                                }`}
+                                    }`}
                             >
                                 {data.label}
                                 <span className={`px-1.5 py-0.5 rounded-full text-[6px] ${isSelected ? 'bg-background/20 text-background' : 'bg-background/50'}`}>
@@ -268,7 +267,7 @@ export default function StoreOrdersPage() {
                                     {statusMap[order.status as keyof typeof statusMap]?.label}
                                 </div>
                             </div>
-                            
+
                             <div className="p-3 space-y-2">
                                 {order.items.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center bg-secondary/20 p-2 rounded-lg border border-border/30">
@@ -280,7 +279,7 @@ export default function StoreOrdersPage() {
                                     </div>
                                 ))}
                             </div>
-                            
+
                             <div className="p-3 bg-secondary/30 border-t border-border flex items-center justify-between">
                                 <span className="text-[8px] font-black uppercase tracking-wider text-muted-foreground">Total</span>
                                 <span className="text-lg font-black italic tracking-tighter">R$ {order.totalPrice.toFixed(2)}</span>

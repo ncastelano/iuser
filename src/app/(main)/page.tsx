@@ -25,7 +25,7 @@ const filtersConfig = [
   { label: 'Maior valor', value: 'priceMax', icon: null, description: 'Produtos premium', color: 'text-purple-500' },
 ]
 
-export default function Vitrine() {
+export default function VitrinePage() {
   const router = useRouter()
   const { userLocation } = useGeolocation()
   const { allStores, allProducts, loading, error } = useVitrineData()

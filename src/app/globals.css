@@ -79,16 +79,16 @@
 
 /* Efeito Premium de Glassmorphism Monochrome */
 .glass-glow-card {
-  @apply relative isolate overflow-hidden bg-white border border-neutral-100 rounded-none shadow-sm;
+  @apply relative isolate overflow-hidden bg-white border border-neutral-100 shadow-sm;
 }
 
 .glass-glow-card::before {
   content: '';
-  @apply absolute -top-16 -right-16 w-36 h-36 bg-white rounded-full blur-[60px] opacity-10 pointer-events-none -z-10 transition-all duration-700 ease-in-out;
+  @apply absolute -top-16 -right-16 w-36 h-36 bg-neutral-100 rounded-full blur-[60px] opacity-30 pointer-events-none -z-10 transition-all duration-700 ease-in-out;
 }
 
 .glass-glow-card:hover::before {
-  @apply opacity-20 scale-125 bg-white blur-[80px];
+  @apply opacity-50 scale-125 bg-neutral-200 blur-[80px];
 }
 
 @keyframes spin-slow {
@@ -122,8 +122,6 @@
 .group:hover .animate-spin-fast {
   animation: spin-fast 1s linear infinite;
 }
-
-/* Adicione ao seu globals.css */
 
 /* Animações suaves */
 @keyframes fadeIn {
@@ -167,4 +165,106 @@
 .input-focus-effect:focus-within::after {
   width: 100%;
   left: 0;
+}
+
+/* Animação de partículas flutuantes */
+@keyframes float {
+  0% {
+    transform: translateY(0px) translateX(0px);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.5;
+  }
+
+  80% {
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: translateY(-100px) translateX(20px);
+    opacity: 0;
+  }
+}
+
+.animate-float {
+  animation: float linear infinite;
+}
+
+/* Animação de pulsação */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+.animate-pulse {
+  animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Delays para animações */
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+.delay-1000 {
+  animation-delay: 1000ms;
+}
+
+.delay-2000 {
+  animation-delay: 2000ms;
+}
+
+/* Scrollbar personalizada para tema claro */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
+
+/* Seleção de texto */
+::selection {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: black;
+}
+
+/* Transições suaves globais */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Exceções para elementos que não devem ter transição */
+img,
+video,
+canvas,
+svg,
+.no-transition,
+.animate-slide-in,
+.animate-float,
+.animate-pulse,
+.animate-spin-slow,
+.animate-spin-fast {
+  transition-property: none;
 }

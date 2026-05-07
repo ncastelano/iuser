@@ -10,6 +10,8 @@ interface MerchantStore {
   setLatestOrderNotification: (message: string | null) => void
   customerOrderStatuses: string[]
   setCustomerOrderStatuses: (statuses: string[]) => void
+  pendingReviewsCount: number
+  setPendingReviewsCount: (count: number) => void
 }
 
 export const useMerchantStore = create<MerchantStore>()(
@@ -23,6 +25,8 @@ export const useMerchantStore = create<MerchantStore>()(
       setLatestOrderNotification: (message) => set({ latestOrderNotification: message }),
       customerOrderStatuses: [],
       setCustomerOrderStatuses: (statuses) => set({ customerOrderStatuses: statuses }),
+      pendingReviewsCount: 0,
+      setPendingReviewsCount: (count) => set({ pendingReviewsCount: count }),
     }),
     {
       name: 'iuser-merchant-storage',

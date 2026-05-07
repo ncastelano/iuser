@@ -97,14 +97,14 @@ export function OrderNotification() {
                     .from('orders')
                     .select('status')
                     .eq('buyer_id', userId)
-                    .in('status', ['pending', 'preparing', 'ready'])
+                    .in('status', ['pending', 'preparing', 'ready', 'paid'])
                 
                 // Busca orders legadas
                 const { data: legacyData } = await supabase
                     .from('store_sales')
                     .select('status')
                     .eq('buyer_id', userId)
-                    .in('status', ['pending', 'preparing', 'ready'])
+                    .in('status', ['pending', 'preparing', 'ready', 'paid'])
 
                 const allStatuses = [
                     ...(ordersData?.map(o => o.status) || []),

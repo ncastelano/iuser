@@ -194,7 +194,7 @@ export default function ConfiguracoesPage() {
                                     Notificações apenas no app
                                 </p>
                                 <p className="text-[9px] text-gray-500 mt-1">
-                                    Você verá os pedidos na aba Financeiro
+                                    Você verá os pedidos na aba Painel
                                 </p>
                             </div>
                         )}
@@ -224,8 +224,8 @@ export default function ConfiguracoesPage() {
                             <button
                                 onClick={() => setFontSize('normal')}
                                 className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal'
-                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                    : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
                                     }`}
                             >
                                 Padrão
@@ -233,8 +233,8 @@ export default function ConfiguracoesPage() {
                             <button
                                 onClick={() => setFontSize('large')}
                                 className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large'
-                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                    : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
                                     }`}
                             >
                                 Grande
@@ -242,8 +242,8 @@ export default function ConfiguracoesPage() {
                             <button
                                 onClick={() => setFontSize('extra-large')}
                                 className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large'
-                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                        : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                    : 'bg-orange-50 text-gray-700 border border-orange-200 hover:bg-orange-100'
                                     }`}
                             >
                                 Enorme
@@ -291,7 +291,7 @@ export default function ConfiguracoesPage() {
                     {/* Versão do App */}
                     <div className="text-center pt-4">
                         <p className="text-[8px] font-black uppercase tracking-wider text-gray-400">
-                            iUser App • Versão 2.0.0
+                            iUser • Versão 07.05.2026
                         </p>
                         <p className="text-[7px] text-gray-400 mt-1">
                             Mostre ao mundo o que você tem de melhor

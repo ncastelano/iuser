@@ -51,17 +51,17 @@ export default function ProductRatingsPage() {
             }
 
             const imageUrl = productData.image_url ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl : null
-            const { data: ratingsData } = await supabase
-                .from('product_ratings')
-                .select('id, rating, created_at, profiles(id, name, avatar_url)')
+            const { data: reviewsData } = await supabase
+                .from('product_reviews')
+                .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
                 .eq('product_id', productData.id)
                 .order('created_at', { ascending: false })
 
             setProduct({ ...productData, image_url: imageUrl })
-            const rows = (ratingsData || []).map((r: any) => ({
+            const rows = (reviewsData || []).map((r: any) => ({
                 ...r,
                 profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
-            })) as RatingRow[]
+            }))
             setRatings(rows)
             setLoading(false)
         }
@@ -105,28 +105,42 @@ export default function ProductRatingsPage() {
                         Ninguém avaliou este item ainda.
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {ratings.map((rating) => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {ratings.map((rating: any) => {
                             const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                            const isAnonymous = rating.is_anonymous
                             return (
-                                <div key={rating.id} className="rounded-3xl border border-neutral-800 bg-neutral-900/50 p-5">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-14 h-14 rounded-full overflow-hidden bg-neutral-800 border border-neutral-700">
-                                            {avatarUrl ? (
-                                                <img src={avatarUrl} alt={rating.profiles?.name || 'Avaliador'} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center font-bold text-neutral-400">
-                                                    {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
-                                                </div>
-                                            )}
+                                <div key={rating.id} className="rounded-3xl border border-neutral-800 bg-neutral-900/50 p-6 flex flex-col hover:border-orange-500/30 transition-all group">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 rounded-full overflow-hidden bg-neutral-800 border border-neutral-700 shadow-inner">
+                                                {isAnonymous || !avatarUrl ? (
+                                                    <div className="w-full h-full flex items-center justify-center font-black text-neutral-500 bg-neutral-800">
+                                                        {isAnonymous ? '?' : (rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                    </div>
+                                                ) : (
+                                                    <img src={avatarUrl} alt={rating.profiles?.name || 'Avaliador'} className="w-full h-full object-cover" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-sm">{isAnonymous ? 'Consumidor Anônimo' : (rating.profiles?.name || 'Usuário')}</p>
+                                                <p className="text-[10px] text-neutral-500 font-bold">{new Date(rating.created_at).toLocaleDateString('pt-BR')}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-semibold">{rating.profiles?.name || 'Usuário'}</p>
-                                            <p className="text-xs text-neutral-500">{new Date(rating.created_at).toLocaleDateString('pt-BR')}</p>
+                                        <div className="px-2 py-1 bg-green-500/10 rounded-full border border-green-500/20">
+                                            <span className="text-[7px] font-black uppercase text-green-500">Verificada</span>
                                         </div>
                                     </div>
 
-                                    <RatingStars value={rating.rating} size={18} />
+                                    <div className="mb-4">
+                                        <RatingStars value={rating.rating} size={14} />
+                                    </div>
+
+                                    {rating.comment && (
+                                        <p className="text-sm text-neutral-300 italic leading-relaxed">
+                                            "{rating.comment}"
+                                        </p>
+                                    )}
                                 </div>
                             )
                         })}
