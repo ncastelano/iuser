@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import AnimatedBackground from '@/components/AnimatedBackground'
-import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 type RatingRow = {
     id: string
@@ -78,7 +78,7 @@ export default function StoreRatingsPage() {
     }, [storeSlug, supabase])
 
     if (loading) {
-        return <LoadingSpinner message="Carregando avaliações..." />
+        return <LoadingSpinner />
     }
 
     return (

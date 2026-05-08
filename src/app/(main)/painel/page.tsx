@@ -13,7 +13,7 @@ import { usePainelData } from './hooks/usePainelData'
 import { PainelVendedor } from './components/PainelVendedor'
 import { PainelConsumidor } from './components/PainelConsumidor'
 import AnimatedBackground from '@/components/AnimatedBackground'
-import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 export default function PainelPage() {
     const [viewOrder, setViewOrder] = useState<['merchant', 'customer'] | ['customer', 'merchant']>(['merchant', 'customer'])

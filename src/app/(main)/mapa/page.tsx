@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
-import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 

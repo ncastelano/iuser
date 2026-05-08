@@ -4,7 +4,7 @@
 
 import { useRouter } from 'next/navigation'
 import { Flame, ChevronRight, Zap } from 'lucide-react'
-import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { EmptyState } from '@/components/vitrine/EmptyState'
 import { VitrineHeader } from '@/components/vitrine/VitrineHeader'
 import { FilterModal } from '@/components/vitrine/FilterModal'

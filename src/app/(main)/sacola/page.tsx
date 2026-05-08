@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
-import { LoadingSpinner } from '@/components/vitrine/LoadingSpinner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 export default function SacolaPage() {
     const { itemsByStore, storeDetails, updateQuantity, removeItem, clearStoreCart } = useCartStore()
@@ -236,7 +236,7 @@ export default function SacolaPage() {
         }
     }, [currentUserId, supabase, loadUserData])
 
-    if (!mounted || globalLoading) return <LoadingSpinner message="Carregando sacola..." />
+    if (!mounted || globalLoading) return <LoadingSpinner />
 
     const storeSlugs = Object.keys(itemsByStore)
     const totalGlobalPrice = Object.values(itemsByStore).reduce(
@@ -636,8 +636,8 @@ export default function SacolaPage() {
                                             {/* Efeito de brilho nos status ativos */}
                                             {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
                                                 <div className={`absolute inset-0 opacity-10 animate-pulse ${order.status === 'pending' ? 'bg-blue-400' :
-                                                        order.status === 'preparing' ? 'bg-yellow-400' :
-                                                            'bg-purple-400'
+                                                    order.status === 'preparing' ? 'bg-yellow-400' :
+                                                        'bg-purple-400'
                                                     }`}></div>
                                             )}
 
@@ -647,9 +647,9 @@ export default function SacolaPage() {
                                                         {new Date(order.created_at).toLocaleDateString('pt-BR')}
                                                     </p>
                                                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg ${order.status === 'pending' ? 'bg-blue-500 text-white animate-pulse scale-110' :
-                                                            order.status === 'preparing' ? 'bg-yellow-500 text-white animate-pulse scale-110' :
-                                                                order.status === 'ready' ? 'bg-purple-500 text-white animate-pulse scale-110' :
-                                                                    'bg-green-100 text-green-700'
+                                                        order.status === 'preparing' ? 'bg-yellow-500 text-white animate-pulse scale-110' :
+                                                            order.status === 'ready' ? 'bg-purple-500 text-white animate-pulse scale-110' :
+                                                                'bg-green-100 text-green-700'
                                                         }`}>
                                                         {/* Ícone animado */}
                                                         {order.status === 'pending' && (
@@ -675,8 +675,8 @@ export default function SacolaPage() {
                                                 {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
                                                     <div className="w-full bg-gray-200 rounded-full h-2 mb-2 overflow-hidden">
                                                         <div className={`h-full rounded-full transition-all duration-1000 animate-pulse ${order.status === 'pending' ? 'w-1/3 bg-gradient-to-r from-blue-400 to-blue-600' :
-                                                                order.status === 'preparing' ? 'w-2/3 bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                                                    'w-5/6 bg-gradient-to-r from-purple-400 to-purple-600'
+                                                            order.status === 'preparing' ? 'w-2/3 bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                                                                'w-5/6 bg-gradient-to-r from-purple-400 to-purple-600'
                                                             }`}></div>
                                                     </div>
                                                 )}
@@ -691,8 +691,8 @@ export default function SacolaPage() {
                                                 {/* Mensagem de status chamativa */}
                                                 {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
                                                     <div className={`mt-3 text-[9px] font-black text-center py-2 rounded-lg uppercase tracking-wider animate-pulse ${order.status === 'pending' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                                                                'bg-purple-100 text-purple-700 border border-purple-300'
+                                                        order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                                            'bg-purple-100 text-purple-700 border border-purple-300'
                                                         }`}>
                                                         {order.status === 'pending' && '⏳ Aguardando confirmação...'}
                                                         {order.status === 'preparing' && '👨‍🍳 Preparando seu pedido!'}
@@ -713,9 +713,9 @@ export default function SacolaPage() {
                         <div className={viewOrder === 'pedidos' && currentUserId && myPurchases.length > 0 ? "mt-8 pt-6 border-t border-orange-200" : ""}>
                             <div className="flex items-center gap-2 mb-4">
                                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                                    <ShoppingCart size={16} className="text-white" />
+                                    <ShoppingBag size={16} className="text-white" />
                                 </div>
-                                <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Carrinho</h2>
+                                <h2 className="text-base font-black italic uppercase tracking-tighter text-gray-900">Sacola</h2>
                                 {storeSlugs.length > 0 && (
                                     <span className="text-[8px] font-black text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">
                                         {storeSlugs.length} loja(s)
