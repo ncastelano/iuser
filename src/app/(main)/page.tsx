@@ -49,7 +49,7 @@ export default function VitrinePage() {
     resetShowAll
   } = useStoreFilters(allStores, allProducts, userLocation)
 
-  if (loading) return <LoadingSpinner />
+  if (loading) return <LoadingSpinner message='Carregando Vitrine...' />
   if (error) console.error('[Vitrine] Error:', error)
 
   const currentItems = activeTab === 'stores' ? sortedStores : sortedProducts

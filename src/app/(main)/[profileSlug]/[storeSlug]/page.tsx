@@ -33,6 +33,7 @@ import { useCartStore } from '@/store/useCartStore'
 import { getAvatarUrl } from '@/lib/avatar'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { RatingStars } from '@/components/ratings/RatingStars'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 type RatingRow = {
     id: string
@@ -296,9 +297,7 @@ export default function StorePage() {
 
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
-            LoadingSpinner
-        </div>
+        <LoadingSpinner />
     )
 
     if (error || !store) return (

@@ -463,6 +463,48 @@ export default function SacolaPage() {
         setAuthMode('login')
     }
 
+    // Função helper para retornar as cores baseado no status
+    const getStatusStyles = (status: string) => {
+        const styles = {
+            pending: {
+                border: 'border-l-4 border-l-blue-500',
+                badge: 'bg-blue-50 text-blue-700 border border-blue-200',
+                label: 'Pendente',
+                icon: '⏳',
+                message: 'Aguardando confirmação do vendedor'
+            },
+            preparing: {
+                border: 'border-l-4 border-l-yellow-500',
+                badge: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+                label: 'Preparando',
+                icon: '👨‍🍳',
+                message: 'O lojista está preparando seu pedido'
+            },
+            ready: {
+                border: 'border-l-4 border-l-purple-500',
+                badge: 'bg-purple-50 text-purple-700 border border-purple-200',
+                label: 'Pronto',
+                icon: '✅',
+                message: 'Seu pedido está pronto para retirada!'
+            },
+            paid: {
+                border: 'border-l-4 border-l-green-500',
+                badge: 'bg-green-50 text-green-700 border border-green-200',
+                label: 'Finalizado',
+                icon: '🎉',
+                message: 'Pedido finalizado com sucesso'
+            },
+            rejected: {
+                border: 'border-l-4 border-l-red-500',
+                badge: 'bg-red-50 text-red-700 border border-red-200',
+                label: 'Recusado',
+                icon: '❌',
+                message: 'O pedido foi recusado pelo vendedor'
+            }
+        }
+        return styles[status as keyof typeof styles] || styles.pending
+    }
+
     // Renderização
     return (
         <div className="relative min-h-screen pb-24 bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
@@ -541,100 +583,69 @@ export default function SacolaPage() {
                         )}
 
                         <div className="space-y-3">
-                            {finishedOrders.map((order, index) => (
-                                <div key={index} className="bg-white/40 rounded-2xl p-4 border border-orange-100 relative overflow-hidden">
-                                    {/* Efeito de brilho nos status ativos */}
-                                    {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                        <div className={`absolute inset-0 opacity-10 animate-pulse ${order.status === 'pending' ? 'bg-blue-400' :
-                                            order.status === 'preparing' ? 'bg-yellow-400' :
-                                                'bg-purple-400'
-                                            }`}></div>
-                                    )}
-
-                                    <div className="relative z-10">
-                                        <div className="flex items-center justify-between mb-2">
+                            {finishedOrders.map((order, index) => {
+                                const statusStyle = getStatusStyles(order.status)
+                                return (
+                                    <div key={index} className={`bg-white rounded-2xl p-4 border border-orange-100 ${statusStyle.border} shadow-sm`}>
+                                        <div className="flex items-center justify-between mb-3">
                                             <h3 className="text-lg font-black italic text-gray-900">{order.storeName}</h3>
-                                            <span className={`text-[8px] font-black px-2 py-1.5 rounded-full flex items-center gap-2 shadow-sm ${order.status === 'pending' ? 'bg-blue-500 text-white animate-pulse' :
-                                                order.status === 'preparing' ? 'bg-yellow-500 text-white animate-pulse' :
-                                                    order.status === 'ready' ? 'bg-purple-500 text-white animate-pulse' :
-                                                        order.status === 'paid' ? 'bg-green-100 text-green-600' :
-                                                            'bg-red-100 text-red-600'
-                                                }`}>
-                                                {/* Ícones animados para status ativos */}
-                                                {order.status === 'pending' && (
-                                                    <span className="relative flex h-2 w-2">
-                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                                    </span>
-                                                )}
-                                                {order.status === 'preparing' && <span className="animate-bounce">👨‍🍳</span>}
-                                                {order.status === 'ready' && <span className="animate-bounce">✅</span>}
-
-                                                {order.status === 'pending' ? 'Pendente' :
-                                                    order.status === 'preparing' ? 'Preparo' :
-                                                        order.status === 'ready' ? 'Pronto' :
-                                                            order.status === 'paid' ? 'Finalizado' : 'Recusado'}
+                                            <span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${statusStyle.badge}`}>
+                                                {statusStyle.icon} {statusStyle.label}
                                             </span>
                                         </div>
 
-                                        {/* Barra de progresso para status ativos */}
-                                        {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                            <div className="w-full bg-gray-200/50 rounded-full h-1.5 mb-3 overflow-hidden">
-                                                <div className={`h-full rounded-full transition-all duration-1000 animate-pulse ${order.status === 'pending' ? 'w-1/3 bg-gradient-to-r from-blue-400 to-blue-600' :
-                                                    order.status === 'preparing' ? 'w-2/3 bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                                        'w-5/6 bg-gradient-to-r from-purple-400 to-purple-600'
-                                                    }`}></div>
-                                            </div>
-                                        )}
-                                    <div className="space-y-2">
-                                        {order.items.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex justify-between items-center text-sm">
-                                                <span className="font-bold text-gray-700">
-                                                    {item.quantity}x {item.product.name}
-                                                </span>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="font-black text-gray-900">
-                                                        R$ {(item.product.price * item.quantity).toFixed(2)}
+                                        {/* Barra de progresso estática */}
+                                        <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+                                            <div className={`h-full rounded-full transition-all duration-700 ${order.status === 'pending' ? 'w-1/4 bg-blue-400' :
+                                                    order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
+                                                        order.status === 'ready' ? 'w-3/4 bg-purple-400' :
+                                                            order.status === 'paid' ? 'w-full bg-green-400' :
+                                                                'w-full bg-red-400'
+                                                }`}></div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {order.items.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between items-center text-sm">
+                                                    <span className="font-bold text-gray-700">
+                                                        {item.quantity}x {item.product.name}
                                                     </span>
-                                                    {order.status === 'paid' && (
-                                                        <button
-                                                            onClick={() => setReviewOrder({
-                                                                isOpen: true,
-                                                                orderId: order.id,
-                                                                productId: item.product.id,
-                                                                productName: item.product.name,
-                                                                storeId: order.store_id
-                                                            })}
-                                                            className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-[8px] font-black uppercase hover:bg-orange-500 hover:text-white transition-all"
-                                                        >
-                                                            Avaliar
-                                                        </button>
-                                                    )}
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-black text-gray-900">
+                                                            R$ {(item.product.price * item.quantity).toFixed(2)}
+                                                        </span>
+                                                        {order.status === 'paid' && (
+                                                            <button
+                                                                onClick={() => setReviewOrder({
+                                                                    isOpen: true,
+                                                                    orderId: order.id,
+                                                                    productId: item.product.id,
+                                                                    productName: item.product.name,
+                                                                    storeId: order.store_id
+                                                                })}
+                                                                className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-[8px] font-black uppercase hover:bg-orange-500 hover:text-white transition-all"
+                                                            >
+                                                                Avaliar
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-orange-100">
+                                            ))}
+                                        </div>
+                                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-100">
                                             <span className="text-[8px] font-black uppercase text-gray-500">Total</span>
                                             <span className="text-xl font-black text-orange-600">
                                                 R$ {order.total_amount.toFixed(2)}
                                             </span>
                                         </div>
 
-                                        {/* Mensagem de status chamativa */}
-                                        {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                            <div className={`mt-3 text-[8px] font-black text-center py-2 rounded-lg uppercase tracking-wider animate-pulse ${order.status === 'pending' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                                                order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                                                    'bg-purple-100 text-purple-700 border border-purple-300'
-                                                }`}>
-                                                {order.status === 'pending' && '⏳ Aguardando confirmação...'}
-                                                {order.status === 'preparing' && '👨‍🍳 Preparando seu pedido!'}
-                                                {order.status === 'ready' && '✅ Pronto! Pode retirar!'}
-                                            </div>
-                                        )}
+                                        {/* Mensagem de status */}
+                                        <div className={`mt-3 text-[10px] font-bold text-center py-2 rounded-lg ${statusStyle.badge}`}>
+                                            {statusStyle.icon} {statusStyle.message}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
 
                         <button
@@ -681,55 +692,28 @@ export default function SacolaPage() {
                                         groups[p.checkout_id].total += p.price
                                         groups[p.checkout_id].items.push(p)
                                         return groups
-                                    }, {})).slice(0, 5).map((order: any) => (
-                                        <div key={order.checkout_id} className="bg-white/40 rounded-2xl p-4 border border-orange-100 relative overflow-hidden">
-                                            {/* Efeito de brilho nos status ativos */}
-                                            {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                                <div className={`absolute inset-0 opacity-10 animate-pulse ${order.status === 'pending' ? 'bg-blue-400' :
-                                                    order.status === 'preparing' ? 'bg-yellow-400' :
-                                                        'bg-purple-400'
-                                                    }`}></div>
-                                            )}
-
-                                            <div className="relative z-10">
+                                    }, {})).slice(0, 5).map((order: any) => {
+                                        const statusStyle = getStatusStyles(order.status)
+                                        return (
+                                            <div key={order.checkout_id} className={`bg-white rounded-2xl p-4 border border-orange-100 ${statusStyle.border} shadow-sm`}>
                                                 <div className="flex items-center justify-between mb-2">
                                                     <p className="text-[8px] font-black text-gray-500 uppercase">
                                                         {new Date(order.created_at).toLocaleDateString('pt-BR')}
                                                     </p>
-                                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg ${order.status === 'pending' ? 'bg-blue-500 text-white animate-pulse scale-110' :
-                                                        order.status === 'preparing' ? 'bg-yellow-500 text-white animate-pulse scale-110' :
-                                                            order.status === 'ready' ? 'bg-purple-500 text-white animate-pulse scale-110' :
-                                                                'bg-green-100 text-green-700'
-                                                        }`}>
-                                                        {/* Ícone animado */}
-                                                        {order.status === 'pending' && (
-                                                            <span className="relative flex h-3 w-3">
-                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-                                                            </span>
-                                                        )}
-                                                        {order.status === 'preparing' && (
-                                                            <span className="text-sm animate-bounce">👨‍🍳</span>
-                                                        )}
-                                                        {order.status === 'ready' && (
-                                                            <span className="text-sm animate-bounce">✅</span>
-                                                        )}
-
-                                                        {order.status === 'pending' ? 'PENDENTE' :
-                                                            order.status === 'preparing' ? 'PREPARANDO' :
-                                                                order.status === 'ready' ? 'PRONTO' : 'FINALIZADO'}
+                                                    <span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${statusStyle.badge}`}>
+                                                        {statusStyle.icon} {statusStyle.label}
                                                     </span>
                                                 </div>
 
-                                                {/* Barra de progresso para status ativos */}
-                                                {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2 overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-1000 animate-pulse ${order.status === 'pending' ? 'w-1/3 bg-gradient-to-r from-blue-400 to-blue-600' :
-                                                            order.status === 'preparing' ? 'w-2/3 bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                                                'w-5/6 bg-gradient-to-r from-purple-400 to-purple-600'
-                                                            }`}></div>
-                                                    </div>
-                                                )}
+                                                {/* Barra de progresso estática */}
+                                                <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-700 ${order.status === 'pending' ? 'w-1/4 bg-blue-400' :
+                                                            order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
+                                                                order.status === 'ready' ? 'w-3/4 bg-purple-400' :
+                                                                    order.status === 'paid' ? 'w-full bg-green-400' :
+                                                                        'w-full bg-red-400'
+                                                        }`}></div>
+                                                </div>
 
                                                 <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
 
@@ -738,20 +722,13 @@ export default function SacolaPage() {
                                                     <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
                                                 </div>
 
-                                                {/* Mensagem de status chamativa */}
-                                                {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
-                                                    <div className={`mt-3 text-[9px] font-black text-center py-2 rounded-lg uppercase tracking-wider animate-pulse ${order.status === 'pending' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
-                                                        order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
-                                                            'bg-purple-100 text-purple-700 border border-purple-300'
-                                                        }`}>
-                                                        {order.status === 'pending' && '⏳ Aguardando confirmação...'}
-                                                        {order.status === 'preparing' && '👨‍🍳 Preparando seu pedido!'}
-                                                        {order.status === 'ready' && '✅ Pronto! Pode retirar!'}
-                                                    </div>
-                                                )}
+                                                {/* Mensagem de status */}
+                                                <div className={`mt-3 text-[9px] font-bold text-center py-2 rounded-lg ${statusStyle.badge}`}>
+                                                    {statusStyle.icon} {statusStyle.message}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                                 <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
                                     Ver todos os pedidos →
@@ -1089,29 +1066,26 @@ export default function SacolaPage() {
                                         groups[p.checkout_id].total += p.price
                                         groups[p.checkout_id].items.push(p)
                                         return groups
-                                    }, {})).slice(0, 3).map((order: any) => (
-                                        <div key={order.checkout_id} className="bg-white/40 rounded-2xl p-4 border border-orange-100">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <p className="text-[8px] font-black text-gray-500 uppercase">
-                                                    {new Date(order.created_at).toLocaleDateString('pt-BR')}
-                                                </p>
-                                                <span className={`text-[6px] font-black px-2 py-0.5 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
-                                                    order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
-                                                        order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
-                                                            'bg-green-100 text-green-600'
-                                                    }`}>
-                                                    {order.status === 'pending' ? 'Pendente' :
-                                                        order.status === 'preparing' ? 'Preparo' :
-                                                            order.status === 'ready' ? 'Pronto' : 'Finalizado'}
-                                                </span>
+                                    }, {})).slice(0, 3).map((order: any) => {
+                                        const statusStyle = getStatusStyles(order.status)
+                                        return (
+                                            <div key={order.checkout_id} className={`bg-white rounded-2xl p-4 border border-orange-100 ${statusStyle.border} shadow-sm`}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <p className="text-[8px] font-black text-gray-500 uppercase">
+                                                        {new Date(order.created_at).toLocaleDateString('pt-BR')}
+                                                    </p>
+                                                    <span className={`text-[8px] font-black px-2 py-1 rounded-full ${statusStyle.badge}`}>
+                                                        {statusStyle.label}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
+                                                    <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
+                                                </div>
                                             </div>
-                                            <h3 className="text-sm font-black text-gray-900">{order.store_name}</h3>
-                                            <div className="flex justify-between items-center mt-2">
-                                                <span className="text-[7px] font-black text-gray-500">{order.items.length} itens</span>
-                                                <span className="text-sm font-black text-orange-600">R$ {order.total.toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                                 <Link href="/pedidos" className="block text-center w-full mt-3 py-2 text-[8px] font-black uppercase tracking-wider text-gray-500 hover:text-orange-500 transition-colors">
                                     Ver todos os pedidos →
