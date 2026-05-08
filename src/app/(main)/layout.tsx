@@ -118,7 +118,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         }, 1000)
     }
 
-    const isMapRoute = pathname === '/mapa'
+    const isMapRoute = pathname === '/radar'
     // 🔥 NOVO: Verifica se é a rota da vitrine (página inicial)
     const isVitrineRoute = pathname === '/'
 
@@ -201,8 +201,8 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
             {/* Conteúdo - MODIFICADO AQUI */}
             <main className={`relative z-10 flex-1 w-full flex flex-col pb-24 ${isMapRoute || isVitrineRoute
-                    ? '' // SEM padding e SEM max-width para vitrine e mapa
-                    : 'max-w-7xl mx-auto px-4 md:px-8 pt-4' // Com padding para outras páginas
+                ? '' // SEM padding e SEM max-width para vitrine e mapa
+                : 'max-w-7xl mx-auto px-4 md:px-8 pt-4' // Com padding para outras páginas
                 }`}>
                 {/* Indicador de carrinho animado flutuante (opcional) */}
                 {totalCartItems > 0 && (

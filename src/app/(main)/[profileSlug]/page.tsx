@@ -243,11 +243,33 @@ export default function ProfilePage() {
 
     const openInGoogleMaps = (loc: any) => {
         if (!loc) return
-        // Formato POINT(-63.9004 -8.7612)
+        let lat, lng
+
+        // 1. Formato POINT(lng lat)
         const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
         if (match) {
-            const lng = match[1]
-            const lat = match[2]
+            lng = match[1]
+            lat = match[2]
+        }
+        // 2. Formato Hex EWKB
+        else if (loc.length >= 42 && /^[0-9A-F]+$/i.test(loc)) {
+            try {
+                const hexToDouble = (hex: string) => {
+                    const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+                    const view = new DataView(bytes.buffer)
+                    return view.getFloat64(0, true)
+                }
+                if (loc.length === 50) {
+                    lng = hexToDouble(loc.substring(18, 34))
+                    lat = hexToDouble(loc.substring(34, 50))
+                } else if (loc.length === 42) {
+                    lng = hexToDouble(loc.substring(10, 26))
+                    lat = hexToDouble(loc.substring(26, 42))
+                }
+            } catch (e) { console.error('Hex parsing error:', e) }
+        }
+
+        if (lat && lng) {
             window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank')
         }
     }

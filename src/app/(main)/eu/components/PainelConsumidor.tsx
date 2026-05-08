@@ -1,4 +1,4 @@
-// app/painel/components/PainelConsumidor.tsx
+// app/(main)/eu/components/PainelConsumidor.tsx
 'use client'
 
 import { useState, useMemo, useRef } from 'react'

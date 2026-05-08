@@ -37,6 +37,29 @@ export function useStoreFilters(
             if (match) return [parseFloat(match[1]), parseFloat(match[2])]
         }
 
+        // Suporte para Hex EWKB (comum no Supabase select *)
+        if (typeof location === 'string' && location.length >= 42 && /^[0-9A-F]+$/i.test(location)) {
+            try {
+                const hexToDouble = (hex: string) => {
+                    const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+                    const view = new DataView(bytes.buffer)
+                    return view.getFloat64(0, true)
+                }
+
+                if (location.length === 50) {
+                    const lng = hexToDouble(location.substring(18, 34))
+                    const lat = hexToDouble(location.substring(34, 50))
+                    return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+                } else if (location.length === 42) {
+                    const lng = hexToDouble(location.substring(10, 26))
+                    const lat = hexToDouble(location.substring(26, 42))
+                    return isFinite(lng) && isFinite(lat) ? [lng, lat] : null
+                }
+            } catch (e) {
+                console.error('[Geo] WKB Error:', e)
+            }
+        }
+
         return null
     }
 

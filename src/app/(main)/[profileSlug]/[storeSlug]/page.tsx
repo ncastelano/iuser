@@ -297,10 +297,7 @@ export default function StorePage() {
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
-            <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-                <p className="text-orange-600 text-sm font-bold">Carregando loja...</p>
-            </div>
+            LoadingSpinner
         </div>
     )
 

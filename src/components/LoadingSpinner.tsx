@@ -1,7 +1,7 @@
-// components/vitrine/LoadingSpinner.tsx
+// components/LoadingSpinner.tsx
 
 import AnimatedBackground from '@/components/AnimatedBackground'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 type LoadingSpinnerProps = {
     message?: string
@@ -9,6 +9,8 @@ type LoadingSpinnerProps = {
 }
 
 export function LoadingSpinner({ message = 'Carregando...', showDots = true }: LoadingSpinnerProps) {
+    const [mounted, setMounted] = useState(false)
+
     // Estado para controlar quais bolinhas crescem/diminuem
     const [scaleStates, setScaleStates] = useState({
         orbit1: [false, false, false],
@@ -18,12 +20,28 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
     // Estado para controlar as travessias aleatórias
     const [crossStates, setCrossStates] = useState({
-        vertical: { active: true, direction: 1, size: 1, offset: 0 },
-        horizontal: { active: true, direction: 1, size: 1, offset: 0 },
-        diagonal: { active: true, direction: 1, size: 1, offset: 0 },
+        vertical: { active: true, direction: 1, size: 1, offset: 0, duration: 3 },
+        horizontal: { active: true, direction: 1, size: 1, offset: 0, duration: 3 },
+        diagonal: { active: true, direction: 1, size: 1, offset: 0, duration: 3 },
+    })
+
+    // Pre-computar velocidades no primeiro render do cliente
+    const speedsRef = useRef({
+        vertical: 3,
+        horizontal: 3,
+        diagonal: 3,
     })
 
     useEffect(() => {
+        setMounted(true)
+
+        // Calcular velocidades apenas no cliente
+        speedsRef.current = {
+            vertical: 2 + Math.random() * 2,
+            horizontal: 2 + Math.random() * 2,
+            diagonal: 2 + Math.random() * 2,
+        }
+
         const randomizeScales = () => {
             setScaleStates({
                 orbit1: [
@@ -42,30 +60,39 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
             })
 
             // Escolher 0, 1 ou 2 bolinhas para passar na frente
-            const frontCount = Math.floor(Math.random() * 3) // 0, 1 ou 2
+            const frontCount = Math.floor(Math.random() * 3)
             const allCrosses = ['vertical', 'horizontal', 'diagonal']
             const shuffled = allCrosses.sort(() => Math.random() - 0.5)
             const activeCrosses = shuffled.slice(0, frontCount)
 
-            // Aleatorizar travessias
+            // Novas velocidades
+            speedsRef.current = {
+                vertical: 2 + Math.random() * 2,
+                horizontal: 2 + Math.random() * 2,
+                diagonal: 2 + Math.random() * 2,
+            }
+
             setCrossStates({
                 vertical: {
                     active: activeCrosses.includes('vertical'),
                     direction: Math.random() > 0.5 ? 1 : -1,
                     size: Math.random() > 0.5 ? 2.5 : 0.4,
                     offset: Math.random() * 30 - 15,
+                    duration: speedsRef.current.vertical,
                 },
                 horizontal: {
                     active: activeCrosses.includes('horizontal'),
                     direction: Math.random() > 0.5 ? 1 : -1,
                     size: Math.random() > 0.5 ? 2.5 : 0.4,
                     offset: Math.random() * 30 - 15,
+                    duration: speedsRef.current.horizontal,
                 },
                 diagonal: {
                     active: activeCrosses.includes('diagonal'),
                     direction: Math.random() > 0.5 ? 1 : -1,
                     size: Math.random() > 0.5 ? 2.5 : 0.4,
                     offset: Math.random() * 30 - 15,
+                    duration: speedsRef.current.diagonal,
                 },
             })
         }
@@ -75,6 +102,9 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
         return () => clearInterval(interval)
     }, [])
+
+    // Não renderizar nada até o cliente estar pronto (evita hidratação)
+    if (!mounted) return null
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 flex items-center justify-center relative overflow-hidden">
@@ -118,7 +148,6 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                     </div>
 
                     {/* Bolinhas que atravessam na frente da logo (z-30) */}
-                    {/* Vertical - Só aparece se active = true */}
                     {crossStates.vertical.active && (
                         <div
                             className="absolute inset-0 flex items-center justify-center overflow-hidden z-30 pointer-events-none"
@@ -129,7 +158,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                             <div
                                 className="w-1.5 h-1.5 bg-gradient-to-b from-orange-400 to-red-500 rounded-full shadow-lg shadow-orange-500/50 transition-all duration-700"
                                 style={{
-                                    animation: `crossVertical ${2 + Math.random() * 2}s ease-in-out infinite`,
+                                    animationName: 'crossVertical',
+                                    animationDuration: `${crossStates.vertical.duration}s`,
+                                    animationTimingFunction: 'ease-in-out',
+                                    animationIterationCount: 'infinite',
                                     animationDirection: crossStates.vertical.direction === 1 ? 'normal' : 'reverse',
                                     transform: `scale(${crossStates.vertical.size})`,
                                 }}
@@ -137,7 +169,6 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         </div>
                     )}
 
-                    {/* Horizontal - Só aparece se active = true */}
                     {crossStates.horizontal.active && (
                         <div
                             className="absolute inset-0 flex items-center justify-center overflow-hidden z-30 pointer-events-none"
@@ -148,7 +179,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                             <div
                                 className="w-1.5 h-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full shadow-lg shadow-yellow-500/50 transition-all duration-700"
                                 style={{
-                                    animation: `crossHorizontal ${2 + Math.random() * 2}s ease-in-out infinite`,
+                                    animationName: 'crossHorizontal',
+                                    animationDuration: `${crossStates.horizontal.duration}s`,
+                                    animationTimingFunction: 'ease-in-out',
+                                    animationIterationCount: 'infinite',
                                     animationDirection: crossStates.horizontal.direction === 1 ? 'normal' : 'reverse',
                                     transform: `scale(${crossStates.horizontal.size})`,
                                 }}
@@ -156,7 +190,6 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         </div>
                     )}
 
-                    {/* Diagonal - Só aparece se active = true */}
                     {crossStates.diagonal.active && (
                         <div
                             className="absolute inset-0 flex items-center justify-center overflow-hidden z-30 pointer-events-none"
@@ -167,7 +200,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                             <div
                                 className="w-1.5 h-1.5 bg-gradient-to-br from-rose-400 to-red-500 rounded-full shadow-lg shadow-rose-500/50 transition-all duration-700"
                                 style={{
-                                    animation: `crossDiagonal ${2 + Math.random() * 2}s ease-in-out infinite`,
+                                    animationName: 'crossDiagonal',
+                                    animationDuration: `${crossStates.diagonal.duration}s`,
+                                    animationTimingFunction: 'ease-in-out',
+                                    animationIterationCount: 'infinite',
                                     animationDirection: crossStates.diagonal.direction === 1 ? 'normal' : 'reverse',
                                     transform: `scale(${crossStates.diagonal.size})`,
                                 }}
@@ -176,18 +212,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                     )}
                 </div>
 
-                {/* Mensagem e dots */}
-                <div className="flex flex-col items-center gap-3">
-                    <p className="text-orange-600 font-black text-sm">{message}</p>
 
-                    {showDots && (
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                            <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                        </div>
-                    )}
-                </div>
             </div>
 
             <style jsx>{`

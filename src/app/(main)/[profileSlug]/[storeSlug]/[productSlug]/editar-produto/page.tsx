@@ -95,11 +95,35 @@ export default function EditarProduto() {
             }
 
             if (data.location) {
+                let coords: { lat: number, lng: number } | null = null;
+                
                 if (typeof data.location === 'string') {
-                    const match = data.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
-                    if (match) setLocation({ lng: parseFloat(match[1]), lat: parseFloat(match[2]) });
-                } else if (data.location.type === 'Point' && data.location.coordinates) {
-                    setLocation({ lng: data.location.coordinates[0], lat: data.location.coordinates[1] })
+                    // 1. Formato POINT(lng lat)
+                    if (data.location.toUpperCase().includes('POINT')) {
+                        const match = data.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
+                        if (match) coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+                    }
+                    // 2. Formato Hex EWKB
+                    else if (data.location.length >= 42 && /^[0-9A-F]+$/i.test(data.location)) {
+                        try {
+                            const hexToDouble = (hex: string) => {
+                                const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+                                const view = new DataView(bytes.buffer)
+                                return view.getFloat64(0, true)
+                            }
+                            if (data.location.length === 50) {
+                                coords = { lng: hexToDouble(data.location.substring(18, 34)), lat: hexToDouble(data.location.substring(34, 50)) };
+                            } else if (data.location.length === 42) {
+                                coords = { lng: hexToDouble(data.location.substring(10, 26)), lat: hexToDouble(data.location.substring(26, 42)) };
+                            }
+                        } catch (e) { console.error('Hex parsing error:', e) }
+                    }
+                } else if (data.location.type === 'Point' && Array.isArray(data.location.coordinates)) {
+                    coords = { lng: data.location.coordinates[0], lat: data.location.coordinates[1] };
+                }
+
+                if (coords && isFinite(coords.lat) && isFinite(coords.lng)) {
+                    setLocation(coords);
                 }
             }
 

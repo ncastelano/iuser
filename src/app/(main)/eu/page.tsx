@@ -7,7 +7,10 @@ import {
     Settings,
     BanknoteArrowUp,
     BanknoteArrowDown,
-    Plus
+    Plus,
+    User,
+    User2,
+    Store
 } from 'lucide-react'
 import { usePainelData } from './hooks/usePainelData'
 import { PainelVendedor } from './components/PainelVendedor'
@@ -43,25 +46,22 @@ export default function PainelPage() {
             const revenueA = getStoreRevenue(a.id)
             const revenueB = getStoreRevenue(b.id)
 
-            // Se tiver o mesmo faturamento, ordenar por nome
             if (revenueA === revenueB) {
                 return a.name.localeCompare(b.name)
             }
 
-            return revenueB - revenueA // Maior faturamento primeiro
+            return revenueB - revenueA
         })
-    }, [stores, sales]) // Recalcula quando stores ou sales mudarem
+    }, [stores, sales])
 
     // Determinar a ordem das seções baseado na existência de lojas
     const sectionsOrder = useMemo(() => {
         const hasStores = stores.length > 0
 
-        // Se não tiver lojas, coloca consumidor primeiro
         if (!hasStores) {
             return ['customer', 'merchant']
         }
 
-        // Se tiver lojas, mantém a ordem escolhida pelo usuário
         return viewOrder
     }, [stores.length, viewOrder])
 
@@ -74,12 +74,10 @@ export default function PainelPage() {
             <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-orange-100 px-4 py-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                            <TrendingUp size={18} className="text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">Painel</h1>
-                            <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider">Gestão completa</p>
+                        <div className="flex items-center gap-2">
+                            <div className="w-12 h-12 flex-shrink-0 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-xl border-2 border-white/50 hover:scale-110 transition-transform">
+                                <img src="/logo.png" alt="iUser" className="h-7 w-7 object-contain rounded-full" />
+                            </div>
                         </div>
                     </div>
 
@@ -88,22 +86,22 @@ export default function PainelPage() {
                             <button
                                 onClick={() => setViewOrder(['merchant', 'customer'])}
                                 className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewOrder[0] === 'merchant'
-                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
-                                    : 'text-gray-600'
+                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                        : 'text-gray-600 hover:text-orange-600'
                                     }`}
                             >
-                                <BanknoteArrowDown size={12} />
-                                Vendas
+                                <Store size={12} />
+                                Lojas
                             </button>
                             <button
                                 onClick={() => setViewOrder(['customer', 'merchant'])}
                                 className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${viewOrder[0] === 'customer'
-                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
-                                    : 'text-gray-600'
+                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                                        : 'text-gray-600 hover:text-orange-600'
                                     }`}
                             >
-                                <BanknoteArrowUp size={12} />
-                                Compras
+                                <User size={12} />
+                                Eu
                             </button>
                         </div>
 
@@ -118,19 +116,28 @@ export default function PainelPage() {
                 {sectionsOrder.map(section => (
                     <div key={section} className="mb-12">
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-sm font-black italic uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                            {/* CORRIGIDO: Substituído o <h2> externo por <div> */}
+                            <div className="flex items-center gap-2">
                                 {section === 'merchant' ? (
                                     <>
-                                        <BanknoteArrowDown size={16} className="text-orange-500" />
-                                        Painel do Vendedor
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                            <Store size={16} className="text-white" />
+                                        </div>
+                                        <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                                            Minhas lojas
+                                        </h2>
                                     </>
                                 ) : (
                                     <>
-                                        <BanknoteArrowUp size={16} className="text-orange-500" />
-                                        Painel do Consumidor
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                                            <User2 size={16} className="text-white" />
+                                        </div>
+                                        <h2 className="text-base font-black italic uppercase tracking-tighter bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                                            Meu Perfil
+                                        </h2>
                                     </>
                                 )}
-                            </h2>
+                            </div>
                             {section === 'merchant' && stores.length > 0 && (
                                 <button
                                     onClick={() => window.location.href = '/criar-loja'}

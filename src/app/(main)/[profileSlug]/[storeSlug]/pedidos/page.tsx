@@ -192,7 +192,7 @@ export default function StoreOrdersPage() {
             <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border/50 px-4 py-3">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => router.push('/painel')}
+                        onClick={() => router.push('/eu')}
                         className="w-8 h-8 flex items-center justify-center bg-secondary/50 border border-border rounded-lg hover:bg-foreground hover:text-background transition-all"
                     >
                         <ArrowLeft className="w-4 h-4" />
@@ -225,8 +225,8 @@ export default function StoreOrdersPage() {
                                 key={key}
                                 onClick={() => setFilter(key as any)}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider whitespace-nowrap transition-all border border-transparent ${isSelected
-                                        ? 'bg-foreground text-background scale-105 shadow-md'
-                                        : `bg-secondary/30 text-muted-foreground hover:bg-secondary/50`
+                                    ? 'bg-foreground text-background scale-105 shadow-md'
+                                    : `bg-secondary/30 text-muted-foreground hover:bg-secondary/50`
                                     }`}
                             >
                                 {data.label}

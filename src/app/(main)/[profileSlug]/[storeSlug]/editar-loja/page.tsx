@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Globe, Store, Sparkles, Zap } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 export default function EditarLoja() {
     const router = useRouter()
@@ -50,15 +51,22 @@ export default function EditarLoja() {
 
             if (error || !store) {
                 alert('Loja não encontrada.')
-                router.push('/painel')
+                router.push('/eu')
                 return
             }
 
             if (store.owner_id !== user.id) {
                 alert('Você não tem permissão para editar esta loja.')
-                router.push('/painel')
+                router.push('/eu')
                 return
             }
+
+            // Debug - para verificar o formato dos dados
+            console.log('Dados brutos da loja:', {
+                location: store.location,
+                locationType: typeof store.location,
+                address: store.address
+            });
 
             setStoreId(store.id)
             setName(store.name || '')
@@ -72,26 +80,66 @@ export default function EditarLoja() {
                 setPreview(url)
             }
 
+            // Processar localização
             if (store.location) {
                 let coords: { lat: number, lng: number } | null = null;
 
+                // Tentar extrair coordenadas de diferentes formatos
                 if (typeof store.location === 'string') {
-                    const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
-                    if (match) {
-                        coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+                    // 1. Formato POINT(lng lat)
+                    if (store.location.toUpperCase().includes('POINT')) {
+                        const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
+                        if (match) {
+                            coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+                        }
+                    }
+                    // 2. Formato Hex EWKB (comum no Supabase select *)
+                    else if (store.location.length >= 42 && /^[0-9A-F]+$/i.test(store.location)) {
+                        try {
+                            const hexToDouble = (hex: string) => {
+                                const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
+                                const view = new DataView(bytes.buffer)
+                                return view.getFloat64(0, true)
+                            }
+
+                            if (store.location.length === 50) {
+                                const lng = hexToDouble(store.location.substring(18, 34))
+                                const lat = hexToDouble(store.location.substring(34, 50))
+                                coords = { lng, lat }
+                            } else if (store.location.length === 42) {
+                                const lng = hexToDouble(store.location.substring(10, 26))
+                                const lat = hexToDouble(store.location.substring(26, 42))
+                                coords = { lng, lat }
+                            }
+                        } catch (e) {
+                            console.error('Erro ao converter Hex EWKB:', e)
+                        }
                     }
                 } else if (typeof store.location === 'object' && store.location !== null) {
+                    // Formato GeoJSON: { type: 'Point', coordinates: [lng, lat] }
                     if (store.location.type === 'Point' && Array.isArray(store.location.coordinates)) {
                         coords = { lng: store.location.coordinates[0], lat: store.location.coordinates[1] };
                     }
+                    // Formato: { lat, lng }
+                    else if (store.location.lat && store.location.lng) {
+                        coords = { lat: store.location.lat, lng: store.location.lng };
+                    }
                 }
 
-                if (coords) {
+                if (coords && isFinite(coords.lat) && isFinite(coords.lng)) {
+                    console.log('Coordenadas extraídas:', coords);
                     setLocation(coords);
+                    // Se já tem endereço, mantém o que está salvo
+                    // Se não tem endereço, busca pelo coordenadas
                     if (!store.address) {
                         fetchAddressFromCoords(coords.lat, coords.lng);
                     }
+                } else {
+                    console.log('Não foi possível extrair coordenadas');
+                    setLocation(null);
                 }
+            } else {
+                setLocation(null);
             }
 
             setPageLoading(false)
@@ -218,17 +266,12 @@ export default function EditarLoja() {
         }
 
         alert("Loja deletada com sucesso.")
-        router.push('/painel')
+        router.push('/eu')
     }
 
     if (pageLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
-                    <p className="text-orange-600 text-sm font-bold">Carregando loja...</p>
-                </div>
-            </div>
+            LoadingSpinner
         )
     }
 

@@ -119,6 +119,22 @@ export default function SacolaPage() {
 
         const uniquePurchases = Array.from(new Map(allPurchases.map(item => [item.id, item])).values())
         setMyPurchases([...uniquePurchases])
+
+        // Sincronizar finishedOrders com os dados novos para garantir reatividade mesmo se o Realtime falhar
+        setFinishedOrders(prev => {
+            if (prev.length === 0) return prev
+            const hasChanges = prev.some(order => {
+                const updated = uniquePurchases.find(p => p.checkout_id === order.checkout_id || p.id === order.id)
+                return updated && updated.status !== order.status
+            })
+            if (!hasChanges) return prev
+
+            return prev.map(order => {
+                const updated = uniquePurchases.find(p => p.checkout_id === order.checkout_id || p.id === order.id)
+                if (updated) return { ...order, status: updated.status }
+                return order
+            })
+        })
     }, [supabase])
 
     // Inicialização
@@ -157,28 +173,6 @@ export default function SacolaPage() {
         }
     }, [authProfileSlug, supabase])
 
-    // Monitoramento de pedidos finalizados
-    useEffect(() => {
-        if (finishedOrders.length === 0) return
-
-        const channels = finishedOrders.map((order, idx) => {
-            return supabase
-                .channel(`global-order-${order.id}-${idx}`)
-                .on(
-                    'postgres_changes',
-                    { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${order.id}` },
-                    (payload) => {
-                        setFinishedOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: payload.new.status } : o))
-                    }
-                )
-                .subscribe()
-        })
-
-        return () => {
-            channels.forEach(ch => supabase.removeChannel(ch))
-        }
-    }, [finishedOrders, supabase])
-
     // Monitoramento em tempo real dos pedidos
     useEffect(() => {
         if (!currentUserId) return
@@ -202,6 +196,7 @@ export default function SacolaPage() {
                         if (!existing) return prev
 
                         if (existing.status !== newStatus) {
+                            console.log(`[Realtime] Status update for ${checkoutId}: ${newStatus}`)
                             if (newStatus === 'preparing') toast.info('👨‍🍳 O lojista começou a preparar seu pedido!')
                             if (newStatus === 'ready') toast.success('✅ Seu pedido está pronto!')
                             if (newStatus === 'paid') toast.success('🎉 Pedido finalizado com sucesso!')
@@ -209,6 +204,13 @@ export default function SacolaPage() {
                         }
 
                         return prev.map(p => p.checkout_id === checkoutId ? { ...p, status: newStatus } : p)
+                    })
+
+                    setFinishedOrders(prev => {
+                        const hasMatch = prev.some(o => o.checkout_id === checkoutId || o.id === payload.new.id)
+                        if (!hasMatch) return prev
+                        console.log(`[Realtime] Updating finishedOrders to: ${newStatus}`)
+                        return prev.map(o => (o.checkout_id === checkoutId || o.id === payload.new.id) ? { ...o, status: newStatus } : o)
                     })
                 }
             )
@@ -221,7 +223,13 @@ export default function SacolaPage() {
                     filter: `buyer_id=eq.${currentUserId}`
                 },
                 (payload) => {
-                    setMyPurchases(prev => prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p))
+                    const newStatus = payload.new.status
+                    const saleId = payload.new.id
+                    const checkoutId = payload.new.checkout_id
+                    console.log(`[Realtime Legacy] Status update: ${newStatus}`)
+
+                    setMyPurchases(prev => prev.map(p => p.id === saleId ? { ...p, status: newStatus } : p))
+                    setFinishedOrders(prev => prev.map(o => (o.checkout_id === checkoutId || o.id === saleId) ? { ...o, status: newStatus } : o))
                 }
             )
             .subscribe()
@@ -487,7 +495,7 @@ export default function SacolaPage() {
                                     }`}
                             >
                                 <ShoppingBag size={10} />
-                                Carrinho
+                                Sacola
                             </button>
                             <button
                                 onClick={() => setViewOrder('pedidos')}
@@ -534,21 +542,50 @@ export default function SacolaPage() {
 
                         <div className="space-y-3">
                             {finishedOrders.map((order, index) => (
-                                <div key={index} className="bg-white/40 rounded-2xl p-4 border border-orange-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-lg font-black italic text-gray-900">{order.storeName}</h3>
-                                        <span className={`text-[8px] font-black px-2 py-1 rounded-full ${order.status === 'pending' ? 'bg-blue-100 text-blue-600' :
-                                            order.status === 'preparing' ? 'bg-yellow-100 text-yellow-600' :
-                                                order.status === 'ready' ? 'bg-purple-100 text-purple-600' :
-                                                    order.status === 'paid' ? 'bg-green-100 text-green-600' :
-                                                        'bg-red-100 text-red-600'
-                                            }`}>
-                                            {order.status === 'pending' ? 'Pendente' :
-                                                order.status === 'preparing' ? 'Preparo' :
-                                                    order.status === 'ready' ? 'Pronto' :
-                                                        order.status === 'paid' ? 'Finalizado' : 'Recusado'}
-                                        </span>
-                                    </div>
+                                <div key={index} className="bg-white/40 rounded-2xl p-4 border border-orange-100 relative overflow-hidden">
+                                    {/* Efeito de brilho nos status ativos */}
+                                    {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
+                                        <div className={`absolute inset-0 opacity-10 animate-pulse ${order.status === 'pending' ? 'bg-blue-400' :
+                                            order.status === 'preparing' ? 'bg-yellow-400' :
+                                                'bg-purple-400'
+                                            }`}></div>
+                                    )}
+
+                                    <div className="relative z-10">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="text-lg font-black italic text-gray-900">{order.storeName}</h3>
+                                            <span className={`text-[8px] font-black px-2 py-1.5 rounded-full flex items-center gap-2 shadow-sm ${order.status === 'pending' ? 'bg-blue-500 text-white animate-pulse' :
+                                                order.status === 'preparing' ? 'bg-yellow-500 text-white animate-pulse' :
+                                                    order.status === 'ready' ? 'bg-purple-500 text-white animate-pulse' :
+                                                        order.status === 'paid' ? 'bg-green-100 text-green-600' :
+                                                            'bg-red-100 text-red-600'
+                                                }`}>
+                                                {/* Ícones animados para status ativos */}
+                                                {order.status === 'pending' && (
+                                                    <span className="relative flex h-2 w-2">
+                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                                    </span>
+                                                )}
+                                                {order.status === 'preparing' && <span className="animate-bounce">👨‍🍳</span>}
+                                                {order.status === 'ready' && <span className="animate-bounce">✅</span>}
+
+                                                {order.status === 'pending' ? 'Pendente' :
+                                                    order.status === 'preparing' ? 'Preparo' :
+                                                        order.status === 'ready' ? 'Pronto' :
+                                                            order.status === 'paid' ? 'Finalizado' : 'Recusado'}
+                                            </span>
+                                        </div>
+
+                                        {/* Barra de progresso para status ativos */}
+                                        {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
+                                            <div className="w-full bg-gray-200/50 rounded-full h-1.5 mb-3 overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all duration-1000 animate-pulse ${order.status === 'pending' ? 'w-1/3 bg-gradient-to-r from-blue-400 to-blue-600' :
+                                                    order.status === 'preparing' ? 'w-2/3 bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                                                        'w-5/6 bg-gradient-to-r from-purple-400 to-purple-600'
+                                                    }`}></div>
+                                            </div>
+                                        )}
                                     <div className="space-y-2">
                                         {order.items.map((item: any, idx: number) => (
                                             <div key={idx} className="flex justify-between items-center text-sm">
@@ -577,11 +614,24 @@ export default function SacolaPage() {
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="flex justify-between items-center mt-3 pt-2 border-t border-orange-100">
-                                        <span className="text-[8px] font-black uppercase text-gray-500">Total</span>
-                                        <span className="text-xl font-black text-orange-600">
-                                            R$ {order.total_amount.toFixed(2)}
-                                        </span>
+                                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-orange-100">
+                                            <span className="text-[8px] font-black uppercase text-gray-500">Total</span>
+                                            <span className="text-xl font-black text-orange-600">
+                                                R$ {order.total_amount.toFixed(2)}
+                                            </span>
+                                        </div>
+
+                                        {/* Mensagem de status chamativa */}
+                                        {(order.status === 'pending' || order.status === 'preparing' || order.status === 'ready') && (
+                                            <div className={`mt-3 text-[8px] font-black text-center py-2 rounded-lg uppercase tracking-wider animate-pulse ${order.status === 'pending' ? 'bg-blue-100 text-blue-700 border border-blue-300' :
+                                                order.status === 'preparing' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' :
+                                                    'bg-purple-100 text-purple-700 border border-purple-300'
+                                                }`}>
+                                                {order.status === 'pending' && '⏳ Aguardando confirmação...'}
+                                                {order.status === 'preparing' && '👨‍🍳 Preparando seu pedido!'}
+                                                {order.status === 'ready' && '✅ Pronto! Pode retirar!'}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
