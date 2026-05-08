@@ -270,9 +270,7 @@ export default function EditarLoja() {
     }
 
     if (pageLoading) {
-        return (
-            LoadingSpinner
-        )
+        return <LoadingSpinner />
     }
 
     return (

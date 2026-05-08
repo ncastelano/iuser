@@ -440,7 +440,7 @@ export default function ProductPage() {
                             {ratings.slice(0, 3).map((r) => (
                                 <div key={r.id} className="flex items-start gap-3">
                                     <div className="w-8 h-8 bg-secondary border border-border overflow-hidden rounded-full flex-shrink-0 flex items-center justify-center">
-                                        {!r.is_anonymous && r.profiles?.avatar_url ? (
+                                        {r.profiles?.avatar_url ? (
                                             <img src={getAvatarUrl(supabase, r.profiles.avatar_url)} className="w-full h-full object-cover" alt="" />
                                         ) : (
                                             <Users2 size={12} className="text-muted-foreground/40" />
@@ -448,7 +448,7 @@ export default function ProductPage() {
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-[9px] font-bold text-foreground">
-                                            {r.is_anonymous ? "Consumidor Anônimo" : (r.profiles?.name || "Usuário")}
+                                            {r.profiles?.name || "Usuário"}
                                         </p>
                                         <RatingStars value={r.rating} size={10} />
                                         {r.comment && <p className="text-[8px] text-muted-foreground mt-1 italic line-clamp-2">"{r.comment}"</p>}

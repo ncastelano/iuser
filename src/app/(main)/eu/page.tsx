@@ -15,6 +15,8 @@ import {
 import { usePainelData } from './hooks/usePainelData'
 import { PainelVendedor } from './components/PainelVendedor'
 import { PainelConsumidor } from './components/PainelConsumidor'
+import { useMerchantStore } from '@/store/useMerchantStore'
+import { useEffect } from 'react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -31,6 +33,16 @@ export default function PainelPage() {
         loadFinanceData,
         supabase
     } = usePainelData()
+
+    const pendingOrdersCount = useMerchantStore(state => state.pendingOrdersCount)
+    const customerOrderStatuses = useMerchantStore(state => state.customerOrderStatuses)
+
+    // Reatualiza os dados quando o BottomNav detectar mudanças (sincronização em tempo real via Store)
+    useEffect(() => {
+        if (!loading) {
+            loadFinanceData()
+        }
+    }, [pendingOrdersCount, customerOrderStatuses])
 
     // Função para calcular o faturamento total de uma loja
     const getStoreRevenue = (storeId: string) => {

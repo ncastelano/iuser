@@ -25,7 +25,9 @@ import {
     Sparkles,
     Store,
     Zap,
-    ShoppingBag
+    ShoppingBag,
+    Star,
+    ChevronRight
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -51,15 +53,20 @@ type RatingRow = {
 type SaleType = {
     id: string
     buyer_id: string
-    buyer_name: string
-    product_id: string
-    product_name: string
+    buyer_name?: string
+    product_id?: string
+    product_name?: string
     store_id: string
     created_at: string
+    rating?: number
+    comment?: string
     profiles?: {
         avatar_url: string | null
         name: string | null
         profileSlug: string | null
+    } | null
+    products?: {
+        name: string
     } | null
 }
 
@@ -270,7 +277,6 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
-        // Appointments
         const today = new Date()
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
@@ -282,12 +288,20 @@ export default function StorePage() {
             ...item, profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
         })))
 
-        // Sales
         const { data: salesData } = await supabase
-            .from('store_sales').select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
-            .eq('store_id', foundStore.id).order('created_at', { ascending: false }).limit(10)
+            .from('product_reviews')
+            .select('id, rating, comment, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .order('created_at', { ascending: false })
+            .limit(10)
+
         setRecentSales((salesData || []).map((item: any) => ({
-            ...item, profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+            ...item,
+            profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
+            products: Array.isArray(item.products) ? item.products[0] : item.products,
+            buyer_name: item.profiles?.name || 'Cliente',
+            product_name: item.products?.name || 'Produto',
+            buyer_id: item.profiles?.id
         })))
 
         setLoading(false)
@@ -319,7 +333,6 @@ export default function StorePage() {
             {store && <ScheduleModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)} onSuccess={loadStore}
                 store={{ id: store.id, name: store.name, storeSlug: store.storeSlug }} />}
 
-            {/* Header Compacto */}
             <header className="sticky top-0 z-50 px-3 py-2.5 border-b border-orange-200/30 bg-white/70 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -355,7 +368,6 @@ export default function StorePage() {
             </header>
 
             <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
-                {/* Logo + Nome + Badges */}
                 <div className="flex items-center gap-3">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg flex-shrink-0 border-2 border-white">
                         {store.logo_url ? (
@@ -372,7 +384,6 @@ export default function StorePage() {
                     </div>
                 </div>
 
-                {/* Botões de Ação */}
                 <div className="flex items-center gap-2 flex-wrap">
                     {store.address && (
                         <button onClick={() => {
@@ -403,7 +414,6 @@ export default function StorePage() {
                     )}
                 </div>
 
-                {/* Ratings + Avatares */}
                 {ratings.length > 0 && (
                     <div className="flex items-center justify-between bg-white/50 rounded-xl p-2.5 border border-orange-100">
                         <div className="flex items-center gap-2">
@@ -431,7 +441,6 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Agendamentos Hoje */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
@@ -503,7 +512,6 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Botão Adicionar Produto (dono) */}
                 {isOwner && (
                     <button onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
                         className="w-full py-2 rounded-xl text-[10px] font-black uppercase bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md">
@@ -511,7 +519,6 @@ export default function StorePage() {
                     </button>
                 )}
 
-                {/* Cardápio */}
                 <div className="space-y-3">
                     <div className="flex items-center justify-between border-b border-orange-200 pb-2">
                         <h3 className="text-base font-black italic text-gray-800">Cardápio</h3>
@@ -629,7 +636,6 @@ export default function StorePage() {
                     )}
                 </div>
 
-                {/* Vendas Recentes */}
                 {recentSales.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
@@ -664,17 +670,18 @@ export default function StorePage() {
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center ring-2 ring-white">
-                                                <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                                            <div className="absolute -bottom-0.5 -right-0.5 px-1 bg-green-500 rounded-full flex items-center justify-center ring-1 ring-white shadow-sm">
+                                                <span className="text-[6px] font-black text-white">{sale.rating}</span>
+                                                <Star className="w-1.5 h-1.5 text-white fill-white ml-0.5" />
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">
-                                                {sale.buyer_name || 'Alguém'}
+                                                {sale.buyer_name || 'Cliente'}
                                             </p>
-                                            <p className="text-[8px] font-black text-orange-500 uppercase tracking-wider">
-                                                Nova compra
-                                            </p>
+                                            <div className="flex items-center gap-1">
+                                                <RatingStars value={sale.rating || 0} size={8} />
+                                            </div>
                                         </div>
                                     </div>
 
@@ -702,17 +709,16 @@ export default function StorePage() {
 
                         {recentSales.length > 4 && (
                             <button
-                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/clientes`)}
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)}
                                 className="w-full py-2 text-[10px] font-bold text-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-1"
                             >
-                                Ver mais {recentSales.length - 4} compras
-                                <ExternalLink className="w-3 h-3" />
+                                Ver todas as avaliações
+                                <ChevronRight className="w-3 h-3" />
                             </button>
                         )}
                     </div>
                 )}
 
-                {/* Mensagem final */}
                 <div className="pt-4 border-t border-orange-200/30">
                     <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-100">
                         <p className="text-[10px] text-gray-500 text-center leading-relaxed">

@@ -55,48 +55,38 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
     const StatusIcon = currentStatus.icon
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             {/* Overlay */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
                 onClick={onClose}
             />
 
             {/* Modal Container */}
-            <div className="relative w-full sm:max-w-lg max-h-[85vh] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300 border-0">
+            <div className="relative w-full max-w-lg max-h-[90vh] bg-white rounded-[2.5rem] shadow-2xl flex flex-col animate-in fade-in zoom-in duration-300 border-0 overflow-hidden">
 
                 {/* Header */}
-                <div className="relative bg-gradient-to-r from-orange-500 to-red-500 px-5 py-4 rounded-t-3xl shrink-0">
+                <div className="relative p-6 border-b border-orange-100 bg-white shrink-0">
                     {/* Close button */}
                     <button
                         onClick={onClose}
-                        className="absolute top-3 right-3 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
+                        className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
                     >
-                        <X size={16} className="text-white" />
+                        <X size={20} className="text-gray-400" />
                     </button>
-
-                    {/* Order Info */}
-                    <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shrink-0">
+                    
+                    <div className="flex items-center gap-3 mb-1">
+                         <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${currentStatus.color} flex items-center justify-center shadow-lg transform -rotate-3`}>
                             <StatusIcon size={20} className="text-white" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black text-white/80 uppercase tracking-wider">
-                                Pedido #{order.checkout_id.slice(0, 8)}
-                            </p>
-                            <h2 className="text-lg font-black text-white truncate">
-                                @{order.buyer_profile_slug}
-                            </h2>
-                        </div>
-                        <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full shrink-0">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-white">
-                                {currentStatus.label}
-                            </span>
+                        <div>
+                            <h3 className="text-xl font-black italic text-gray-900 uppercase tracking-tighter">Gerenciar Pedido</h3>
+                            <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">#{order.checkout_id.slice(0, 8)} • @{order.buyer_profile_slug}</p>
                         </div>
                     </div>
 
                     {/* Progress Steps */}
-                    <div className="flex items-center gap-1 mt-4">
+                    <div className="flex items-center gap-1 mt-6">
                         {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => {
                             const isActive = order.status === s
                             const isCompleted = ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx || order.status === 'paid' && s === 'paid'
@@ -110,23 +100,17 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
                             const StepIcon = icons[s as keyof typeof icons]
 
                             return (
-                                <div key={s} className="flex-1 flex flex-col items-center gap-1">
-                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isActive || isCompleted
-                                            ? 'bg-white shadow-lg'
-                                            : 'bg-white/20'
+                                <div key={s} className="flex-1 flex flex-col items-center gap-1.5">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isActive || isCompleted
+                                            ? 'bg-orange-500 text-white shadow-md'
+                                            : 'bg-orange-50 text-orange-200'
                                         }`}>
-                                        <StepIcon size={12} className={
-                                            isActive || isCompleted ? 'text-orange-600' : 'text-white/60'
-                                        } />
+                                        <StepIcon size={14} />
                                     </div>
-                                    <span className={`text-[7px] font-black uppercase tracking-wider text-center leading-tight ${isActive || isCompleted ? 'text-white' : 'text-white/50'
+                                    <span className={`text-[7px] font-black uppercase tracking-wider text-center leading-tight ${isActive || isCompleted ? 'text-orange-600' : 'text-gray-300'
                                         }`}>
                                         {s === 'pending' ? 'Novo' : s === 'preparing' ? 'Preparo' : s === 'ready' ? 'Pronto' : 'Pago'}
                                     </span>
-                                    {idx < 3 && (
-                                        <div className={`h-0.5 flex-1 w-full mt-1 rounded ${isCompleted ? 'bg-white' : 'bg-white/20'
-                                            }`} />
-                                    )}
                                 </div>
                             )
                         })}
@@ -134,24 +118,24 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
                 </div>
 
                 {/* Content - Scrollable */}
-                <div className="flex-1 overflow-y-auto bg-gradient-to-b from-orange-50 to-white">
-                    <div className="p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto bg-gradient-to-b from-orange-50/30 to-white">
+                    <div className="p-6 space-y-6">
                         {/* Items */}
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-500 px-1">
-                                Itens do Pedido
+                        <div className="space-y-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-1">
+                                Resumo dos Itens
                             </p>
                             {order.items.map((item, idx) => (
                                 <div
                                     key={idx}
-                                    className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-orange-100 shadow-sm hover:shadow-md transition-all"
+                                    className="flex items-center justify-between p-4 bg-white rounded-2xl border border-orange-100 shadow-sm hover:shadow-md transition-all group"
                                 >
                                     <div className="flex-1 min-w-0 mr-3">
-                                        <p className="text-sm font-bold text-gray-800 truncate">
+                                        <p className="text-sm font-bold text-gray-800 truncate group-hover:text-orange-600 transition-colors">
                                             {item.product_name}
                                         </p>
-                                        <p className="text-[10px] text-gray-500 font-medium mt-0.5">
-                                            {item.quantity}x • R$ {(item.price / item.quantity).toFixed(2)} cada
+                                        <p className="text-[10px] text-gray-500 font-bold mt-0.5 uppercase tracking-tight">
+                                            {item.quantity} unidade(s) • R$ {(item.price / item.quantity).toFixed(2)} un.
                                         </p>
                                     </div>
                                     <p className="text-base font-black text-gray-900 shrink-0">
@@ -162,21 +146,26 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
                         </div>
 
                         {/* Total */}
-                        <div className="bg-white rounded-2xl border-2 border-orange-200 p-4 flex items-center justify-between">
-                            <span className="text-xs font-black uppercase tracking-wider text-gray-600">
-                                Total
-                            </span>
-                            <span className="text-xl font-black text-gray-900">
-                                R$ {order.totalPrice.toFixed(2)}
-                            </span>
+                        <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-3xl p-5 flex items-center justify-between shadow-lg text-white">
+                            <div className="flex flex-col">
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-80">
+                                    Valor Total
+                                </span>
+                                <span className="text-2xl font-black">
+                                    R$ {order.totalPrice.toFixed(2)}
+                                </span>
+                            </div>
+                            <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-2xl">
+                                <span className="text-[10px] font-black uppercase">{order.items.length} itens</span>
+                            </div>
                         </div>
 
                         {/* Actions */}
-                        <div className="space-y-2 pt-2">
+                        <div className="space-y-3 pt-2">
                             {currentStatus.next && (
                                 <button
                                     onClick={() => onAction(currentStatus.next!)}
-                                    className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl font-black uppercase text-sm tracking-wider hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl font-black uppercase text-sm tracking-wider hover:shadow-xl hover:scale-[1.02] transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-200"
                                 >
                                     {currentStatus.nextLabel}
                                     <ChevronRight size={18} className="shrink-0" />
@@ -186,7 +175,7 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
                             {order.status === 'pending' && (
                                 <button
                                     onClick={() => onAction('rejected')}
-                                    className="w-full py-3 bg-red-50 text-red-600 border-2 border-red-200 rounded-2xl font-black uppercase text-xs tracking-wider hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center gap-2"
+                                    className="w-full py-3.5 bg-white text-red-500 border-2 border-red-50 rounded-2xl font-black uppercase text-xs tracking-wider hover:bg-red-50 transition-all flex items-center justify-center gap-2"
                                 >
                                     <Ban size={14} />
                                     Recusar Pedido
@@ -195,9 +184,9 @@ export function OrderModal({ order, onClose, onAction }: OrderModalProps) {
 
                             <button
                                 onClick={onClose}
-                                className="w-full py-3 text-xs font-bold text-gray-400 hover:text-gray-600 transition-all uppercase tracking-wider"
+                                className="w-full py-2 text-[10px] font-black text-gray-400 hover:text-orange-500 transition-all uppercase tracking-widest"
                             >
-                                Fechar
+                                Voltar ao Painel
                             </button>
                         </div>
                     </div>

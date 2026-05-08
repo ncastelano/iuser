@@ -161,15 +161,11 @@ export default function StoreRatingsPage() {
                                         {/* Avatar */}
                                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 to-red-400 p-[2px] shrink-0">
                                             <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                                                {isAnonymous || !avatarUrl ? (
+                                                {!avatarUrl ? (
                                                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50">
-                                                        {isAnonymous ? (
-                                                            <User className="w-5 h-5 text-orange-400" />
-                                                        ) : (
-                                                            <span className="font-bold text-orange-600">
-                                                                {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
-                                                            </span>
-                                                        )}
+                                                        <span className="font-bold text-orange-600">
+                                                            {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                        </span>
                                                     </div>
                                                 ) : (
                                                     <img src={avatarUrl} alt={rating.profiles?.name || 'Avaliador'} className="w-full h-full object-cover" />
@@ -182,7 +178,7 @@ export default function StoreRatingsPage() {
                                             <div className="flex items-center justify-between mb-2">
                                                 <div>
                                                     <p className="font-bold text-sm text-gray-900">
-                                                        {isAnonymous ? 'Consumidor Anônimo' : (rating.profiles?.name || 'Usuário')}
+                                                        {rating.profiles?.name || 'Usuário'}
                                                     </p>
                                                     <p className="text-xs text-orange-400 font-medium mt-0.5">
                                                         {new Date(rating.created_at).toLocaleDateString('pt-BR', {
