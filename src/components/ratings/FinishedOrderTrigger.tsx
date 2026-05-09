@@ -27,7 +27,7 @@ export function FinishedOrderTrigger() {
             .select('*')
             .eq('buyer_id', user.id)
             .eq('status', 'paid')
-        
+
         const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select('*')
@@ -44,7 +44,7 @@ export function FinishedOrderTrigger() {
             const grouped = allPaidItems.reduce((acc: any, item: any) => {
                 if (!acc[item.checkout_id]) {
                     acc[item.checkout_id] = {
-                        id: item.checkout_id, 
+                        id: item.checkout_id,
                         store_id: item.store_id,
                         created_at: item.created_at,
                         items: []
@@ -60,12 +60,12 @@ export function FinishedOrderTrigger() {
                 .from('product_reviews')
                 .select('order_id')
                 .eq('profile_id', user.id)
-            
+
             const reviewedOrderIds = new Set(reviews?.map(r => r.order_id) || [])
             const dismissedOrderIds = new Set(JSON.parse(localStorage.getItem('dismissed_reviews') || '[]'))
 
             const pending = orders.filter((o: any) => !reviewedOrderIds.has(o.id) && !dismissedOrderIds.has(o.id))
-            
+
             setUnreviewedOrders(pending)
             setPendingReviewsCount(pending.length)
             setShowPrompt(pending.length > 0)
@@ -95,44 +95,44 @@ export function FinishedOrderTrigger() {
                 notifiedRef.current[checkoutId] = newStatus;
 
                 if (newStatus === 'pending') {
-                     toast.success(`📦 Pedido Recebido!`, {
+                    toast.success(`📦 Pedido Recebido!`, {
                         description: `A loja ${storeName} recebeu seu pedido e logo irá confirmar.`,
                         icon: <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse border-2 border-white" />,
-                        style: { 
+                        style: {
                             background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
                         }
-                     });
+                    });
                 } else if (newStatus === 'preparing') {
-                     toast.success(`👨‍🍳 Em Preparo!`, {
+                    toast.success(`👨‍🍳 Em Preparo!`, {
                         description: `Seu pedido na ${storeName} está sendo preparado agora.`,
                         icon: <div className="w-3 h-3 bg-yellow-400 rounded-full animate-bounce border-2 border-white" />,
-                        style: { 
+                        style: {
                             background: 'linear-gradient(135deg, #eab308, #d97706)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
                         }
-                     });
+                    });
                 } else if (newStatus === 'ready') {
-                     toast.success(`✅ Pedido Pronto!`, {
+                    toast.success(`✅ Pedido Pronto!`, {
                         description: `Pode retirar seu pedido na ${storeName}!`,
                         icon: <div className="w-3 h-3 bg-purple-500 rounded-full animate-ping border-2 border-white" />,
-                        style: { 
+                        style: {
                             background: 'linear-gradient(135deg, #a855f7, #9333ea)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '1.5rem'
                         },
                         duration: 10000
-                     });
+                    });
                 } else if (newStatus === 'paid') {
                     toast.success(`🎉 Pedido Finalizado!`, {
                         description: `Obrigado por comprar na ${storeName}! Avalie agora.`,
                         icon: <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" />,
-                        style: { 
+                        style: {
                             background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                             color: 'white',
                             border: 'none',
@@ -198,7 +198,7 @@ export function FinishedOrderTrigger() {
             <AnimatePresence>
                 {showPrompt && unreviewedOrders.length > 0 && (
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -211,7 +211,7 @@ export function FinishedOrderTrigger() {
                                 <ShoppingBag className="absolute top-8 right-8 text-white w-16 h-16 -rotate-12" />
                             </div>
 
-                            <button 
+                            <button
                                 onClick={handleClose}
                                 className="absolute right-4 top-4 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors z-20"
                             >
@@ -233,7 +233,7 @@ export function FinishedOrderTrigger() {
                                     Seu pedido foi finalizado! 🎉
                                 </h3>
                                 <p className="text-sm text-gray-500 font-medium leading-relaxed mb-8">
-                                    O que você achou dos produtos? Sua avaliação ajuda a comunidade a escolher melhor.
+                                    O que você achou dos produtos? Sua avaliação ajuda outras pessoas na hora da compra!
                                 </p>
 
                                 <div className="space-y-3">
@@ -247,7 +247,7 @@ export function FinishedOrderTrigger() {
                                         onClick={handleClose}
                                         className="w-full py-3 text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-gray-600 transition-all"
                                     >
-                                        Não quero avaliar este
+                                        Avaliar depois
                                     </button>
                                 </div>
                             </div>
