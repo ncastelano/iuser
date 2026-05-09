@@ -13,17 +13,19 @@ export async function generateMetadata(
     const resolvedParams = await params
     const storeSlug = Array.isArray(resolvedParams.storeSlug) ? resolvedParams.storeSlug[0] : resolvedParams.storeSlug
     const productSlug = Array.isArray(resolvedParams.productSlug) ? resolvedParams.productSlug[0] : resolvedParams.productSlug
+    const profileSlug = (resolvedParams as any).profileSlug
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Buscar loja
+    // Buscar loja vinculada ao perfil correto
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name')
+        .select('id, name, profiles!inner(profileSlug)')
         .ilike('storeSlug', storeSlug)
+        .ilike('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
     if (!storeData) {
@@ -50,7 +52,9 @@ export async function generateMetadata(
         return {}
     }
 
-    let imageUrl = ''
+    const fallbackImage = 'https://iuser.com.br/logo.png'
+    let imageUrl = fallbackImage
+
     if (productData.image_url) {
         if (productData.image_url.startsWith('http')) {
             imageUrl = productData.image_url
@@ -60,7 +64,8 @@ export async function generateMetadata(
     }
 
     const titleStr = productData.name
-    const descStr = storeData.name
+    const descStr = `Confira ${productData.name} na loja ${storeData.name} no iUser.`
+    const url = `https://iuser.com.br/${profileSlug}/${storeSlug}/${productSlug}`
 
     return {
         title: titleStr,
@@ -68,16 +73,16 @@ export async function generateMetadata(
         openGraph: {
             title: titleStr,
             description: descStr,
-            url: `https://iuser.com.br/${storeSlug}/${productSlug}`,
+            url,
             siteName: 'iuser.com.br',
-            images: imageUrl ? [{ url: imageUrl, width: 400, height: 400 }] : [],
+            images: [{ url: imageUrl, width: 400, height: 400 }],
             type: 'article',
         },
         twitter: {
             card: 'summary',
             title: titleStr,
             description: descStr,
-            images: imageUrl ? [imageUrl] : [],
+            images: [imageUrl],
         }
     }
 }

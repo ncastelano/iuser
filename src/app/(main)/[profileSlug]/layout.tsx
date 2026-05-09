@@ -28,7 +28,9 @@ export async function generateMetadata(
         return {}
     }
 
-    let imageUrl = ''
+    const fallbackImage = 'https://iuser.com.br/logo.png'
+    let imageUrl = fallbackImage
+
     if (profileData.avatar_url) {
         if (profileData.avatar_url.startsWith('http')) {
             imageUrl = profileData.avatar_url
@@ -37,27 +39,31 @@ export async function generateMetadata(
         }
     }
 
+    const title = `${profileData.name} | Perfil no iUser`
+    const description = `Confira o perfil de ${profileData.name} no iUser! Visite as lojas e produtos.`
+    const url = `https://iuser.com.br/${profileSlug}`
+
     return {
-        title: `${profileData.name} | Perfil no iUser`,
-        description: `Confira o perfil de ${profileData.name} no iUser! Visite as lojas e produtos.`,
+        title,
+        description,
         openGraph: {
-            title: `${profileData.name} | Perfil no iUser`,
-            description: `Confira o perfil de ${profileData.name} no iUser! Visite as lojas e produtos.`,
-            url: `https://iuser.com.br/${profileSlug}`,
+            title,
+            description,
+            url,
             siteName: profileData.name || 'iUser',
-            images: imageUrl ? [{ 
+            images: [{ 
                 url: imageUrl,
-                width: 800,
-                height: 600,
+                width: 400,
+                height: 400,
                 alt: profileData.name || 'Perfil'
-            }] : [],
+            }],
             type: 'profile',
         },
         twitter: {
-            card: 'summary_large_image',
-            title: `${profileData.name} | Perfil no iUser`,
-            description: `Confira o perfil de ${profileData.name} no iUser! Visite as lojas e produtos.`,
-            images: imageUrl ? [imageUrl] : [],
+            card: 'summary',
+            title,
+            description,
+            images: [imageUrl],
         }
     }
 }

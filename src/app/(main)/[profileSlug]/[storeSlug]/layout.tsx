@@ -19,17 +19,21 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
+    // Join with profiles to ensure we get the store for the specific profileSlug
     const { data: storeData } = await supabase
         .from('stores')
-        .select('name, description, logo_url')
+        .select('name, description, logo_url, profiles!inner(profileSlug)')
         .ilike('storeSlug', storeSlug)
+        .ilike('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
     if (!storeData) {
         return {}
     }
 
-    let imageUrl = ''
+    const fallbackImage = 'https://iuser.com.br/logo.png'
+    let imageUrl = fallbackImage
+
     if (storeData.logo_url) {
         if (storeData.logo_url.startsWith('http')) {
             imageUrl = storeData.logo_url
@@ -38,27 +42,31 @@ export async function generateMetadata(
         }
     }
 
+    const title = storeData.name
+    const description = storeData.description || 'Confira os melhores itens nesta loja no iuser.'
+    const url = `https://iuser.com.br/${profileSlug}/${storeSlug}`
+
     return {
-        title: storeData.name,
-        description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
+        title,
+        description,
         openGraph: {
-            title: storeData.name,
-            description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
-            url: `https://iuser.com.br/${profileSlug}/${storeSlug}`,
+            title,
+            description,
+            url,
             siteName: 'iuser.com.br',
-            images: imageUrl ? [{ 
+            images: [{ 
                 url: imageUrl,
                 width: 400,
                 height: 400,
-                alt: storeData.name 
-            }] : [],
+                alt: title 
+            }],
             type: 'website',
         },
         twitter: {
             card: 'summary',
-            title: storeData.name,
-            description: storeData.description || 'Confira os melhores itens nesta loja no iuser.',
-            images: imageUrl ? [imageUrl] : [],
+            title,
+            description,
+            images: [imageUrl],
         }
     }
 }
