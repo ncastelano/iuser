@@ -11,7 +11,7 @@ export async function generateMetadata(
     parent: ResolvingMetadata
 ): Promise<Metadata> {
     const resolvedParams = await params
-    const profileSlug = Array.isArray(resolvedParams.profileSlug) ? resolvedParams.profileSlug[0] : resolvedParams.profileSlug
+    const profileSlug = resolvedParams.profileSlug
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',

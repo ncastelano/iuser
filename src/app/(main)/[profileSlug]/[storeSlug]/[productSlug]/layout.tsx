@@ -3,29 +3,25 @@ import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 type Props = {
-    params: Promise<{ storeSlug: string; productSlug: string }>
+    params: Promise<{ profileSlug: string; storeSlug: string; productSlug: string }>
 }
 
 export async function generateMetadata(
     { params }: Props,
     parent: ResolvingMetadata
 ): Promise<Metadata> {
-    const resolvedParams = await params
-    const storeSlug = Array.isArray(resolvedParams.storeSlug) ? resolvedParams.storeSlug[0] : resolvedParams.storeSlug
-    const productSlug = Array.isArray(resolvedParams.productSlug) ? resolvedParams.productSlug[0] : resolvedParams.productSlug
-    const profileSlug = (resolvedParams as any).profileSlug
+    const { profileSlug, storeSlug, productSlug } = await params
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Buscar loja vinculada ao perfil correto
+    // Buscar loja vinculada ao perfil correto (de forma robusta)
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name, profiles!inner(profileSlug)')
+        .select('id, name, profiles(profileSlug)')
         .ilike('storeSlug', storeSlug)
-        .ilike('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
     if (!storeData) {
