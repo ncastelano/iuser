@@ -140,7 +140,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         {/* Ícone principal */}
                         <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 via-orange-500 to-red-600 flex items-center justify-center relative shadow-[0_0_30px_rgba(251,146,60,0.4),0_0_60px_rgba(239,68,68,0.2)] ring-2 ring-white/80 ring-offset-2 ring-offset-orange-50">
                             <img
-                                src="/android-chrome-512x512.png"
+                                src="/logotransparente.png"
                                 alt="iUser"
                                 className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
                             />
