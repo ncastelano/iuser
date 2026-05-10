@@ -19,12 +19,11 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Join with profiles to ensure we get the store for the specific profileSlug
+    // Fetch store data first
     const { data: storeData } = await supabase
         .from('stores')
-        .select('name, description, logo_url, profiles!inner(profileSlug)')
+        .select('name, description, logo_url, profiles(profileSlug, avatar_url)')
         .ilike('storeSlug', storeSlug)
-        .ilike('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
     if (!storeData) {
@@ -34,11 +33,20 @@ export async function generateMetadata(
     const fallbackImage = 'https://iuser.com.br/logo.png'
     let imageUrl = fallbackImage
 
+    // Access profile data safely (Supabase join returns an object or array)
+    const profile = Array.isArray(storeData.profiles) ? storeData.profiles[0] : storeData.profiles
+
     if (storeData.logo_url) {
         if (storeData.logo_url.startsWith('http')) {
             imageUrl = storeData.logo_url
         } else {
             imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+        }
+    } else if (profile?.avatar_url) {
+        if (profile.avatar_url.startsWith('http')) {
+            imageUrl = profile.avatar_url
+        } else {
+            imageUrl = supabase.storage.from('avatars').getPublicUrl(profile.avatar_url).data.publicUrl
         }
     }
 
