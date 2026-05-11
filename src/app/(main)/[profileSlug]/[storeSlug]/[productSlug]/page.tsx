@@ -1,7 +1,6 @@
-// src/app/(main)/[profileSlug]/[storeSlug]/[productSlug]/page.tsx
+//app/(main)/[profileSlug]/[storeSlug]/[productSlug]/page.tsx
 
 'use client'
-
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -158,21 +157,12 @@ export default function ProductPage() {
             ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
             : null
 
-        // Identificar se o slug é um ID válido (UUID)
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productSlug)
-
-        let productQuery = supabase
+        const { data: productData } = await supabase
             .from('products')
             .select('*')
             .eq('store_id', storeData.id)
-
-        if (isUuid) {
-            productQuery = productQuery.eq('id', productSlug)
-        } else {
-            productQuery = productQuery.eq('slug', productSlug)
-        }
-
-        const { data: productData } = await productQuery.maybeSingle()
+            .eq('slug', productSlug)
+            .single()
 
         if (!productData) {
             router.push(`/${profileSlug}/${storeSlug}`)
@@ -370,6 +360,22 @@ export default function ProductPage() {
                             </button>
                         </div>
 
+                        {/* Features Badges */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
+                                <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                <span className="text-[8px] font-black uppercase text-green-700">Disponível</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
+                                <Truck className="w-3 h-3 text-blue-600" />
+                                <span className="text-[8px] font-black uppercase text-blue-700">Entrega Rápida</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-full">
+                                <Zap className="w-3 h-3 text-purple-600" />
+                                <span className="text-[8px] font-black uppercase text-purple-700">Pagamento Seguro</span>
+                            </div>
+                        </div>
+
                         <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200/30">
                             <p className="text-sm text-gray-700 leading-relaxed">
                                 {product.description || "Nenhuma descrição disponível para este item."}
@@ -447,23 +453,15 @@ export default function ProductPage() {
                 )}
 
                 {/* Avaliações */}
-                <div className="mx-4 mt-4">
-                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-orange-200/50 shadow-lg">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
-                                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                                Avaliações dos Clientes
-                            </h3>
-                        </div>
-
-                        {ratings.length === 0 ? (
-                            <div className="text-center py-8 bg-orange-50/50 rounded-xl border border-dashed border-orange-200">
-                                <Star className="w-8 h-8 text-orange-200 mx-auto mb-2" />
-                                <p className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">
-                                    Nenhuma avaliação ainda
-                                </p>
+                {ratings.length > 0 && (
+                    <div className="mx-4 mt-4">
+                        <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-5 border border-orange-200/50 shadow-lg">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-black uppercase tracking-wider text-gray-800 flex items-center gap-2">
+                                    <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                                    Avaliações dos Clientes
+                                </h3>
                             </div>
-                        ) : (
                             <div className="space-y-4">
                                 {ratings.slice(0, 3).map((r) => (
                                     <div key={r.id} className="flex items-start gap-3 bg-gradient-to-r from-gray-50 to-white rounded-xl p-3">
@@ -489,19 +487,18 @@ export default function ProductPage() {
                                         </div>
                                     </div>
                                 ))}
-
-                                {ratings.length > 3 && (
-                                    <button
-                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/${product.slug}/avaliacoes`)}
-                                        className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-orange-100 to-red-100 text-orange-600 text-[9px] font-black uppercase tracking-wider hover:from-orange-200 hover:to-red-200 transition-all border border-orange-200"
-                                    >
-                                        Ver Todas as Avaliações
-                                    </button>
-                                )}
                             </div>
-                        )}
+                            {ratings.length > 3 && (
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/${product.slug}/avaliacoes`)}
+                                    className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-orange-100 to-red-100 text-orange-600 text-[9px] font-black uppercase tracking-wider hover:from-orange-200 hover:to-red-200 transition-all border border-orange-200"
+                                >
+                                    Ver Todas as Avaliações
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Outros Produtos */}
                 {otherProducts.length > 0 && (
