@@ -18,6 +18,7 @@ interface ReviewModalProps {
 export function ReviewModal({ isOpen, onClose, orderId, productId, productName, storeId, onSuccess }: ReviewModalProps) {
     const [rating, setRating] = useState(5)
     const [comment, setComment] = useState('')
+    const [isAnonymous, setIsAnonymous] = useState(false)
     const [loading, setLoading] = useState(false)
     const supabase = createClient()
 
@@ -40,7 +41,7 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
             order_id: orderId,
             rating,
             comment,
-            is_anonymous: false
+            is_anonymous: isAnonymous
         })
 
         if (error) {
@@ -101,6 +102,25 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
                             placeholder="Conte sua experiência..."
                             className="w-full bg-orange-50/50 border-2 border-orange-100 rounded-2xl p-4 text-sm focus:outline-none focus:border-orange-500 min-h-[120px] transition-all"
                         />
+                    </div>
+
+                    <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <button
+                            onClick={() => setIsAnonymous(!isAnonymous)}
+                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
+                                isAnonymous 
+                                    ? 'bg-orange-500 border-orange-500 text-white' 
+                                    : 'border-gray-300 bg-white text-transparent'
+                            }`}
+                        >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        <div className="flex-1 cursor-pointer" onClick={() => setIsAnonymous(!isAnonymous)}>
+                            <p className="text-xs font-bold text-gray-800">Avaliar apenas a loja</p>
+                            <p className="text-[10px] text-gray-500">O produto que você comprou será ocultado.</p>
+                        </div>
                     </div>
 
                 </div>

@@ -55,6 +55,7 @@ export default function ProductRatingsPage() {
                 .from('product_reviews')
                 .select('id, rating, comment, is_anonymous, created_at, profiles(id, name, avatar_url, "profileSlug")')
                 .eq('product_id', productData.id)
+                .eq('is_anonymous', false)
                 .order('created_at', { ascending: false })
 
             setProduct({ ...productData, image_url: imageUrl })

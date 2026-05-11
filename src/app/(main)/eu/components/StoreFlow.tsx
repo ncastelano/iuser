@@ -100,14 +100,22 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
         }
     }
 
+    // Construir a URL da loja
+    const storeUrl = `/${profile?.profileSlug}/${store.storeSlug}`
+
     return (
         <div className="border-b border-orange-100 last:border-b-0 py-6">
             <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
+                {/* Link na logo e nome da loja */}
+                <Link href={storeUrl} className="flex items-center gap-4 group">
                     <div className="relative">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center overflow-hidden">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-all">
                             {store.logo_url ? (
-                                <img src={supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl} className="w-full h-full object-cover" alt={store.name} />
+                                <img
+                                    src={supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl}
+                                    className="w-full h-full object-cover"
+                                    alt={store.name}
+                                />
                             ) : (
                                 <StoreIcon className="w-7 h-7 text-orange-500" />
                             )}
@@ -115,10 +123,14 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                         <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${store.is_open ? 'bg-green-500' : 'bg-gray-400'}`} />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black italic uppercase tracking-tighter text-gray-900">{store.name}</h3>
-                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">@{store.storeSlug}</p>
+                        <h3 className="text-xl font-black italic uppercase tracking-tighter text-gray-900 group-hover:text-orange-600 transition-colors">
+                            {store.name}
+                        </h3>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider group-hover:text-orange-500 transition-colors">
+                            @{store.storeSlug}
+                        </p>
                     </div>
-                </div>
+                </Link>
 
                 <div className="flex items-center gap-2">
                     <button
@@ -130,24 +142,42 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                     >
                         {store.is_open ? 'Fechar Loja' : 'Abrir Loja'}
                     </button>
-                    <Link href={`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`} className="p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-all">
+                    <Link
+                        href={`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`}
+                        className="p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-all"
+                    >
                         <Pencil size={16} className="text-orange-600" />
+                    </Link>
+                    {/* Botão adicional para visitar loja */}
+                    <Link
+                        href={storeUrl}
+                        className="p-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-full hover:shadow-lg transition-all"
+                        title="Visitar loja"
+                    >
+                        <ArrowUpRight size={16} className="text-white" />
                     </Link>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white/50 rounded-xl p-4 border border-orange-100">
-                    <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Hoje</p>
-                    <p className="text-2xl font-black italic text-gray-900 mt-1">R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    <p className="text-[10px] font-bold text-orange-500 mt-1">{metrics.daily.orders} pedidos</p>
+            {/* Cards de métricas agora também são links para a loja */}
+            <Link href={storeUrl} className="block mb-6">
+                <div className="grid grid-cols-2 gap-4 hover:opacity-90 transition-opacity">
+                    <div className="bg-white/50 rounded-xl p-4 border border-orange-100 hover:border-orange-300 transition-all">
+                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Hoje</p>
+                        <p className="text-2xl font-black italic text-gray-900 mt-1">
+                            R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] font-bold text-orange-500 mt-1">{metrics.daily.orders} pedidos</p>
+                    </div>
+                    <div className="bg-white/50 rounded-xl p-4 border border-orange-100 hover:border-orange-300 transition-all">
+                        <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Ticket Médio</p>
+                        <p className="text-2xl font-black italic text-gray-900 mt-1">
+                            R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] font-bold text-gray-500 mt-1">{metrics.total.orders} total</p>
+                    </div>
                 </div>
-                <div className="bg-white/50 rounded-xl p-4 border border-orange-100">
-                    <p className="text-[10px] font-black uppercase text-gray-500 tracking-wider">Ticket Médio</p>
-                    <p className="text-2xl font-black italic text-gray-900 mt-1">R$ {metrics.daily.avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    <p className="text-[10px] font-bold text-gray-500 mt-1">{metrics.total.orders} total</p>
-                </div>
-            </div>
+            </Link>
 
             {topItems.length > 0 && (
                 <div className="mb-6 bg-orange-50/50 rounded-xl p-4 border border-orange-100">
@@ -185,7 +215,9 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                                     <p className="text-[10px] font-bold text-gray-500 mt-0.5">{order.items.length} itens</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black italic text-gray-900">R$ {order.totalPrice.toFixed(2)}</span>
+                                    <span className="text-lg font-black italic text-gray-900">
+                                        R$ {order.totalPrice.toFixed(2)}
+                                    </span>
                                     <ChevronRight size={16} className="text-blue-600" />
                                 </div>
                             </div>
@@ -204,9 +236,13 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                                 onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-4 bg-yellow-50/50 rounded-xl mb-2 cursor-pointer border border-yellow-100"
                             >
-                                <span className="text-base font-black italic text-gray-900">@{order.buyer_profile_slug}</span>
+                                <span className="text-base font-black italic text-gray-900">
+                                    @{order.buyer_profile_slug}
+                                </span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black italic text-gray-900">R$ {order.totalPrice.toFixed(2)}</span>
+                                    <span className="text-lg font-black italic text-gray-900">
+                                        R$ {order.totalPrice.toFixed(2)}
+                                    </span>
                                     <ChevronRight size={16} className="text-yellow-600" />
                                 </div>
                             </div>
@@ -225,9 +261,13 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                                 onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-4 bg-purple-50/50 rounded-xl mb-2 cursor-pointer border border-purple-100"
                             >
-                                <span className="text-base font-black italic text-gray-900">@{order.buyer_profile_slug}</span>
+                                <span className="text-base font-black italic text-gray-900">
+                                    @{order.buyer_profile_slug}
+                                </span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black italic text-gray-900">R$ {order.totalPrice.toFixed(2)}</span>
+                                    <span className="text-lg font-black italic text-gray-900">
+                                        R$ {order.totalPrice.toFixed(2)}
+                                    </span>
                                     <ChevronRight size={16} className="text-purple-600" />
                                 </div>
                             </div>
@@ -246,15 +286,21 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                                 onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-4 bg-green-50/50 rounded-xl mb-2 cursor-pointer border border-green-100"
                             >
-                                <span className="text-base font-black italic text-gray-900">@{order.buyer_profile_slug}</span>
+                                <span className="text-base font-black italic text-gray-900">
+                                    @{order.buyer_profile_slug}
+                                </span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black italic text-gray-900">R$ {order.totalPrice.toFixed(2)}</span>
+                                    <span className="text-lg font-black italic text-gray-900">
+                                        R$ {order.totalPrice.toFixed(2)}
+                                    </span>
                                     <ChevronRight size={16} className="text-green-600" />
                                 </div>
                             </div>
                         ))}
                         {accepted.length > 3 && (
-                            <p className="text-[9px] text-center text-gray-500 mt-1">+{accepted.length - 3} finalizados</p>
+                            <p className="text-[9px] text-center text-gray-500 mt-1">
+                                +{accepted.length - 3} finalizados
+                            </p>
                         )}
                     </div>
                 )}
@@ -263,7 +309,9 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                     <div className="text-center py-8">
                         <Package size={32} className="mx-auto mb-2 text-gray-300" />
                         <p className="text-gray-500 font-bold text-sm">Nenhum pedido ainda</p>
-                        <p className="text-[10px] text-gray-400 mt-1">Quando chegar um pedido, aparecerá aqui</p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                            Quando chegar um pedido, aparecerá aqui
+                        </p>
                     </div>
                 )}
 
@@ -280,7 +328,11 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
             </div>
 
             {selectedOrder && (
-                <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleAction} />
+                <OrderModal
+                    order={selectedOrder}
+                    onClose={() => setSelectedOrder(null)}
+                    onAction={handleAction}
+                />
             )}
         </div>
     )

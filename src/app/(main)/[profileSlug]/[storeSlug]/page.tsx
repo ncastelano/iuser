@@ -290,7 +290,7 @@ export default function StorePage() {
 
         const { data: salesData } = await supabase
             .from('product_reviews')
-            .select('id, rating, comment, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
+            .select('id, rating, comment, is_anonymous, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
             .eq('store_id', foundStore.id)
             .order('created_at', { ascending: false })
             .limit(10)
@@ -300,7 +300,7 @@ export default function StorePage() {
             profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
             products: Array.isArray(item.products) ? item.products[0] : item.products,
             buyer_name: item.profiles?.name || 'Cliente',
-            product_name: item.products?.name || 'Produto',
+            product_name: item.is_anonymous ? 'Avaliação da Loja' : (item.products?.name || 'Produto'),
             buyer_id: item.profiles?.id
         })))
 
@@ -520,10 +520,6 @@ export default function StorePage() {
                 )}
 
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-orange-200 pb-2">
-                        <h3 className="text-base font-black italic text-gray-800">Cardápio</h3>
-                        <span className="text-[10px] font-black text-orange-500">{filteredProducts.length} itens</span>
-                    </div>
 
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
