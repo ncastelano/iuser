@@ -22,8 +22,9 @@ export async function generateMetadata(
     // Buscar loja vinculada ao perfil correto (de forma robusta)
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name, description, logo_url, profiles(profileSlug, avatar_url)')
+        .select('id, name, description, logo_url, profiles!inner(profileSlug, avatar_url)')
         .ilike('storeSlug', storeSlug)
+        .eq('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
     if (!storeData) {
@@ -56,6 +57,7 @@ export async function generateMetadata(
     const url = `https://iuser.com.br/${profileSlug}/${storeSlug}`
 
     return {
+        metadataBase: new URL('https://iuser.com.br'),
         title: titleStr,
         description: descStr,
         openGraph: {
@@ -64,7 +66,7 @@ export async function generateMetadata(
             url,
             siteName: 'iuser.com.br',
             images: [{ url: imageUrl, width: 400, height: 400 }],
-            type: 'website', // Mudado de 'article' para 'website' - melhor para páginas de loja
+            type: 'article', // Mudado para 'article' para coincidir com o layout do produto que funciona
         },
         twitter: {
             card: 'summary_large_image', // Isso garante imagem em cima, links embaixo

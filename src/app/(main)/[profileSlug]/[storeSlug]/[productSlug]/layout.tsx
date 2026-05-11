@@ -66,6 +66,7 @@ export async function generateMetadata(
     const url = `https://iuser.com.br/${profileSlug}/${storeSlug}/${productSlug}`
 
     return {
+        metadataBase: new URL('https://iuser.com.br'),
         title: titleStr,
         description: descStr,
         openGraph: {
