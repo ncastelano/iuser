@@ -19,10 +19,10 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Fetch store data
+    // Buscar loja vinculada ao perfil correto (de forma robusta)
     const { data: storeData } = await supabase
         .from('stores')
-        .select('name, description, logo_url, profiles(profileSlug, avatar_url)')
+        .select('id, name, description, logo_url, profiles(profileSlug, avatar_url)')
         .ilike('storeSlug', storeSlug)
         .maybeSingle()
 
@@ -36,6 +36,7 @@ export async function generateMetadata(
     // Access profile data safely
     const profile = Array.isArray(storeData.profiles) ? storeData.profiles[0] : storeData.profiles
 
+    // Priorizar logo da loja, depois avatar do perfil
     if (storeData.logo_url) {
         if (storeData.logo_url.startsWith('http')) {
             imageUrl = storeData.logo_url
@@ -50,25 +51,25 @@ export async function generateMetadata(
         }
     }
 
-    const title = storeData.name
-    const description = storeData.description || `Confira os melhores itens na loja ${storeData.name} no iuser.`
+    const titleStr = storeData.name
+    const descStr = storeData.description || `Confira os melhores itens na loja ${storeData.name} no iUser.`
     const url = `https://iuser.com.br/${profileSlug}/${storeSlug}`
 
     return {
-        title,
-        description,
+        title: titleStr,
+        description: descStr,
         openGraph: {
-            title,
-            description,
+            title: titleStr,
+            description: descStr,
             url,
             siteName: 'iuser.com.br',
             images: [{ url: imageUrl, width: 400, height: 400 }],
-            type: 'article', // Using article to match product layout's better display
+            type: 'website', // Mudado de 'article' para 'website' - melhor para páginas de loja
         },
         twitter: {
-            card: 'summary_large_image', // This ensures "imagem em cima, links embaixo"
-            title,
-            description,
+            card: 'summary_large_image', // Isso garante imagem em cima, links embaixo
+            title: titleStr,
+            description: descStr,
             images: [imageUrl],
         }
     }
