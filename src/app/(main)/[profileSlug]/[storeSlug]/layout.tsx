@@ -1,3 +1,5 @@
+//app/(main)/[profileSlug]/[storeSlug]/layout.tsx
+
 import { ReactNode } from 'react'
 import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
@@ -10,16 +12,14 @@ export async function generateMetadata(
     { params }: Props,
     parent: ResolvingMetadata
 ): Promise<Metadata> {
-    const resolvedParams = await params
-    const storeSlug = Array.isArray(resolvedParams.storeSlug) ? resolvedParams.storeSlug[0] : resolvedParams.storeSlug
-    const profileSlug = Array.isArray(resolvedParams.profileSlug) ? resolvedParams.profileSlug[0] : resolvedParams.profileSlug
+    const { profileSlug, storeSlug } = await params
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL || '',
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Fetch store data first
+    // Fetch store data
     const { data: storeData } = await supabase
         .from('stores')
         .select('name, description, logo_url, profiles(profileSlug, avatar_url)')
@@ -33,7 +33,7 @@ export async function generateMetadata(
     const fallbackImage = 'https://iuser.com.br/logo.png'
     let imageUrl = fallbackImage
 
-    // Access profile data safely (Supabase join returns an object or array)
+    // Access profile data safely
     const profile = Array.isArray(storeData.profiles) ? storeData.profiles[0] : storeData.profiles
 
     if (storeData.logo_url) {
@@ -51,7 +51,7 @@ export async function generateMetadata(
     }
 
     const title = storeData.name
-    const description = storeData.description || 'Confira os melhores itens nesta loja no iuser.'
+    const description = storeData.description || `Confira os melhores itens na loja ${storeData.name} no iuser.`
     const url = `https://iuser.com.br/${profileSlug}/${storeSlug}`
 
     return {
@@ -62,16 +62,11 @@ export async function generateMetadata(
             description,
             url,
             siteName: 'iuser.com.br',
-            images: [{ 
-                url: imageUrl,
-                width: 400,
-                height: 400,
-                alt: title 
-            }],
-            type: 'website',
+            images: [{ url: imageUrl, width: 400, height: 400 }],
+            type: 'article', // Using article to match product layout's better display
         },
         twitter: {
-            card: 'summary',
+            card: 'summary_large_image', // This ensures "imagem em cima, links embaixo"
             title,
             description,
             images: [imageUrl],

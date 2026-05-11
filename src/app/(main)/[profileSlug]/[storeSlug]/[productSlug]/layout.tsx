@@ -1,3 +1,5 @@
+//app/(main)/[profileSlug]/[storeSlug]/[productSlug]/layout.tsx
+
 import { ReactNode } from 'react'
 import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
@@ -75,7 +77,7 @@ export async function generateMetadata(
             type: 'article',
         },
         twitter: {
-            card: 'summary',
+            card: 'summary_large_image',
             title: titleStr,
             description: descStr,
             images: [imageUrl],
