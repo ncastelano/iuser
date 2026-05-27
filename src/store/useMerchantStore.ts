@@ -1,0 +1,39 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+interface MerchantStore {
+  pendingOrdersCount: number
+  setPendingOrdersCount: (count: number) => void
+  incrementPending: () => void
+  decrementPending: () => void
+  latestOrderNotification: string | null
+  setLatestOrderNotification: (message: string | null) => void
+  latestCustomerNotification: string | null
+  setLatestCustomerNotification: (message: string | null) => void
+  customerOrderStatuses: string[]
+  setCustomerOrderStatuses: (statuses: string[]) => void
+  pendingReviewsCount: number
+  setPendingReviewsCount: (count: number) => void
+}
+
+export const useMerchantStore = create<MerchantStore>()(
+  persist(
+    (set) => ({
+      pendingOrdersCount: 0,
+      setPendingOrdersCount: (count) => set({ pendingOrdersCount: count }),
+      incrementPending: () => set((state) => ({ pendingOrdersCount: state.pendingOrdersCount + 1 })),
+      decrementPending: () => set((state) => ({ pendingOrdersCount: Math.max(0, state.pendingOrdersCount - 1) })),
+      latestOrderNotification: null,
+      setLatestOrderNotification: (message) => set({ latestOrderNotification: message }),
+      latestCustomerNotification: null,
+      setLatestCustomerNotification: (message) => set({ latestCustomerNotification: message }),
+      customerOrderStatuses: [],
+      setCustomerOrderStatuses: (statuses) => set({ customerOrderStatuses: statuses }),
+      pendingReviewsCount: 0,
+      setPendingReviewsCount: (count) => set({ pendingReviewsCount: count }),
+    }),
+    {
+      name: 'iuser-merchant-storage',
+    }
+  )
+)
