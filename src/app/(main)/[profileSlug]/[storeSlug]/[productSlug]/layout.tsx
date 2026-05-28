@@ -19,36 +19,12 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // 1. Buscar perfil pelo profileSlug de forma case-insensitive e robusta
-    const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id')
-        .ilike('profileSlug', profileSlug)
-        .maybeSingle()
-
-    if (!profileData) {
-        return {}
-    }
-
-    // 2. Buscar loja vinculada ao perfil (owner_id) e com o storeSlug correto
-    const { data: storeData } = await supabase
-        .from('stores')
-        .select('id, name')
-        .eq('owner_id', profileData.id)
-        .ilike('storeSlug', storeSlug)
-        .maybeSingle()
-
-    if (!storeData) {
-        return {}
-    }
-
     // Identificar se o slug é um ID válido (UUID) para evitar erros no banco
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productSlug)
 
     let productQuery = supabase
         .from('products')
         .select('name, description, image_url, price')
-        .eq('store_id', storeData.id)
 
     if (isUuid) {
         productQuery = productQuery.eq('id', productSlug)

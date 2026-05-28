@@ -19,22 +19,10 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // 1. Buscar perfil pelo profileSlug de forma case-insensitive e robusta
-    const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id, profileSlug, avatar_url')
-        .ilike('profileSlug', profileSlug)
-        .maybeSingle()
-
-    if (!profileData) {
-        return {}
-    }
-
-    // 2. Buscar loja vinculada ao perfil (owner_id) e com o storeSlug correto
+    // Buscar a loja diretamente pelo storeSlug de forma case-insensitive
     const { data: storeData } = await supabase
         .from('stores')
         .select('id, name, description, logo_url')
-        .eq('owner_id', profileData.id)
         .ilike('storeSlug', storeSlug)
         .maybeSingle()
 
@@ -45,18 +33,12 @@ export async function generateMetadata(
     const fallbackImage = 'https://iuser.com.br/logo.png'
     let imageUrl = fallbackImage
 
-    // Priorizar logo da loja, depois avatar do perfil
+    // Priorizar logo da loja
     if (storeData.logo_url) {
         if (storeData.logo_url.startsWith('http')) {
             imageUrl = storeData.logo_url
         } else {
             imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
-        }
-    } else if (profileData.avatar_url) {
-        if (profileData.avatar_url.startsWith('http')) {
-            imageUrl = profileData.avatar_url
-        } else {
-            imageUrl = supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
         }
     }
 
