@@ -1,3 +1,6 @@
+//app/(main)/[profileSlug]/layout.tsx
+
+
 import { ReactNode } from 'react'
 import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
@@ -51,7 +54,7 @@ export async function generateMetadata(
             description,
             url,
             siteName: profileData.name || 'iUser',
-            images: [{ 
+            images: [{
                 url: imageUrl,
                 width: 400,
                 height: 400,

@@ -23,8 +23,8 @@ export async function generateMetadata(
     const { data: storeData } = await supabase
         .from('stores')
         .select('id, name, description, logo_url, profiles!owner_id(id, profileSlug, avatar_url)')
-        .eq('storeSlug', storeSlug)                // ← exato
-        .eq('profiles.profileSlug', profileSlug)
+        .ilike('storeSlug', storeSlug)               // ← case‑insensitive
+        .ilike('profiles.profileSlug', profileSlug)  // ← case‑insensitive
         .maybeSingle()
 
     if (!storeData) {
