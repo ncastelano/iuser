@@ -22,8 +22,8 @@ export async function generateMetadata(
     // Buscar loja vinculada ao perfil correto (de forma robusta)
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name, description, logo_url, profiles!inner(profileSlug, avatar_url)')
-        .ilike('storeSlug', storeSlug)
+        .select('id, name, description, logo_url, profiles!owner_id(id, profileSlug, avatar_url)')
+        .eq('storeSlug', storeSlug)                // ← exato
         .eq('profiles.profileSlug', profileSlug)
         .maybeSingle()
 
