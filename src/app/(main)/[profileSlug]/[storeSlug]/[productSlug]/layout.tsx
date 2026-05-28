@@ -19,10 +19,22 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Buscar loja vinculada ao perfil correto (de forma robusta)
+    // 1. Buscar perfil pelo profileSlug de forma case-insensitive e robusta
+    const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('profileSlug', profileSlug)
+        .maybeSingle()
+
+    if (!profileData) {
+        return {}
+    }
+
+    // 2. Buscar loja vinculada ao perfil (owner_id) e com o storeSlug correto
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name, profiles(profileSlug)')
+        .select('id, name')
+        .eq('owner_id', profileData.id)
         .ilike('storeSlug', storeSlug)
         .maybeSingle()
 
@@ -62,8 +74,11 @@ export async function generateMetadata(
     }
 
     const titleStr = productData.name
-    const descStr = `Confira ${productData.name} na loja ${storeData.name} no iUser.`
-    const url = `https://iuser.com.br/${profileSlug}/${storeSlug}/${productSlug}`
+    // O preço formatado como descrição
+    const priceStr = `R$ ${(productData.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    const descStr = priceStr
+    // O link final pode ser o link da loja como solicitado pelo usuário
+    const url = `https://iuser.com.br/${profileSlug}/${storeSlug}`
 
     return {
         metadataBase: new URL('https://iuser.com.br'),

@@ -19,12 +19,23 @@ export async function generateMetadata(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    // Buscar loja vinculada ao perfil correto (de forma robusta)
+    // 1. Buscar perfil pelo profileSlug de forma case-insensitive e robusta
+    const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, profileSlug, avatar_url')
+        .ilike('profileSlug', profileSlug)
+        .maybeSingle()
+
+    if (!profileData) {
+        return {}
+    }
+
+    // 2. Buscar loja vinculada ao perfil (owner_id) e com o storeSlug correto
     const { data: storeData } = await supabase
         .from('stores')
-        .select('id, name, description, logo_url, profiles!owner_id(id, profileSlug, avatar_url)')
-        .ilike('storeSlug', storeSlug)               // ← case‑insensitive
-        .ilike('profiles.profileSlug', profileSlug)  // ← case‑insensitive
+        .select('id, name, description, logo_url')
+        .eq('owner_id', profileData.id)
+        .ilike('storeSlug', storeSlug)
         .maybeSingle()
 
     if (!storeData) {
@@ -34,9 +45,6 @@ export async function generateMetadata(
     const fallbackImage = 'https://iuser.com.br/logo.png'
     let imageUrl = fallbackImage
 
-    // Access profile data safely
-    const profile = Array.isArray(storeData.profiles) ? storeData.profiles[0] : storeData.profiles
-
     // Priorizar logo da loja, depois avatar do perfil
     if (storeData.logo_url) {
         if (storeData.logo_url.startsWith('http')) {
@@ -44,11 +52,11 @@ export async function generateMetadata(
         } else {
             imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
         }
-    } else if (profile?.avatar_url) {
-        if (profile.avatar_url.startsWith('http')) {
-            imageUrl = profile.avatar_url
+    } else if (profileData.avatar_url) {
+        if (profileData.avatar_url.startsWith('http')) {
+            imageUrl = profileData.avatar_url
         } else {
-            imageUrl = supabase.storage.from('avatars').getPublicUrl(profile.avatar_url).data.publicUrl
+            imageUrl = supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
         }
     }
 
