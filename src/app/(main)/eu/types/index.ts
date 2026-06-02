@@ -2,8 +2,12 @@ export interface Store {
     id: string
     name: string
     storeSlug: string
-    logo_url: string | null
+    logo_url?: string | null   // agora opcional (aceita undefined)
     is_open: boolean
+    allow_scheduling?: boolean // adicione esta linha
+    ratings_avg?: number | null // opcional (se usar)
+    ratings_count?: number | null // opcional (se usar)
+    owner_id?: string // se precisar em algum contexto
 }
 
 export interface Sale {

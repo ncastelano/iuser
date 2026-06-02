@@ -11,7 +11,9 @@ import {
     Clock,
     Store as StoreIcon,
     Package,
-    CheckCircle2
+    CheckCircle2,
+    Eye,
+    Plus
 } from 'lucide-react'
 import { Store, Sale, GroupedOrder } from '../types'
 import { OrderModal } from './OrderModal'
@@ -23,9 +25,27 @@ interface StoreFlowProps {
     onToggleStatus: () => void
     profile: any
     onUpdateOrder: () => void
+    // Novas props para ações admin
+    onAddProduct?: () => void
+    onEditStore?: () => void
+    onToggleScheduling?: () => void
+    storeViews?: number
+    productViews?: number
 }
 
-export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onUpdateOrder }: StoreFlowProps) {
+export function StoreFlow({
+    store,
+    sales,
+    supabase,
+    onToggleStatus,
+    profile,
+    onUpdateOrder,
+    onAddProduct,
+    onEditStore,
+    onToggleScheduling,
+    storeViews,
+    productViews
+}: StoreFlowProps) {
     const [selectedOrder, setSelectedOrder] = useState<GroupedOrder | null>(null)
 
     const groupedOrders = useMemo(() => {
@@ -56,7 +76,12 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
     const metrics = useMemo(() => {
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        const filterByDate = (start: number) => sales.filter(s => new Date(s.created_at).getTime() >= start && (s.status === 'paid' || s.status === 'ready' || s.status === 'preparing'))
+        const filterByDate = (start: number) =>
+            sales.filter(
+                s =>
+                    new Date(s.created_at).getTime() >= start &&
+                    (s.status === 'paid' || s.status === 'ready' || s.status === 'preparing')
+            )
         const daily = filterByDate(today)
         const calcTotal = (list: Sale[]) => list.reduce((acc, s) => acc + s.price, 0)
         const calcOrders = (list: Sale[]) => new Set(list.map(d => d.checkout_id)).size
@@ -70,12 +95,16 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
 
     const topItems = useMemo(() => {
         const counts: Record<string, { count: number, total: number }> = {}
-        sales.filter(s => s.status === 'paid' || s.status === 'ready').forEach(s => {
-            if (!counts[s.product_name]) counts[s.product_name] = { count: 0, total: 0 }
-            counts[s.product_name].count += s.quantity
-            counts[s.product_name].total += s.price
-        })
-        return Object.entries(counts).sort((a, b) => b[1].count - a[1].count).slice(0, 3)
+        sales
+            .filter(s => s.status === 'paid' || s.status === 'ready')
+            .forEach(s => {
+                if (!counts[s.product_name]) counts[s.product_name] = { count: 0, total: 0 }
+                counts[s.product_name].count += s.quantity
+                counts[s.product_name].total += s.price
+            })
+        return Object.entries(counts)
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, 3)
     }, [sales])
 
     const handleAction = async (status: string) => {
@@ -94,25 +123,35 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
         if (!salesError && !ordersError) {
             setSelectedOrder(null)
             onUpdateOrder()
-            toast.success(`Pedido ${status === 'preparing' ? 'aceito' : status === 'ready' ? 'marcado como pronto' : 'finalizado'}!`)
+            toast.success(
+                `Pedido ${status === 'preparing'
+                    ? 'aceito'
+                    : status === 'ready'
+                        ? 'marcado como pronto'
+                        : 'finalizado'
+                }!`
+            )
         } else {
             toast.error('Erro ao atualizar pedido')
         }
     }
 
-    // Construir a URL da loja
     const storeUrl = `/${profile?.profileSlug}/${store.storeSlug}`
 
     return (
         <div className="border-b border-orange-100 last:border-b-0 py-6">
+            {/* CABEÇALHO */}
             <div className="flex items-center justify-between mb-6">
-                {/* Link na logo e nome da loja */}
                 <Link href={storeUrl} className="flex items-center gap-4 group">
                     <div className="relative">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center overflow-hidden group-hover:shadow-lg transition-all">
                             {store.logo_url ? (
                                 <img
-                                    src={supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl}
+                                    src={
+                                        supabase.storage
+                                            .from('store-logos')
+                                            .getPublicUrl(store.logo_url).data.publicUrl
+                                    }
                                     className="w-full h-full object-cover"
                                     alt={store.name}
                                 />
@@ -120,7 +159,10 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                                 <StoreIcon className="w-7 h-7 text-orange-500" />
                             )}
                         </div>
-                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${store.is_open ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        <div
+                            className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${store.is_open ? 'bg-green-500' : 'bg-gray-400'
+                                }`}
+                        />
                     </div>
                     <div>
                         <h3 className="text-xl font-black italic uppercase tracking-tighter text-gray-900 group-hover:text-orange-600 transition-colors">
@@ -136,19 +178,22 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                     <button
                         onClick={onToggleStatus}
                         className={`px-4 py-2 rounded-full font-black uppercase text-[10px] tracking-wider transition-all ${store.is_open
-                            ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white'
-                            : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg'
+                                ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white'
+                                : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:shadow-lg'
                             }`}
                     >
                         {store.is_open ? 'Fechar Loja' : 'Abrir Loja'}
                     </button>
-                    <Link
-                        href={`/${profile?.profileSlug}/${store.storeSlug}/editar-loja`}
-                        className="p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-all"
-                    >
-                        <Pencil size={16} className="text-orange-600" />
-                    </Link>
-                    {/* Botão adicional para visitar loja */}
+
+                    {onEditStore && (
+                        <button
+                            onClick={onEditStore}
+                            className="p-2 bg-orange-50 rounded-full hover:bg-orange-100 transition-all"
+                        >
+                            <Pencil size={16} className="text-orange-600" />
+                        </button>
+                    )}
+
                     <Link
                         href={storeUrl}
                         className="p-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-full hover:shadow-lg transition-all"
@@ -159,7 +204,52 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                 </div>
             </div>
 
-            {/* Cards de métricas agora também são links para a loja */}
+            {/* AÇÕES ADMINISTRATIVAS */}
+            {(onAddProduct || onToggleScheduling) && (
+                <div className="flex flex-wrap gap-2 mb-6">
+                    {onAddProduct && (
+                        <button
+                            onClick={onAddProduct}
+                            className="flex-1 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full font-black text-[10px] uppercase shadow-md"
+                        >
+                            <Plus size={14} className="inline mr-1" /> Produto
+                        </button>
+                    )}
+                    {onToggleScheduling && (
+                        <button
+                            onClick={onToggleScheduling}
+                            className={`flex-1 py-2 rounded-full font-black text-[10px] uppercase border ${store.allow_scheduling
+                                    ? 'bg-red-50 text-red-600 border-red-200'
+                                    : 'bg-green-50 text-green-600 border-green-200'
+                                }`}
+                        >
+                            {store.allow_scheduling ? 'Bloquear Agend.' : 'Permitir Agend.'}
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* MÉTRICAS DE VISITA */}
+            {(storeViews !== undefined || productViews !== undefined) && (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                    {storeViews !== undefined && (
+                        <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
+                            <Eye size={18} className="text-orange-500 mb-1" />
+                            <p className="text-2xl font-black text-gray-900">{storeViews}</p>
+                            <p className="text-[9px] font-black uppercase text-gray-500">Visitas na loja</p>
+                        </div>
+                    )}
+                    {productViews !== undefined && (
+                        <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                            <Eye size={18} className="text-red-500 mb-1" />
+                            <p className="text-2xl font-black text-gray-900">{productViews}</p>
+                            <p className="text-[9px] font-black uppercase text-gray-500">Visitas em produtos</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* CARDS DE MÉTRICAS DE VENDAS */}
             <Link href={storeUrl} className="block mb-6">
                 <div className="grid grid-cols-2 gap-4 hover:opacity-90 transition-opacity">
                     <div className="bg-white/50 rounded-xl p-4 border border-orange-100 hover:border-orange-300 transition-all">
@@ -179,6 +269,7 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                 </div>
             </Link>
 
+            {/* MAIS VENDIDOS */}
             {topItems.length > 0 && (
                 <div className="mb-6 bg-orange-50/50 rounded-xl p-4 border border-orange-100">
                     <h4 className="text-[10px] font-black uppercase tracking-wider text-orange-600 mb-3 flex items-center gap-2">
@@ -198,6 +289,7 @@ export function StoreFlow({ store, sales, supabase, onToggleStatus, profile, onU
                 </div>
             )}
 
+            {/* LISTA DE PEDIDOS */}
             <div className="space-y-5">
                 {invites.length > 0 && (
                     <div>

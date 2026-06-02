@@ -1,4 +1,4 @@
-import { ProductType, StoreType } from '@/app/(main)/hooks/useVitrineData'
+import { ProductType, StoreType } from '@/components/vitrine/hooks/useVitrineData'
 import { MapPin, Star, Plus, ShoppingBag, Store, ChevronRight } from 'lucide-react'
 
 

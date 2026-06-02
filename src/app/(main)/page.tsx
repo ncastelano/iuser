@@ -11,9 +11,9 @@ import { FilterModal } from '@/components/vitrine/FilterModal'
 import { StoreCard } from '@/components/vitrine/StoreCard'
 import { ProductCard } from '@/components/vitrine/ProductCard'
 import { PromotionalBanner } from '@/components/vitrine/PromotionalBanner'
-import { useStoreFilters } from './hooks/useStoreFilters'
-import { useVitrineData } from './hooks/useVitrineData'
-import { useGeolocation } from './hooks/useGeolocation'
+import { useStoreFilters } from '../../components/vitrine/hooks/useStoreFilters'
+import { useVitrineData } from '../../components/vitrine/hooks/useVitrineData'
+import { useGeolocation } from '../../components/vitrine/hooks/useGeolocation'
 import AnimatedBackground from '@/components/AnimatedBackground'
 
 const PREVIEW_COUNT = 12

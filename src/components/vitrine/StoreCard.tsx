@@ -1,6 +1,6 @@
 // src/components/vitrine/StoreCard.tsx
 
-import { StoreType } from '@/app/(main)/hooks/useVitrineData'
+import { StoreType } from '@/components/vitrine/hooks/useVitrineData'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { MapPin, Award, ShoppingBag, ChevronRight, Building2, Sparkles, Flame } from 'lucide-react'
 

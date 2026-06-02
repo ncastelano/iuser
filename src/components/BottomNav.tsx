@@ -30,26 +30,59 @@ export function BottomNav() {
     const prevPendingRef = useRef(pendingOrdersCount)
 
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+    const [userName, setUserName] = useState<string | null>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
 
+    // Fetch profile on mount and set up realtime listeners for updates
     useEffect(() => {
-        const fetchUserProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('avatar_url, profileSlug')
-                    .eq('id', user.id)
-                    .single()
-
-                if (profile) {
-                    setAvatarUrl(profile.avatar_url)
-                    setProfileSlug(profile.profileSlug)
-                }
+        let authListener: any = null;
+        let profileListener: any = null;
+        const fetchUserProfile = async (userId: string | undefined) => {
+            if (!userId) return;
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('avatar_url, profileSlug, name')
+                .eq('id', userId)
+                .single();
+            if (profile) {
+                setAvatarUrl(profile.avatar_url);
+                setProfileSlug(profile.profileSlug);
+                const firstName = profile.name?.split(' ')[0] || '';
+                setUserName(firstName);
             }
-        }
-        fetchUserProfile()
-    }, [supabase])
+        };
+        // Initial fetch
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) {
+                fetchUserProfile(user.id);
+                // Listen for auth state changes (e.g., sign in/out, token refresh)
+                const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
+                    const uid = session?.user?.id;
+                    fetchUserProfile(uid);
+                });
+                authListener = authSub;
+                // Set up realtime subscription to profile updates for this user
+                profileListener = supabase
+                    .channel('public:profiles')
+                    .on(
+                        'postgres_changes',
+                        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+                        (payload: any) => {
+                            const updated = payload.new;
+                            setAvatarUrl(updated.avatar_url);
+                            setProfileSlug(updated.profileSlug);
+                            const firstName = updated.name?.split(' ')[0] || '';
+                            setUserName(firstName);
+                        }
+                    )
+                    .subscribe();
+            }
+        });
+        return () => {
+            if (authListener?.unsubscribe) authListener.unsubscribe();
+            if (profileListener) supabase.removeChannel(profileListener);
+        };
+    }, [supabase]);
 
     useEffect(() => {
         if (totalCartItems > prevTotalRef.current) {
@@ -97,12 +130,15 @@ export function BottomNav() {
         return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
     }
 
-    const getProfileLabel = () => {
-        if (!profileSlug) return 'Perfil'
-        return profileSlug.length > 8 ? profileSlug.substring(0, 7) + '…' : profileSlug
-    }
+    // Exibe o primeiro nome inteiro se tiver menos de 8 caracteres, senão trunca para 8
+    const displayName = !userName
+        ? 'Perfil'
+        : userName.length < 8
+            ? userName
+            : userName.substring(0, 8)
 
     const getInitial = () => {
+        if (userName) return userName.charAt(0).toUpperCase()
         if (profileSlug) return profileSlug.charAt(0).toUpperCase()
         return null
     }
@@ -139,7 +175,6 @@ export function BottomNav() {
             `}</style>
 
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-t border-white/20 shadow-[0_-10px_30px_-10px_rgba(249,115,22,0.1)] overflow-hidden">
-                {/* Background animado do BottomNav */}
                 <BottomNavBackground />
 
                 <nav className="px-2 pt-1.5 pb-[env(safe-area-inset-bottom)] relative z-10">
@@ -202,35 +237,149 @@ export function BottomNav() {
                             {totalCartItems > 0 && !isCartAnimating && <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-orange-500 rounded-full animate-pulse" />}
                         </Link>
 
-                        {/* Perfil */}
-                        <Link href="/eu" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 overflow-hidden ${pathname?.startsWith('/eu')
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'
-                                } ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
-                                <div className="relative">
-                                    {avatarUrl ? (
-                                        <img src={avatarUrl} alt={profileSlug || 'Eu'} className={`w-full h-full rounded-full object-cover transition-all duration-300 ${pathname?.startsWith('/eu') ? '' : 'group-hover/item:scale-110'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
-                                    ) : getInitial() ? (
-                                        <span className={`text-sm font-black transition-all duration-300 ${pathname?.startsWith('/eu') ? 'text-white' : 'text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>{getInitial()}</span>
-                                    ) : (
-                                        <User size={22} className={`relative transition-all duration-300 ${pathname?.startsWith('/eu') ? '' : 'group-hover/item:scale-110'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
-                                    )}
-                                    {pendingOrdersCount > 0 && (
-                                        <div className={`absolute -bottom-2 -right-5 min-w-[18px] h-[18px] bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-full flex items-center justify-center text-[8px] font-black shadow-lg px-1 ${isFinanceAnimating ? 'animate-badge-pop' : ''}`}>
-                                            {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
-                                        </div>
-                                    )}
-                                </div>
+                        {/* Perfil (Eu) */}
+                        <Link
+                            href="/eu"
+                            className="relative flex flex-col items-center justify-center gap-1 group/item flex-1"
+                        >
+                            <div
+                                className={`
+            relative
+            w-12 h-12
+            rounded-2xl
+            flex
+            items-center
+            justify-center
+            transition-all
+            duration-300
+            overflow-visible
+            ${pathname?.startsWith('/eu')
+                                        ? 'bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 text-white shadow-xl shadow-orange-300/40 scale-105 animate-float-nav'
+                                        : 'bg-white border border-orange-100 text-gray-500 hover:border-orange-300 hover:shadow-lg'
+                                    }
+            ${isFinanceAnimating ? 'animate-cart-bounce' : ''}
+        `}
+                            >
+                                {avatarUrl ? (
+                                    <div
+                                        className={`
+                    relative
+                    w-9 h-9
+                    rounded-full
+                    overflow-hidden
+                    border-2
+                    border-orange-500
+                    shadow-lg
+                    shadow-orange-200/50
+                    ${isFinanceAnimating ? 'animate-cart-shake' : ''}
+                `}
+                                    >
+                                        <img
+                                            src={avatarUrl}
+                                            alt={userName || 'Eu'}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                ) : getInitial() ? (
+                                    <div
+                                        className={`
+                    w-9 h-9
+                    rounded-full
+                    bg-gradient-to-br
+                    from-orange-400
+                    to-red-500
+                    border-2
+                    border-orange-500
+                    flex
+                    items-center
+                    justify-center
+                    text-white
+                    font-black
+                    text-sm
+                    shadow-lg
+                    shadow-orange-200/50
+                    ${isFinanceAnimating ? 'animate-cart-shake' : ''}
+                `}
+                                    >
+                                        {getInitial()}
+                                    </div>
+                                ) : (
+                                    <div
+                                        className="
+                    w-9
+                    h-9
+                    rounded-full
+                    border-2
+                    border-orange-500
+                    bg-white
+                    flex
+                    items-center
+                    justify-center
+                    shadow-lg
+                    shadow-orange-200/50
+                "
+                                    >
+                                        <User size={18} className="text-orange-500" />
+                                    </div>
+                                )}
+
+                                {pendingOrdersCount > 0 && (
+                                    <div
+                                        className={`
+                    absolute
+                    -bottom-1
+                    -right-1
+                    min-w-[20px]
+                    h-[20px]
+                    px-1.5
+                    rounded-full
+                    bg-gradient-to-r
+                    from-orange-500
+                    to-red-500
+                    text-white
+                    text-[9px]
+                    font-black
+                    flex
+                    items-center
+                    justify-center
+                    shadow-xl
+                    border-2
+                    border-white
+                    z-50
+                    ${isFinanceAnimating ? 'animate-badge-pop' : ''}
+                `}
+                                    >
+                                        {pendingOrdersCount > 99
+                                            ? '99+'
+                                            : pendingOrdersCount}
+                                    </div>
+                                )}
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/eu')
-                                ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}`}>{getProfileLabel()}</span>
-                            {pendingOrdersCount > 0 && !isFinanceAnimating && <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-orange-500 rounded-full animate-pulse" />}
+
+                            <span
+                                className={`
+            text-[9px]
+            font-black
+            uppercase
+            tracking-wider
+            transition-all
+            duration-300
+            ${pathname?.startsWith('/eu')
+                                        ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
+                                        : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
+                                    }
+            ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}
+        `}
+                            >
+                                {displayName}
+                            </span>
+
+                            {pendingOrdersCount > 0 && !isFinanceAnimating && (
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-orange-500 rounded-full animate-pulse" />
+                            )}
                         </Link>
                     </div>
 
-                    {/* Barra decorativa inferior */}
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-orange-400 via-red-500 to-yellow-400 rounded-full opacity-30" />
                 </nav>
             </div>
