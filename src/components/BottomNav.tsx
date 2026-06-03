@@ -33,7 +33,7 @@ export function BottomNav() {
     const [userName, setUserName] = useState<string | null>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
 
-    // Fetch profile on mount and set up realtime listeners for updates
+    // Busca o perfil do usuário e configura listeners para atualizações
     useEffect(() => {
         let authListener: any = null;
         let profileListener: any = null;
@@ -51,17 +51,14 @@ export function BottomNav() {
                 setUserName(firstName);
             }
         };
-        // Initial fetch
         supabase.auth.getUser().then(({ data: { user } }) => {
             if (user) {
                 fetchUserProfile(user.id);
-                // Listen for auth state changes (e.g., sign in/out, token refresh)
                 const { data: authSub } = supabase.auth.onAuthStateChange((_event, session) => {
                     const uid = session?.user?.id;
                     fetchUserProfile(uid);
                 });
                 authListener = authSub;
-                // Set up realtime subscription to profile updates for this user
                 profileListener = supabase
                     .channel('public:profiles')
                     .on(
@@ -84,6 +81,7 @@ export function BottomNav() {
         };
     }, [supabase]);
 
+    // Anima o carrinho quando novos itens são adicionados
     useEffect(() => {
         if (totalCartItems > prevTotalRef.current) {
             setIsCartAnimating(true)
@@ -93,6 +91,7 @@ export function BottomNav() {
         prevTotalRef.current = totalCartItems
     }, [totalCartItems])
 
+    // Anima o ícone "Eu" quando chegam novos pedidos
     useEffect(() => {
         if (pendingOrdersCount > prevPendingRef.current) {
             setIsFinanceAnimating(true)
@@ -130,13 +129,14 @@ export function BottomNav() {
         return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
     }
 
-    // Exibe o primeiro nome inteiro se tiver menos de 8 caracteres, senão trunca para 8
+    // Nome exibido no botão "Eu"
     const displayName = !userName
         ? 'Perfil'
         : userName.length < 8
             ? userName
             : userName.substring(0, 8)
 
+    // Inicial para o avatar
     const getInitial = () => {
         if (userName) return userName.charAt(0).toUpperCase()
         if (profileSlug) return profileSlug.charAt(0).toUpperCase()
@@ -181,41 +181,25 @@ export function BottomNav() {
                     <div className="max-w-md mx-auto flex justify-around items-center h-16">
                         {/* Vitrine */}
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/'
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'
-                                }`}>
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'}`}>
                                 <Store size={22} className={`transition-all duration-300 ${pathname === '/' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/'
-                                ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
-                                }`}>Vitrine</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Vitrine</span>
                         </Link>
 
                         {/* Mapa */}
                         <Link href="/radar" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/radar'
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'
-                                }`}>
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/radar' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'}`}>
                                 <MapPinned size={22} className={`transition-all duration-300 ${pathname === '/radar' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/radar'
-                                ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
-                                }`}>Mapa</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/radar' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Mapa</span>
                         </Link>
 
                         {/* Sacola */}
                         <Link href="/sacola" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/sacola'
-                                ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-                                : getCartButtonGradient()
-                                } ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/sacola' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : getCartButtonGradient()} ${isCartAnimating ? 'animate-cart-bounce' : ''}`}>
                                 <div className="relative">
-                                    <ShoppingBag size={22} className={`transition-all duration-300 ${pathname === '/sacola' ? '' : 'group-hover/item:scale-110'} ${isCartAnimating ? 'animate-cart-shake' : ''}`}
-                                        style={{ color: pathname === '/sacola' ? undefined : getCartIconColor().replace('text-', '') }} />
+                                    <ShoppingBag size={22} className={`transition-all duration-300 ${pathname === '/sacola' ? '' : 'group-hover/item:scale-110'} ${isCartAnimating ? 'animate-cart-shake' : ''}`} style={{ color: pathname === '/sacola' ? undefined : getCartIconColor().replace('text-', '') }} />
                                     {customerOrderStatuses && customerOrderStatuses.length > 0 && (
                                         <div className="absolute -top-1 -left-3 flex gap-0.5 z-10">
                                             {customerOrderStatuses.includes('pending') && <div className="w-2.5 h-2.5 rounded-full border border-white shadow-sm animate-pulse" style={{ backgroundColor: '#3b82f6' }} title="Pendente" />}
@@ -231,146 +215,34 @@ export function BottomNav() {
                                     )}
                                 </div>
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/sacola'
-                                ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                : getCartLabelColor()} ${isCartAnimating ? 'scale-110' : ''}`}>Sacola</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/sacola' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : getCartLabelColor()} ${isCartAnimating ? 'scale-110' : ''}`}>Sacola</span>
                             {totalCartItems > 0 && !isCartAnimating && <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-orange-500 rounded-full animate-pulse" />}
                         </Link>
 
-                        {/* Perfil (Eu) */}
-                        <Link
-                            href="/eu"
-                            className="relative flex flex-col items-center justify-center gap-1 group/item flex-1"
-                        >
-                            <div
-                                className={`
-            relative
-            w-12 h-12
-            rounded-2xl
-            flex
-            items-center
-            justify-center
-            transition-all
-            duration-300
-            overflow-visible
-            ${pathname?.startsWith('/eu')
-                                        ? 'bg-gradient-to-br from-orange-500 via-red-500 to-pink-500 text-white shadow-xl shadow-orange-300/40 scale-105 animate-float-nav'
-                                        : 'bg-white border border-orange-100 text-gray-500 hover:border-orange-300 hover:shadow-lg'
-                                    }
-            ${isFinanceAnimating ? 'animate-cart-bounce' : ''}
-        `}
-                            >
+                        {/* Perfil (Eu) - agora circular como os outros */}
+                        <Link href="/eu" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
+                            <div className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 overflow-visible ${pathname?.startsWith('/eu') ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'} ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
                                 {avatarUrl ? (
-                                    <div
-                                        className={`
-                    relative
-                    w-9 h-9
-                    rounded-full
-                    overflow-hidden
-                    border-2
-                    border-orange-500
-                    shadow-lg
-                    shadow-orange-200/50
-                    ${isFinanceAnimating ? 'animate-cart-shake' : ''}
-                `}
-                                    >
-                                        <img
-                                            src={avatarUrl}
-                                            alt={userName || 'Eu'}
-                                            className="w-full h-full object-cover"
-                                        />
+                                    <div className={`w-full h-full rounded-full overflow-hidden ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>
+                                        <img src={avatarUrl} alt={userName || 'Eu'} className="w-full h-full object-cover" />
                                     </div>
                                 ) : getInitial() ? (
-                                    <div
-                                        className={`
-                    w-9 h-9
-                    rounded-full
-                    bg-gradient-to-br
-                    from-orange-400
-                    to-red-500
-                    border-2
-                    border-orange-500
-                    flex
-                    items-center
-                    justify-center
-                    text-white
-                    font-black
-                    text-sm
-                    shadow-lg
-                    shadow-orange-200/50
-                    ${isFinanceAnimating ? 'animate-cart-shake' : ''}
-                `}
-                                    >
+                                    <span className={`text-sm font-black transition-all duration-300 ${pathname?.startsWith('/eu') ? 'text-white' : 'text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>
                                         {getInitial()}
-                                    </div>
+                                    </span>
                                 ) : (
-                                    <div
-                                        className="
-                    w-9
-                    h-9
-                    rounded-full
-                    border-2
-                    border-orange-500
-                    bg-white
-                    flex
-                    items-center
-                    justify-center
-                    shadow-lg
-                    shadow-orange-200/50
-                "
-                                    >
-                                        <User size={18} className="text-orange-500" />
-                                    </div>
+                                    <User size={22} className={`transition-all duration-300 ${pathname?.startsWith('/eu') ? '' : 'group-hover/item:scale-110'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`} />
                                 )}
 
+                                {/* Badge de pedidos pendentes (mantido) */}
                                 {pendingOrdersCount > 0 && (
-                                    <div
-                                        className={`
-                    absolute
-                    -bottom-1
-                    -right-1
-                    min-w-[20px]
-                    h-[20px]
-                    px-1.5
-                    rounded-full
-                    bg-gradient-to-r
-                    from-orange-500
-                    to-red-500
-                    text-white
-                    text-[9px]
-                    font-black
-                    flex
-                    items-center
-                    justify-center
-                    shadow-xl
-                    border-2
-                    border-white
-                    z-50
-                    ${isFinanceAnimating ? 'animate-badge-pop' : ''}
-                `}
-                                    >
-                                        {pendingOrdersCount > 99
-                                            ? '99+'
-                                            : pendingOrdersCount}
+                                    <div className={`absolute -bottom-1 -right-1 min-w-[20px] h-[20px] px-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white text-[9px] font-black flex items-center justify-center shadow-xl border-2 border-white z-50 ${isFinanceAnimating ? 'animate-badge-pop' : ''}`}>
+                                        {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
                                     </div>
                                 )}
                             </div>
 
-                            <span
-                                className={`
-            text-[9px]
-            font-black
-            uppercase
-            tracking-wider
-            transition-all
-            duration-300
-            ${pathname?.startsWith('/eu')
-                                        ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-                                        : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
-                                    }
-            ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}
-        `}
-                            >
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/eu') ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}`}>
                                 {displayName}
                             </span>
 

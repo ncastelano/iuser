@@ -2,12 +2,13 @@ export interface Store {
     id: string
     name: string
     storeSlug: string
-    logo_url?: string | null   // agora opcional (aceita undefined)
+    logo_url?: string | null
     is_open: boolean
-    allow_scheduling?: boolean // adicione esta linha
-    ratings_avg?: number | null // opcional (se usar)
-    ratings_count?: number | null // opcional (se usar)
-    owner_id?: string // se precisar em algum contexto
+    allow_scheduling?: boolean
+    ratings_avg?: number | null
+    ratings_count?: number | null
+    owner_id?: string
+    business_hours?: Record<string, { open: string; close: string }> | null;
 }
 
 export interface Sale {

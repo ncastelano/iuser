@@ -62,6 +62,25 @@ export default function CriarProduto() {
   const [editingAddress, setEditingAddress] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
+  const formatCurrencyInput = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+
+    if (!numbers) return "";
+
+    return (Number(numbers) / 100).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const parseCurrencyToNumber = (value: string) => {
+    return Number(
+      value
+        .replace(/\./g, "")
+        .replace(",", ".")
+    );
+  };
+
   useEffect(() => {
     const fetchStore = async () => {
       if (!storeSlug) return;
@@ -164,7 +183,7 @@ export default function CriarProduto() {
   };
 
   const handleCreate = async () => {
-    if (!name || !price || !storeId) {
+    if (!name || parseCurrencyToNumber(price) <= 0 || !storeId) {
       toast.error("Preencha os campos obrigatórios");
       return;
     }
@@ -245,7 +264,7 @@ export default function CriarProduto() {
       name,
       slug,
       description,
-      price: parseFloat(price.replace(",", ".")),
+      price: parseCurrencyToNumber(price),
       type,
       price_type: priceType,
       image_url: imagePath,
@@ -342,11 +361,10 @@ export default function CriarProduto() {
                 <button
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
-                  className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${
-                    type === option.value
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
-                  }`}
+                  className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                    }`}
                 >
                   <option.icon className="w-4 h-4" />
                   {option.label}
@@ -380,22 +398,20 @@ export default function CriarProduto() {
               <div className="flex gap-1">
                 <button
                   onClick={() => setPriceType("fixed")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${
-                    priceType === "fixed"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                  }`}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                    }`}
                 >
                   <DollarSign className="w-3 h-3" />
                   Fixo
                 </button>
                 <button
                   onClick={() => setPriceType("hourly")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${
-                    priceType === "hourly"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                  }`}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                    }`}
                 >
                   <Clock className="w-3 h-3" />
                   Por Hora
@@ -408,9 +424,13 @@ export default function CriarProduto() {
                 R$
               </span>
               <input
+                type="text"
+                inputMode="numeric"
                 placeholder="0,00"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(e) => {
+                  setPrice(formatCurrencyInput(e.target.value));
+                }}
                 className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
               />
               {priceType === "hourly" && (
@@ -452,11 +472,10 @@ export default function CriarProduto() {
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}
-                    className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${
-                      category === cat
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
-                    }`}
+                    className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      }`}
                   >
                     {cat}
                   </button>

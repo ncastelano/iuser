@@ -1,14 +1,14 @@
 // src/app/(auth)/login/page.tsx
 'use client'
 
-export const dynamic = 'force-dynamic'
-
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Store, Zap } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import AnimatedBackground from '@/components/AnimatedBackground'
+
+export const dynamic = 'force-dynamic'
 
 function LoginContent() {
   const router = useRouter()

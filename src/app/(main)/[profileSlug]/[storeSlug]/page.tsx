@@ -20,7 +20,8 @@ import {
     ChevronRight,
     CheckCircle2,
     Trash2,
-    Plus
+    Plus,
+    Eye
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -93,6 +94,7 @@ type StoreType = {
     whatsapp?: string | null
     category_order?: string[] | null
     allow_scheduling?: boolean
+    business_hours?: Record<string, { open: string; close: string }> | null
 }
 
 const formatAddress = (fullAddress: string | null | undefined): string => {
@@ -117,6 +119,42 @@ const formatAddress = (fullAddress: string | null | undefined): string => {
         return result.length > 30 ? result.substring(0, 27) + '...' : result
     }
     return fullAddress.length > 30 ? fullAddress.substring(0, 27) + '...' : fullAddress
+}
+
+// Constantes e funções auxiliares para os horários
+const DAY_LABELS: Record<string, string> = {
+    mon: 'Segunda-feira',
+    tue: 'Terça-feira',
+    wed: 'Quarta-feira',
+    thu: 'Quinta-feira',
+    fri: 'Sexta-feira',
+    sat: 'Sábado',
+    sun: 'Domingo',
+};
+
+function getTodayKey(): string {
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    return days[new Date().getDay()];
+}
+
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
+    if (!businessHours) return null;
+    const todayKey = getTodayKey();
+    return businessHours[todayKey] || null;
+}
+
+function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
+    if (!schedule || !schedule.open || !schedule.close) return false;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [openH, openM] = schedule.open.split(':').map(Number);
+    let [closeH, closeM] = schedule.close.split(':').map(Number);
+    if (closeH === 0 && closeM === 0) {
+        closeH = 24;
+    }
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
 }
 
 export default function StorePage() {
@@ -148,6 +186,12 @@ export default function StorePage() {
     const [adminSales, setAdminSales] = useState<any[]>([])
     const [storeViews, setStoreViews] = useState(0)
     const [productViews, setProductViews] = useState(0)
+
+    // Controle do modal de horários
+    const [showAllHours, setShowAllHours] = useState(false)
+
+    // Visitantes totais (exibido publicamente)
+    const [totalVisitors, setTotalVisitors] = useState(0)
 
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
@@ -251,6 +295,7 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
+        // Registrar visita (apenas para usuários logados e que não são donos)
         if (userId && userId !== foundStore.owner_id) {
             supabase
                 .from('store_views')
@@ -259,6 +304,14 @@ export default function StorePage() {
                     if (viewError) console.warn('[StorePage] View:', viewError.message)
                 })
         }
+
+        // Contar total de visitantes únicos (para exibição pública)
+        const { data: viewsData } = await supabase
+            .from('store_views')
+            .select('viewer_id')
+            .eq('store_id', foundStore.id)
+        const uniqueCount = new Set((viewsData || []).map((v: any) => v.viewer_id).filter(Boolean)).size
+        setTotalVisitors(uniqueCount)
 
         const { data: productsData } = await supabase
             .from('products')
@@ -348,12 +401,13 @@ export default function StorePage() {
                 .limit(50)
             setAdminSales(salesData || [])
 
-            // Contagem de visitas na loja
-            const { count: storeViewsCount } = await supabase
+            // Contagem de visitantes únicos na loja (para o painel)
+            const { data: adminViewsData } = await supabase
                 .from('store_views')
-                .select('*', { count: 'exact', head: true })
+                .select('viewer_id')
                 .eq('store_id', store.id)
-            setStoreViews(storeViewsCount || 0)
+            const uniqueAdminCount = new Set((adminViewsData || []).map((v: any) => v.viewer_id).filter(Boolean)).size
+            setStoreViews(uniqueAdminCount)
 
             // Contagem de visitas em produtos (opcional – só se a tabela existir)
             const { count: prodViewsCount } = await supabase
@@ -475,6 +529,13 @@ export default function StorePage() {
                                 {store.description}
                             </p>
                         )}
+                        {/* Contador de visitantes */}
+                        <div className="flex items-center gap-1 mt-1">
+                            <Eye size={12} className="text-orange-400" />
+                            <span className="text-[10px] font-bold text-orange-500">
+                                {totalVisitors} {totalVisitors === 1 ? 'visitante' : 'visitantes'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -508,6 +569,91 @@ export default function StorePage() {
                         </button>
                     )}
                 </div>
+
+                {/* NOVO WIDGET DE HORÁRIOS */}
+                {store.business_hours && Object.keys(store.business_hours).length > 0 && (
+                    <div
+                        onClick={() => setShowAllHours(true)}
+                        className={`cursor-pointer flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-sm ${(() => {
+                            const today = getTodaySchedule(store.business_hours);
+                            return today && isOpenNow(today)
+                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                                : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200';
+                        })()
+                            }`}
+                    >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${(() => {
+                            const today = getTodaySchedule(store.business_hours);
+                            return today && isOpenNow(today) ? 'bg-green-500 text-white' : 'bg-gray-400 text-white';
+                        })()
+                            }`}>
+                            <Clock size={20} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+                                Horário de Hoje
+                            </p>
+                            {getTodaySchedule(store.business_hours) ? (
+                                <p className="text-sm font-bold text-gray-800">
+                                    {getTodaySchedule(store.business_hours)!.open.slice(0, 5)} - {getTodaySchedule(store.business_hours)!.close.slice(0, 5)}
+                                </p>
+                            ) : (
+                                <p className="text-sm font-bold text-gray-800">Fechado hoje</p>
+                            )}
+                            <p className="text-[9px] text-gray-400 font-medium">
+                                {DAY_LABELS[getTodayKey()]}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${(() => {
+                                const today = getTodaySchedule(store.business_hours);
+                                return today && isOpenNow(today) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500';
+                            })()
+                                }`}>
+                                {(() => {
+                                    const today = getTodaySchedule(store.business_hours);
+                                    return today && isOpenNow(today) ? 'Aberto' : 'Fechado';
+                                })()}
+                            </div>
+                            <ChevronRight size={16} className="text-gray-400" />
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL COM TODOS OS HORÁRIOS (centralizado e rolável) */}
+                {showAllHours && store.business_hours && (
+                    <div
+                        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                        onClick={() => setShowAllHours(false)}
+                    >
+                        <div
+                            className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-black text-gray-800">Horários de Funcionamento</h3>
+                                <button onClick={() => setShowAllHours(false)} className="text-2xl">&times;</button>
+                            </div>
+                            <div className="space-y-2">
+                                {Object.entries(DAY_LABELS).map(([key, label]) => {
+                                    const schedule = store.business_hours![key];
+                                    return (
+                                        <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                                            <span className="text-sm font-bold text-gray-700">{label}</span>
+                                            {schedule && schedule.open && schedule.close ? (
+                                                <span className="text-sm text-gray-600">
+                                                    {schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm text-gray-400 italic">Fechado</span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Avaliações */}
                 {ratings.length > 0 && (
@@ -644,7 +790,7 @@ export default function StorePage() {
                     />
                 </div>
 
-                {/* Lista de produtos (com carrinho para visitantes e edição para dono) */}
+                {/* Lista de produtos (com preços formatados e sufixo /h) */}
                 {filteredProducts.length === 0 ? (
                     <div className="py-8 text-center rounded-xl border border-dashed border-orange-200 bg-white/50">
                         <Search className="w-6 h-6 text-orange-300 mx-auto mb-1" />
@@ -661,6 +807,7 @@ export default function StorePage() {
                             <div className="space-y-2">
                                 {products.map(product => {
                                     const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
+                                    const isHourly = product.price_type === 'hourly'
                                     return (
                                         <div
                                             key={product.id}
@@ -674,8 +821,8 @@ export default function StorePage() {
                                                 }
                                             }}
                                             className={`flex items-center gap-3 rounded-xl p-2.5 transition-all cursor-pointer shadow-sm ${isSelected
-                                                    ? 'bg-white border-[3px] border-orange-500 shadow-lg shadow-orange-100 ring-2 ring-orange-200/50 scale-[1.02]'
-                                                    : 'bg-white/70 border border-orange-100 hover:border-orange-300 hover:bg-white'
+                                                ? 'bg-white border-[3px] border-orange-500 shadow-lg shadow-orange-100 ring-2 ring-orange-200/50 scale-[1.02]'
+                                                : 'bg-white/70 border border-orange-100 hover:border-orange-300 hover:bg-white'
                                                 }`}
                                         >
                                             <div className={`w-14 h-14 rounded-lg bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden flex-shrink-0 border transition-all ${isSelected ? 'border-orange-400' : 'border-orange-200'}`}>
@@ -692,6 +839,7 @@ export default function StorePage() {
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <p className="text-sm font-black text-orange-600">
                                                         R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        {isHourly && <span className="text-xs font-bold text-gray-500 ml-1">/h</span>}
                                                     </p>
                                                     {product.type && (
                                                         <span className="text-[7px] font-bold uppercase text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded-full">
@@ -909,6 +1057,9 @@ export default function StorePage() {
                             onToggleScheduling={toggleScheduling}
                             storeViews={storeViews}
                             productViews={productViews}
+                            onUpdateStore={(updatedFields) => {
+                                setStore(prev => prev ? { ...prev, ...updatedFields } : null)
+                            }}
                         />
                     </div>
                 </div>
