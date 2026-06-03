@@ -1,3 +1,4 @@
+// src/components/vitrine/hooks/useVitrineData.ts
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -22,6 +23,9 @@ export type StoreType = {
     store_stats: StoreStats
     profileSlug?: string
     top_products?: ProductType[]
+    // campos diretos para fácil acesso (garantem compatibilidade)
+    ratings_avg?: number
+    ratings_count?: number
 }
 
 export type ProductType = {
@@ -57,26 +61,29 @@ export function useVitrineData() {
         const minPrice = prices.length > 0 ? Math.min(...prices) : null
         const maxPrice = prices.length > 0 ? Math.max(...prices) : null
 
-        // Primeiro tenta usar os valores da tabela stores
-        // Se forem null/undefined, usa os valores calculados da tabela store_ratings
-        const ratingsFromStore = ratingsMap.get(store.id)
-        const calculatedAvg = ratingsFromStore
-            ? ratingsFromStore.sum / ratingsFromStore.count
+        // Ratings: prioriza os calculados a partir das avaliações reais
+        const ratingsFromReviews = ratingsMap.get(store.id)
+        const calculatedAvg = ratingsFromReviews
+            ? ratingsFromReviews.sum / ratingsFromReviews.count
             : 0
-        const calculatedCount = ratingsFromStore ? ratingsFromStore.count : 0
+        const calculatedCount = ratingsFromReviews ? ratingsFromReviews.count : 0
 
-        // Prioridade: Se temos avaliações calculadas (count > 0), usamos elas.
-        // Caso contrário, tentamos o valor da tabela stores.
-        const finalAvg = (calculatedCount > 0) ? calculatedAvg : (store.ratings_avg ?? 0)
-        const finalCount = (calculatedCount > 0) ? calculatedCount : (store.ratings_count ?? 0)
+        // Se houver avaliações reais, use-as; senão, caia para as colunas da loja
+        const finalAvg = calculatedCount > 0 ? calculatedAvg : (store.ratings_avg ?? 0)
+        const finalCount = calculatedCount > 0 ? calculatedCount : (store.ratings_count ?? 0)
+
+        const logoUrl = store.logo_url
+            ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+            : null
 
         return {
             ...store,
             profileSlug: prof?.profileSlug || 'loja',
-            logo_url: store.logo_url
-                ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                : null,
+            logo_url: logoUrl,
             is_open: store.is_open ?? true,
+            // Expondo também os campos diretos, para facilitar o consumo no StoreCard
+            ratings_avg: finalAvg,
+            ratings_count: finalCount,
             store_stats: {
                 ratings_count: finalCount,
                 ratings_avg: finalAvg,
@@ -95,7 +102,7 @@ export function useVitrineData() {
     useEffect(() => {
         const supabase = createClient()
         let storesSubscription: any = null
-        let ratingsSubscription: any = null
+        let reviewsSubscription: any = null
 
         const fetchData = async () => {
             setLoading(true)
@@ -107,13 +114,13 @@ export function useVitrineData() {
                     { data: storesList, error: sErr },
                     { data: profilesList, error: prErr },
                     { data: productsList, error: pErr },
-                    { data: ratingsList, error: rErr },
+                    { data: reviewsList, error: rErr },   // <-- alterado de store_ratings para product_reviews
                     { data: salesList, error: slErr }
                 ] = await Promise.all([
                     supabase.from('stores').select('*'),
                     supabase.from('profiles').select('id, "profileSlug"'),
                     supabase.from('products').select('*'),
-                    supabase.from('store_ratings').select('store_id, rating'),
+                    supabase.from('product_reviews').select('store_id, rating'), // tabela correta
                     supabase.from('store_sales').select('product_id')
                 ])
 
@@ -145,15 +152,14 @@ export function useVitrineData() {
                     }
                 })
 
-                // Calcular ratings por loja
+                // Calcular ratings por loja a partir de product_reviews
                 const ratingsMap = new Map<string, { sum: number; count: number }>()
-
-                ratingsList?.forEach(rating => {
-                    if (!ratingsMap.has(rating.store_id)) {
-                        ratingsMap.set(rating.store_id, { sum: 0, count: 0 })
+                reviewsList?.forEach(review => {
+                    if (!ratingsMap.has(review.store_id)) {
+                        ratingsMap.set(review.store_id, { sum: 0, count: 0 })
                     }
-                    const current = ratingsMap.get(rating.store_id)!
-                    current.sum += rating.rating
+                    const current = ratingsMap.get(review.store_id)!
+                    current.sum += review.rating
                     current.count += 1
                 })
 
@@ -163,29 +169,13 @@ export function useVitrineData() {
                     salesMap.set(sale.product_id, (salesMap.get(sale.product_id) || 0) + 1)
                 })
 
-                console.log('[Vitrine] 📊 Ratings calculados por loja:')
-                ratingsMap.forEach((value, key) => {
-                    console.log(`  Loja ${key}: ${value.count} avaliações, média ${(value.sum / value.count).toFixed(1)}`)
-                })
-
-                // Log dos valores do banco para debug
-                storesList?.forEach(store => {
-                    console.log(`[Vitrine] Banco - "${store.name}": ratings_avg=${store.ratings_avg}, ratings_count=${store.ratings_count}`)
-                })
-
-                // Mapear lojas com ratings calculados
+                // Mapear lojas
                 const mappedStores = (storesList || []).map((store: any) =>
                     mapStoreData(store, profilesList || [], mappedProducts, ratingsMap, salesMap, supabase)
                 )
 
-                // Log final do que está sendo exibido
-                mappedStores.forEach(store => {
-                    console.log(`[Vitrine] ✅ Final - "${store.name}":`, store.store_stats)
-                })
-
                 setAllStores(mappedStores as StoreType[])
                 setAllProducts(mappedProducts as ProductType[])
-
             } catch (globalErr: any) {
                 console.error('[Vitrine] Erro global:', globalErr)
                 setError(`Erro crítico: ${globalErr.message || 'Erro de conexão'}`)
@@ -202,20 +192,18 @@ export function useVitrineData() {
             .on('postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'stores' },
                 (payload) => {
-                    console.log('[Vitrine] 🔄 Realtime: loja atualizada:', payload.new.id, {
-                        ratings_avg: payload.new.ratings_avg,
-                        ratings_count: payload.new.ratings_count
-                    })
-
+                    console.log('[Vitrine] 🔄 Realtime: loja atualizada:', payload.new.id)
                     setAllStores(current => current.map(s => {
                         if (s.id === payload.new.id) {
                             return {
                                 ...s,
                                 ...payload.new,
+                                ratings_avg: payload.new.ratings_avg ?? s.ratings_avg,
+                                ratings_count: payload.new.ratings_count ?? s.ratings_count,
                                 store_stats: {
                                     ...s.store_stats,
-                                    ratings_count: payload.new.ratings_count ?? s.store_stats.ratings_count ?? 0,
-                                    ratings_avg: payload.new.ratings_avg ?? s.store_stats.ratings_avg ?? 0,
+                                    ratings_avg: payload.new.ratings_avg ?? s.store_stats.ratings_avg,
+                                    ratings_count: payload.new.ratings_count ?? s.store_stats.ratings_count,
                                 }
                             }
                         }
@@ -225,14 +213,13 @@ export function useVitrineData() {
             )
             .subscribe()
 
-        // Realtime para novos ratings
-        ratingsSubscription = supabase
-            .channel('ratings-realtime-changes')
+        // Realtime para novas avaliações (product_reviews)
+        reviewsSubscription = supabase
+            .channel('reviews-realtime-changes')
             .on('postgres_changes',
-                { event: '*', schema: 'public', table: 'store_ratings' },
+                { event: '*', schema: 'public', table: 'product_reviews' },
                 () => {
-                    console.log('[Vitrine] 🔄 Realtime: nova avaliação detectada, recarregando dados...')
-                    // Recarregar tudo quando houver mudança nos ratings
+                    console.log('[Vitrine] 🔄 Realtime: nova avaliação detectada, recarregando...')
                     fetchData()
                 }
             )
@@ -240,7 +227,7 @@ export function useVitrineData() {
 
         return () => {
             if (storesSubscription) supabase.removeChannel(storesSubscription)
-            if (ratingsSubscription) supabase.removeChannel(ratingsSubscription)
+            if (reviewsSubscription) supabase.removeChannel(reviewsSubscription)
         }
     }, [mapStoreData])
 

@@ -1,10 +1,10 @@
 // src/app/(app)/[profileSlug]/[storeSlug]/visitantes/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Search, User, Clock, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Search, User, Clock, ChevronRight, Eye, CalendarDays, Users } from 'lucide-react'
 import Link from 'next/link'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -19,6 +19,8 @@ interface VisitorData {
         profileSlug: string | null
     } | null
 }
+
+type FilterType = 'today' | 'month' | 'total'
 
 export default function StoreVisitorsPage() {
     const params = useParams()
@@ -36,6 +38,7 @@ export default function StoreVisitorsPage() {
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const [page, setPage] = useState(0)
+    const [activeFilter, setActiveFilter] = useState<FilterType>('total')
     const PAGE_SIZE = 20
 
     useEffect(() => {
@@ -83,13 +86,51 @@ export default function StoreVisitorsPage() {
         loadData()
     }, [storeSlug, profileSlug, supabase, router])
 
-    // Filtrar visitantes pelo nome ou perfil
-    const filteredVisitors = visitors.filter(v => {
-        if (!v.profiles) return false;
-        const nameMatch = v.profiles.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-        const slugMatch = v.profiles.profileSlug?.toLowerCase().includes(searchQuery.toLowerCase()) || false;
-        return nameMatch || slugMatch;
-    })
+    // Estatísticas
+    const now = useMemo(() => new Date(), [])
+    const todayStart = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), [now])
+    const monthStart = useMemo(() => new Date(now.getFullYear(), now.getMonth(), 1).getTime(), [now])
+
+    const totalVisitors = visitors.length
+
+    const todayVisitors = useMemo(() => {
+        return visitors.filter(v => new Date(v.created_at).getTime() >= todayStart).length
+    }, [visitors, todayStart])
+
+    const monthVisitors = useMemo(() => {
+        return visitors.filter(v => new Date(v.created_at).getTime() >= monthStart).length
+    }, [visitors, monthStart])
+
+    // Filtros combinados: primeiro aplica o filtro de período, depois busca textual
+    const filteredVisitors = useMemo(() => {
+        let filtered = visitors
+
+        // Aplicar filtro de período
+        if (activeFilter === 'today') {
+            filtered = filtered.filter(v => new Date(v.created_at).getTime() >= todayStart)
+        } else if (activeFilter === 'month') {
+            filtered = filtered.filter(v => new Date(v.created_at).getTime() >= monthStart)
+        }
+        // 'total' não filtra
+
+        // Aplicar busca textual
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase()
+            filtered = filtered.filter(v => {
+                if (!v.profiles) return false
+                const nameMatch = v.profiles.name?.toLowerCase().includes(query) || false
+                const slugMatch = v.profiles.profileSlug?.toLowerCase().includes(query) || false
+                return nameMatch || slugMatch
+            })
+        }
+
+        return filtered
+    }, [visitors, activeFilter, searchQuery, todayStart, monthStart])
+
+    // Resetar página quando o filtro ou busca mudar
+    useEffect(() => {
+        setPage(0)
+    }, [activeFilter, searchQuery])
 
     const paginatedVisitors = filteredVisitors.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
     const totalPages = Math.ceil(filteredVisitors.length / PAGE_SIZE)
@@ -115,13 +156,53 @@ export default function StoreVisitorsPage() {
                             Visitantes de {store.name}
                         </h1>
                         <p className="text-[8px] font-black uppercase text-gray-400">
-                            {filteredVisitors.length} visitante{filteredVisitors.length !== 1 ? 's' : ''}
+                            {totalVisitors} visitante{totalVisitors !== 1 ? 's' : ''} únicos
                         </p>
                     </div>
                 </div>
             </header>
 
             <main className="relative z-10 px-3 py-4 max-w-2xl mx-auto space-y-4">
+                {/* Cards de estatísticas (clicáveis para filtrar) */}
+                <div className="grid grid-cols-3 gap-2">
+                    {/* Hoje */}
+                    <button
+                        onClick={() => setActiveFilter('today')}
+                        className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'today'
+                                ? 'border-orange-500 bg-orange-50 shadow-md'
+                                : 'border-orange-100 hover:border-orange-300'
+                            }`}
+                    >
+                        <Eye size={16} className="text-orange-500 mx-auto mb-1" />
+                        <p className="text-xl font-black text-gray-900">{todayVisitors}</p>
+                        <p className="text-[8px] font-black uppercase text-gray-500">Hoje</p>
+                    </button>
+                    {/* Mês */}
+                    <button
+                        onClick={() => setActiveFilter('month')}
+                        className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'month'
+                                ? 'border-orange-500 bg-orange-50 shadow-md'
+                                : 'border-orange-100 hover:border-orange-300'
+                            }`}
+                    >
+                        <CalendarDays size={16} className="text-orange-500 mx-auto mb-1" />
+                        <p className="text-xl font-black text-gray-900">{monthVisitors}</p>
+                        <p className="text-[8px] font-black uppercase text-gray-500">Mês</p>
+                    </button>
+                    {/* Total */}
+                    <button
+                        onClick={() => setActiveFilter('total')}
+                        className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'total'
+                                ? 'border-orange-500 bg-orange-50 shadow-md'
+                                : 'border-orange-100 hover:border-orange-300'
+                            }`}
+                    >
+                        <Users size={16} className="text-orange-500 mx-auto mb-1" />
+                        <p className="text-xl font-black text-gray-900">{totalVisitors}</p>
+                        <p className="text-[8px] font-black uppercase text-gray-500">Total</p>
+                    </button>
+                </div>
+
                 {/* Busca */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
@@ -209,8 +290,8 @@ export default function StoreVisitorsPage() {
                                 key={i}
                                 onClick={() => setPage(i)}
                                 className={`w-8 h-8 rounded-full text-xs font-black transition-all ${i === page
-                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                        : 'bg-white border border-orange-200 text-gray-600 hover:bg-orange-50'
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                    : 'bg-white border border-orange-200 text-gray-600 hover:bg-orange-50'
                                     }`}
                             >
                                 {i + 1}

@@ -338,7 +338,7 @@ export default function EditarProduto() {
       name,
       slug,
       description,
-      price: parseFloat(price.replace(",", ".")),
+      price: parseCurrencyToNumber(price),
       type,
       price_type: priceType,
       location: locationString,
