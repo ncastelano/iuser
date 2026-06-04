@@ -21,10 +21,12 @@ import {
     CheckCircle2,
     Trash2,
     Plus,
-    Eye,
     Navigation,
     Shield,
-    Grid3X3
+    Grid3X3,
+    MessageCircle,
+    QrCode,
+    Eye
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -145,9 +147,7 @@ function getTodayKey(): string {
     return days[new Date().getDay()]
 }
 
-function getTodaySchedule(
-    businessHours: Record<string, { open: string; close: string }> | null | undefined
-) {
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
     if (!businessHours) return null
     const todayKey = getTodayKey()
     return businessHours[todayKey] || null
@@ -202,6 +202,93 @@ export default function StorePage() {
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
+    const [expandedDesc, setExpandedDesc] = useState(false)
+    const DESC_LIMIT = 80
+
+    // ═══════════════════════════════════════════════════════════
+    // 🆕 FUNÇÕES DE CAPTURA AVANÇADA
+    // ═══════════════════════════════════════════════════════════
+
+    const getAnonymousId = useCallback(() => {
+        const key = 'iuser_anonymous_id'
+        let id = localStorage.getItem(key)
+        if (!id) {
+            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+            localStorage.setItem(key, id)
+        }
+        return id
+    }, [])
+
+    const getSessionId = useCallback(() => {
+        const key = 'iuser_session_id'
+        let id = sessionStorage.getItem(key)
+        if (!id) {
+            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+            sessionStorage.setItem(key, id)
+        }
+        return id
+    }, [])
+
+    const hasVisitedThisSession = useCallback(() => {
+        const key = `iuser_visited_store_${storeSlug}`
+        if (sessionStorage.getItem(key)) return true
+        sessionStorage.setItem(key, '1')
+        return false
+    }, [storeSlug])
+
+    const getDeviceType = useCallback((): 'mobile' | 'tablet' | 'desktop' => {
+        const ua = navigator.userAgent
+        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
+        if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
+        return 'desktop'
+    }, [])
+
+    const captureVisit = useCallback(async (storeId: string, userId: string | null) => {
+        if (hasVisitedThisSession()) return
+
+        const anonymousId = userId ? null : getAnonymousId()
+        const sessionId = getSessionId()
+        const deviceType = getDeviceType()
+        const referrer = document.referrer || null
+        const userAgent = navigator.userAgent || null
+
+        const { error } = await supabase.from('store_views').insert({
+            store_id: storeId,
+            viewer_id: userId || null,
+            anonymous_id: anonymousId,
+            session_id: sessionId,
+            device_type: deviceType,
+            referrer,
+            user_agent: userAgent,
+            is_anonymous: !userId
+        })
+        if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
+    }, [supabase, getAnonymousId, getSessionId, getDeviceType, hasVisitedThisSession])
+
+    const captureProductView = useCallback(async (productId: string, storeId: string, userId: string | null) => {
+        const anonymousId = userId ? null : getAnonymousId()
+        const sessionId = getSessionId()
+        const deviceType = getDeviceType()
+        const referrer = document.referrer || null
+        const userAgent = navigator.userAgent || null
+
+        const { error } = await supabase.from('product_views').insert({
+            product_id: productId,
+            store_id: storeId,
+            viewer_id: userId || null,
+            anonymous_id: anonymousId,
+            session_id: sessionId,
+            device_type: deviceType,
+            referrer,
+            user_agent: userAgent
+        })
+        if (error) console.warn('[StorePage] Erro ao registrar view do produto:', error.message)
+    }, [supabase, getAnonymousId, getSessionId, getDeviceType])
+
+    // ═══════════════════════════════════════════════════════════
+    // FIM DAS NOVAS FUNÇÕES
+    // ═══════════════════════════════════════════════════════════
+
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
         const query = searchQuery.toLowerCase()
@@ -251,8 +338,7 @@ export default function StorePage() {
     }, [])
 
     const storeUrl = useMemo(() => {
-        const baseUrl =
-            typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
         return `${baseUrl}/${profileSlug}/${storeSlug}`
     }, [profileSlug, storeSlug])
 
@@ -307,30 +393,24 @@ export default function StorePage() {
         const logoUrl = foundStore.logo_url
             ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
             : null
-        const {
-            data: { user },
-        } = await supabase.auth.getUser()
+        const { data: { user } } = await supabase.auth.getUser()
         const userId = user?.id ?? null
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        if (userId && userId !== foundStore.owner_id) {
-            supabase
-                .from('store_views')
-                .insert({ store_id: foundStore.id, viewer_id: userId })
-                .then(({ error: viewError }) => {
-                    if (viewError) console.warn('[StorePage] View:', viewError.message)
-                })
+        // 🆕 Registrar visita (todos os visitantes, uma vez por sessão)
+        if (userId !== foundStore.owner_id) {
+            await captureVisit(foundStore.id, userId)
         }
 
+        // Total de visitantes únicos (logados + anônimos)
         const { data: viewsData } = await supabase
             .from('store_views')
-            .select('viewer_id')
+            .select('viewer_id, anonymous_id')
             .eq('store_id', foundStore.id)
-        const uniqueCount = new Set(
-            (viewsData || []).map((v: any) => v.viewer_id).filter(Boolean)
-        ).size
-        setTotalVisitors(uniqueCount)
+        const uniqueLogados = new Set(viewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
+        const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
+        setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
 
         const { data: productsData } = await supabase
             .from('products')
@@ -340,9 +420,7 @@ export default function StorePage() {
         const mappedProducts = (productsData || []).map(product => ({
             ...product,
             image_url: product.image_url
-                ? supabase.storage
-                    .from('product-images')
-                    .getPublicUrl(product.image_url).data.publicUrl
+                ? supabase.storage.from('product-images').getPublicUrl(product.image_url).data.publicUrl
                 : null,
         }))
 
@@ -393,15 +471,13 @@ export default function StorePage() {
                 profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
                 products: Array.isArray(item.products) ? item.products[0] : item.products,
                 buyer_name: item.profiles?.name || 'Cliente',
-                product_name: item.is_anonymous
-                    ? 'Avaliação da Loja'
-                    : item.products?.name || 'Produto',
+                product_name: item.is_anonymous ? 'Avaliação da Loja' : item.products?.name || 'Produto',
                 buyer_id: item.profiles?.id,
             }))
         )
 
         setLoading(false)
-    }, [loadRatings, storeSlug, supabase])
+    }, [loadRatings, storeSlug, supabase, captureVisit])
 
     useEffect(() => {
         loadStore()
@@ -420,12 +496,11 @@ export default function StorePage() {
 
             const { data: adminViewsData } = await supabase
                 .from('store_views')
-                .select('viewer_id')
+                .select('viewer_id, anonymous_id')
                 .eq('store_id', store.id)
-            const uniqueAdminCount = new Set(
-                (adminViewsData || []).map((v: any) => v.viewer_id).filter(Boolean)
-            ).size
-            setStoreViews(uniqueAdminCount)
+            const uniqueAdminLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
+            const uniqueAdminAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
+            setStoreViews(uniqueAdminLogados.size + uniqueAdminAnonimos.size)
 
             const { count: prodViewsCount } = await supabase
                 .from('product_views')
@@ -444,17 +519,12 @@ export default function StorePage() {
                 let lat: number | null = null
                 let lng: number | null = null
                 if (typeof store.location === 'string') {
-                    const match = store.location.match(
-                        /POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i
-                    )
+                    const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
                     if (match) {
                         lng = parseFloat(match[1])
                         lat = parseFloat(match[2])
                     }
-                } else if (
-                    store.location.type === 'Point' &&
-                    Array.isArray(store.location.coordinates)
-                ) {
+                } else if (store.location.type === 'Point' && Array.isArray(store.location.coordinates)) {
                     lng = store.location.coordinates[0]
                     lat = store.location.coordinates[1]
                 }
@@ -472,6 +542,17 @@ export default function StorePage() {
             window.open(url, '_blank')
         } else {
             toast.error('Localização não disponível')
+        }
+    }
+
+    const handleProductClick = (product: any) => {
+        if (isOwner) {
+            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+        } else {
+            if (store) captureProductView(product.id, store.id, currentUserId)
+            addItem(storeSlug as string, { name: store!.name, logo_url: store!.logo_url ?? null }, product)
+            setCartAnimating(true)
+            setTimeout(() => setCartAnimating(false), 500)
         }
     }
 
@@ -516,6 +597,7 @@ export default function StorePage() {
                 />
             )}
 
+            {/* Header */}
             <header className="sticky top-0 z-50 px-3 py-2.5 border-b border-orange-200/30 bg-white/70 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-2">
                     <button
@@ -524,16 +606,20 @@ export default function StorePage() {
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
+
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* Status Aberto/Fechado */}
-                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/80 border border-orange-200 shadow-sm">
-                            <span
-                                className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
-                            />
-                            <span className="text-[10px] font-black uppercase text-gray-600">
-                                {isStoreOpen ? 'Aberto' : 'Fechado'}
-                            </span>
-                        </div>
+                        <button
+                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
+                            title="Mensagem"
+                        >
+                            <MessageCircle className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
+                        <button
+                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
+                            title="QR Code"
+                        >
+                            <QrCode className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
                         <button
                             onClick={openGoogleMaps}
                             className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
@@ -541,14 +627,6 @@ export default function StorePage() {
                         >
                             <Navigation className="w-3.5 h-3.5 text-gray-500" />
                         </button>
-                        {isOwner && (
-                            <button
-                                onClick={() => setAdminPanelOpen(true)}
-                                className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
-                            >
-                                <Settings className="w-3.5 h-3.5 text-gray-500" />
-                            </button>
-                        )}
                         <button
                             onClick={() => {
                                 if (navigator.share)
@@ -558,24 +636,28 @@ export default function StorePage() {
                         >
                             <Share2 className="w-3.5 h-3.5 text-gray-500" />
                         </button>
+                        {isOwner && (
+                            <button
+                                onClick={() => setAdminPanelOpen(true)}
+                                className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
+                            >
+                                <Settings className="w-3.5 h-3.5 text-gray-500" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
 
             <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
-                {/* Perfil estilo Instagram */}
-                <div className="flex flex-col items-center gap-4">
-                    <div className="relative">
-                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-500 to-red-500 p-[3px] shadow-xl">
+                {/* Perfil da loja - layout horizontal */}
+                <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 p-[2px] shadow-md">
                             <div className="w-full h-full rounded-full overflow-hidden bg-white">
                                 {store.logo_url ? (
-                                    <img
-                                        src={store.logo_url}
-                                        alt={store.name}
-                                        className="w-full h-full object-cover"
-                                    />
+                                    <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-3xl font-black text-orange-500">
+                                    <div className="w-full h-full flex items-center justify-center text-xl font-black text-orange-500">
                                         {store.name?.charAt(0) || '?'}
                                     </div>
                                 )}
@@ -583,75 +665,103 @@ export default function StorePage() {
                         </div>
                     </div>
 
-                    <div className="text-center px-4">
-                        <h2 className="text-xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                            {store.name}
-                        </h2>
-                        {store.description && (
-                            <p className="text-sm text-gray-600 mt-1 max-w-xs">{store.description}</p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-1">@{store.storeSlug}</p>
-                    </div>
-
-                    <div className="flex items-center gap-8">
-                        <div className="text-center">
-                            <p className="text-lg font-black text-gray-800">{totalVisitors}</p>
-                            <p className="text-[10px] text-gray-500 font-medium">visitantes</p>
-                        </div>
-                        <div className="w-px h-8 bg-orange-200" />
-                        <div className="text-center">
-                            <p className="text-lg font-black text-gray-800">{store.ratings_count ?? 0}</p>
-                            <p className="text-[10px] text-gray-500 font-medium">avaliações</p>
-                        </div>
-                        <div className="w-px h-8 bg-orange-200" />
-                        <div className="text-center">
-                            <p className="text-lg font-black text-gray-800">{products.length}</p>
-                            <p className="text-[10px] text-gray-500 font-medium">produtos</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap justify-center">
-                        {store.address && (
-                            <button
-                                onClick={openGoogleMaps}
-                                className="flex items-center gap-1 px-4 py-2 rounded-full bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white transition-all group shadow-sm"
-                            >
-                                <MapPin className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
-                                <span className="text-[10px] font-black uppercase text-red-500 group-hover:text-white">
-                                    {formatAddress(store.address).substring(0, 15)}...
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-base font-black text-gray-800 truncate">{store.name}</h2>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                                <Eye size={12} className="text-gray-400" />
+                                <span className="font-medium">{totalVisitors} visitantes</span>
+                            </div>
+                            <span className="text-gray-300">·</span>
+                            <div className="flex items-center gap-1">
+                                <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
+                                <span className="font-medium">
+                                    {Number(store.ratings_avg || 0).toFixed(1)}
                                 </span>
-                            </button>
-                        )}
-                        {store.allow_scheduling && (
-                            <button
-                                onClick={() => setIsScheduleModalOpen(true)}
-                                className="flex items-center gap-1 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-[10px] uppercase shadow-md"
-                            >
-                                <Calendar className="w-3.5 h-3.5" /> Agendar
-                            </button>
-                        )}
-                        {store.business_hours && Object.keys(store.business_hours).length > 0 && (
-                            <button
-                                onClick={() => setShowAllHours(true)}
-                                className={`flex items-center gap-1 px-4 py-2 rounded-full border font-black text-[10px] uppercase shadow-sm ${(() => {
-                                        const today = getTodaySchedule(store.business_hours)
-                                        return today && isOpenNow(today)
-                                            ? 'bg-green-50 border-green-200 text-green-600'
-                                            : 'bg-gray-50 border-gray-200 text-gray-600'
-                                    })()
-                                    }`}
-                            >
-                                <Clock className="w-3.5 h-3.5" />
-                                {(() => {
-                                    const today = getTodaySchedule(store.business_hours)
-                                    return today && isOpenNow(today) ? 'Aberto' : 'Horários'
-                                })()}
-                            </button>
-                        )}
+                                <span className="text-gray-400">({store.ratings_count ?? 0})</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                            <span
+                                className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
+                            />
+                            <span className="text-[10px] font-black uppercase text-gray-500">
+                                {isStoreOpen ? 'Aberto' : 'Fechado'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Agendados Hoje + botão Agendar (aparece em qualquer tab) */}
+                {/* Descrição com ver mais / ver menos */}
+                {store.description && (
+                    <div className="text-sm text-gray-600 leading-relaxed">
+                        {expandedDesc || (store.description.length <= DESC_LIMIT) ? (
+                            <>
+                                {store.description}
+                                {store.description.length > DESC_LIMIT && (
+                                    <button
+                                        onClick={() => setExpandedDesc(false)}
+                                        className="text-orange-500 font-bold ml-1"
+                                    >
+                                        ver menos
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {store.description.slice(0, DESC_LIMIT)}...
+                                <button
+                                    onClick={() => setExpandedDesc(true)}
+                                    className="text-orange-500 font-bold ml-1"
+                                >
+                                    ver mais
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Botões de ação e agendados */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {store.address && (
+                        <button
+                            onClick={openGoogleMaps}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white transition-all group shadow-sm"
+                        >
+                            <MapPin className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
+                            <span className="text-[10px] font-black uppercase text-red-500 group-hover:text-white">
+                                {formatAddress(store.address).substring(0, 15)}...
+                            </span>
+                        </button>
+                    )}
+                    {store.allow_scheduling && (
+                        <button
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-[10px] uppercase shadow-md"
+                        >
+                            <Calendar className="w-3.5 h-3.5" /> Agendar
+                        </button>
+                    )}
+                    {store.business_hours && Object.keys(store.business_hours).length > 0 && (
+                        <button
+                            onClick={() => setShowAllHours(true)}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm ${(() => {
+                                const today = getTodaySchedule(store.business_hours)
+                                return today && isOpenNow(today)
+                                    ? 'bg-green-50 border-green-200 text-green-600'
+                                    : 'bg-gray-50 border-gray-200 text-gray-600'
+                            })()
+                                }`}
+                        >
+                            <Clock className="w-3.5 h-3.5" />
+                            {(() => {
+                                const today = getTodaySchedule(store.business_hours)
+                                return today && isOpenNow(today) ? 'Aberto' : 'Horários'
+                            })()}
+                        </button>
+                    )}
+                </div>
+
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
                         <h4 className="text-[10px] font-black uppercase text-blue-600">Agendados Hoje</h4>
@@ -724,7 +834,7 @@ export default function StorePage() {
                     </button>
                 )}
 
-                {/* Tabs: apenas Produtos e Avaliações */}
+                {/* Abas: Produtos e Avaliações */}
                 <div className="flex gap-1 bg-white/60 backdrop-blur-sm rounded-xl p-1 border border-orange-100">
                     {[
                         { key: 'products', label: 'Produtos', icon: Grid3X3 },
@@ -734,8 +844,8 @@ export default function StorePage() {
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key as TabType)}
                             className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key
-                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                : 'text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             <tab.icon className="w-3.5 h-3.5" />
@@ -778,24 +888,10 @@ export default function StorePage() {
                                             return (
                                                 <div
                                                     key={product.id}
-                                                    onClick={() => {
-                                                        if (isOwner) {
-                                                            router.push(
-                                                                `/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`
-                                                            )
-                                                        } else {
-                                                            addItem(
-                                                                storeSlug as string,
-                                                                { name: store.name, logo_url: store.logo_url ?? null },
-                                                                product
-                                                            )
-                                                            setCartAnimating(true)
-                                                            setTimeout(() => setCartAnimating(false), 500)
-                                                        }
-                                                    }}
+                                                    onClick={() => handleProductClick(product)}
                                                     className={`relative bg-white rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected
-                                                            ? 'ring-2 ring-orange-500 border-orange-500'
-                                                            : 'border-orange-100 hover:border-orange-300'
+                                                        ? 'ring-2 ring-orange-500 border-orange-500'
+                                                        : 'border-orange-100 hover:border-orange-300'
                                                         }`}
                                                 >
                                                     <div className="aspect-square bg-gradient-to-br from-orange-50 to-red-50 overflow-hidden">
@@ -903,6 +999,7 @@ export default function StorePage() {
 
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
+                        {/* Resumo geral das avaliações */}
                         {ratings.length > 0 && (
                             <div className="flex items-center justify-between bg-white/50 rounded-xl p-3 border border-orange-100">
                                 <div className="flex items-center gap-2">
@@ -942,72 +1039,7 @@ export default function StorePage() {
                             </div>
                         )}
 
-                        {recentSales.length > 0 && (
-                            <div className="space-y-2">
-                                <h4 className="text-[10px] font-black uppercase text-orange-600 flex items-center gap-2">
-                                    <Sparkles className="w-3 h-3" /> Compraram aqui
-                                </h4>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {recentSales.slice(0, 4).map((sale, i) => (
-                                        <div
-                                            key={sale.id || i}
-                                            className="group bg-white/70 backdrop-blur-sm border border-orange-100 rounded-2xl p-3 hover:border-orange-300 hover:bg-white hover:shadow-lg transition-all duration-300"
-                                        >
-                                            <div className="flex items-center gap-2.5 mb-2">
-                                                <div className="relative">
-                                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-md ring-2 ring-orange-100">
-                                                        {sale.profiles?.avatar_url ? (
-                                                            <img
-                                                                src={getAvatarUrl(supabase, sale.profiles.avatar_url)!}
-                                                                className="w-full h-full object-cover rounded-full"
-                                                                alt=""
-                                                            />
-                                                        ) : (
-                                                            <span className="text-xs font-black text-white">
-                                                                {sale.buyer_name?.charAt(0) || '?'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="absolute -bottom-0.5 -right-0.5 px-1 bg-green-500 rounded-full flex items-center justify-center ring-1 ring-white shadow-sm">
-                                                        <span className="text-[6px] font-black text-white">
-                                                            {sale.rating}
-                                                        </span>
-                                                        <Star className="w-1.5 h-1.5 text-white fill-white ml-0.5" />
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">
-                                                        {sale.buyer_name || 'Cliente'}
-                                                    </p>
-                                                    <div className="flex items-center gap-1">
-                                                        <RatingStars value={sale.rating || 0} size={8} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-2 border border-orange-100/50">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
-                                                        <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-[9px] font-bold text-gray-700 truncate leading-tight">
-                                                            {sale.product_name}
-                                                        </p>
-                                                        <p className="text-[7px] text-gray-400 font-medium">
-                                                            {new Date(sale.created_at).toLocaleDateString('pt-BR', {
-                                                                day: '2-digit',
-                                                                month: 'short',
-                                                            })}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
+                        {/* Lista de avaliações */}
                         {ratings.length === 0 ? (
                             <div className="py-12 text-center bg-white/50 rounded-2xl border border-dashed border-orange-200">
                                 <Star className="w-10 h-10 text-orange-300 mx-auto mb-2" />
@@ -1065,7 +1097,7 @@ export default function StorePage() {
                                                 </div>
                                                 <div className="mb-1">
                                                     <RatingStars value={rating.rating} size={12} />
-                                                    {rating.products?.name && (
+                                                    {!rating.is_anonymous && rating.products?.name && (
                                                         <span className="ml-2 text-[10px] font-black text-orange-500 uppercase tracking-wider bg-orange-100 px-2 py-0.5 rounded-full">
                                                             {rating.products.name}
                                                         </span>
