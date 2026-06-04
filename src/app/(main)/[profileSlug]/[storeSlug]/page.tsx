@@ -21,7 +21,10 @@ import {
     CheckCircle2,
     Trash2,
     Plus,
-    Eye
+    Eye,
+    Navigation,
+    Shield,
+    Grid3X3
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -29,7 +32,7 @@ import { getAvatarUrl } from '@/lib/avatar'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { StoreFlow } from '../../eu/components/StoreFlow' // ajuste o caminho conforme necessário
+import { StoreFlow } from '../../eu/components/StoreFlow'
 import { useCartStore } from '@/store/useCartStore'
 
 type RatingRow = {
@@ -37,11 +40,16 @@ type RatingRow = {
     rating: number
     profile_id: string
     created_at: string
+    comment?: string
+    is_anonymous?: boolean
     profiles?: {
         id: string
         name: string | null
         avatar_url: string | null
         profileSlug?: string | null
+    } | null
+    products?: {
+        name: string
     } | null
 }
 
@@ -95,6 +103,7 @@ type StoreType = {
     category_order?: string[] | null
     allow_scheduling?: boolean
     business_hours?: Record<string, { open: string; close: string }> | null
+    location?: any
 }
 
 const formatAddress = (fullAddress: string | null | undefined): string => {
@@ -121,7 +130,6 @@ const formatAddress = (fullAddress: string | null | undefined): string => {
     return fullAddress.length > 30 ? fullAddress.substring(0, 27) + '...' : fullAddress
 }
 
-// Constantes e funções auxiliares para os horários
 const DAY_LABELS: Record<string, string> = {
     mon: 'Segunda-feira',
     tue: 'Terça-feira',
@@ -130,32 +138,36 @@ const DAY_LABELS: Record<string, string> = {
     fri: 'Sexta-feira',
     sat: 'Sábado',
     sun: 'Domingo',
-};
-
-function getTodayKey(): string {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    return days[new Date().getDay()];
 }
 
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null;
-    const todayKey = getTodayKey();
-    return businessHours[todayKey] || null;
+function getTodayKey(): string {
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+    return days[new Date().getDay()]
+}
+
+function getTodaySchedule(
+    businessHours: Record<string, { open: string; close: string }> | null | undefined
+) {
+    if (!businessHours) return null
+    const todayKey = getTodayKey()
+    return businessHours[todayKey] || null
 }
 
 function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false;
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const [openH, openM] = schedule.open.split(':').map(Number);
-    let [closeH, closeM] = schedule.close.split(':').map(Number);
+    if (!schedule || !schedule.open || !schedule.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = schedule.open.split(':').map(Number)
+    let [closeH, closeM] = schedule.close.split(':').map(Number)
     if (closeH === 0 && closeM === 0) {
-        closeH = 24;
+        closeH = 24
     }
-    const openMinutes = openH * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
 }
+
+type TabType = 'products' | 'reviews'
 
 export default function StorePage() {
     const params = useParams()
@@ -181,17 +193,14 @@ export default function StorePage() {
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
     const [supabase] = useState(() => createClient())
 
-    // Controle do painel de administração
     const [adminPanelOpen, setAdminPanelOpen] = useState(false)
     const [adminSales, setAdminSales] = useState<any[]>([])
     const [storeViews, setStoreViews] = useState(0)
     const [productViews, setProductViews] = useState(0)
 
-    // Controle do modal de horários
     const [showAllHours, setShowAllHours] = useState(false)
-
-    // Visitantes totais (exibido publicamente)
     const [totalVisitors, setTotalVisitors] = useState(0)
+    const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
@@ -212,6 +221,15 @@ export default function StorePage() {
         })
         return groups
     }, [filteredProducts])
+
+    const isStoreOpen = useMemo(() => {
+        if (!store) return false
+        const todaySchedule = getTodaySchedule(store.business_hours)
+        if (todaySchedule) {
+            return isOpenNow(todaySchedule)
+        }
+        return store.is_open
+    }, [store])
 
     const toggleScheduling = async () => {
         if (!store) return
@@ -243,14 +261,15 @@ export default function StorePage() {
             const { data, error: ratingsError } = await supabase
                 .from('product_reviews')
                 .select(
-                    'id, rating, profile_id, created_at, profiles(id, name, avatar_url, "profileSlug")'
+                    'id, rating, comment, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")'
                 )
                 .eq('store_id', storeId)
                 .order('created_at', { ascending: false })
             if (ratingsError) return
             const rows = (data || []).map((r: any) => ({
                 ...r,
-                profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles
+                profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+                products: Array.isArray(r.products) ? r.products[0] : r.products,
             })) as RatingRow[]
             setRatings(rows)
             if (rows.length > 0) {
@@ -289,13 +308,12 @@ export default function StorePage() {
             ? supabase.storage.from('store-logos').getPublicUrl(foundStore.logo_url).data.publicUrl
             : null
         const {
-            data: { user }
+            data: { user },
         } = await supabase.auth.getUser()
         const userId = user?.id ?? null
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        // Registrar visita (apenas para usuários logados e que não são donos)
         if (userId && userId !== foundStore.owner_id) {
             supabase
                 .from('store_views')
@@ -305,12 +323,13 @@ export default function StorePage() {
                 })
         }
 
-        // Contar total de visitantes únicos (para exibição pública)
         const { data: viewsData } = await supabase
             .from('store_views')
             .select('viewer_id')
             .eq('store_id', foundStore.id)
-        const uniqueCount = new Set((viewsData || []).map((v: any) => v.viewer_id).filter(Boolean)).size
+        const uniqueCount = new Set(
+            (viewsData || []).map((v: any) => v.viewer_id).filter(Boolean)
+        ).size
         setTotalVisitors(uniqueCount)
 
         const { data: productsData } = await supabase
@@ -324,7 +343,7 @@ export default function StorePage() {
                 ? supabase.storage
                     .from('product-images')
                     .getPublicUrl(product.image_url).data.publicUrl
-                : null
+                : null,
         }))
 
         let storeWhatsapp = foundStore.whatsapp
@@ -355,7 +374,7 @@ export default function StorePage() {
         setAppointmentsToday(
             (todayData || []).map((item: any) => ({
                 ...item,
-                profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+                profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
             }))
         )
 
@@ -377,7 +396,7 @@ export default function StorePage() {
                 product_name: item.is_anonymous
                     ? 'Avaliação da Loja'
                     : item.products?.name || 'Produto',
-                buyer_id: item.profiles?.id
+                buyer_id: item.profiles?.id,
             }))
         )
 
@@ -388,11 +407,9 @@ export default function StorePage() {
         loadStore()
     }, [loadStore])
 
-    // Carrega dados administrativos quando o painel é aberto
     useEffect(() => {
         if (!adminPanelOpen || !store) return
         const loadAdminData = async () => {
-            // Vendas para o StoreFlow
             const { data: salesData } = await supabase
                 .from('store_sales')
                 .select('*')
@@ -401,15 +418,15 @@ export default function StorePage() {
                 .limit(50)
             setAdminSales(salesData || [])
 
-            // Contagem de visitantes únicos na loja (para o painel)
             const { data: adminViewsData } = await supabase
                 .from('store_views')
                 .select('viewer_id')
                 .eq('store_id', store.id)
-            const uniqueAdminCount = new Set((adminViewsData || []).map((v: any) => v.viewer_id).filter(Boolean)).size
+            const uniqueAdminCount = new Set(
+                (adminViewsData || []).map((v: any) => v.viewer_id).filter(Boolean)
+            ).size
             setStoreViews(uniqueAdminCount)
 
-            // Contagem de visitas em produtos (opcional – só se a tabela existir)
             const { count: prodViewsCount } = await supabase
                 .from('product_views')
                 .select('*', { count: 'exact', head: true })
@@ -418,6 +435,45 @@ export default function StorePage() {
         }
         loadAdminData()
     }, [adminPanelOpen, store, supabase])
+
+    const openGoogleMaps = () => {
+        if (!store) return
+        let url = ''
+        if (store.location) {
+            try {
+                let lat: number | null = null
+                let lng: number | null = null
+                if (typeof store.location === 'string') {
+                    const match = store.location.match(
+                        /POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i
+                    )
+                    if (match) {
+                        lng = parseFloat(match[1])
+                        lat = parseFloat(match[2])
+                    }
+                } else if (
+                    store.location.type === 'Point' &&
+                    Array.isArray(store.location.coordinates)
+                ) {
+                    lng = store.location.coordinates[0]
+                    lat = store.location.coordinates[1]
+                }
+                if (lat !== null && lng !== null) {
+                    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+                }
+            } catch (e) {
+                console.error('Erro ao extrair coordenadas:', e)
+            }
+        }
+        if (!url && store.address) {
+            url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`
+        }
+        if (url) {
+            window.open(url, '_blank')
+        } else {
+            toast.error('Localização não disponível')
+        }
+    }
 
     if (loading) return <LoadingSpinner />
 
@@ -462,27 +518,29 @@ export default function StorePage() {
 
             <header className="sticky top-0 z-50 px-3 py-2.5 border-b border-orange-200/30 bg-white/70 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <button
-                            onClick={() => router.push('/')}
-                            className="flex w-9 h-9 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm flex-shrink-0"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </button>
-                        <div className="min-w-0">
-                            <h1 className="text-sm font-black text-gray-800 truncate">{store.name}</h1>
-                            <div className="flex items-center gap-1">
-                                <span
-                                    className={`w-1.5 h-1.5 rounded-full ${store.is_open ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
-                                />
-                                <span className="text-[8px] font-black uppercase tracking-wider text-gray-400">
-                                    {store.is_open ? 'Aberto' : 'Fechado'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    <button
+                        onClick={() => router.push('/')}
+                        className="flex w-9 h-9 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm flex-shrink-0"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                    </button>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* Apenas ícone de engrenagem para o dono */}
+                        {/* Status Aberto/Fechado */}
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/80 border border-orange-200 shadow-sm">
+                            <span
+                                className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
+                            />
+                            <span className="text-[10px] font-black uppercase text-gray-600">
+                                {isStoreOpen ? 'Aberto' : 'Fechado'}
+                            </span>
+                        </div>
+                        <button
+                            onClick={openGoogleMaps}
+                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
+                            title="Como chegar"
+                        >
+                            <Navigation className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
                         {isOwner && (
                             <button
                                 onClick={() => setAdminPanelOpen(true)}
@@ -505,215 +563,98 @@ export default function StorePage() {
             </header>
 
             <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
-                {/* Logo + Nome da loja */}
-                <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-lg flex-shrink-0 border-2 border-white">
-                        {store.logo_url ? (
-                            <img
-                                src={store.logo_url}
-                                className="w-full h-full object-cover rounded-full"
-                                alt=""
-                            />
-                        ) : (
-                            <span className="text-xl font-black text-white">
-                                {store.name?.charAt(0)}
-                            </span>
-                        )}
+                {/* Perfil estilo Instagram */}
+                <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-500 to-red-500 p-[3px] shadow-xl">
+                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                {store.logo_url ? (
+                                    <img
+                                        src={store.logo_url}
+                                        alt={store.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-3xl font-black text-orange-500">
+                                        {store.name?.charAt(0) || '?'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent truncate">
+
+                    <div className="text-center px-4">
+                        <h2 className="text-xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
                             {store.name}
                         </h2>
                         {store.description && (
-                            <p className="text-[11px] text-gray-500 line-clamp-1">
-                                {store.description}
-                            </p>
+                            <p className="text-sm text-gray-600 mt-1 max-w-xs">{store.description}</p>
                         )}
-                        {/* Contador de visitantes */}
-                        <div className="flex items-center gap-1 mt-1">
-                            <Eye size={12} className="text-orange-400" />
-                            <span className="text-[10px] font-bold text-orange-500">
-                                {totalVisitors} {totalVisitors === 1 ? 'visitante' : 'visitantes'}
-                            </span>
+                        <p className="text-xs text-gray-400 mt-1">@{store.storeSlug}</p>
+                    </div>
+
+                    <div className="flex items-center gap-8">
+                        <div className="text-center">
+                            <p className="text-lg font-black text-gray-800">{totalVisitors}</p>
+                            <p className="text-[10px] text-gray-500 font-medium">visitantes</p>
+                        </div>
+                        <div className="w-px h-8 bg-orange-200" />
+                        <div className="text-center">
+                            <p className="text-lg font-black text-gray-800">{store.ratings_count ?? 0}</p>
+                            <p className="text-[10px] text-gray-500 font-medium">avaliações</p>
+                        </div>
+                        <div className="w-px h-8 bg-orange-200" />
+                        <div className="text-center">
+                            <p className="text-lg font-black text-gray-800">{products.length}</p>
+                            <p className="text-[10px] text-gray-500 font-medium">produtos</p>
                         </div>
                     </div>
-                </div>
 
-                {/* Botões de ação (endereço, agendar) */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    {store.address && (
-                        <button
-                            onClick={() => {
-                                if (store.address) {
-                                    window.open(
-                                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address)}`,
-                                        '_blank'
-                                    )
-                                }
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white transition-all group shadow-sm"
-                        >
-                            <MapPin className="w-3 h-3 text-red-500 group-hover:text-white" />
-                            <span className="text-[9px] font-black uppercase text-red-500 group-hover:text-white truncate max-w-[120px]">
-                                {formatAddress(store.address)}
-                            </span>
-                        </button>
-                    )}
-
-                    {store.allow_scheduling && (
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-[9px] uppercase shadow-md"
-                        >
-                            <Calendar className="w-3 h-3" /> Agendar
-                        </button>
-                    )}
-                </div>
-
-                {/* NOVO WIDGET DE HORÁRIOS */}
-                {store.business_hours && Object.keys(store.business_hours).length > 0 && (
-                    <div
-                        onClick={() => setShowAllHours(true)}
-                        className={`cursor-pointer flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-sm ${(() => {
-                            const today = getTodaySchedule(store.business_hours);
-                            return today && isOpenNow(today)
-                                ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
-                                : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200';
-                        })()
-                            }`}
-                    >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${(() => {
-                            const today = getTodaySchedule(store.business_hours);
-                            return today && isOpenNow(today) ? 'bg-green-500 text-white' : 'bg-gray-400 text-white';
-                        })()
-                            }`}>
-                            <Clock size={20} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-500">
-                                Horário de Hoje
-                            </p>
-                            {getTodaySchedule(store.business_hours) ? (
-                                <p className="text-sm font-bold text-gray-800">
-                                    {getTodaySchedule(store.business_hours)!.open.slice(0, 5)} - {getTodaySchedule(store.business_hours)!.close.slice(0, 5)}
-                                </p>
-                            ) : (
-                                <p className="text-sm font-bold text-gray-800">Fechado hoje</p>
-                            )}
-                            <p className="text-[9px] text-gray-400 font-medium">
-                                {DAY_LABELS[getTodayKey()]}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${(() => {
-                                const today = getTodaySchedule(store.business_hours);
-                                return today && isOpenNow(today) ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500';
-                            })()
-                                }`}>
-                                {(() => {
-                                    const today = getTodaySchedule(store.business_hours);
-                                    return today && isOpenNow(today) ? 'Aberto' : 'Fechado';
-                                })()}
-                            </div>
-                            <ChevronRight size={16} className="text-gray-400" />
-                        </div>
-                    </div>
-                )}
-
-                {/* MODAL COM TODOS OS HORÁRIOS (centralizado e rolável) */}
-                {showAllHours && store.business_hours && (
-                    <div
-                        className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                        onClick={() => setShowAllHours(false)}
-                    >
-                        <div
-                            className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-black text-gray-800">Horários de Funcionamento</h3>
-                                <button onClick={() => setShowAllHours(false)} className="text-2xl">&times;</button>
-                            </div>
-                            <div className="space-y-2">
-                                {Object.entries(DAY_LABELS).map(([key, label]) => {
-                                    const schedule = store.business_hours![key];
-                                    return (
-                                        <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                                            <span className="text-sm font-bold text-gray-700">{label}</span>
-                                            {schedule && schedule.open && schedule.close ? (
-                                                <span className="text-sm text-gray-600">
-                                                    {schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}
-                                                </span>
-                                            ) : (
-                                                <span className="text-sm text-gray-400 italic">Fechado</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Avaliações */}
-                {ratings.length > 0 && (
-                    <div className="flex items-center justify-between bg-white/50 rounded-xl p-2.5 border border-orange-100">
-                        <div className="flex items-center gap-2">
-                            <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
-                            <span className="text-xs font-black text-gray-700">
-                                {Number(store.ratings_avg || 0).toFixed(1)}
-                            </span>
+                    <div className="flex items-center gap-2 flex-wrap justify-center">
+                        {store.address && (
                             <button
-                                onClick={() =>
-                                    router.push(`/${profileSlug}/${store.storeSlug}/avaliacoes`)
-                                }
-                                className="text-[9px] font-bold text-orange-500"
+                                onClick={openGoogleMaps}
+                                className="flex items-center gap-1 px-4 py-2 rounded-full bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white transition-all group shadow-sm"
                             >
-                                ({store.ratings_count ?? 0})
-                            </button>
-                            {myRating > 0 && (
-                                <span className="text-[8px] font-black text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full">
-                                    ✓
+                                <MapPin className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
+                                <span className="text-[10px] font-black uppercase text-red-500 group-hover:text-white">
+                                    {formatAddress(store.address).substring(0, 15)}...
                                 </span>
-                            )}
-                        </div>
-                        <div className="flex -space-x-1.5">
-                            {ratings.slice(0, 3).map((r, i) => (
-                                <div
-                                    key={i}
-                                    className="w-6 h-6 rounded-full ring-1 ring-white border border-orange-200 bg-white overflow-hidden"
-                                >
-                                    {r.profiles?.avatar_url ? (
-                                        <img
-                                            src={getAvatarUrl(supabase, r.profiles.avatar_url)!}
-                                            className="w-full h-full object-cover"
-                                            alt=""
-                                        />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-gray-400">
-                                            {r.profiles?.name?.charAt(0) || '?'}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                            </button>
+                        )}
+                        {store.allow_scheduling && (
+                            <button
+                                onClick={() => setIsScheduleModalOpen(true)}
+                                className="flex items-center gap-1 px-4 py-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-[10px] uppercase shadow-md"
+                            >
+                                <Calendar className="w-3.5 h-3.5" /> Agendar
+                            </button>
+                        )}
+                        {store.business_hours && Object.keys(store.business_hours).length > 0 && (
+                            <button
+                                onClick={() => setShowAllHours(true)}
+                                className={`flex items-center gap-1 px-4 py-2 rounded-full border font-black text-[10px] uppercase shadow-sm ${(() => {
+                                        const today = getTodaySchedule(store.business_hours)
+                                        return today && isOpenNow(today)
+                                            ? 'bg-green-50 border-green-200 text-green-600'
+                                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                                    })()
+                                    }`}
+                            >
+                                <Clock className="w-3.5 h-3.5" />
+                                {(() => {
+                                    const today = getTodaySchedule(store.business_hours)
+                                    return today && isOpenNow(today) ? 'Aberto' : 'Horários'
+                                })()}
+                            </button>
+                        )}
                     </div>
-                )}
+                </div>
 
-                {/* Agendados Hoje */}
+                {/* Agendados Hoje + botão Agendar (aparece em qualquer tab) */}
                 {appointmentsToday.length > 0 && (
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-orange-200 to-transparent" />
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full border border-blue-100">
-                                <Clock className="w-3 h-3 text-blue-500" />
-                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600 whitespace-nowrap">
-                                    Agendados Hoje
-                                </h3>
-                            </div>
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-orange-200 to-transparent" />
-                        </div>
-
+                    <div className="space-y-2">
+                        <h4 className="text-[10px] font-black uppercase text-blue-600">Agendados Hoje</h4>
                         <div className="grid grid-cols-2 gap-2">
                             {appointmentsToday.slice(0, 4).map((appt, i) => (
                                 <div
@@ -729,10 +670,7 @@ export default function StorePage() {
                                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-md ring-2 ring-blue-100">
                                                 {appt.profiles?.avatar_url ? (
                                                     <img
-                                                        src={getAvatarUrl(
-                                                            supabase,
-                                                            appt.profiles.avatar_url
-                                                        )!}
+                                                        src={getAvatarUrl(supabase, appt.profiles.avatar_url)!}
                                                         className="w-full h-full object-cover rounded-full"
                                                         alt=""
                                                     />
@@ -745,10 +683,10 @@ export default function StorePage() {
                                             <div className="absolute -bottom-0.5 -right-0.5 bg-orange-500 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center">
                                                 <Clock className="w-2 h-2 text-white mr-0.5" />
                                                 <span className="text-[6px] font-black text-white">
-                                                    {new Date(appt.start_time).toLocaleTimeString(
-                                                        'pt-BR',
-                                                        { hour: '2-digit', minute: '2-digit' }
-                                                    )}
+                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', {
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                    })}
                                                 </span>
                                             </div>
                                         </div>
@@ -761,7 +699,6 @@ export default function StorePage() {
                                             </p>
                                         </div>
                                     </div>
-
                                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-2 border border-blue-100/50">
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
@@ -778,234 +715,416 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Busca */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
-                    <input
-                        type="text"
-                        placeholder="procurar..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full bg-white border border-orange-200 rounded-xl py-2 pl-8 pr-3 text-xs text-gray-800 placeholder:text-orange-300 focus:outline-none focus:border-orange-500 transition-all"
-                    />
+                {store.allow_scheduling && (
+                    <button
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
+                    >
+                        <Calendar className="w-4 h-4 inline mr-1" /> Agendar
+                    </button>
+                )}
+
+                {/* Tabs: apenas Produtos e Avaliações */}
+                <div className="flex gap-1 bg-white/60 backdrop-blur-sm rounded-xl p-1 border border-orange-100">
+                    {[
+                        { key: 'products', label: 'Produtos', icon: Grid3X3 },
+                        { key: 'reviews', label: 'Avaliações', icon: Star },
+                    ].map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key as TabType)}
+                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key
+                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            <tab.icon className="w-3.5 h-3.5" />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
-                {/* Lista de produtos (com preços formatados e sufixo /h) */}
-                {filteredProducts.length === 0 ? (
-                    <div className="py-8 text-center rounded-xl border border-dashed border-orange-200 bg-white/50">
-                        <Search className="w-6 h-6 text-orange-300 mx-auto mb-1" />
-                        <p className="text-gray-400 font-bold text-[10px] uppercase">
-                            Nenhum produto
-                        </p>
-                    </div>
-                ) : (
-                    Object.entries(groupedProducts).map(([category, products]) => (
-                        <div key={category} className="space-y-2">
-                            <h4 className="text-[8px] font-black uppercase tracking-[0.3em] bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
-                                {category}
-                            </h4>
+                {/* Conteúdo das tabs */}
+                {activeTab === 'products' && (
+                    <>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
+                            <input
+                                type="text"
+                                placeholder="procurar..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full bg-white border border-orange-200 rounded-xl py-2 pl-8 pr-3 text-xs text-gray-800 placeholder:text-orange-300 focus:outline-none focus:border-orange-500 transition-all"
+                            />
+                        </div>
+
+                        {filteredProducts.length === 0 ? (
+                            <div className="py-8 text-center rounded-xl border border-dashed border-orange-200 bg-white/50">
+                                <Search className="w-6 h-6 text-orange-300 mx-auto mb-1" />
+                                <p className="text-gray-400 font-bold text-[10px] uppercase">Nenhum produto</p>
+                            </div>
+                        ) : (
+                            Object.entries(groupedProducts).map(([category, products]) => (
+                                <div key={category} className="space-y-2">
+                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em] bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+                                        {category}
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {products.map(product => {
+                                            const isSelected =
+                                                mounted &&
+                                                cartItems.some((item: any) => item.product.id === product.id)
+                                            const isHourly = product.price_type === 'hourly'
+                                            return (
+                                                <div
+                                                    key={product.id}
+                                                    onClick={() => {
+                                                        if (isOwner) {
+                                                            router.push(
+                                                                `/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`
+                                                            )
+                                                        } else {
+                                                            addItem(
+                                                                storeSlug as string,
+                                                                { name: store.name, logo_url: store.logo_url ?? null },
+                                                                product
+                                                            )
+                                                            setCartAnimating(true)
+                                                            setTimeout(() => setCartAnimating(false), 500)
+                                                        }
+                                                    }}
+                                                    className={`relative bg-white rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected
+                                                            ? 'ring-2 ring-orange-500 border-orange-500'
+                                                            : 'border-orange-100 hover:border-orange-300'
+                                                        }`}
+                                                >
+                                                    <div className="aspect-square bg-gradient-to-br from-orange-50 to-red-50 overflow-hidden">
+                                                        {product.image_url ? (
+                                                            <img
+                                                                src={product.image_url}
+                                                                className="w-full h-full object-cover"
+                                                                alt=""
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-orange-300 text-xl font-black">
+                                                                {product.name?.charAt(0) || '?'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-2.5">
+                                                        <h4 className="text-xs font-black text-gray-800 line-clamp-1">
+                                                            {product.name}
+                                                        </h4>
+                                                        <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
+                                                            {product.description || 'Sem descrição'}
+                                                        </p>
+                                                        <div className="flex items-center justify-between mt-2">
+                                                            <div>
+                                                                <span className="text-sm font-black text-orange-600">
+                                                                    R${' '}
+                                                                    {(product.price || 0).toLocaleString('pt-BR', {
+                                                                        minimumFractionDigits: 2,
+                                                                    })}
+                                                                </span>
+                                                                {isHourly && (
+                                                                    <span className="text-[9px] font-bold text-gray-400 ml-1">
+                                                                        /h
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {isOwner ? (
+                                                                <button
+                                                                    onClick={e => {
+                                                                        e.stopPropagation()
+                                                                        router.push(
+                                                                            `/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`
+                                                                        )
+                                                                    }}
+                                                                    className="w-7 h-7 rounded-full bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center"
+                                                                >
+                                                                    <ExternalLink className="w-3 h-3" />
+                                                                </button>
+                                                            ) : mounted && isSelected ? (
+                                                                <div className="flex items-center gap-1">
+                                                                    <button
+                                                                        onClick={e => {
+                                                                            e.stopPropagation()
+                                                                            router.push('/sacola')
+                                                                        }}
+                                                                        className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md"
+                                                                    >
+                                                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={e => {
+                                                                            e.stopPropagation()
+                                                                            removeItem(storeSlug as string, product.id)
+                                                                        }}
+                                                                        className="w-7 h-7 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center justify-center"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={e => {
+                                                                        e.stopPropagation()
+                                                                        addItem(
+                                                                            storeSlug as string,
+                                                                            { name: store.name, logo_url: store.logo_url ?? null },
+                                                                            product
+                                                                        )
+                                                                    }}
+                                                                    className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md"
+                                                                >
+                                                                    <Plus className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        {product.type && (
+                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase bg-white/80 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-orange-500">
+                                                                {product.type === 'physical'
+                                                                    ? 'Produto'
+                                                                    : product.type === 'service'
+                                                                        ? 'Serviço'
+                                                                        : 'Digital'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </>
+                )}
+
+                {activeTab === 'reviews' && (
+                    <div className="space-y-4">
+                        {ratings.length > 0 && (
+                            <div className="flex items-center justify-between bg-white/50 rounded-xl p-3 border border-orange-100">
+                                <div className="flex items-center gap-2">
+                                    <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
+                                    <span className="text-xs font-black text-gray-700">
+                                        {Number(store.ratings_avg || 0).toFixed(1)}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-orange-500">
+                                        ({store.ratings_count ?? 0})
+                                    </span>
+                                    {myRating > 0 && (
+                                        <span className="text-[8px] font-black text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full">
+                                            ✓
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex -space-x-1.5">
+                                    {ratings.slice(0, 3).map((r, i) => (
+                                        <div
+                                            key={i}
+                                            className="w-6 h-6 rounded-full ring-1 ring-white border border-orange-200 bg-white overflow-hidden"
+                                        >
+                                            {r.profiles?.avatar_url ? (
+                                                <img
+                                                    src={getAvatarUrl(supabase, r.profiles.avatar_url)!}
+                                                    className="w-full h-full object-cover"
+                                                    alt=""
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-gray-400">
+                                                    {r.profiles?.name?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {recentSales.length > 0 && (
                             <div className="space-y-2">
-                                {products.map(product => {
-                                    const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
-                                    const isHourly = product.price_type === 'hourly'
+                                <h4 className="text-[10px] font-black uppercase text-orange-600 flex items-center gap-2">
+                                    <Sparkles className="w-3 h-3" /> Compraram aqui
+                                </h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {recentSales.slice(0, 4).map((sale, i) => (
+                                        <div
+                                            key={sale.id || i}
+                                            className="group bg-white/70 backdrop-blur-sm border border-orange-100 rounded-2xl p-3 hover:border-orange-300 hover:bg-white hover:shadow-lg transition-all duration-300"
+                                        >
+                                            <div className="flex items-center gap-2.5 mb-2">
+                                                <div className="relative">
+                                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-md ring-2 ring-orange-100">
+                                                        {sale.profiles?.avatar_url ? (
+                                                            <img
+                                                                src={getAvatarUrl(supabase, sale.profiles.avatar_url)!}
+                                                                className="w-full h-full object-cover rounded-full"
+                                                                alt=""
+                                                            />
+                                                        ) : (
+                                                            <span className="text-xs font-black text-white">
+                                                                {sale.buyer_name?.charAt(0) || '?'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="absolute -bottom-0.5 -right-0.5 px-1 bg-green-500 rounded-full flex items-center justify-center ring-1 ring-white shadow-sm">
+                                                        <span className="text-[6px] font-black text-white">
+                                                            {sale.rating}
+                                                        </span>
+                                                        <Star className="w-1.5 h-1.5 text-white fill-white ml-0.5" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">
+                                                        {sale.buyer_name || 'Cliente'}
+                                                    </p>
+                                                    <div className="flex items-center gap-1">
+                                                        <RatingStars value={sale.rating || 0} size={8} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-2 border border-orange-100/50">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
+                                                        <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-[9px] font-bold text-gray-700 truncate leading-tight">
+                                                            {sale.product_name}
+                                                        </p>
+                                                        <p className="text-[7px] text-gray-400 font-medium">
+                                                            {new Date(sale.created_at).toLocaleDateString('pt-BR', {
+                                                                day: '2-digit',
+                                                                month: 'short',
+                                                            })}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {ratings.length === 0 ? (
+                            <div className="py-12 text-center bg-white/50 rounded-2xl border border-dashed border-orange-200">
+                                <Star className="w-10 h-10 text-orange-300 mx-auto mb-2" />
+                                <p className="text-gray-400 font-bold text-sm">Nenhuma avaliação ainda</p>
+                                <p className="text-gray-400 text-xs mt-1">Seja o primeiro a avaliar!</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {ratings.map((rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
                                     return (
                                         <div
-                                            key={product.id}
-                                            onClick={() => {
-                                                if (isOwner) {
-                                                    router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                } else {
-                                                    addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
-                                                    setCartAnimating(true)
-                                                    setTimeout(() => setCartAnimating(false), 500)
-                                                }
-                                            }}
-                                            className={`flex items-center gap-3 rounded-xl p-2.5 transition-all cursor-pointer shadow-sm ${isSelected
-                                                ? 'bg-white border-[3px] border-orange-500 shadow-lg shadow-orange-100 ring-2 ring-orange-200/50 scale-[1.02]'
-                                                : 'bg-white/70 border border-orange-100 hover:border-orange-300 hover:bg-white'
-                                                }`}
+                                            key={rating.id}
+                                            className="flex gap-3 p-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-orange-100 hover:border-orange-300 transition-all"
                                         >
-                                            <div className={`w-14 h-14 rounded-lg bg-gradient-to-br from-orange-100 to-red-100 overflow-hidden flex-shrink-0 border transition-all ${isSelected ? 'border-orange-400' : 'border-orange-200'}`}>
-                                                {product.image_url ? (
-                                                    <img src={product.image_url} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-orange-300 text-[8px] font-bold">Sem foto</div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="text-sm font-bold text-gray-800 line-clamp-1">{product.name}</h4>
-                                                <p className="text-[10px] text-gray-400 line-clamp-1">{product.description || "Sem descrição"}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <p className="text-sm font-black text-orange-600">
-                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                        {isHourly && <span className="text-xs font-bold text-gray-500 ml-1">/h</span>}
-                                                    </p>
-                                                    {product.type && (
-                                                        <span className="text-[7px] font-bold uppercase text-orange-400 bg-orange-50 px-1.5 py-0.5 rounded-full">
-                                                            {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                        </span>
+                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 to-red-400 p-[2px] shrink-0">
+                                                <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                                    {avatarUrl ? (
+                                                        <img
+                                                            src={avatarUrl}
+                                                            alt=""
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50">
+                                                            <span className="font-bold text-xs text-orange-600">
+                                                                {(rating.profiles?.name || '?')
+                                                                    .slice(0, 1)
+                                                                    .toUpperCase()}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
-
-                                            <div className="flex-shrink-0">
-                                                {isOwner ? (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
-                                                        }}
-                                                        className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all"
-                                                    >
-                                                        Editar
-                                                    </button>
-                                                ) : mounted && isSelected ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                router.push('/sacola')
-                                                            }}
-                                                            className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md"
-                                                        >
-                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                removeItem(storeSlug as string, product.id)
-                                                            }}
-                                                            className="w-7 h-7 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center justify-center"
-                                                        >
-                                                            <Trash2 className="w-3 h-3" />
-                                                        </button>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div>
+                                                        <p className="font-bold text-sm text-gray-900">
+                                                            {rating.profiles?.name || 'Usuário'}
+                                                        </p>
+                                                        <p className="text-[10px] text-orange-400 font-medium">
+                                                            {new Date(rating.created_at).toLocaleDateString('pt-BR', {
+                                                                day: 'numeric',
+                                                                month: 'long',
+                                                                year: 'numeric',
+                                                            })}
+                                                        </p>
                                                     </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            router.push(`/${profileSlug}/${store.storeSlug}/${product.slug || product.id}`)
-                                                        }}
-                                                        className="w-7 h-7 rounded-full bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center shadow-sm"
-                                                    >
-                                                        <ExternalLink className="w-3 h-3" />
-                                                    </button>
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 border border-green-300 rounded-full">
+                                                        <Shield className="w-3 h-3 text-green-600" />
+                                                        <span className="text-[8px] font-black text-green-600 uppercase">
+                                                            Verificada
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="mb-1">
+                                                    <RatingStars value={rating.rating} size={12} />
+                                                    {rating.products?.name && (
+                                                        <span className="ml-2 text-[10px] font-black text-orange-500 uppercase tracking-wider bg-orange-100 px-2 py-0.5 rounded-full">
+                                                            {rating.products.name}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {rating.comment && (
+                                                    <p className="text-xs text-gray-600 italic leading-relaxed mt-1">
+                                                        "{rating.comment}"
+                                                    </p>
                                                 )}
                                             </div>
                                         </div>
                                     )
                                 })}
                             </div>
-                        </div>
-                    ))
-                )}
-
-                {/* Compraram aqui (mantido) */}
-                {recentSales.length > 0 && (
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-orange-200 to-transparent" />
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-full border border-orange-100">
-                                <Sparkles className="w-3 h-3 text-orange-500" />
-                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-orange-600 whitespace-nowrap">
-                                    Compraram aqui
-                                </h3>
-                            </div>
-                            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-orange-200 to-transparent" />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2">
-                            {recentSales.slice(0, 4).map((sale, i) => (
-                                <div
-                                    key={sale.id || i}
-                                    className="group bg-white/70 backdrop-blur-sm border border-orange-100 rounded-2xl p-3 hover:border-orange-300 hover:bg-white hover:shadow-lg transition-all duration-300"
-                                >
-                                    <div className="flex items-center gap-2.5 mb-2">
-                                        <div className="relative">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-md ring-2 ring-orange-100">
-                                                {sale.profiles?.avatar_url ? (
-                                                    <img
-                                                        src={getAvatarUrl(
-                                                            supabase,
-                                                            sale.profiles.avatar_url
-                                                        )!}
-                                                        className="w-full h-full object-cover rounded-full"
-                                                        alt=""
-                                                    />
-                                                ) : (
-                                                    <span className="text-xs font-black text-white">
-                                                        {sale.buyer_name?.charAt(0) || '?'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="absolute -bottom-0.5 -right-0.5 px-1 bg-green-500 rounded-full flex items-center justify-center ring-1 ring-white shadow-sm">
-                                                <span className="text-[6px] font-black text-white">
-                                                    {sale.rating}
-                                                </span>
-                                                <Star className="w-1.5 h-1.5 text-white fill-white ml-0.5" />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">
-                                                {sale.buyer_name || 'Cliente'}
-                                            </p>
-                                            <div className="flex items-center gap-1">
-                                                <RatingStars value={sale.rating || 0} size={8} />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-2 border border-orange-100/50">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
-                                                <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-[9px] font-bold text-gray-700 truncate leading-tight">
-                                                    {sale.product_name}
-                                                </p>
-                                                <p className="text-[7px] text-gray-400 font-medium">
-                                                    {new Date(sale.created_at).toLocaleDateString(
-                                                        'pt-BR',
-                                                        { day: '2-digit', month: 'short' }
-                                                    )}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {recentSales.length > 4 && (
-                            <button
-                                onClick={() =>
-                                    router.push(
-                                        `/${profileSlug}/${store.storeSlug}/avaliacoes`
-                                    )
-                                }
-                                className="w-full py-2 text-[10px] font-bold text-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-1"
-                            >
-                                Ver todas as avaliações
-                                <ChevronRight className="w-3 h-3" />
-                            </button>
                         )}
                     </div>
                 )}
-
-                <div className="pt-4 border-t border-orange-200/30">
-                    <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 border border-orange-100">
-                        <p className="text-[10px] text-gray-500 text-center leading-relaxed">
-                            ✨{' '}
-                            <span className="font-black text-orange-600">Mostre ao mundo</span> o
-                            que você tem de melhor.
-                        </p>
-                    </div>
-                </div>
             </main>
 
-            {/* PAINEL DE ADMINISTRAÇÃO (StoreFlow em drawer) */}
+            {/* Modal de todos os horários */}
+            {showAllHours && store.business_hours && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setShowAllHours(false)}
+                >
+                    <div
+                        className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black text-gray-800">Horários de Funcionamento</h3>
+                            <button onClick={() => setShowAllHours(false)} className="text-2xl">&times;</button>
+                        </div>
+                        <div className="space-y-2">
+                            {Object.entries(DAY_LABELS).map(([key, label]) => {
+                                const schedule = store.business_hours![key]
+                                return (
+                                    <div
+                                        key={key}
+                                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                                    >
+                                        <span className="text-sm font-bold text-gray-700">{label}</span>
+                                        {schedule && schedule.open && schedule.close ? (
+                                            <span className="text-sm text-gray-600">
+                                                {schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm text-gray-400 italic">Fechado</span>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Painel de administração (StoreFlow drawer) */}
             {adminPanelOpen && (
                 <div
                     className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm"
@@ -1016,9 +1135,7 @@ export default function StorePage() {
                         onClick={e => e.stopPropagation()}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black text-gray-800">
-                                Gerenciar Loja
-                            </h3>
+                            <h3 className="text-lg font-black text-gray-800">Gerenciar Loja</h3>
                             <button
                                 onClick={() => setAdminPanelOpen(false)}
                                 className="p-2 hover:bg-gray-100 rounded-xl text-2xl"
@@ -1026,14 +1143,11 @@ export default function StorePage() {
                                 &times;
                             </button>
                         </div>
-
                         <StoreFlow
                             store={store}
                             sales={adminSales}
                             supabase={supabase}
-                            onToggleStatus={() => {
-                                toast.success('Status da loja alterado')
-                            }}
+                            onToggleStatus={() => toast.success('Status da loja alterado')}
                             profile={{ profileSlug }}
                             onUpdateOrder={() => {
                                 supabase
@@ -1045,21 +1159,17 @@ export default function StorePage() {
                                     .then(({ data }) => setAdminSales(data || []))
                             }}
                             onAddProduct={() =>
-                                router.push(
-                                    `/${profileSlug}/${store.storeSlug}/criar-produto`
-                                )
+                                router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)
                             }
                             onEditStore={() =>
-                                router.push(
-                                    `/${profileSlug}/${store.storeSlug}/editar-loja`
-                                )
+                                router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)
                             }
                             onToggleScheduling={toggleScheduling}
                             storeViews={storeViews}
                             productViews={productViews}
-                            onUpdateStore={(updatedFields) => {
-                                setStore(prev => prev ? { ...prev, ...updatedFields } : null)
-                            }}
+                            onUpdateStore={(updatedFields) =>
+                                setStore(prev => (prev ? { ...prev, ...updatedFields } : null))
+                            }
                         />
                     </div>
                 </div>

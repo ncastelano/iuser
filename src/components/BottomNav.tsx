@@ -6,14 +6,14 @@ import { usePathname } from 'next/navigation'
 import { Store, MapPinned, ShoppingBag, Star, User } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import BottomNavBackground from '@/components/BottomNavBackground'
 
 export function BottomNav() {
     const pathname = usePathname()
     const { itemsByStore } = useCartStore()
-    const supabase = createClient()
+    const supabase = useMemo(() => createClient(), [])
 
     const totalCartItems = Object.values(itemsByStore).reduce(
         (acc, items) => acc + items.reduce((sum, item) => sum + item.quantity, 0),
@@ -33,10 +33,14 @@ export function BottomNav() {
     const [userName, setUserName] = useState<string | null>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
 
+    // Referência para controlar se o canal já está inscrito
+    const channelSubscribed = useRef(false)
+
     // Busca o perfil do usuário e configura listeners para atualizações
     useEffect(() => {
         let authListener: any = null;
-        let profileListener: any = null;
+        let profileChannel: any = null;
+
         const fetchUserProfile = async (userId: string | undefined) => {
             if (!userId) return;
             const { data: profile } = await supabase
@@ -51,6 +55,7 @@ export function BottomNav() {
                 setUserName(firstName);
             }
         };
+
         supabase.auth.getUser().then(({ data: { user } }) => {
             if (user) {
                 fetchUserProfile(user.id);
@@ -59,25 +64,34 @@ export function BottomNav() {
                     fetchUserProfile(uid);
                 });
                 authListener = authSub;
-                profileListener = supabase
-                    .channel('public:profiles')
-                    .on(
-                        'postgres_changes',
-                        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-                        (payload: any) => {
-                            const updated = payload.new;
-                            setAvatarUrl(updated.avatar_url);
-                            setProfileSlug(updated.profileSlug);
-                            const firstName = updated.name?.split(' ')[0] || '';
-                            setUserName(firstName);
-                        }
-                    )
-                    .subscribe();
+
+                // Configurar canal de realtime apenas se ainda não inscrito
+                if (!channelSubscribed.current) {
+                    channelSubscribed.current = true;
+                    profileChannel = supabase
+                        .channel('public:profiles')
+                        .on(
+                            'postgres_changes',
+                            { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+                            (payload: any) => {
+                                const updated = payload.new;
+                                setAvatarUrl(updated.avatar_url);
+                                setProfileSlug(updated.profileSlug);
+                                const firstName = updated.name?.split(' ')[0] || '';
+                                setUserName(firstName);
+                            }
+                        )
+                        .subscribe();
+                }
             }
         });
+
         return () => {
             if (authListener?.unsubscribe) authListener.unsubscribe();
-            if (profileListener) supabase.removeChannel(profileListener);
+            if (profileChannel) {
+                supabase.removeChannel(profileChannel);
+                channelSubscribed.current = false;
+            }
         };
     }, [supabase]);
 

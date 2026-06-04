@@ -1,3 +1,5 @@
+//app/(main)/[profileSlug]/[storeSlug]/avaliacoes/page.tsx
+
 'use client'
 
 import { useEffect, useState } from 'react'
