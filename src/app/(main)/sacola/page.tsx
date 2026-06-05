@@ -597,10 +597,10 @@ export default function SacolaPage() {
                                         {/* Barra de progresso estática */}
                                         <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
                                             <div className={`h-full rounded-full transition-all duration-700 ${order.status === 'pending' ? 'w-1/4 bg-blue-400' :
-                                                    order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
-                                                        order.status === 'ready' ? 'w-3/4 bg-purple-400' :
-                                                            order.status === 'paid' ? 'w-full bg-green-400' :
-                                                                'w-full bg-red-400'
+                                                order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
+                                                    order.status === 'ready' ? 'w-3/4 bg-purple-400' :
+                                                        order.status === 'paid' ? 'w-full bg-green-400' :
+                                                            'w-full bg-red-400'
                                                 }`}></div>
                                         </div>
 
@@ -708,10 +708,10 @@ export default function SacolaPage() {
                                                 {/* Barra de progresso estática */}
                                                 <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
                                                     <div className={`h-full rounded-full transition-all duration-700 ${order.status === 'pending' ? 'w-1/4 bg-blue-400' :
-                                                            order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
-                                                                order.status === 'ready' ? 'w-3/4 bg-purple-400' :
-                                                                    order.status === 'paid' ? 'w-full bg-green-400' :
-                                                                        'w-full bg-red-400'
+                                                        order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
+                                                            order.status === 'ready' ? 'w-3/4 bg-purple-400' :
+                                                                order.status === 'paid' ? 'w-full bg-green-400' :
+                                                                    'w-full bg-red-400'
                                                         }`}></div>
                                                 </div>
 

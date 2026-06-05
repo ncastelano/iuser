@@ -193,12 +193,12 @@ export function BottomNav() {
 
                 <nav className="px-2 pt-1.5 pb-[env(safe-area-inset-bottom)] relative z-10">
                     <div className="max-w-md mx-auto flex justify-around items-center h-16">
-                        {/* Vitrine */}
+                        {/* Inicio */}
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
                             <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'}`}>
                                 <Store size={22} className={`transition-all duration-300 ${pathname === '/' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Vitrine</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Inicio</span>
                         </Link>
 
                         {/* Mapa */}
