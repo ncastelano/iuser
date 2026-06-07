@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import {
     ArrowLeft,
     ShoppingBag,
@@ -61,7 +61,6 @@ export default function CompraramAquiPage() {
     const storeSlug = params.storeSlug as string
     const profileSlug = params.profileSlug as string
     const router = useRouter()
-    const [supabase] = useState(() => createClient())
 
     const [groupedSales, setGroupedSales] = useState<GroupedSale[]>([])
     const [storeName, setStoreName] = useState('')

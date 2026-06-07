@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
@@ -126,7 +126,6 @@ export default function MapPage() {
     // Função para carregar o perfil do usuário (REUSÁVEL)
     const loadUserProfile = async (userId: string) => {
         try {
-            const supabase = createClient()
             console.log('[MapPage] 🔍 Carregando perfil para userId:', userId)
 
             const { data: profile, error } = await supabase
@@ -155,7 +154,6 @@ export default function MapPage() {
             console.log('[MapPage] 🚀 Iniciando carregamento de localização...')
 
             try {
-                const supabase = createClient()
                 const { data: { user }, error: userError } = await supabase.auth.getUser()
 
                 console.log('[MapPage] 👤 Usuário autenticado:', user ? 'Sim' : 'Não', user?.id)
@@ -259,7 +257,6 @@ export default function MapPage() {
     useEffect(() => {
         if (!isLoggedIn || !userId) return
 
-        const supabase = createClient()
 
         console.log('[MapPage] 🔄 Configurando listener Realtime para perfil, userId:', userId)
 
@@ -389,8 +386,6 @@ export default function MapPage() {
     // LOAD DATA
     useEffect(() => {
         const load = async () => {
-            const supabase = createClient()
-
             const { data: storesData } = await supabase.from('stores').select('*')
             const { data: productsData } = await supabase.from('products').select('*')
             const { data: profilesList } = await supabase.from('profiles').select('id, profileSlug')
@@ -461,7 +456,7 @@ export default function MapPage() {
     // Salvar localização no perfil
     const saveLocationToProfile = async (lng: number, lat: number, address: string) => {
         try {
-            const supabase = createClient()
+
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {
@@ -552,7 +547,7 @@ export default function MapPage() {
     // Remover localização do perfil
     const removeLocation = async () => {
         try {
-            const supabase = createClient()
+
             const { data: { user } } = await supabase.auth.getUser()
 
             if (!user) {

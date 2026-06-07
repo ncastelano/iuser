@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Store, Sale, Profile } from '../types'
 
 export function usePainelData() {
-    const supabase = createClient()
     const router = useRouter()
 
     const [stores, setStores] = useState<Store[]>([])

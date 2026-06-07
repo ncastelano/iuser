@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart, ChefHat, CheckCircle, Package, PartyPopper } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -13,7 +13,6 @@ export function FinishedOrderTrigger() {
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
     const [reviewOrder, setReviewOrder] = useState<any>(null)
     const [showPrompt, setShowPrompt] = useState(false)
-    const supabase = createClient()
     const setPendingReviewsCount = useMerchantStore(state => state.setPendingReviewsCount)
     const notifiedRef = useRef<Record<string, string>>({})
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Globe, Store, Sparkles, Zap } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -10,7 +10,6 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 export default function EditarLoja() {
     const router = useRouter()
     const params = useParams()
-    const supabase = createClient()
 
     const storeSlugParam = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug

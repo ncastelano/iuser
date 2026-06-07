@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import {
     ArrowLeft,
     CheckCircle2,
@@ -76,7 +76,6 @@ type RatingRow = {
 export default function ProductPage() {
     const params = useParams()
     const router = useRouter()
-    const [supabase] = useState(() => createClient())
 
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
@@ -496,7 +495,7 @@ export default function ProductPage() {
                                     <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                                     Avaliações dos Clientes
                                 </h3>
-                                <button 
+                                <button
                                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/${product.slug}/avaliacoes`)}
                                     className="flex items-center gap-2 hover:bg-orange-50 px-2 py-1 rounded-lg transition-all"
                                 >
@@ -568,13 +567,13 @@ export default function ProductPage() {
                                 {otherProducts.slice(0, 4).map((other) => {
                                     const otherImage = other.image_url ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl : null
                                     const inCart = itemsByStore[storeSlug as string]?.some(item => item.product.id === other.id)
-                                    
+
                                     return (
                                         <div
                                             key={other.id}
                                             className="group bg-white rounded-2xl border-2 border-orange-100 hover:border-orange-300 transition-all shadow-sm flex flex-col overflow-hidden"
                                         >
-                                            <div 
+                                            <div
                                                 onClick={() => router.push(`/${profileSlug}/${storeSlug}/${other.slug}`)}
                                                 className="aspect-square bg-gradient-to-br from-orange-50 to-red-50 overflow-hidden cursor-pointer"
                                             >
@@ -595,7 +594,7 @@ export default function ProductPage() {
                                                 <p className="text-xs font-black text-orange-600 mb-3">
                                                     R$ {(other.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                 </p>
-                                                
+
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
@@ -610,11 +609,10 @@ export default function ProductPage() {
                                                             })
                                                         }
                                                     }}
-                                                    className={`w-full py-2 rounded-xl text-[8px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
-                                                        inCart 
-                                                        ? 'bg-orange-500 text-white' 
+                                                    className={`w-full py-2 rounded-xl text-[8px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${inCart
+                                                        ? 'bg-orange-500 text-white'
                                                         : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {inCart ? (
                                                         <CheckCircle2 className="w-3 h-3" />

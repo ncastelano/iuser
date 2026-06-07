@@ -1,23 +1,14 @@
-//app/(main)/[profileSlug]/[storeSlug]/layout.tsx
-
+// app/(main)/[profileSlug]/[storeSlug]/layout.tsx
 import { ReactNode } from 'react'
-import { Metadata, ResolvingMetadata } from 'next'
-import { createClient } from '@supabase/supabase-js'
+import { Metadata } from 'next'
+import { supabase } from '@/lib/supabase/client'
 
 type Props = {
     params: Promise<{ storeSlug: string; profileSlug: string }>
 }
 
-export async function generateMetadata(
-    { params }: Props,
-    parent: ResolvingMetadata
-): Promise<Metadata> {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { profileSlug, storeSlug } = await params
-
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
 
     // Buscar a loja diretamente pelo storeSlug de forma case-insensitive
     const { data: storeData } = await supabase
@@ -38,7 +29,10 @@ export async function generateMetadata(
         if (storeData.logo_url.startsWith('http')) {
             imageUrl = storeData.logo_url
         } else {
-            imageUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+            const { data } = supabase.storage
+                .from('store-logos')
+                .getPublicUrl(storeData.logo_url)
+            imageUrl = data.publicUrl
         }
     }
 
@@ -56,14 +50,14 @@ export async function generateMetadata(
             url,
             siteName: 'iuser.com.br',
             images: [{ url: imageUrl, width: 400, height: 400 }],
-            type: 'article', // Mudado para 'article' para coincidir com o layout do produto que funciona
+            type: 'article',
         },
         twitter: {
-            card: 'summary_large_image', // Isso garante imagem em cima, links embaixo
+            card: 'summary_large_image',
             title: titleStr,
             description: descStr,
             images: [imageUrl],
-        }
+        },
     }
 }
 

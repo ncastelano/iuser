@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Star, Shield, User } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import AnimatedBackground from '@/components/AnimatedBackground'
@@ -27,7 +27,6 @@ export default function StoreRatingsPage() {
     const router = useRouter()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
-    const [supabase] = useState(() => createClient())
 
     const [store, setStore] = useState<any | null>(null)
     const [ratings, setRatings] = useState<RatingRow[]>([])

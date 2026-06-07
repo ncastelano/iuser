@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { ArrowLeft, Clock, Calendar, User, CheckCircle2, XCircle } from 'lucide-react'
 
 type Appointment = {
@@ -23,8 +23,7 @@ export default function StoreAgendaPage() {
     const router = useRouter()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
-    
-    const [supabase] = useState(() => createClient())
+
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [isOwner, setIsOwner] = useState(false)
     const [loading, setLoading] = useState(true)
@@ -115,7 +114,7 @@ export default function StoreAgendaPage() {
                                                 <h3 className="font-bold text-white text-lg leading-tight">{appt.service_name}</h3>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-xs text-neutral-400">Cliente:</span>
-                                                    <button 
+                                                    <button
                                                         onClick={() => router.push(`/${appt.profiles.profileSlug}`)}
                                                         className="text-xs font-semibold text-white bg-white/10 px-2 py-0.5 rounded-full hover:bg-white/20 transition-colors"
                                                     >
@@ -126,26 +125,25 @@ export default function StoreAgendaPage() {
                                         </div>
 
                                         <div className="flex flex-col items-end gap-2">
-                                            <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
-                                                appt.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
+                                            <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${appt.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' :
                                                 appt.status === 'accepted' ? 'bg-green-500/10 text-green-500' :
-                                                'bg-red-500/10 text-red-500'
-                                            }`}>
-                                                {appt.status === 'pending' ? 'Pendente' : 
-                                                 appt.status === 'accepted' ? 'Confirmado' : 
-                                                 appt.status === 'declined' ? 'Recusado' : appt.status}
+                                                    'bg-red-500/10 text-red-500'
+                                                }`}>
+                                                {appt.status === 'pending' ? 'Pendente' :
+                                                    appt.status === 'accepted' ? 'Confirmado' :
+                                                        appt.status === 'declined' ? 'Recusado' : appt.status}
                                             </div>
 
                                             {isOwner && appt.status === 'pending' && (
                                                 <div className="flex gap-2">
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleStatus(appt.id, 'accepted')}
                                                         className="p-2 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-black rounded-xl transition-all"
                                                         title="Aceitar"
                                                     >
                                                         <CheckCircle2 size={20} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleStatus(appt.id, 'declined')}
                                                         className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-black rounded-xl transition-all"
                                                         title="Recusar"
@@ -156,7 +154,7 @@ export default function StoreAgendaPage() {
                                             )}
                                         </div>
                                     </div>
-                                    
+
                                     {/* Glass reflection */}
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 blur-3xl rounded-full -mr-12 -mt-12 pointer-events-none" />
                                 </div>

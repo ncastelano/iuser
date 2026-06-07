@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import {
   Camera,
   MapPinned,
@@ -22,7 +22,6 @@ import { createSquareImage } from "@/lib/image";
 
 export default function CriarLoja() {
   const router = useRouter();
-  const supabase = createClient();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 

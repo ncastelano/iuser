@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import {
     AlertTriangle,
     ArrowLeft,
@@ -191,7 +191,7 @@ export default function StorePage() {
     const [cartAnimating, setCartAnimating] = useState(false)
     const { itemsByStore, addItem, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
-    const [supabase] = useState(() => createClient())
+
 
     const [adminPanelOpen, setAdminPanelOpen] = useState(false)
     const [adminSales, setAdminSales] = useState<any[]>([])

@@ -27,7 +27,7 @@ export interface CartState {
 }
 
 // Inicializamos o client do supabase fora para as funcoes
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 export const useCartStore = create<CartState>()(
     persist(
@@ -97,7 +97,6 @@ export const useCartStore = create<CartState>()(
                 return { itemsByStore: newItemsByStore }
             }),
             syncToDatabase: async () => {
-                const supabase = createClient()
                 const { data: { session } } = await supabase.auth.getSession()
                 if (!session?.user?.id) return
 
@@ -114,7 +113,6 @@ export const useCartStore = create<CartState>()(
                 }
             },
             loadFromDatabase: async () => {
-                const supabase = createClient()
                 const { data: { session } } = await supabase.auth.getSession()
                 if (!session?.user?.id) return
 

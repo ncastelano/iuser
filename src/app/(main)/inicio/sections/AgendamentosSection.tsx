@@ -1,212 +1,128 @@
-// src/app/(main)/inicio/sections/AgendamentosSection.tsx
-
 import { ReactNode, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
-import { agendamentosMockados } from '../agendamentosMockados'
+import { Clock3, MapPin, ChevronRight } from 'lucide-react'
+import { useAppointments } from '@/app/(main)/compromissos/dadosDoCompromisso' // ajuste o path se necessário
 
 interface AgendamentosSectionProps {
     dragHandle?: ReactNode
 }
 
-/**
- * Converte "Hoje • 14:30" em algo ordenável
- */
-function parseHorario(horario: string) {
-    const [diaRaw, horaRaw] = horario.split('•').map((s) => s.trim())
-
-    const hoje = new Date()
-
-    const mapDia: Record<string, number> = {
-        Hoje: 0,
-        Amanhã: 1,
-        Segunda: 2,
-        Terça: 3,
-        Quarta: 4,
-        Quinta: 5,
-        Sexta: 6,
-        Sábado: 7,
-        Domingo: 8,
-    }
-
-    const diaIndex = mapDia[diaRaw] ?? 99
-
-    const [h, m] = horaRaw.split(':').map(Number)
-    const minutos = h * 60 + m
-
-    return {
-        diaIndex,
-        minutos,
-        dia: diaRaw,
-        hora: horaRaw,
-    }
+function parseDateTime(date: string, time: string) {
+    const [y, m, d] = date.split('-').map(Number)
+    const [h, min] = time.split(':').map(Number)
+    return new Date(y, m - 1, d, h, min).getTime()
 }
 
-export default function AgendamentosSection({
-    dragHandle,
-}: AgendamentosSectionProps) {
+export default function AgendamentosSection({ dragHandle }: AgendamentosSectionProps) {
+    const { appointments, loading } = useAppointments() // dados reais
+
+    // Ordena do mais próximo para o mais distante, pega todos (não só o próximo)
     const ordenados = useMemo(() => {
-        return [...agendamentosMockados].sort((a, b) => {
-            const A = parseHorario(a.horario)
-            const B = parseHorario(b.horario)
+        if (!appointments.length) return []
+        return [...appointments].sort(
+            (a, b) => parseDateTime(a.date, a.time) - parseDateTime(b.date, b.time)
+        )
+    }, [appointments])
 
-            if (A.diaIndex !== B.diaIndex) {
-                return A.diaIndex - B.diaIndex
-            }
+    // Renderiza cada card
+    const renderCard = (appointment: (typeof ordenados)[0]) => {
+        const isIncoming = appointment.direction === 'incoming'
+        const isOutgoing = appointment.direction === 'outgoing'
 
-            return A.minutos - B.minutos
-        })
-    }, [])
+        const directionLabel = isOutgoing
+            ? '📤 Eu agendei'
+            : isIncoming
+                ? '📥 Minha loja'
+                : '📌 Compromisso'
 
-    const renderCard = (agendamento: any) => {
-        const [dia, hora] = agendamento.horario.split('•')
-        const isEu = agendamento.tipo === 'meu'
+        const statusColor =
+            appointment.status === 'confirmed'
+                ? 'bg-green-100 text-green-700'
+                : appointment.status === 'pending'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-red-100 text-red-700'
 
         return (
             <div
-                key={agendamento.id}
-                className="
-                    min-w-[260px]
-                    bg-white/90
-                    backdrop-blur-sm
-                    border
-                    border-orange-100
-                    rounded-2xl
-                    p-3
-                    shadow-sm
-                    hover:shadow-lg
-                    transition-all
-                    cursor-pointer
-                    hover:-translate-y-1
-                "
+                key={appointment.id}
+                className="min-w-[260px] bg-white/95 backdrop-blur-sm border border-purple-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3"
             >
-                {/* topo */}
-                <div className="flex gap-3">
+                {/* Topo com avatar e informações */}
+                <div className="flex items-center gap-3">
                     <img
-                        src={agendamento.imagem}
-                        alt={agendamento.servico}
-                        className="
-                            w-14
-                            h-14
-                            rounded-xl
-                            object-cover
-                            border
-                            border-orange-100
-                        "
+                        src={appointment.store_logo_url || '/placeholder.png'}
+                        className="w-12 h-12 rounded-xl object-cover"
+                        alt=""
                     />
-
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] text-gray-500 uppercase font-semibold">
-                            {dia?.trim()}
+                        <p className="text-xs text-gray-400 font-medium">
+                            {new Date(appointment.date).toLocaleDateString('pt-BR')}
                         </p>
-
-                        {/* 🔥 HORA DE VERDADE */}
-                        <p className="text-xl font-black text-orange-600 leading-tight">
-                            {hora?.trim()}
-                        </p>
-
-                        <h3 className="text-sm font-bold text-gray-900 truncate">
-                            {agendamento.servico}
-                        </h3>
-
-                        <p className="text-xs text-gray-500 truncate">
-                            {agendamento.loja}
-                        </p>
+                        <p className="text-xl font-black text-purple-700">{appointment.time}</p>
                     </div>
                 </div>
 
-                {/* status + identidade */}
-                <div className="flex items-center justify-between mt-3">
-                    <span
-                        className={`
-                            text-[10px]
-                            px-2 py-1
-                            rounded-full
-                            font-semibold
-                            capitalize
-                            ${agendamento.status === 'confirmado'
-                                ? 'bg-green-100 text-green-700'
-                                : agendamento.status === 'pendente'
-                                    ? 'bg-yellow-100 text-yellow-700'
-                                    : 'bg-blue-100 text-blue-700'
-                            }
-                        `}
-                    >
-                        {agendamento.status}
-                    </span>
+                <div>
+                    <h4 className="font-bold text-gray-800 truncate">{appointment.service_name}</h4>
+                    <p className="text-sm text-gray-500 truncate flex items-center gap-1">
+                        <MapPin size={12} /> {appointment.store_name}
+                    </p>
+                </div>
 
-                    <span
-                        className={`
-                            text-[10px]
-                            font-black
-                            px-2 py-1
-                            rounded-full
-                            ${isEu
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-gray-100 text-gray-500'
-                            }
-                        `}
-                    >
-                        {isEu ? 'EU' : `@${agendamento.profileSlug}`}
+                <div className="flex items-center justify-between mt-auto">
+                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusColor}`}>
+                        {appointment.status === 'confirmed'
+                            ? 'Confirmado'
+                            : appointment.status === 'pending'
+                                ? 'Pendente'
+                                : appointment.status}
                     </span>
+                    <span className="text-xs text-gray-500 font-medium">{directionLabel}</span>
                 </div>
             </div>
         )
     }
 
+    if (loading) {
+        return (
+            <section>
+                <div className="flex items-center gap-2 mb-3">
+                    {dragHandle}
+                    <h2 className="text-xl font-black text-gray-800">Compromissos</h2>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="min-w-[260px] h-36 bg-gray-100 rounded-2xl animate-pulse" />
+                    ))}
+                </div>
+            </section>
+        )
+    }
+
     return (
         <section>
-            {/* HEADER */}
             <div className="flex items-center justify-between mb-3">
-
                 <div className="flex items-center gap-2">
                     {dragHandle}
-                    <h2 className="text-xl font-black text-gray-800">
-                        Horários
-                    </h2>
-
-
+                    <h2 className="text-xl font-black text-gray-800">Compromissos</h2>
                 </div>
-
-                {/* 🔥 BOTÕES LADO A LADO */}
-                <div className="flex items-center gap-2">
-                    <Link
-                        href="/agendamentos/novo"
-                        className="
-            flex items-center gap-1
-            text-sm font-bold text-blue-600
-            bg-blue-50
-            px-3 py-1
-            rounded-full
-            hover:bg-blue-100
-            transition
-        "
-                    >
-                        <Plus size={14} />
-                        Agendar
-                    </Link>
-
-                    <Link
-                        href="/agenda"
-                        className="
-            flex items-center gap-1
-            text-sm font-bold text-orange-600
-            bg-orange-50
-            px-3 py-1
-            rounded-full
-            hover:bg-orange-100
-            transition
-        "
-                    >
-                        Ver todos
-                    </Link>
-                </div>
+                <Link
+                    href="/compromissos"
+                    className="text-sm font-bold text-purple-600 bg-purple-50 px-3 py-1 rounded-full"
+                >
+                    Ver todos
+                </Link>
             </div>
 
-            {/* LISTA HORIZONTAL ORDENADA */}
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                {ordenados.slice(0, 8).map(renderCard)}
-            </div>
+            {ordenados.length === 0 ? (
+                <div className="bg-white/80 rounded-2xl p-6 text-center text-gray-400">
+                    Nenhum compromisso encontrado.
+                </div>
+            ) : (
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {ordenados.map(renderCard)}
+                </div>
+            )}
         </section>
     )
 }

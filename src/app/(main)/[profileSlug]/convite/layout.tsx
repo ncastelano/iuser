@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Metadata } from 'next'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase/client'
 
 type Props = {
     params: Promise<{ profileSlug: string }>
@@ -11,11 +11,6 @@ export async function generateMetadata(
 ): Promise<Metadata> {
     const resolvedParams = await params
     const profileSlug = Array.isArray(resolvedParams.profileSlug) ? resolvedParams.profileSlug[0] : resolvedParams.profileSlug
-
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
 
     const { data: profile } = await supabase
         .from('profiles')

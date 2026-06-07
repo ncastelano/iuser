@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { X, Calendar, Clock, CheckCircle2, Loader2 } from 'lucide-react'
 
 interface ScheduleModalProps {
@@ -24,7 +24,6 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
     const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
     const [success, setSuccess] = useState(false)
 
-    const supabase = createClient()
 
     // Generate times slots (simple version: every 1 hour from 09:00 to 18:00)
     useEffect(() => {
@@ -32,11 +31,11 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
 
         const generateSlots = async () => {
             const times = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00']
-            
+
             // Check existing appointments for this store and date
             const checkDate = new Date(selectedDate)
-            const startOfDay = new Date(checkDate.setHours(0,0,0,0)).toISOString()
-            const endOfDay = new Date(checkDate.setHours(23,59,59,999)).toISOString()
+            const startOfDay = new Date(checkDate.setHours(0, 0, 0, 0)).toISOString()
+            const endOfDay = new Date(checkDate.setHours(23, 59, 59, 999)).toISOString()
 
             const { data: existing } = await supabase
                 .from('appointments')
@@ -47,13 +46,13 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                 .neq('status', 'declined')
 
             const bookedTimesMap: Record<string, { name: string, avatar: string | null }> = {};
-            
+
             (existing || []).forEach(a => {
                 const date = new Date(a.start_time)
                 const t = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-                bookedTimesMap[t] = { 
-                    name: (a.profiles as any)?.name || 'Cliente', 
-                    avatar: (a.profiles as any)?.avatar_url 
+                bookedTimesMap[t] = {
+                    name: (a.profiles as any)?.name || 'Cliente',
+                    avatar: (a.profiles as any)?.avatar_url
                 }
             })
 
@@ -172,7 +171,7 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                         {/* Slots */}
                         <div className="space-y-4">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Horários disponíveis</label>
-                            
+
                             {slots.filter(s => s.isAvailable).length === 0 ? (
                                 <div className="py-8 text-center bg-muted/20 border border-dashed border-border rounded-3xl">
                                     <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -185,13 +184,12 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                                             key={slot.time}
                                             disabled={!slot.isAvailable}
                                             onClick={() => setSelectedSlot(slot.time)}
-                                            className={`p-3 rounded-2xl border text-sm font-black italic transition-all duration-300 ${
-                                                selectedSlot === slot.time
-                                                    ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-105'
-                                                    : slot.isAvailable
+                                            className={`p-3 rounded-2xl border text-sm font-black italic transition-all duration-300 ${selectedSlot === slot.time
+                                                ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-105'
+                                                : slot.isAvailable
                                                     ? 'bg-secondary/30 text-foreground border-border hover:border-primary/50 hover:bg-secondary/50'
                                                     : 'bg-muted/50 text-muted-foreground/20 border-border/20 cursor-not-allowed grayscale'
-                                            }`}
+                                                }`}
                                         >
                                             {slot.time}
                                         </button>
@@ -226,11 +224,10 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                             <button
                                 onClick={handleSchedule}
                                 disabled={loading || !selectedSlot}
-                                className={`w-full py-6 rounded-[30px] font-black uppercase text-xs tracking-[0.3em] transition-all duration-500 flex items-center justify-center gap-3 shadow-2xl active:scale-95 ${
-                                    !selectedSlot 
-                                    ? 'bg-muted text-muted-foreground/40 cursor-not-allowed grayscale' 
+                                className={`w-full py-6 rounded-[30px] font-black uppercase text-xs tracking-[0.3em] transition-all duration-500 flex items-center justify-center gap-3 shadow-2xl active:scale-95 ${!selectedSlot
+                                    ? 'bg-muted text-muted-foreground/40 cursor-not-allowed grayscale'
                                     : 'bg-primary text-primary-foreground hover:scale-[1.02] shadow-primary/20'
-                                }`}
+                                    }`}
                             >
                                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Clock className="w-5 h-5" />}
                                 {loading ? 'Enviando...' : 'Confirmar Agendamento'}

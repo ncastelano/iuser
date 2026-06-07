@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Star, X, Loader2, User, UserCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
 interface ReviewModalProps {
@@ -20,7 +20,6 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
     const [comment, setComment] = useState('')
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [loading, setLoading] = useState(false)
-    const supabase = createClient()
 
     if (!isOpen) return null
 
@@ -62,7 +61,7 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div className="relative p-6 border-b border-orange-100">
-                    <button 
+                    <button
                         onClick={onClose}
                         className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
                     >
@@ -83,11 +82,10 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
                             >
                                 <Star
                                     size={36}
-                                    className={`${
-                                        star <= rating 
-                                            ? 'fill-orange-500 text-orange-500' 
+                                    className={`${star <= rating
+                                            ? 'fill-orange-500 text-orange-500'
                                             : 'text-gray-200'
-                                    } transition-colors`}
+                                        } transition-colors`}
                                 />
                             </button>
                         ))}
@@ -107,11 +105,10 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
                     <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                         <button
                             onClick={() => setIsAnonymous(!isAnonymous)}
-                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
-                                isAnonymous 
-                                    ? 'bg-orange-500 border-orange-500 text-white' 
+                            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isAnonymous
+                                    ? 'bg-orange-500 border-orange-500 text-white'
                                     : 'border-gray-300 bg-white text-transparent'
-                            }`}
+                                }`}
                         >
                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                 <polyline points="20 6 9 17 4 12"></polyline>

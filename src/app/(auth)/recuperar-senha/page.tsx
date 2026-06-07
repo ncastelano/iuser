@@ -2,13 +2,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Eye, EyeOff, Lock, ArrowRight, Sparkles, KeyRound } from 'lucide-react'
 import Link from 'next/link'
 import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function RecoverPassword() {
-  const supabase = createClient()
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)

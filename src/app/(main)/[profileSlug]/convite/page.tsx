@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Users, Link as LinkIcon, CheckCircle, ArrowRight, UserPlus } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
 
@@ -16,7 +16,6 @@ export default function ConvitePage() {
     const [inviter, setInviter] = useState<any>(null)
     const [currentUser, setCurrentUser] = useState<any>(null)
 
-    const supabase = createClient()
 
     useEffect(() => {
         const loadPageData = async () => {

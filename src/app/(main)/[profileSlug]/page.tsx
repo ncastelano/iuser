@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Store as StoreIcon, Star, ArrowLeft, Users, Globe, ShoppingBag, Zap, Heart, MessageCircle, MapPin, MapPinned, X, Pencil, Clock } from 'lucide-react'
 import { setReferralCookieAndRedirect } from '@/app/actions/cookies'
@@ -44,7 +44,7 @@ export default function ProfilePage() {
 
     useEffect(() => {
         const loadInitialData = async () => {
-            const supabase = createClient()
+
 
             // 1. Fetch current user
             const { data: { user } } = await supabase.auth.getUser()
@@ -125,7 +125,7 @@ export default function ProfilePage() {
 
     const handleFollowToggle = async () => {
         if (!currentUser || !profile) return
-        const supabase = createClient()
+
 
         if (isFollowing) {
             setIsFollowing(false)
@@ -170,7 +170,7 @@ export default function ProfilePage() {
 
     const saveLocation = async () => {
         if (!tempAddress || !selectedLocation) return
-        const supabase = createClient()
+
         const { error } = await supabase.from('profiles').update({
             address: tempAddress,
             location: `POINT(${selectedLocation.lng} ${selectedLocation.lat})`,
@@ -185,7 +185,7 @@ export default function ProfilePage() {
 
     const toggleLocationVisibility = async () => {
         if (!profile || !isOwner) return
-        const supabase = createClient()
+
         const nextValue = !profile.show_location
 
         setProfile({ ...profile, show_location: nextValue })
@@ -196,7 +196,7 @@ export default function ProfilePage() {
     useEffect(() => {
         if (profile?.id) {
             const recordView = async () => {
-                const supabase = createClient()
+
                 const { data: { user } } = await supabase.auth.getUser()
                 if (user?.id === profile.id) return
                 await supabase.from('profile_views').insert({
@@ -211,19 +211,19 @@ export default function ProfilePage() {
     const getAvatarUrl = (path: string | null) => {
         if (!path) return undefined
         if (path.startsWith('http')) return path
-        const supabase = createClient()
+
         return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
     }
 
     const getLogoUrl = (path: string | null) => {
         if (!path) return null
-        const supabase = createClient()
+
         return supabase.storage.from('store-logos').getPublicUrl(path).data.publicUrl
     }
 
     const getFlashImageUrl = (path: string | null) => {
         if (!path) return null
-        const supabase = createClient()
+
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
 

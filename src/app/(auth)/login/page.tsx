@@ -3,7 +3,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Sparkles, Store, Zap } from 'lucide-react'
 import { BottomNav } from '@/components/BottomNav'
 import AnimatedBackground from '@/components/AnimatedBackground'
@@ -30,8 +30,6 @@ function LoginContent() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
-    const supabase = createClient()
 
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({

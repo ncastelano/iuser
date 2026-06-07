@@ -1,25 +1,14 @@
-//app/(main)/[profileSlug]/layout.tsx
-
-
+// app/(main)/[profileSlug]/layout.tsx
 import { ReactNode } from 'react'
-import { Metadata, ResolvingMetadata } from 'next'
-import { createClient } from '@supabase/supabase-js'
+import { Metadata } from 'next'
+import { supabase } from '@/lib/supabase/client'
 
 type Props = {
     params: Promise<{ profileSlug: string }>
 }
 
-export async function generateMetadata(
-    { params }: Props,
-    parent: ResolvingMetadata
-): Promise<Metadata> {
-    const resolvedParams = await params
-    const profileSlug = resolvedParams.profileSlug
-
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+    const { profileSlug } = await params
 
     const { data: profileData } = await supabase
         .from('profiles')
@@ -38,7 +27,10 @@ export async function generateMetadata(
         if (profileData.avatar_url.startsWith('http')) {
             imageUrl = profileData.avatar_url
         } else {
-            imageUrl = supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
+            const { data } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(profileData.avatar_url)
+            imageUrl = data.publicUrl
         }
     }
 
@@ -54,12 +46,14 @@ export async function generateMetadata(
             description,
             url,
             siteName: profileData.name || 'iUser',
-            images: [{
-                url: imageUrl,
-                width: 400,
-                height: 400,
-                alt: profileData.name || 'Perfil'
-            }],
+            images: [
+                {
+                    url: imageUrl,
+                    width: 400,
+                    height: 400,
+                    alt: profileData.name || 'Perfil',
+                },
+            ],
             type: 'profile',
         },
         twitter: {
@@ -67,7 +61,7 @@ export async function generateMetadata(
             title,
             description,
             images: [imageUrl],
-        }
+        },
     }
 }
 

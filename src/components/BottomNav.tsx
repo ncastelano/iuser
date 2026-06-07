@@ -7,13 +7,12 @@ import { Store, MapPinned, ShoppingBag, Star, User } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import BottomNavBackground from '@/components/BottomNavBackground'
 
 export function BottomNav() {
     const pathname = usePathname()
     const { itemsByStore } = useCartStore()
-    const supabase = useMemo(() => createClient(), [])
 
     const totalCartItems = Object.values(itemsByStore).reduce(
         (acc, items) => acc + items.reduce((sum, item) => sum + item.quantity, 0),

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { ArrowLeft, Save, LogOut, Type, Bell, Smartphone, Sparkles } from 'lucide-react'
 import { useFontStore } from '@/store/useFontStore'
 import { toast } from 'sonner'
@@ -11,7 +11,6 @@ import AnimatedBackground from '@/components/AnimatedBackground'
 
 export default function ConfiguracoesPage() {
     const router = useRouter()
-    const supabase = createClient()
 
     const [whatsapp, setWhatsapp] = useState('')
     const [useWhatsapp, setUseWhatsapp] = useState(true)

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import {
   ImageIcon,
   Package,
@@ -26,7 +26,6 @@ type PriceType = "fixed" | "hourly";
 export default function EditarProduto() {
   const router = useRouter();
   const params = useParams();
-  const supabase = createClient();
 
   const storeSlug = Array.isArray(params.storeSlug)
     ? params.storeSlug[0]

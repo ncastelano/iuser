@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Store, ChevronRight, Trash2, CheckCircle2, Minus, Plus, Eye, EyeOff, User, Package, ShoppingBag, ShoppingCart, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
@@ -15,7 +15,6 @@ import { LoadingSpinner } from '@/components/LoadingSpinner'
 export default function SacolaPage() {
     const { itemsByStore, storeDetails, updateQuantity, removeItem, clearStoreCart } = useCartStore()
     const router = useRouter()
-    const supabase = useMemo(() => createClient(), [])
 
     // Estados
     const [mounted, setMounted] = useState(false)

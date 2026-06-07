@@ -3,13 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Package, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 export default function PedidosPage() {
     const router = useRouter()
-    const supabase = createClient()
     const [mounted, setMounted] = useState(false)
-    
+
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
     const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
@@ -175,7 +174,7 @@ export default function PedidosPage() {
                 ) : !currentUserId ? (
                     <div className="text-center p-8 border border-border bg-secondary/10">
                         <p className="text-xs font-black uppercase text-muted-foreground">Você precisa estar logado para ver seus pedidos.</p>
-                        <button 
+                        <button
                             onClick={() => router.push('/sacola')}
                             className="mt-4 px-6 py-2 bg-foreground text-background font-black uppercase text-[9px] tracking-wider"
                         >
@@ -217,17 +216,16 @@ export default function PedidosPage() {
                                         </p>
                                         <h3 className="text-sm font-black italic uppercase tracking-tighter text-foreground mt-0.5">{order.store_name}</h3>
                                     </div>
-                                    <div className={`self-start sm:self-center px-3 py-1 text-[8px] font-black uppercase tracking-wider border ${
-                                        order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
-                                        order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
-                                        order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
-                                        order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
-                                        'border-destructive/30 bg-destructive/10 text-destructive'
-                                    }`}>
+                                    <div className={`self-start sm:self-center px-3 py-1 text-[8px] font-black uppercase tracking-wider border ${order.status === 'pending' ? 'border-blue-500/30 bg-blue-500/10 text-blue-500' :
+                                            order.status === 'preparing' ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' :
+                                                order.status === 'ready' ? 'border-purple-500/30 bg-purple-500/10 text-purple-500' :
+                                                    order.status === 'paid' ? 'border-green-500/30 bg-green-500/10 text-green-500' :
+                                                        'border-destructive/30 bg-destructive/10 text-destructive'
+                                        }`}>
                                         {order.status === 'pending' ? 'Pendente' :
-                                         order.status === 'preparing' ? 'Preparo' :
-                                         order.status === 'ready' ? 'Pronto' :
-                                         order.status === 'paid' ? 'Finalizado' : 'Cancelado/Recusado'}
+                                            order.status === 'preparing' ? 'Preparo' :
+                                                order.status === 'ready' ? 'Pronto' :
+                                                    order.status === 'paid' ? 'Finalizado' : 'Cancelado/Recusado'}
                                     </div>
                                 </div>
 

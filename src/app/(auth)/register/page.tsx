@@ -3,7 +3,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import {
   User,
   Link as LinkIcon,
@@ -49,7 +49,6 @@ function RegisterContent() {
       return
     }
 
-    const supabase = createClient()
 
     try {
       const { data: existingProfile } = await supabase

@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import { Handshake, ArrowRight, Sparkles } from "lucide-react";
 
 export function PromotionalBanner() {
   const router = useRouter();
-  const supabase = createClient();
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [storePath, setStorePath] = useState<string | null>(null); // só preenchido se logado + tiver loja
   const [loading, setLoading] = useState(true);

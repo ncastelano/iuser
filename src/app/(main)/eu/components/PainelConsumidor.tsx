@@ -19,10 +19,8 @@ import {
     Loader2
 } from 'lucide-react'
 import { Sale, Profile, GroupedOrder } from '../types'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
-// Inicializar o cliente Supabase
-const supabase = createClient()
 
 interface PainelConsumidorProps {
     purchases: Sale[]

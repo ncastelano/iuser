@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { ArrowLeft, Search, User, Clock, ChevronRight, Eye, CalendarDays, Users } from 'lucide-react'
 import Link from 'next/link'
 import AnimatedBackground from '@/components/AnimatedBackground'
@@ -25,7 +25,6 @@ type FilterType = 'today' | 'month' | 'total'
 export default function StoreVisitorsPage() {
     const params = useParams()
     const router = useRouter()
-    const supabase = createClient()
 
     const rawStoreSlug = params.storeSlug
     const rawProfileSlug = params.profileSlug
@@ -169,8 +168,8 @@ export default function StoreVisitorsPage() {
                     <button
                         onClick={() => setActiveFilter('today')}
                         className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'today'
-                                ? 'border-orange-500 bg-orange-50 shadow-md'
-                                : 'border-orange-100 hover:border-orange-300'
+                            ? 'border-orange-500 bg-orange-50 shadow-md'
+                            : 'border-orange-100 hover:border-orange-300'
                             }`}
                     >
                         <Eye size={16} className="text-orange-500 mx-auto mb-1" />
@@ -181,8 +180,8 @@ export default function StoreVisitorsPage() {
                     <button
                         onClick={() => setActiveFilter('month')}
                         className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'month'
-                                ? 'border-orange-500 bg-orange-50 shadow-md'
-                                : 'border-orange-100 hover:border-orange-300'
+                            ? 'border-orange-500 bg-orange-50 shadow-md'
+                            : 'border-orange-100 hover:border-orange-300'
                             }`}
                     >
                         <CalendarDays size={16} className="text-orange-500 mx-auto mb-1" />
@@ -193,8 +192,8 @@ export default function StoreVisitorsPage() {
                     <button
                         onClick={() => setActiveFilter('total')}
                         className={`bg-white/70 backdrop-blur-sm rounded-xl p-3 border text-center transition-all ${activeFilter === 'total'
-                                ? 'border-orange-500 bg-orange-50 shadow-md'
-                                : 'border-orange-100 hover:border-orange-300'
+                            ? 'border-orange-500 bg-orange-50 shadow-md'
+                            : 'border-orange-100 hover:border-orange-300'
                             }`}
                     >
                         <Users size={16} className="text-orange-500 mx-auto mb-1" />

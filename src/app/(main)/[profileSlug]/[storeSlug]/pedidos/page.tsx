@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Package, Clock, CheckCircle2, ChevronRight, Store as StoreIcon } from 'lucide-react'
 import Link from 'next/link'
@@ -33,7 +33,6 @@ interface GroupedOrder {
 export default function StoreOrdersPage() {
     const params = useParams()
     const router = useRouter()
-    const supabase = createClient()
 
     const profileSlug = params.profileSlug as string
     const storeSlug = params.storeSlug as string

@@ -1,6 +1,6 @@
 // src/components/vitrine/hooks/useVitrineData.ts
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
 
 export type StoreStats = {
     ratings_count: number
@@ -100,7 +100,6 @@ export function useVitrineData() {
     }, [])
 
     useEffect(() => {
-        const supabase = createClient()
         let storesSubscription: any = null
         let reviewsSubscription: any = null
 
