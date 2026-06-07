@@ -1,4 +1,4 @@
-// src/app/(main)/inicio/sections/CategoriasSection.tsx
+// src/app/(main)/inicio/sections/CanIhelp.tsx
 
 import Link from 'next/link'
 import {
@@ -12,11 +12,11 @@ import {
 } from 'lucide-react'
 import { ReactNode } from 'react'
 
-interface CategoriasSectionProps {
+interface CanIhelpProps {
     dragHandle?: ReactNode
 }
 
-export default function CategoriasSection({ dragHandle }: CategoriasSectionProps) {
+export default function CanIhelp({ dragHandle }: CanIhelpProps) {
 
     const categorias = [
         {
@@ -70,7 +70,7 @@ export default function CategoriasSection({ dragHandle }: CategoriasSectionProps
                 {dragHandle}
 
                 <h2 className="text-xl font-black text-gray-800">
-                    O que você busca?
+                    Posso ajudar você a encontrar algo?
                 </h2>
             </div>
 
