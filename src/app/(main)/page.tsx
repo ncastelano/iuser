@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import AnimatedBackground from '@/components/AnimatedBackground'
-import { Search, User } from 'lucide-react'
+import { Search, User, Settings } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -21,7 +21,7 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import PromocoesSection from './inicio/sections/PromocoesSection'
-import AgendamentosSection from './inicio/sections/AgendamentosSection'
+import AgendamentosSection from './compromissos/AgendamentosSection'
 import SortableSection from './inicio/sections/SortableSection'
 
 export default function HomePage() {
@@ -36,6 +36,7 @@ export default function HomePage() {
 
     const [session, setSession] = useState<any>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
+    const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -51,6 +52,7 @@ export default function HomePage() {
                 fetchProfile(session.user.id)
             } else {
                 setProfileSlug(null)
+                setUserAvatarUrl(null)
             }
         })
 
@@ -62,11 +64,12 @@ export default function HomePage() {
     const fetchProfile = useCallback(async (userId: string) => {
         const { data } = await supabase
             .from('profiles')
-            .select('profileSlug')
+            .select('profileSlug, avatar_url')
             .eq('id', userId)
             .single()
         if (data) {
             setProfileSlug(data.profileSlug)
+            setUserAvatarUrl(data.avatar_url || null)
         }
     }, [])
 
@@ -105,8 +108,39 @@ export default function HomePage() {
         }
     }
 
-    // Primeira letra maiúscula para o avatar
+    const handleSettingsClick = () => {
+        router.push('/configuracoes')
+    }
+
     const avatarInitial = profileSlug ? profileSlug.charAt(0).toUpperCase() : ''
+
+    // Helper para URL pública do avatar
+    const getPublicUrl = (path: string | null | undefined, bucket: string): string | null => {
+        if (!path) return null
+        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) return path
+        const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+        return data?.publicUrl || null
+    }
+
+    const avatarUrl = getPublicUrl(userAvatarUrl, 'avatars')
+
+    // Abas inspiradas nas do compromissos
+    const tabs = [
+        {
+            id: 'perfil',
+            label: session ? (profileSlug ? `@${profileSlug}` : 'Perfil') : 'Entrar',
+            icon: User,
+            imageUrl: avatarUrl,
+            onClick: handleAvatarClick,
+        },
+        {
+            id: 'config',
+            label: 'Ajustes',
+            icon: Settings,
+            imageUrl: null,
+            onClick: handleSettingsClick,
+        },
+    ]
 
     return (
         <div className="relative min-h-screen">
@@ -115,68 +149,124 @@ export default function HomePage() {
             </div>
 
             <main className="relative z-10 min-h-screen pb-24">
-                <div className="w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-                    {/* Header */}
-                    <header className="sticky top-0 z-20 pt-4 pb-2">
-                        <div className="flex items-center gap-3">
-                            {/* Container principal com logo e input */}
-                            <div className="flex-1 flex items-center gap-3 rounded-2xl bg-white/90 backdrop-blur-lg border border-white/40 shadow-lg p-2">
-                                {/* Logo */}
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-md shrink-0">
-                                    <img
-                                        src="/logo.png"
-                                        alt="iUser"
-                                        className="w-6 h-6 object-contain rounded-full"
-                                    />
-                                </div>
-
-                                {/* Input de busca */}
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar restaurantes, mercados..."
-                                        className="w-full pl-9 pr-4 py-2.5 bg-white/50 backdrop-blur-sm border border-gray-200/50 rounded-xl text-sm placeholder:text-gray-400 focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-400/30 transition-all"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Avatar fora do container principal */}
-                            <button
-                                onClick={handleAvatarClick}
-                                className="relative w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md shrink-0 text-white font-bold text-lg transition-transform hover:scale-105"
-                            >
-                                {session && avatarInitial ? (
-                                    <span className="leading-none">{avatarInitial}</span>
-                                ) : (
-                                    <User className="w-5 h-5" />
-                                )}
-                                {/* Badge vermelho quando logado */}
-                                {session && (
-                                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
-                                )}
-                            </button>
-                        </div>
-                    </header>
-
-                    {/* Seções Arrastáveis */}
-                    <DndContext
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleDragEnd}
+                {/* HEADER – IDÊNTICO AO COMPROMISSOS, COM BOTÃO DE VOLTAR COM LOGO */}
+                <div
+                    style={{
+                        background: 'linear-gradient(135deg, #000000ff, #000000)',
+                        padding: '20px 24px',
+                        color: '#ffffff',
+                        borderBottomLeftRadius: 36,
+                        borderBottomRightRadius: 36,
+                        boxShadow: '0 10px 40px rgba(124,58,237,0.25)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                    }}
+                >
+                    {/* Imagem decorativa à direita */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            right: -30,
+                            top: -30,
+                            opacity: 0.35,
+                            transform: 'rotate(10deg)',
+                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                        }}
                     >
-                        <SortableContext
-                            items={sections}
-                            strategy={verticalListSortingStrategy}
+                        {avatarUrl ? (
+                            <img
+                                src={avatarUrl}
+                                alt=""
+                                style={{ width: 360, height: 360, objectFit: 'cover' }}
+                            />
+                        ) : (
+                            <img
+                                src="/logotransparente.png"
+                                alt="Logo"
+                                style={{ width: 360, height: 360, objectFit: 'contain' }}
+                            />
+                        )}
+                    </div>
+
+                    {/* Conteúdo do header */}
+                    <div className="relative z-10">
+                        {/* Linha superior: botão de voltar com logo + texto "Compromissos" */}
+                        <div className="flex items-center gap-3 mb-1">
+                            <button
+                                onClick={() => router.back()}
+                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                style={{
+                                    background: 'rgba(255,255,255,0.15)',
+                                    backdropFilter: 'blur(10px)',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <img
+                                    src="/logo.png"
+                                    alt="Logo"
+                                    className="w-6 h-6 object-contain"
+                                />
+                            </button>
+                            <h2 className="text-lg font-semibold opacity-90">iUser</h2>
+                        </div>
+
+                        {/* Título principal (saudação) */}
+                        <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
+                            Olá, {session ? (profileSlug ? `@${profileSlug}` : 'Visitante') : 'Visitante'}
+                        </h1>
+
+                        {/* Abas (perfil e ajustes) */}
+                        <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={tab.onClick}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.15)',
+                                        backdropFilter: 'blur(10px)',
+                                    }}
+                                >
+                                    {tab.imageUrl ? (
+                                        <img
+                                            src={tab.imageUrl}
+                                            alt=""
+                                            className="w-5 h-5 rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <tab.icon size={16} />
+                                    )}
+                                    <span>{tab.label}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Barra de busca */}
+                        <div
+                            className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
+                            style={{
+                                background: 'rgba(255,255,255,0.15)',
+                                backdropFilter: 'blur(10px)',
+                            }}
                         >
+                            <Search size={18} className="opacity-70" />
+                            <span className="opacity-70">Buscar restaurantes, mercados...</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Seções arrastáveis */}
+                <div>
+                    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={sections} strategy={verticalListSortingStrategy}>
                             <div className="space-y-6 mt-6">
                                 {sections.map((sectionId) => {
                                     const section = renderSection(sectionId)
                                     if (!section) return null
                                     return (
-                                        <SortableSection
-                                            key={sectionId}
-                                            id={sectionId}
-                                        >
+                                        <SortableSection key={sectionId} id={sectionId}>
                                             {section}
                                         </SortableSection>
                                     )

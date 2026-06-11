@@ -1,18 +1,17 @@
-// app/(main)/compromissos/dadosDoAgendar.ts
+// app/(main)/compromissos/dadosDoCompromisso.ts
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 
-// Tipos (inalterados)
 export type AppointmentStatus = 'confirmed' | 'pending' | 'cancelled' | 'completed'
 export type AppointmentDirection = 'outgoing' | 'incoming' | 'other'
 export type ServiceType = 'restaurant' | 'barbershop' | 'hotel' | 'service'
 
 export interface Appointment {
     id: string
-    store_id: string
-    store_slug: string
-    store_name: string
-    store_logo_url: string
+    store_id?: string | null           // agora opcional
+    store_slug?: string | null
+    store_name?: string | null
+    store_logo_url?: string | null
     customer_id: string
     customer_slug: string
     customer_avatar_url: string
@@ -28,29 +27,11 @@ export interface Appointment {
     created_at: string
     updated_at?: string
     direction: AppointmentDirection
+    is_public?: boolean
+    provider_profile_id?: string | null   // NOVO
+    service_id?: string | null            // NOVO (opcional)
 }
 
-export interface Recomendacao {
-    nome: string
-    imagem: string
-}
-
-export const recomendacoes: Recomendacao[] = [
-    {
-        nome: 'Barbearia Elite',
-        imagem: 'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?w=800',
-    },
-    {
-        nome: 'Academia Power',
-        imagem: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800',
-    },
-    {
-        nome: 'Clínica Premium',
-        imagem: 'https://images.unsplash.com/photo-1584515933487-779824d29309?w=800',
-    },
-]
-
-// Hook principal
 export function useAppointments() {
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [loading, setLoading] = useState(true)
@@ -64,10 +45,14 @@ export function useAppointments() {
 
             const userId = session.session.user.id
 
+            // Busca compromissos onde o usuário é:
+            // - customer_id (compromissos que ele criou)
+            // - owner_id (compromissos que ele é dono, legado)
+            // - provider_profile_id (agenda como prestador de serviço)
             const { data, error } = await supabase
                 .from('appointments')
                 .select('*')
-                .or(`customer_id.eq.${userId},owner_id.eq.${userId}`)
+                .or(`customer_id.eq.${userId},owner_id.eq.${userId},provider_profile_id.eq.${userId}`)
                 .order('date', { ascending: true })
                 .order('time', { ascending: true })
 
@@ -88,7 +73,7 @@ export function useAppointments() {
     return { appointments, loading, error, refetch: fetchAppointments }
 }
 
-// Hook para atualizar status
+// ... (useUpdateAppointmentStatus e useDeleteAppointment permanecem iguais) ...
 export function useUpdateAppointmentStatus() {
     const [loading, setLoading] = useState(false)
 
@@ -113,7 +98,6 @@ export function useUpdateAppointmentStatus() {
     return { updateStatus, loading }
 }
 
-// Hook para deletar
 export function useDeleteAppointment() {
     const [loading, setLoading] = useState(false)
 
