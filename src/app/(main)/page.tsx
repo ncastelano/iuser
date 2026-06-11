@@ -168,7 +168,7 @@ export default function HomePage() {
                             position: 'absolute',
                             right: -30,
                             top: -30,
-                            opacity: 0.35,
+                            opacity: 0.5,
                             transform: 'rotate(10deg)',
                             maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                             WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
