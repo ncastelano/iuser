@@ -35,6 +35,7 @@ import {
 } from './dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
+import AnimatedBackground from '@/components/AnimatedBackground'
 
 /* ===================================================
    Busca nome do perfil a partir do slug
@@ -53,7 +54,7 @@ function ProfileName({ slug }: { slug: string }) {
             })
     }, [slug])
     if (name) return <>{name}</>
-    return <span className="text-gray-500">@{slug}</span>
+    return <span className="text-white/50">@{slug}</span>
 }
 
 /* ===================================================
@@ -85,7 +86,7 @@ function AppointmentAvatar({
                     borderRadius: size > 56 ? 18 : 16,
                     overflow: 'hidden',
                     flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                 }}>
                     <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
                 </div>
@@ -119,7 +120,7 @@ function AppointmentAvatar({
                     borderRadius: size > 56 ? 18 : 16,
                     overflow: 'hidden',
                     flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                 }}>
                     <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
                 </div>
@@ -153,7 +154,7 @@ function AppointmentAvatar({
                 borderRadius: size > 56 ? 18 : 16,
                 overflow: 'hidden',
                 flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
             }}>
                 <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
             </div>
@@ -194,7 +195,7 @@ function SenderName({ ownerSlug }: { ownerSlug: string }) {
             })
     }, [ownerSlug])
     if (name) return <>{name}</>
-    return <span className="text-gray-500">@{ownerSlug}</span>
+    return <span className="text-white/50">@{ownerSlug}</span>
 }
 
 /* ===================================================
@@ -235,8 +236,8 @@ function VisibilityBadge({ isPublic }: { isPublic: boolean }) {
                 fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: 10,
-                backgroundColor: isPublic ? '#dcfce7' : '#f1f5f9',
-                color: isPublic ? '#16a34a' : '#64748b',
+                backgroundColor: isPublic ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.1)',
+                color: isPublic ? '#10b981' : '#fff',
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
                 whiteSpace: 'nowrap',
@@ -252,7 +253,7 @@ function ParticipantsMini({ participants }: { participants: any[] }) {
     const displayNames = participants.slice(0, 3).map(p => p.profile?.name || p.customer_slug)
     const extra = participants.length - 3
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#64748b' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
             <Users size={12} />
             <span>{displayNames.join(', ')}{extra > 0 && ` +${extra}`}</span>
         </div>
@@ -638,7 +639,7 @@ export default function CompromissosPage() {
         return data?.publicUrl || null
     }
 
-    // Imagem de fundo do header (logo da loja ou avatar do perfil)
+    // Imagem de fundo do header
     const headerImageUrl = useMemo(() => {
         if (activeTab === 'pessoal') {
             return userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null
@@ -687,104 +688,159 @@ export default function CompromissosPage() {
 
     // Renderização principal
     return (
-        <main style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)', paddingBottom: 120, position: 'relative' }}>
+        <main style={{ minHeight: '100vh', background: '#000', paddingBottom: 120, position: 'relative' }}>
+            <AnimatedBackground />
             {loading ? (
-                <div className="min-h-screen flex items-center justify-center">
-                    <p className="text-gray-600">Carregando agenda...</p>
+                <div className="min-h-screen flex items-center justify-center relative z-10">
+                    <p className="text-white/70">Carregando agenda...</p>
                 </div>
             ) : error ? (
-                <div className="min-h-screen flex items-center justify-center flex-col gap-4">
-                    <p className="text-red-500">Erro ao carregar: {error}</p>
-                    <button onClick={refetch} className="text-purple-600 underline">Tentar novamente</button>
+                <div className="min-h-screen flex items-center justify-center flex-col gap-4 relative z-10">
+                    <p className="text-red-400">Erro ao carregar: {error}</p>
+                    <button onClick={refetch} className="text-purple-400 underline">Tentar novamente</button>
                 </div>
             ) : (
-                <>
-                    {/* HEADER */}
-                    <div style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', padding: '20px 24px', color: '#fff', borderBottomLeftRadius: 36, borderBottomRightRadius: 36, boxShadow: '0 10px 40px rgba(124,58,237,0.25)', position: 'relative', overflow: 'hidden' }}>
-                        <div style={{ position: 'absolute', right: -20, top: -20, opacity: 0.12, transform: 'rotate(10deg)' }}>
+                <div className="relative z-10">
+                    {/* HEADER ESTILO INICIO */}
+                    <div style={{
+                        background: 'linear-gradient(135deg, #000, #000)',
+                        padding: '20px 24px',
+                        color: '#fff',
+                        borderBottomLeftRadius: 36,
+                        borderBottomRightRadius: 36,
+                        boxShadow: '0 10px 40px rgba(255,255,255,0.15)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                    }}>
+                        {/* Imagem decorativa à direita */}
+                        <div style={{
+                            position: 'absolute',
+                            right: -30,
+                            top: -30,
+                            opacity: 0.4,
+                            transform: 'rotate(10deg)',
+                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                        }}>
                             {headerImageUrl ? (
-                                <img src={headerImageUrl} alt="" style={{ width: 180, height: 180, objectFit: 'cover', borderRadius: 24 }} />
+                                <img src={headerImageUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
                             ) : (
-                                React.createElement(activeTab === 'pessoal' ? User : Store, { size: 180, strokeWidth: 1 })
+                                <img src="/logotransparente.png" alt="" style={{ width: 280, height: 280, objectFit: 'contain' }} />
                             )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative', zIndex: 2 }}>
-                            <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 14, width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)' }}>
-                                <ChevronLeft size={24} color="#fff" />
-                            </button>
-                            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Compromissos</h2>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, position: 'relative', zIndex: 2 }}>
-                            <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0 }}>{activeStoreName}</h1>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 20, overflowX: 'auto', paddingBottom: 4, position: 'relative', zIndex: 2 }}>
-                            {tabs.map((tab) => {
-                                const isActive = activeTab === tab.id
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 6,
-                                            padding: '8px 16px',
-                                            borderRadius: 20,
-                                            border: 'none',
-                                            background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
-                                            color: '#fff',
-                                            fontWeight: isActive ? 800 : 600,
-                                            fontSize: 14,
-                                            cursor: 'pointer',
-                                            whiteSpace: 'nowrap',
-                                            backdropFilter: 'blur(10px)',
-                                            transition: 'all 0.2s',
-                                        }}
-                                    >
-                                        {tab.imageUrl ? (
-                                            <img
-                                                src={tab.imageUrl}
-                                                alt={tab.label}
-                                                style={{
-                                                    width: 20,
-                                                    height: 20,
-                                                    borderRadius: '50%',
-                                                    objectFit: 'cover',
-                                                }}
-                                            />
-                                        ) : (
-                                            <tab.icon size={16} />
-                                        )}
-                                        {tab.label}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                        <div style={{ marginTop: 16, background: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 14, display: 'flex', gap: 10, alignItems: 'center', backdropFilter: 'blur(10px)', position: 'relative', zIndex: 2 }}>
-                            <Search size={18} />
-                            <span>Buscar compromissos...</span>
+
+                        <div className="relative z-10">
+                            {/* Linha topo com botão voltar */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <button onClick={() => router.back()} style={{
+                                    background: 'rgba(255,255,255,0.15)',
+                                    border: 'none',
+                                    borderRadius: 14,
+                                    width: 42,
+                                    height: 42,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', backdropFilter: 'blur(10px)',
+                                }}>
+                                    <ChevronLeft size={24} color="#fff" />
+                                </button>
+                                <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, opacity: 0.9 }}>Compromissos</h2>
+                            </div>
+
+                            {/* Título */}
+                            <h1 style={{ fontSize: 32, fontWeight: 800, marginTop: 12, letterSpacing: '-0.5px' }}>{activeStoreName}</h1>
+
+                            {/* Abas */}
+                            <div style={{ display: 'flex', gap: 8, marginTop: 20, overflowX: 'auto', paddingBottom: 4 }}>
+                                {tabs.map((tab) => {
+                                    const isActive = activeTab === tab.id
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 6,
+                                                padding: '8px 16px',
+                                                borderRadius: 20,
+                                                border: 'none',
+                                                background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                                color: '#fff',
+                                                fontWeight: isActive ? 800 : 600,
+                                                fontSize: 14,
+                                                cursor: 'pointer',
+                                                whiteSpace: 'nowrap',
+                                                backdropFilter: 'blur(10px)',
+                                                transition: 'all 0.2s',
+                                            }}
+                                        >
+                                            {tab.imageUrl ? (
+                                                <img
+                                                    src={tab.imageUrl}
+                                                    alt={tab.label}
+                                                    style={{
+                                                        width: 20,
+                                                        height: 20,
+                                                        borderRadius: '50%',
+                                                        objectFit: 'cover',
+                                                    }}
+                                                />
+                                            ) : (
+                                                <tab.icon size={16} />
+                                            )}
+                                            {tab.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Barra de busca */}
+                            <div style={{
+                                marginTop: 16,
+                                background: 'rgba(255,255,255,0.1)',
+                                borderRadius: 20,
+                                padding: 14,
+                                display: 'flex',
+                                gap: 10,
+                                alignItems: 'center',
+                                backdropFilter: 'blur(10px)',
+                            }}>
+                                <Search size={18} opacity={0.7} />
+                                <span style={{ opacity: 0.7 }}>Buscar compromissos...</span>
+                            </div>
                         </div>
                     </div>
 
+                    {/* CONTEÚDO PRINCIPAL */}
                     <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>
                         {/* PRÓXIMOS COMPROMISSOS */}
                         <section>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <ListChecks size={22} color="#7c3aed" /> Próximos Compromissos
+                                <h2 style={{ fontWeight: 800, fontSize: 22, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <ListChecks size={22} color="#a78bfa" /> Próximos Compromissos
                                 </h2>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>Mostrar pendentes</span>
+                                    <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>Mostrar pendentes</span>
                                     <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
                                         <input type="checkbox" checked={showPendingInNext} onChange={(e) => setShowPendingInNext(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? '#7c3aed' : '#cbd5e1', borderRadius: 24, transition: '0.3s' }}>
+                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? '#7c3aed' : '#475569', borderRadius: 24, transition: '0.3s' }}>
                                             <span style={{ position: 'absolute', height: 18, width: 18, left: showPendingInNext ? 23 : 3, bottom: 3, backgroundColor: 'white', transition: '0.3s', borderRadius: '50%' }} />
                                         </span>
                                     </label>
                                 </div>
                             </div>
                             {proximosCompromissos.length === 0 ? (
-                                <div style={{ background: '#fff', borderRadius: 24, padding: 28, textAlign: 'center', border: '1px dashed #e2e8f0', color: '#94a3b8' }}>Nenhum compromisso futuro.</div>
+                                <div style={{
+                                    background: 'rgba(255,255,255,0.06)',
+                                    borderRadius: 24,
+                                    padding: 28,
+                                    textAlign: 'center',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    color: '#94a3b8',
+                                    backdropFilter: 'blur(10px)',
+                                }}>
+                                    Nenhum compromisso futuro.
+                                </div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {proximosCompromissos.map((comp, idx) => {
@@ -796,23 +852,26 @@ export default function CompromissosPage() {
                                         const displayDate = parseDate(comp.date).toLocaleDateString('pt-BR')
                                         return (
                                             <div key={comp.id} onClick={() => openDetailModal(comp)} style={{
-                                                background: isFirst ? '#fff' : '#f8fafc', borderRadius: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 16,
-                                                boxShadow: isFirst ? '0 8px 25px rgba(124,58,237,0.12)' : '0 2px 10px rgba(0,0,0,0.04)',
-                                                border: isFirst ? '2px solid #7c3aed' : '1px solid #e2e8f0', position: 'relative', cursor: 'pointer', transition: 'all 0.2s'
+                                                background: isFirst ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.06)',
+                                                borderRadius: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 16,
+                                                boxShadow: isFirst ? '0 8px 25px rgba(124,58,237,0.3)' : '0 2px 10px rgba(0,0,0,0.2)',
+                                                border: isFirst ? '2px solid #7c3aed' : '1px solid rgba(255,255,255,0.1)',
+                                                position: 'relative', cursor: 'pointer', transition: 'all 0.2s',
+                                                backdropFilter: 'blur(10px)',
                                             }}>
-                                                {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: '#7c3aed', borderRadius: 20, padding: '2px 10px', color: '#fff', fontWeight: 700, fontSize: 12, boxShadow: '0 4px 10px rgba(124,58,237,0.4)' }}>{remaining}</div>}
+                                                {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: '#7c3aed', borderRadius: 20, padding: '2px 10px', color: '#fff', fontWeight: 700, fontSize: 12, boxShadow: '0 4px 10px rgba(124,58,237,0.5)' }}>{remaining}</div>}
                                                 <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                         <div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                                <h3 style={{ fontWeight: 800, fontSize: 17, color: isFirst ? '#7c3aed' : '#1e293b' }}>{comp.service_name}</h3>
+                                                                <h3 style={{ fontWeight: 800, fontSize: 17, color: isFirst ? '#c084fc' : '#fff' }}>{comp.service_name}</h3>
                                                                 {comp.is_public !== undefined && <VisibilityBadge isPublic={comp.is_public} />}
-                                                                <span style={{ fontSize: 10, fontWeight: 700, background: comp.status === 'confirmed' ? '#22c55e' : '#f59e0b', color: comp.status === 'confirmed' ? '#fff' : '#000', padding: '2px 8px', borderRadius: 12 }}>
+                                                                <span style={{ fontSize: 10, fontWeight: 700, background: comp.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(234,179,8,0.2)', color: comp.status === 'confirmed' ? '#10b981' : '#facc15', padding: '2px 8px', borderRadius: 12 }}>
                                                                     {comp.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                                                 </span>
                                                             </div>
-                                                            <p style={{ color: '#64748b', fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                                 {avatarType === 'store' && <><Store size={12} /> {comp.store_name}</>}
                                                                 {avatarType === 'invite' && <><User size={12} /> Convite</>}
                                                                 {avatarType === 'personal' && <><Lock size={12} /> Compromisso pessoal</>}
@@ -820,7 +879,7 @@ export default function CompromissosPage() {
                                                             <ParticipantsMini participants={compParticipants} />
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? '#7c3aed' : '#334155' }}>{formatTime(comp.time)}</p>
+                                                            <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? '#c084fc' : '#e2e8f0' }}>{formatTime(comp.time)}</p>
                                                             <p style={{ fontSize: 12, color: '#94a3b8' }}>{displayDate}</p>
                                                         </div>
                                                     </div>
@@ -835,16 +894,36 @@ export default function CompromissosPage() {
                         {/* CALENDÁRIO */}
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <h2 style={{ fontWeight: 700, fontSize: 20, display: 'flex', alignItems: 'center', gap: 6, color: '#1e293b' }}>
-                                    <LayoutGrid size={20} color="#7c3aed" /> {meses[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                                <h2 style={{ fontWeight: 700, fontSize: 20, display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
+                                    <LayoutGrid size={20} color="#a78bfa" /> {meses[selectedDate.getMonth()]} {selectedDate.getFullYear()}
                                 </h2>
-                                <button onClick={() => setCalendarOpen(true)} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14, boxShadow: '0 4px 15px rgba(124,58,237,0.3)', transition: 'all 0.2s' }}>Ver calendário</button>
+                                <button onClick={() => setCalendarOpen(true)} style={{
+                                    background: '#7c3aed',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 14,
+                                    padding: '10px 16px',
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    fontSize: 14,
+                                    boxShadow: '0 4px 15px rgba(124,58,237,0.3)',
+                                }}>
+                                    Ver calendário
+                                </button>
                             </div>
                             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
                                 {diasHorizontais.map((item) => {
                                     const ativo = item.date.toDateString() === selectedDate.toDateString()
                                     return (
-                                        <button key={item.numero} onClick={() => setSelectedDate(item.date)} style={{ minWidth: 72, border: 'none', background: ativo ? '#7c3aed' : '#fff', color: ativo ? '#fff' : '#0f172a', borderRadius: 20, padding: 14, boxShadow: ativo ? '0 8px 20px rgba(124,58,237,0.3)' : '0 2px 8px rgba(0,0,0,0.05)', cursor: 'pointer', position: 'relative', transition: 'all 0.2s' }}>
+                                        <button key={item.numero} onClick={() => setSelectedDate(item.date)} style={{
+                                            minWidth: 72, border: 'none',
+                                            background: ativo ? '#7c3aed' : 'rgba(255,255,255,0.1)',
+                                            color: ativo ? '#fff' : '#fff',
+                                            borderRadius: 20, padding: 14,
+                                            boxShadow: ativo ? '0 8px 20px rgba(124,58,237,0.3)' : '0 2px 8px rgba(0,0,0,0.2)',
+                                            cursor: 'pointer', position: 'relative', transition: 'all 0.2s',
+                                            backdropFilter: 'blur(10px)',
+                                        }}>
                                             <p style={{ fontSize: 12, fontWeight: 600 }}>{item.dia}</p>
                                             <h3 style={{ fontSize: 22, fontWeight: 800 }}>{item.numero}</h3>
                                             {item.count > 0 && <div style={{ position: 'absolute', top: 6, right: 6, background: '#a855f7', color: '#fff', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 6px rgba(168,85,247,0.5)' }}>{item.count}</div>}
@@ -856,18 +935,18 @@ export default function CompromissosPage() {
 
                         {/* CALENDÁRIO POPUP */}
                         {calendarOpen && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                                <div style={{ width: '100%', maxWidth: 500, background: '#fff', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                                <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <h2 style={{ fontSize: 22, fontWeight: 800 }}>Calendário</h2>
-                                        <button onClick={() => setCalendarOpen(false)} style={{ border: 'none', background: '#f1f5f9', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
+                                        <button onClick={() => setCalendarOpen(false)} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                        <button onClick={() => { if (calendarYear > 2026) setCalendarYear((prev) => prev - 1) }}>«</button>
-                                        <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((prev) => prev - 1) } else setCalendarMonth((prev) => prev - 1) }}><ChevronLeft /></button>
+                                        <button onClick={() => { if (calendarYear > 2026) setCalendarYear((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>«</button>
+                                        <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((prev) => prev - 1) } else setCalendarMonth((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><ChevronLeft /></button>
                                         <strong>{meses[calendarMonth]} {calendarYear}</strong>
-                                        <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((prev) => prev + 1) } else setCalendarMonth((prev) => prev + 1) }}><ChevronRight /></button>
-                                        <button onClick={() => { if (calendarYear < 2028) setCalendarYear((prev) => prev + 1) }}>»</button>
+                                        <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((prev) => prev + 1) } else setCalendarMonth((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><ChevronRight /></button>
+                                        <button onClick={() => { if (calendarYear < 2028) setCalendarYear((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>»</button>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8, marginBottom: 12 }}>
                                         {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((dia, idx) => (
@@ -890,8 +969,8 @@ export default function CompromissosPage() {
                                                         height: 42,
                                                         border: 'none',
                                                         borderRadius: 12,
-                                                        background: ativo ? '#7c3aed' : '#f8fafc',
-                                                        color: ativo ? '#fff' : '#0f172a',
+                                                        background: ativo ? '#7c3aed' : 'rgba(255,255,255,0.1)',
+                                                        color: '#fff',
                                                         cursor: 'pointer',
                                                         position: 'relative',
                                                     }}
@@ -912,7 +991,7 @@ export default function CompromissosPage() {
                                             const avatarType = getAvatarType(evento)
                                             const avatarUrl = getAvatarUrl(evento, avatarType)
                                             return (
-                                                <div key={evento.id} style={{ background: '#f8fafc', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,.05)' }}>
+                                                <div key={evento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', backdropFilter: 'blur(10px)' }}>
                                                     <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
                                                     <div style={{ flex: 1 }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -920,10 +999,10 @@ export default function CompromissosPage() {
                                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{evento.service_name}</h4>
                                                                 {evento.is_public !== undefined && <VisibilityBadge isPublic={evento.is_public} />}
                                                             </div>
-                                                            <span style={{ fontWeight: 700, color: evento.status === 'confirmed' ? '#22c55e' : '#f59e0b' }}>{evento.status === 'confirmed' ? 'Confirmado' : 'Pendente'}</span>
+                                                            <span style={{ fontWeight: 700, color: evento.status === 'confirmed' ? '#10b981' : '#facc15' }}>{evento.status === 'confirmed' ? 'Confirmado' : 'Pendente'}</span>
                                                         </div>
-                                                        <p style={{ color: '#64748b', marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
-                                                        <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#64748b' }}>
+                                                        <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                        <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
                                                             <Clock3 size={14} />
                                                             <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
                                                         </div>
@@ -938,32 +1017,32 @@ export default function CompromissosPage() {
 
                         {/* AGENDA DO DIA */}
                         <section>
-                            <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Clock3 size={22} color="#7c3aed" /> Agenda • {selectedDate.toLocaleDateString('pt-BR')}
+                            <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Clock3 size={22} color="#a78bfa" /> Agenda • {selectedDate.toLocaleDateString('pt-BR')}
                             </h2>
                             {eventosDoDia.length === 0 ? (
-                                <div style={{ background: '#fff', borderRadius: 24, padding: 24, textAlign: 'center', color: '#94a3b8', border: '1px solid #f1f5f9' }}>Nenhum agendamento para este dia.</div>
+                                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 24, textAlign: 'center', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum agendamento para este dia.</div>
                             ) : (
                                 eventosDoDia.map((evento) => {
                                     const avatarType = getAvatarType(evento)
                                     const avatarUrl = getAvatarUrl(evento, avatarType)
                                     return (
-                                        <div key={evento.id} style={{ background: '#fff', borderRadius: 24, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                                        <div key={evento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
                                             <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 18 }}>{evento.service_name}</h3>
+                                                    <h3 style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>{evento.service_name}</h3>
                                                     {evento.is_public !== undefined && <VisibilityBadge isPublic={evento.is_public} />}
                                                 </div>
-                                                <p style={{ color: '#64748b', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <p style={{ color: '#94a3b8', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {avatarType === 'store' && <><Store size={14} /> {evento.store_name}</>}
                                                     {avatarType === 'invite' && <><User size={14} /> Convite</>}
                                                     {avatarType === 'personal' && <><Lock size={14} /> Compromisso pessoal</>}
                                                 </p>
-                                                <div style={{ fontSize: 20, fontWeight: 800, color: '#7c3aed', marginBottom: 8 }}>{formatTime(evento.time)}</div>
+                                                <div style={{ fontSize: 20, fontWeight: 800, color: '#c084fc', marginBottom: 8 }}>{formatTime(evento.time)}</div>
                                                 <div style={{ display: 'flex', gap: 8 }}>
-                                                    {evento.status === 'confirmed' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} color="#fff" /></div>}
-                                                    {evento.status === 'pending' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock3 size={16} color="#fff" /></div>}
+                                                    {evento.status === 'confirmed' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} color="#fff" /></div>}
+                                                    {evento.status === 'pending' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock3 size={16} color="#000" /></div>}
                                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(evento.id) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#ef4444', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash2 size={16} color="#fff" /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); openDetailModal(evento) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#7c3aed', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Edit3 size={16} color="#fff" /></button>
                                                 </div>
@@ -977,32 +1056,32 @@ export default function CompromissosPage() {
                         {/* CONVITES (apenas na aba Pessoal) */}
                         {activeTab === 'pessoal' && (
                             <section>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b' }}>
-                                    <Bell size={22} color="#7c3aed" /> Convites
+                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
+                                    <Bell size={22} color="#a78bfa" /> Convites
                                 </h2>
                                 {convitesRecebidos.length === 0 ? (
-                                    <div style={{ background: '#fff', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid #f1f5f9' }}>Nenhum convite pendente.</div>
+                                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum convite pendente.</div>
                                 ) : (
                                     convitesRecebidos.map((convite) => {
                                         const avatarType = getAvatarType(convite)
                                         const avatarUrl = getAvatarUrl(convite, avatarType)
                                         return (
-                                            <div key={convite.id} style={{ background: '#fff', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                                            <div key={convite.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                                 <div style={{ display: 'flex', gap: 16 }}>
                                                     <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} />
                                                     <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontWeight: 800 }}>{convite.service_name}</h3>
-                                                        <p style={{ marginTop: 4, fontSize: 14, color: '#475569' }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#64748b', marginTop: 4 }}>
+                                                        <h3 style={{ fontWeight: 800, color: '#fff' }}>{convite.service_name}</h3>
+                                                        <p style={{ marginTop: 4, fontSize: 14, color: '#94a3b8' }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', marginTop: 4 }}>
                                                             <Clock3 size={14} />
                                                             <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
-                                                    <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#22c55e', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
+                                                    <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                     <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
                                                 </div>
                                             </div>
                                         )
@@ -1014,30 +1093,30 @@ export default function CompromissosPage() {
                         {/* PENDENTES DA LOJA */}
                         {activeTab !== 'pessoal' && (
                             <section>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b' }}>
+                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
                                     <Bell size={22} color="#f97316" /> Pendentes
                                 </h2>
                                 {pendentesLoja.length === 0 ? (
-                                    <div style={{ background: '#fff', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid #f1f5f9' }}>Nenhum agendamento pendente.</div>
+                                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum agendamento pendente.</div>
                                 ) : (
                                     pendentesLoja.map((agendamento) => (
-                                        <div key={agendamento.id} style={{ background: '#fff', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                                        <div key={agendamento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                                                 <AppointmentAvatar url={agendamento.store_logo_url ?? null} name={agendamento.store_name || 'Loja'} type="store" size={56} />
                                                 <div style={{ flex: 1 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 16 }}>{agendamento.service_name}</h3>
-                                                    <p style={{ color: '#64748b', fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#64748b' }}>
+                                                    <h3 style={{ fontWeight: 800, fontSize: 16, color: '#fff' }}>{agendamento.service_name}</h3>
+                                                    <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
+                                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
                                                         <Clock3 size={14} />
                                                         <span>{agendamento.date.split('-').reverse().join('/')} • {formatTime(agendamento.time)}</span>
                                                     </div>
                                                 </div>
-                                                <span style={{ background: '#fef9c3', color: '#ca8a04', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Pendente</span>
+                                                <span style={{ background: 'rgba(234,179,8,0.2)', color: '#facc15', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Pendente</span>
                                             </div>
                                             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                                                <button onClick={() => aceitarCompromisso(agendamento.id)} style={{ flex: 1, background: '#22c55e', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
+                                                <button onClick={() => aceitarCompromisso(agendamento.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                 <button onClick={() => recusarCompromisso(agendamento.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                <button onClick={() => openDetailModal(agendamento)} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                <button onClick={() => openDetailModal(agendamento)} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
                                             </div>
                                         </div>
                                     ))
@@ -1048,13 +1127,13 @@ export default function CompromissosPage() {
                         {/* ACEITOS / CONFIRMADOS */}
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: '#1e293b' }}>
-                                    <UserCheck size={22} color="#7c3aed" /> {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'}
+                                <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
+                                    <UserCheck size={22} color="#a78bfa" /> {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'}
                                 </h2>
-                                {hasMoreAceitos && <button onClick={() => setShowAllAcceptedModal(true)} style={{ border: 'none', background: 'transparent', color: '#7c3aed', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Ver todos ({listaAceitos.length})</button>}
+                                {hasMoreAceitos && <button onClick={() => setShowAllAcceptedModal(true)} style={{ border: 'none', background: 'transparent', color: '#a78bfa', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Ver todos ({listaAceitos.length})</button>}
                             </div>
                             {listaAceitos.length === 0 ? (
-                                <div style={{ background: '#fff', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid #f1f5f9' }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
+                                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {aceitosExibidos.map((item) => {
@@ -1063,21 +1142,21 @@ export default function CompromissosPage() {
                                         const itemParticipants = participantsMap[item.id] || []
                                         const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                         return (
-                                            <div key={item.id} style={{ background: '#fff', borderRadius: 24, padding: 16, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
+                                            <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
                                                 <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <h3 style={{ fontWeight: 800, fontSize: 18 }}>{item.service_name}</h3>
+                                                        <h3 style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>{item.service_name}</h3>
                                                         {item.is_public !== undefined && <VisibilityBadge isPublic={item.is_public} />}
                                                     </div>
-                                                    <p style={{ color: '#64748b', marginTop: 4 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: '#64748b' }}>
+                                                    <p style={{ color: '#94a3b8', marginTop: 4 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                    <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: '#94a3b8' }}>
                                                         <Clock3 size={16} />
                                                         <span>{displayDate} • {formatTime(item.time)}</span>
                                                     </div>
                                                     <ParticipantsMini participants={itemParticipants} />
                                                 </div>
-                                                <span style={{ background: '#dcfce7', color: '#16a34a', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
+                                                <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
                                             </div>
                                         )
                                     })}
@@ -1088,27 +1167,27 @@ export default function CompromissosPage() {
 
                     {/* MODAL DE PENDENTES (convites enviados) */}
                     {showPendentesModal && activeTab === 'pessoal' && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                            <div style={{ width: '100%', maxWidth: 500, background: '#fff', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                            <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                     <h2 style={{ fontSize: 22, fontWeight: 800 }}>Convites Pendentes</h2>
-                                    <button onClick={() => setShowPendentesModal(false)} style={{ border: 'none', background: '#f1f5f9', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
+                                    <button onClick={() => setShowPendentesModal(false)} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
                                 </div>
                                 {pendentesEnviados.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum convite enviado pendente.</p> : pendentesEnviados.map((convite) => {
                                     const avatarType = getAvatarType(convite)
                                     const avatarUrl = getAvatarUrl(convite, avatarType)
                                     return (
-                                        <div key={convite.id} style={{ background: '#f8fafc', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,.05)' }}>
+                                        <div key={convite.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
                                             <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{convite.service_name}</h4>
-                                                <p style={{ color: '#64748b', marginTop: 2 }}>Para: @{convite.customer_slug}</p>
-                                                <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#64748b' }}>
+                                                <p style={{ color: '#94a3b8', marginTop: 2 }}>Para: @{convite.customer_slug}</p>
+                                                <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
                                                     <Clock3 size={14} />
                                                     <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
                                                 </div>
                                             </div>
-                                            <button onClick={() => { handleDelete(convite.id); setShowPendentesModal(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={20} color="#ef4444" /></button>
+                                            <button onClick={() => { handleDelete(convite.id); setShowPendentesModal(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}><Trash2 size={20} /></button>
                                         </div>
                                     )
                                 })}
@@ -1118,16 +1197,16 @@ export default function CompromissosPage() {
 
                     {/* MODAL DE TODOS OS ACEITOS */}
                     {showAllAcceptedModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                            <div style={{ width: '100%', maxWidth: 500, background: '#fff', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                            <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                     <h2 style={{ fontSize: 22, fontWeight: 800 }}>Todos os {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'} ({listaAceitos.length})</h2>
-                                    <button onClick={() => { setShowAllAcceptedModal(false); setAcceptedSearch('') }} style={{ border: 'none', background: '#f1f5f9', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
+                                    <button onClick={() => { setShowAllAcceptedModal(false); setAcceptedSearch('') }} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
                                 </div>
                                 <div style={{ marginBottom: 16 }}>
                                     <div style={{ position: 'relative' }}>
                                         <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                        <input type="text" value={acceptedSearch} onChange={(e) => setAcceptedSearch(e.target.value)} placeholder="Buscar por nome ou compromisso..." style={{ width: '100%', padding: '12px 16px 12px 40px', borderRadius: 14, border: '2px solid #e2e8f0', fontSize: 14, outline: 'none', background: '#f8fafc' }} />
+                                        <input type="text" value={acceptedSearch} onChange={(e) => setAcceptedSearch(e.target.value)} placeholder="Buscar por nome ou compromisso..." style={{ width: '100%', padding: '12px 16px 12px 40px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.2)', fontSize: 14, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }} />
                                     </div>
                                 </div>
                                 {filteredAceitos.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum encontrado.</p> : filteredAceitos.map((item) => {
@@ -1135,17 +1214,17 @@ export default function CompromissosPage() {
                                     const avatarUrl = getAvatarUrl(item, avatarType)
                                     const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                     return (
-                                        <div key={item.id} style={{ background: '#f8fafc', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', boxShadow: '0 10px 25px rgba(0,0,0,.05)' }}>
+                                        <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
                                             <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{item.service_name}</h4>
-                                                <p style={{ color: '#64748b', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
-                                                <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#64748b' }}>
+                                                <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
                                                     <Clock3 size={14} />
                                                     <span>{displayDate} • {formatTime(item.time)}</span>
                                                 </div>
                                             </div>
-                                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
+                                            <span style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981', padding: '4px 12px', borderRadius: 12, fontWeight: 700, fontSize: 12 }}>Confirmado</span>
                                         </div>
                                     )
                                 })}
@@ -1155,11 +1234,11 @@ export default function CompromissosPage() {
 
                     {/* MODAL DE DETALHES */}
                     {detailModalOpen && selectedAppointment && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                            <div style={{ width: '100%', maxWidth: 500, background: '#fff', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                            <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(20px)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                    <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1e293b' }}>Detalhes</h2>
-                                    <button onClick={() => setDetailModalOpen(false)} style={{ border: 'none', background: '#f1f5f9', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer' }}>✕</button>
+                                    <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>Detalhes</h2>
+                                    <button onClick={() => setDetailModalOpen(false)} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
                                 </div>
                                 <div style={{ display: 'flex', gap: 16, marginBottom: 24, alignItems: 'center' }}>
                                     <AppointmentAvatar
@@ -1170,35 +1249,35 @@ export default function CompromissosPage() {
                                     />
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <h3 style={{ fontWeight: 800, fontSize: 20, color: '#1e293b' }}>{selectedAppointment.service_name}</h3>
+                                            <h3 style={{ fontWeight: 800, fontSize: 20, color: '#fff' }}>{selectedAppointment.service_name}</h3>
                                             {selectedAppointment.is_public !== undefined && <VisibilityBadge isPublic={selectedAppointment.is_public} />}
                                         </div>
-                                        <p style={{ color: '#64748b', fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <p style={{ color: '#94a3b8', fontSize: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
                                             {!selectedAppointment.store_id ? (selectedAppointment.direction ? <><User size={14} /> Convite</> : <><Lock size={14} /> Compromisso pessoal</>) : <><Store size={14} /> {selectedAppointment.store_name}</>}
                                         </p>
-                                        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 14, color: '#475569' }}>
+                                        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 14, color: '#94a3b8' }}>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={14} /> {new Date(selectedAppointment.date).toLocaleDateString('pt-BR')}</span>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock3 size={14} /> {formatTime(selectedAppointment.time)}</span>
                                         </div>
-                                        <span style={{ marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: selectedAppointment.status === 'confirmed' ? '#dcfce7' : '#fef9c3', color: selectedAppointment.status === 'confirmed' ? '#16a34a' : '#ca8a04', fontWeight: 700, fontSize: 12 }}>
+                                        <span style={{ marginTop: 8, display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: selectedAppointment.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(234,179,8,0.2)', color: selectedAppointment.status === 'confirmed' ? '#10b981' : '#facc15', fontWeight: 700, fontSize: 12 }}>
                                             {selectedAppointment.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                         </span>
                                     </div>
                                 </div>
-                                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 20, marginBottom: 20 }}>
-                                    <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}><Users size={18} color="#7c3aed" /> Participantes</h4>
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginBottom: 20 }}>
+                                    <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa' }}><Users size={18} /> Participantes</h4>
                                     {participants.length === 0 ? <p style={{ color: '#94a3b8', fontSize: 14 }}>Nenhum participante encontrado.</p> : (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                             {participants.map((p, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 12 }}>
-                                                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#475569', fontSize: 14 }}>
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.06)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff', fontSize: 14 }}>
                                                         {p.profile?.name?.charAt(0)?.toUpperCase() || p.customer_slug?.charAt(0)?.toUpperCase() || '?'}
                                                     </div>
                                                     <div style={{ flex: 1 }}>
-                                                        <p style={{ fontWeight: 600, fontSize: 14 }}>{p.profile?.name || p.customer_slug}</p>
-                                                        <p style={{ fontSize: 12, color: '#64748b' }}>@{p.customer_slug}</p>
+                                                        <p style={{ fontWeight: 600, fontSize: 14, color: '#fff' }}>{p.profile?.name || p.customer_slug}</p>
+                                                        <p style={{ fontSize: 12, color: '#94a3b8' }}>@{p.customer_slug}</p>
                                                     </div>
-                                                    <span style={{ fontSize: 12, fontWeight: 700, color: p.status === 'confirmed' ? '#16a34a' : '#ca8a04' }}>
+                                                    <span style={{ fontSize: 12, fontWeight: 700, color: p.status === 'confirmed' ? '#10b981' : '#facc15' }}>
                                                         {p.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                                     </span>
                                                 </div>
@@ -1206,28 +1285,28 @@ export default function CompromissosPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
-                                    <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><UserPlus size={18} color="#7c3aed" /> Convidar mais pessoas</h4>
+                                <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20 }}>
+                                    <h4 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, color: '#a78bfa' }}><UserPlus size={18} /> Convidar mais pessoas</h4>
                                     <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                                        <input type="text" value={inviteSlugDetail} onChange={(e) => { setInviteSlugDetail(e.target.value); setSearchedProfileDetail(null) }} placeholder="Digite o @usuario" style={{ flex: 1, padding: '12px 16px', borderRadius: 14, border: '2px solid #e2e8f0', fontSize: 14, outline: 'none' }} onKeyDown={(e) => e.key === 'Enter' && searchProfileForDetail()} />
+                                        <input type="text" value={inviteSlugDetail} onChange={(e) => { setInviteSlugDetail(e.target.value); setSearchedProfileDetail(null) }} placeholder="Digite o @usuario" style={{ flex: 1, padding: '12px 16px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.2)', fontSize: 14, outline: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff' }} onKeyDown={(e) => e.key === 'Enter' && searchProfileForDetail()} />
                                         <button onClick={searchProfileForDetail} disabled={searchingDetail || !inviteSlugDetail.trim()} style={{ background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 14, padding: '0 18px', fontWeight: 700, cursor: 'pointer' }}><Search size={16} /></button>
                                     </div>
                                     {searchedProfileDetail && (
-                                        <div style={{ background: '#f8fafc', borderRadius: 16, padding: 12, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                                            <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#475569' }}>{searchedProfileDetail.name?.charAt(0)?.toUpperCase() || '?'}</div>
+                                        <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: 12, display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#fff' }}>{searchedProfileDetail.name?.charAt(0)?.toUpperCase() || '?'}</div>
                                             <div style={{ flex: 1 }}>
-                                                <p style={{ fontWeight: 700, fontSize: 14 }}>{searchedProfileDetail.name}</p>
-                                                <p style={{ color: '#7c3aed', fontSize: 12 }}>@{searchedProfileDetail.profileSlug}</p>
+                                                <p style={{ fontWeight: 700, fontSize: 14, color: '#fff' }}>{searchedProfileDetail.name}</p>
+                                                <p style={{ color: '#a78bfa', fontSize: 12 }}>@{searchedProfileDetail.profileSlug}</p>
                                             </div>
-                                            <button onClick={() => { setSearchedProfileDetail(null); setInviteSlugDetail('') }} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}><X size={16} color="#94a3b8" /></button>
-                                            <button onClick={addInviteToAppointment} style={{ background: '#22c55e', color: '#fff', border: 'none', borderRadius: 12, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Convidar</button>
+                                            <button onClick={() => { setSearchedProfileDetail(null); setInviteSlugDetail('') }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+                                            <button onClick={addInviteToAppointment} style={{ background: '#10b981', color: '#fff', border: 'none', borderRadius: 12, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Convidar</button>
                                         </div>
                                     )}
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Settings size={18} color="#64748b" /><span style={{ fontSize: 14, color: '#334155' }}>Permitir que convidados adicionem pessoas</span></div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8' }}><Settings size={18} /><span style={{ fontSize: 14 }}>Permitir que convidados adicionem pessoas</span></div>
                                         <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 26 }}>
                                             <input type="checkbox" checked={allowGuestInvites} onChange={(e) => setAllowGuestInvites(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                                            <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: allowGuestInvites ? '#7c3aed' : '#cbd5e1', borderRadius: 26, transition: '0.3s' }}>
+                                            <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: allowGuestInvites ? '#7c3aed' : '#475569', borderRadius: 26, transition: '0.3s' }}>
                                                 <span style={{ position: 'absolute', height: 20, width: 20, left: allowGuestInvites ? 24 : 3, bottom: 3, backgroundColor: 'white', transition: '0.3s', borderRadius: '50%' }} />
                                             </span>
                                         </label>
@@ -1285,10 +1364,10 @@ export default function CompromissosPage() {
                     )}
 
                     {/* BOTÃO FLUTUANTE: AGENDAR */}
-                    <button onClick={() => router.push('/compromissos/agendar')} style={{ position: 'fixed', bottom: 32, right: 24, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', borderRadius: 32, padding: '16px 28px', fontWeight: 800, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 12px 40px rgba(124,58,237,.45)', cursor: 'pointer', zIndex: 998, transition: 'transform 0.2s' }} onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')} onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
+                    <button onClick={() => router.push('/compromissos/agendar')} style={{ position: 'fixed', bottom: 32, right: 24, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', borderRadius: 32, padding: '16px 28px', fontWeight: 800, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 12px 40px rgba(124,58,237,0.5)', cursor: 'pointer', zIndex: 998, transition: 'transform 0.2s' }} onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')} onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
                         <Plus size={24} /> Agendar
                     </button>
-                </>
+                </div>
             )}
         </main>
     )

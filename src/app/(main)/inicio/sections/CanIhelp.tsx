@@ -17,64 +17,60 @@ interface CanIhelpProps {
 }
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
-
     const categorias = [
         {
             nome: 'Restaurantes',
             slug: 'restaurantes',
             icone: UtensilsCrossed,
-            gradient: 'from-orange-500 to-red-500',
+            color: '#f97316',
         },
         {
             nome: 'Mercados',
             slug: 'mercados',
             icone: ShoppingCart,
-            gradient: 'from-green-500 to-emerald-600',
+            color: '#22c55e',
         },
         {
             nome: 'Farmácias',
             slug: 'farmacias',
             icone: Pill,
-            gradient: 'from-yellow-400 to-red-500',
+            color: '#eab308',
         },
         {
             nome: 'Pet Shops',
             slug: 'petshops',
             icone: PawPrint,
-            gradient: 'from-pink-500 to-rose-500',
+            color: '#ec4899',
         },
         {
             nome: 'Fitness',
             slug: 'fitness',
             icone: Dumbbell,
-            gradient: 'from-purple-500 to-violet-600',
+            color: '#a855f7',
         },
         {
             nome: 'Roupas',
             slug: 'roupas',
             icone: Shirt,
-            gradient: 'from-blue-500 to-indigo-600',
+            color: '#3b82f6',
         },
         {
             nome: 'Entregas',
             slug: 'entregas',
             icone: Truck,
-            gradient: 'from-slate-600 to-gray-800',
+            color: '#64748b',
         },
     ]
 
     return (
         <section>
-            {/* HEADER */}
             <div className="flex items-center gap-2 mb-4">
                 {dragHandle}
-
-                <h2 className="text-xl font-black text-gray-800">
+                <h2 className="text-xl font-black text-white">
                     Posso ajudar você a encontrar algo?
                 </h2>
             </div>
 
-            {/* GRID */}
             <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
                 {categorias.map((cat) => (
                     <Link
@@ -83,12 +79,17 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         className="flex flex-col items-center gap-2 p-2 rounded-xl hover:scale-105 active:scale-95 transition-transform"
                     >
                         <div
-                            className={`p-3 rounded-full bg-gradient-to-br ${cat.gradient} text-white shadow-md`}
+                            className="p-3 rounded-full shadow-md"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.06)',
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                            }}
                         >
-                            <cat.icone className="w-5 h-5" />
+                            <cat.icone className="w-5 h-5" style={{ color: cat.color }} />
                         </div>
 
-                        <span className="text-xs text-center font-bold text-gray-700 leading-tight">
+                        <span className="text-xs text-center font-bold text-white leading-tight">
                             {cat.nome}
                         </span>
                     </Link>

@@ -12,31 +12,33 @@ export default function TransporteSection({
 }: TransporteSectionProps) {
     return (
         <section>
-
             {/* HEADER PADRONIZADO */}
             <div className="flex items-center gap-2 mb-3">
                 {dragHandle}
 
-                <h2 className="text-xl font-black text-gray-800">
+                <h2 className="text-xl font-black text-white">
                     Transporte
                 </h2>
             </div>
 
-            {/* CARD */}
-            <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-4 flex items-center gap-4 text-white shadow-md cursor-pointer hover:shadow-lg transition-all">
-                <MapPinned className="w-8 h-8" />
+            {/* CARD – VIDRO ESCURO */}
+            <div
+                className="rounded-2xl p-4 flex items-center gap-4 text-white cursor-pointer hover:shadow-lg transition-all"
+                style={{
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+            >
+                <MapPinned className="w-8 h-8 text-blue-400" />
 
                 <div className="flex-1">
-                    <h3 className="font-bold">
-                        Ir para algum lugar
-                    </h3>
-
-                    <p className="text-sm opacity-90">
-                        Encontre seu motorista!
-                    </p>
+                    <h3 className="font-bold">Ir para algum lugar</h3>
+                    <p className="text-sm opacity-70">Encontre seu motorista!</p>
                 </div>
 
-                <ChevronRight className="w-5 h-5" />
+                <ChevronRight className="w-5 h-5 opacity-50" />
             </div>
         </section>
     )

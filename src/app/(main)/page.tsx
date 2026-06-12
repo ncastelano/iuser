@@ -21,8 +21,11 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import PromocoesSection from './inicio/sections/PromocoesSection'
-import AgendamentosSection from './compromissos/AgendamentosSection'
 import SortableSection from './inicio/sections/SortableSection'
+import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
+import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
+import ConfiguracoesContent from './Configuracoes'
+
 
 export default function HomePage() {
     const router = useRouter()
@@ -31,12 +34,16 @@ export default function HomePage() {
         'transporte',
         'motorista',
         'promocoes',
-        'agendamentos',
+        'compromissosPessoal',
+        'compromissosLoja',
     ])
 
     const [session, setSession] = useState<any>(null)
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
+
+    // Estado para controlar se as configurações estão abertas
+    const [showConfig, setShowConfig] = useState(false)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -93,8 +100,10 @@ export default function HomePage() {
                 return <MotoristaSection />
             case 'promocoes':
                 return <PromocoesSection />
-            case 'agendamentos':
-                return <AgendamentosSection />
+            case 'compromissosPessoal':
+                return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
+            case 'compromissosLoja':
+                return <AtalhoCompromissosDaLoja />
             default:
                 return null
         }
@@ -108,13 +117,6 @@ export default function HomePage() {
         }
     }
 
-    const handleSettingsClick = () => {
-        router.push('/configuracoes')
-    }
-
-    const avatarInitial = profileSlug ? profileSlug.charAt(0).toUpperCase() : ''
-
-    // Helper para URL pública do avatar
     const getPublicUrl = (path: string | null | undefined, bucket: string): string | null => {
         if (!path) return null
         if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) return path
@@ -124,7 +126,7 @@ export default function HomePage() {
 
     const avatarUrl = getPublicUrl(userAvatarUrl, 'avatars')
 
-    // Abas inspiradas nas do compromissos
+    // Abas com destaque dinâmico
     const tabs = [
         {
             id: 'perfil',
@@ -132,13 +134,15 @@ export default function HomePage() {
             icon: User,
             imageUrl: avatarUrl,
             onClick: handleAvatarClick,
+            isActive: !showConfig, // ativo quando não estamos nas config
         },
         {
             id: 'config',
-            label: 'Ajustes',
+            label: 'Configurações',
             icon: Settings,
             imageUrl: null,
-            onClick: handleSettingsClick,
+            onClick: () => setShowConfig(!showConfig), // alterna as config
+            isActive: showConfig, // ativo quando showConfig é true
         },
     ]
 
@@ -149,7 +153,6 @@ export default function HomePage() {
             </div>
 
             <main className="relative z-10 min-h-screen pb-24">
-                {/* HEADER – IDÊNTICO AO COMPROMISSOS, COM BOTÃO DE VOLTAR COM LOGO */}
                 <div
                     style={{
                         background: 'linear-gradient(135deg, #000000ff, #000000)',
@@ -157,67 +160,40 @@ export default function HomePage() {
                         color: '#ffffff',
                         borderBottomLeftRadius: 36,
                         borderBottomRightRadius: 36,
-                        boxShadow: '0 10px 40px rgba(124,58,237,0.25)',
-                        position: 'relative',
+                        boxShadow: '0 10px 40px rgba(255,255,255,0.25)',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 20,
                         overflow: 'hidden',
                     }}
                 >
-                    {/* Imagem decorativa à direita */}
                     <div
                         style={{
                             position: 'absolute',
-                            right: -30,
-                            top: -30,
-                            opacity: 0.5,
+                            right: -20,
+                            top: -20,
+                            opacity: 0.4,
                             transform: 'rotate(10deg)',
                             maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                             WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                         }}
                     >
                         {avatarUrl ? (
-                            <img
-                                src={avatarUrl}
-                                alt=""
-                                style={{ width: 360, height: 360, objectFit: 'cover' }}
-                            />
+                            <img src={avatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
                         ) : (
-                            <img
-                                src="/logotransparente.png"
-                                alt="Logo"
-                                style={{ width: 360, height: 360, objectFit: 'contain' }}
-                            />
+                            <img src="/logotransparente.png" alt="Logo" style={{ width: 280, height: 280, objectFit: 'contain' }} />
                         )}
                     </div>
-
-                    {/* Conteúdo do header */}
                     <div className="relative z-10">
-                        {/* Linha superior: botão de voltar com logo + texto "Compromissos" */}
                         <div className="flex items-center gap-3 mb-1">
-                            <button
-                                onClick={() => router.back()}
-                                className="w-10 h-10 rounded-full flex items-center justify-center"
-                                style={{
-                                    background: 'rgba(255,255,255,0.15)',
-                                    backdropFilter: 'blur(10px)',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <img
-                                    src="/logo.png"
-                                    alt="Logo"
-                                    className="w-6 h-6 object-contain"
-                                />
+                            <button onClick={() => router.back()} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer' }}>
+                                <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
                             </button>
                             <h2 className="text-lg font-semibold opacity-90">iUser</h2>
                         </div>
-
-                        {/* Título principal (saudação) */}
                         <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
                             Olá, {session ? (profileSlug ? `@${profileSlug}` : 'Visitante') : 'Visitante'}
                         </h1>
-
-                        {/* Abas (perfil e ajustes) */}
                         <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
                             {tabs.map((tab) => (
                                 <button
@@ -225,56 +201,44 @@ export default function HomePage() {
                                     onClick={tab.onClick}
                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
                                     style={{
-                                        background: 'rgba(255,255,255,0.15)',
+                                        background: tab.isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
                                         backdropFilter: 'blur(10px)',
                                     }}
                                 >
-                                    {tab.imageUrl ? (
-                                        <img
-                                            src={tab.imageUrl}
-                                            alt=""
-                                            className="w-5 h-5 rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        <tab.icon size={16} />
-                                    )}
+                                    {tab.imageUrl ? <img src={tab.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" /> : <tab.icon size={16} />}
                                     <span>{tab.label}</span>
                                 </button>
                             ))}
                         </div>
-
-                        {/* Barra de busca */}
-                        <div
-                            className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
-                            style={{
-                                background: 'rgba(255,255,255,0.15)',
-                                backdropFilter: 'blur(10px)',
-                            }}
-                        >
+                        <div className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
                             <Search size={18} className="opacity-70" />
                             <span className="opacity-70">Buscar restaurantes, mercados...</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Seções arrastáveis */}
-                <div>
-                    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={sections} strategy={verticalListSortingStrategy}>
-                            <div className="space-y-6 mt-6">
-                                {sections.map((sectionId) => {
-                                    const section = renderSection(sectionId)
-                                    if (!section) return null
-                                    return (
-                                        <SortableSection key={sectionId} id={sectionId}>
-                                            {section}
-                                        </SortableSection>
-                                    )
-                                })}
-                            </div>
-                        </SortableContext>
-                    </DndContext>
-                </div>
+                {/* Conteúdo condicional: Configurações ou Seções arrastáveis */}
+                {showConfig ? (
+                    <ConfiguracoesContent onBack={() => setShowConfig(false)} />
+                ) : (
+                    <div>
+                        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext items={sections} strategy={verticalListSortingStrategy}>
+                                <div className="space-y-6 mt-6">
+                                    {sections.map((sectionId) => {
+                                        const section = renderSection(sectionId)
+                                        if (!section) return null
+                                        return (
+                                            <SortableSection key={sectionId} id={sectionId}>
+                                                {section}
+                                            </SortableSection>
+                                        )
+                                    })}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
+                    </div>
+                )}
             </main>
         </div>
     )
