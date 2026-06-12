@@ -4,8 +4,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import AnimatedBackground from '@/components/AnimatedBackground'
-import { Search, User, Settings } from 'lucide-react'
+import { Search, User, Settings, ArrowLeft } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -25,6 +24,7 @@ import SortableSection from './inicio/sections/SortableSection'
 import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ConfiguracoesContent from './Configuracoes'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 
 export default function HomePage() {
     const router = useRouter()
@@ -42,6 +42,10 @@ export default function HomePage() {
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
 
     const [showConfig, setShowConfig] = useState(false)
+
+    // Fundo preto como padrão, sem opção branca
+    const [bgMode, setBgMode] = useState<'animated' | 'black' | 'custom'>('black')
+    const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -67,14 +71,40 @@ export default function HomePage() {
     }, [])
 
     const fetchProfile = useCallback(async (userId: string) => {
-        const { data } = await supabase
-            .from('profiles')
-            .select('profileSlug, avatar_url')
-            .eq('id', userId)
-            .single()
-        if (data) {
-            setProfileSlug(data.profileSlug)
-            setUserAvatarUrl(data.avatar_url || null)
+        try {
+            // Tenta buscar todos os campos (inclusive os de fundo, se existirem)
+            const { data } = await supabase
+                .from('profiles')
+                .select(`profileSlug, avatar_url, background_mode, background_image_url`)
+                .eq('id', userId)
+                .single()
+
+            if (data) {
+                setProfileSlug(data.profileSlug)
+                setUserAvatarUrl(data.avatar_url || null)
+
+                // Só atualiza fundo se as propriedades existirem no objeto (coluna presente)
+                if ('background_mode' in data) {
+                    setBgMode(data.background_mode)
+                }
+                if ('background_image_url' in data) {
+                    setCustomBgUrl(data.background_image_url)
+                }
+            }
+        } catch (error) {
+            // Fallback: se deu erro (ex.: coluna inexistente), busca apenas os campos antigos
+            console.warn('Erro ao buscar perfil com fundo, tentando fallback:', error)
+            const { data } = await supabase
+                .from('profiles')
+                .select('profileSlug, avatar_url')
+                .eq('id', userId)
+                .single()
+
+            if (data) {
+                setProfileSlug(data.profileSlug)
+                setUserAvatarUrl(data.avatar_url || null)
+                // Mantém bgMode e customBgUrl com os valores padrão (preto, sem imagem)
+            }
         }
     }, [])
 
@@ -146,7 +176,10 @@ export default function HomePage() {
     return (
         <div className="relative min-h-dvh" style={{ background: '#000' }}>
             <div className="fixed inset-0 z-0">
-                <AnimatedBackground />
+                <AnimatedBackgroundiUser
+                    bgMode={bgMode}
+                    customBgUrl={customBgUrl}
+                />
             </div>
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
@@ -182,30 +215,57 @@ export default function HomePage() {
                         )}
                     </div>
                     <div className="relative z-10">
+                        {/* Cabeçalho condicional */}
                         <div className="flex items-center gap-3 mb-1">
-                            <button onClick={() => router.back()} className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer' }}>
-                                <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
-                            </button>
-                            <h2 className="text-lg font-semibold opacity-90">iUser</h2>
+                            {showConfig ? (
+                                // Modo Configurações: botão de voltar e título
+                                <>
+                                    <button
+                                        onClick={() => setShowConfig(false)}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center"
+                                        style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer' }}
+                                    >
+                                        <ArrowLeft size={20} color="#fff" />
+                                    </button>
+                                    <h2 className="text-lg font-semibold opacity-90">Configurações</h2>
+                                </>
+                            ) : (
+                                // Modo normal: logo e nome do app
+                                <>
+                                    <button
+                                        onClick={() => router.back()}
+                                        className="w-10 h-10 rounded-full flex items-center justify-center"
+                                        style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer' }}
+                                    >
+                                        <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
+                                    </button>
+                                    <h2 className="text-lg font-semibold opacity-90">iUser</h2>
+                                </>
+                            )}
                         </div>
+
                         <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
                             Olá, {session ? (profileSlug ? `@${profileSlug}` : 'Visitante') : 'Visitante'}
                         </h1>
                         <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={tab.onClick}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
-                                    style={{
-                                        background: tab.isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
-                                        backdropFilter: 'blur(10px)',
-                                    }}
-                                >
-                                    {tab.imageUrl ? <img src={tab.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" /> : <tab.icon size={16} />}
-                                    <span>{tab.label}</span>
-                                </button>
-                            ))}
+                            {tabs.map((tab) => {
+                                // Esconde o botão "Configurações" quando já estiver nela
+                                if (tab.id === 'config' && showConfig) return null
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={tab.onClick}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                                        style={{
+                                            background: tab.isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                            backdropFilter: 'blur(10px)',
+                                        }}
+                                    >
+                                        {tab.imageUrl ? <img src={tab.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" /> : <tab.icon size={16} />}
+                                        <span>{tab.label}</span>
+                                    </button>
+                                )
+                            })}
                         </div>
                         <div className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm" style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
                             <Search size={18} className="opacity-70" />
@@ -215,7 +275,13 @@ export default function HomePage() {
                 </div>
 
                 {showConfig ? (
-                    <ConfiguracoesContent onBack={() => setShowConfig(false)} />
+                    <ConfiguracoesContent
+                        onBack={() => setShowConfig(false)}
+                        bgMode={bgMode}
+                        setBgMode={setBgMode}
+                        customBgUrl={customBgUrl}
+                        setCustomBgUrl={setCustomBgUrl}
+                    />
                 ) : (
                     <div>
                         <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

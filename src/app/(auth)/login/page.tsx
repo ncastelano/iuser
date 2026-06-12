@@ -77,10 +77,10 @@ function LoginContent() {
               </div>
             </div>
 
-            <h1 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
+            <h1 className="text-3xl font-black text-white mb-2">
               Bem-vindo ao iUser
             </h1>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-white/80">
               Mostre ao mundo o que você tem de melhor
             </p>
 
@@ -103,7 +103,7 @@ function LoginContent() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-3 text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl">
+            <div className="mb-6 p-3 text-xs font-bold text-white bg-red-500/20 border border-red-500/40 rounded-xl">
               ⚠️ {error}
             </div>
           )}
@@ -111,14 +111,14 @@ function LoginContent() {
           {/* Form Fields */}
           <div className="space-y-5">
             <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                <Mail className="w-4 h-4 text-orange-500" />
+              <label className="text-xs font-black uppercase tracking-wider text-white/80 flex items-center gap-2 ml-1">
+                <Mail className="w-4 h-4 text-orange-400" />
                 E-mail
               </label>
               <div className="relative group">
                 <input
                   type="email"
-                  className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder:text-white/40 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -130,13 +130,13 @@ function LoginContent() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-orange-500" />
+                <label className="text-xs font-black uppercase tracking-wider text-white/80 flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-orange-400" />
                   Senha
                 </label>
                 <a
                   href="/recuperar-senha"
-                  className="text-xs font-bold text-orange-500 hover:text-orange-600 transition-all"
+                  className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-all"
                 >
                   Esqueceu a senha?
                 </a>
@@ -144,7 +144,7 @@ function LoginContent() {
               <div className="relative group">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                  className="w-full px-4 py-3 bg-white/10 border-2 border-white/20 rounded-xl text-white placeholder:text-white/40 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -154,7 +154,7 @@ function LoginContent() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-orange-400 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -180,21 +180,34 @@ function LoginContent() {
           </button>
 
           <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-white/70">
               Ainda não tem seu perfil?{' '}
               <a
                 href="/register"
-                className="font-black text-orange-600 hover:text-orange-700 transition-colors underline-offset-4 hover:underline"
+                className="font-black text-orange-400 hover:text-orange-300 transition-colors underline-offset-4 hover:underline"
               >
                 Criar conta grátis
               </a>
             </p>
           </div>
 
-          <div className="mt-8 pt-6 pb-4 border-t border-orange-200/30">
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50">
-              <p className="text-[11px] text-gray-600 text-center leading-relaxed">
-                ✨ <span className="font-black text-orange-600">Mostre para todos ao redor</span> o que você tem de melhor.<br />
+          <div className="mt-8 pt-6 pb-4 border-t border-white/10">
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                borderColor: 'rgba(219, 210, 210, 0.15)',
+              }}
+              className="rounded-2xl p-4 border shadow-lg"
+            >
+              <p className="text-[11px] text-white text-center leading-relaxed">
+                ✨{' '}
+                <span className="font-black text-orange-400">
+                  Mostre para todos ao redor
+                </span>{' '}
+                o que você tem de melhor.
+                <br />
                 Sua loja, suas vendas, seu sucesso.
               </p>
             </div>

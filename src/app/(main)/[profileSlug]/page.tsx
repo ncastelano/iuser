@@ -1,10 +1,8 @@
-// app/(main)/[profileSlug]/page.tsx
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import Link from 'next/link'
 import {
     Store as StoreIcon,
     Star,
@@ -17,13 +15,17 @@ import {
     Clock,
     CalendarDays,
     Calendar,
-    User,
     Scissors,
     Camera,
+    Search,
+    User,
+    Settings,
 } from 'lucide-react'
-import AnimatedBackground from '@/components/AnimatedBackground'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import EditarPerfil from './EditarPerfil' // componente que criaremos
 
-type Tab = 'lojas' | 'compras' | 'agenda'
+type Tab = 'compras' | 'agenda'
+type BgMode = 'animated' | 'black' | 'custom'
 
 export default function ProfilePage() {
     const params = useParams()
@@ -37,28 +39,33 @@ export default function ProfilePage() {
     const [appointmentsToday, setAppointmentsToday] = useState<any[]>([])
     const [allAppointments, setAllAppointments] = useState<any[]>([])
     const [currentUser, setCurrentUser] = useState<any>(null)
-    const [activeTab, setActiveTab] = useState<Tab>('lojas')
+    const [activeTab, setActiveTab] = useState<Tab>('compras')
     const [loading, setLoading] = useState(true)
+    const [profileNotFound, setProfileNotFound] = useState(false)
+    const [editMode, setEditMode] = useState(false) // alterna entre visualização e edição
 
-    // Avatar upload
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
-
-    // Social
     const [followersCount, setFollowersCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
     const [isFollowing, setIsFollowing] = useState(false)
     const [isOwner, setIsOwner] = useState(false)
 
-    // Location
     const [showLocationModal, setShowLocationModal] = useState(false)
     const [manualAddress, setManualAddress] = useState('')
     const [suggestions, setSuggestions] = useState<any[]>([])
     const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [tempAddress, setTempAddress] = useState('')
 
+    const [bgMode, setBgMode] = useState<BgMode>('black')
+    const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
+
     useEffect(() => {
         const load = async () => {
-            if (!profileSlug) return
+            if (!profileSlug) {
+                setLoading(false)
+                setProfileNotFound(true)
+                return
+            }
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUser(user)
 
@@ -70,11 +77,15 @@ export default function ProfilePage() {
 
             if (profileError || !profileData) {
                 setLoading(false)
+                setProfileNotFound(true)
                 return
             }
 
             setProfile(profileData)
             setIsOwner(user?.id === profileData.id)
+
+            if (profileData.background_mode) setBgMode(profileData.background_mode)
+            if (profileData.background_image_url) setCustomBgUrl(profileData.background_image_url)
 
             const [storesRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('stores').select('*').eq('owner_id', profileData.id),
@@ -121,6 +132,7 @@ export default function ProfilePage() {
             }
 
             setLoading(false)
+            setProfileNotFound(false)
         }
         load()
     }, [profileSlug])
@@ -138,32 +150,24 @@ export default function ProfilePage() {
         }
     }
 
-    // Upload do avatar
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file || !profile) return
-
         setUploadingAvatar(true)
         try {
             const fileExt = file.name.split('.').pop()
             const fileName = `${profile.id}-${Date.now()}.${fileExt}`
-
             const { error: uploadError } = await supabase.storage
                 .from('avatars')
                 .upload(fileName, file, { upsert: true })
-
             if (uploadError) throw uploadError
-
             const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
             const publicUrl = data.publicUrl
-
             const { error: updateError } = await supabase
                 .from('profiles')
                 .update({ avatar_url: publicUrl })
                 .eq('id', profile.id)
-
             if (updateError) throw updateError
-
             setProfile({ ...profile, avatar_url: publicUrl })
         } catch (err: any) {
             alert('Erro ao enviar foto: ' + err.message)
@@ -255,433 +259,422 @@ export default function ProfilePage() {
         return `${day}/${month}/${year}`
     }
 
-    if (loading) {
-        return (
-            <main style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AnimatedBackground />
-                <div className="relative z-10 text-center">
-                    <div className="w-12 h-12 border-4 border-white/20 border-t-purple-500 rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-sm font-bold text-white/70">Carregando perfil...</p>
-                </div>
-            </main>
-        )
-    }
-
-    if (!profile) {
-        return (
-            <main style={{ minHeight: '100vh', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AnimatedBackground />
-                <div className="relative z-10 text-center">
-                    <h1 className="text-2xl font-black text-white mb-4">Perfil não encontrado</h1>
-                    <button onClick={() => router.push('/')} className="flex items-center gap-2 text-purple-400 font-bold hover:underline">
-                        <ArrowLeft className="w-5 h-5" /> Voltar para o Início
-                    </button>
-                </div>
-            </main>
-        )
-    }
-
     const tabs: { id: Tab; label: string; icon: any; count: number }[] = [
-        { id: 'lojas', label: 'Lojas', icon: StoreIcon, count: stores.length },
         { id: 'compras', label: 'Compras', icon: ShoppingBag, count: purchases.length },
         { id: 'agenda', label: 'Agenda', icon: CalendarDays, count: allAppointments.length },
     ]
 
+    const avatarUrl = getAvatarUrl(profile?.avatar_url) || null
+
     return (
-        <main style={{ minHeight: '100vh', background: '#000', paddingBottom: 40, position: 'relative' }}>
-            <AnimatedBackground />
-            <div className="relative z-10 max-w-5xl mx-auto py-12 md:py-20 px-4">
-                {/* Header */}
-                <div className="flex flex-col items-center text-center mb-16 space-y-8">
-                    {/* Avatar com botão de upload */}
-                    <div className="relative group">
-                        <div className="w-32 h-32 md:w-44 md:h-44 rounded-[48px] overflow-hidden p-1 shadow-xl"
+        <main className="relative min-h-dvh" style={{ background: '#000' }}>
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
+
+            {/* Header */}
+            <div
+                style={{
+                    background: 'linear-gradient(135deg, #000000ff, #000000)',
+                    padding: '20px 24px',
+                    color: '#ffffff',
+                    borderBottomLeftRadius: 36,
+                    borderBottomRightRadius: 36,
+                    boxShadow: '0 10px 40px rgba(255,255,255,0.25)',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 20,
+                    overflow: 'hidden',
+                }}
+            >
+                <div
+                    style={{
+                        position: 'absolute',
+                        right: -20,
+                        top: -20,
+                        opacity: 0.4,
+                        transform: 'rotate(10deg)',
+                        maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                        WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                    }}
+                >
+                    {avatarUrl ? (
+                        <img src={avatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
+                    ) : (
+                        <img src="/logotransparente.png" alt="Logo" style={{ width: 280, height: 280, objectFit: 'contain' }} />
+                    )}
+                </div>
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-1">
+                        <button
+                            onClick={() => router.back()}
+                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                            style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer' }}
+                        >
+                            <ArrowLeft size={20} color="#fff" />
+                        </button>
+                        <h2 className="text-lg font-semibold opacity-90">Perfil</h2>
+                    </div>
+
+                    <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
+                        Olá, @{profileSlug || '...'}
+                    </h1>
+
+                    <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                            style={{
+                                background: !editMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                backdropFilter: 'blur(10px)',
+                            }}
+                            onClick={() => setEditMode(false)}
+                        >
+                            <User size={16} />
+                            <span>Perfil</span>
+                        </button>
+                        <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                            style={{
+                                background: editMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                backdropFilter: 'blur(10px)',
+                            }}
+                            onClick={() => setEditMode(true)}
+                        >
+                            <Pencil size={16} />
+                            <span>Editar</span>
+                        </button>
+                    </div>
+
+                    <div
+                        className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
+                        style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}
+                    >
+                        <Search size={18} className="opacity-70" />
+                        <span className="opacity-70">Buscar restaurantes, mercados...</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="relative z-10 max-w-5xl mx-auto px-4 pt-8 pb-24">
+                {loading && (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-10 h-10 border-3 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                        <p className="text-sm font-bold text-white/70 mt-4 animate-pulse">Carregando...</p>
+                    </div>
+                )}
+
+                {!loading && profileNotFound && (
+                    <div className="flex flex-col items-center text-center py-20">
+                        <h1 className="text-2xl font-black text-white mb-4">Perfil não encontrado</h1>
+                        <button onClick={() => router.push('/')} className="flex items-center gap-2 text-purple-400 font-bold hover:underline">
+                            <ArrowLeft className="w-5 h-5" /> Voltar para o Início
+                        </button>
+                    </div>
+                )}
+
+                {!loading && profile && !editMode && (
+                    <>
+                        {/* SEÇÃO DO PERFIL (ROW LAYOUT) */}
+                        <div className="flex flex-col md:flex-row items-center gap-8 mb-12 p-6 rounded-3xl"
                             style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            {profile.avatar_url ? (
-                                <img
-                                    src={getAvatarUrl(profile.avatar_url)!}
-                                    className="w-full h-full object-cover rounded-[44px] group-hover:scale-110 transition-transform duration-700"
-                                    alt={profile.name}
-                                />
-                            ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center rounded-[44px]"
-                                    style={{ background: 'rgba(255,255,255,0.06)' }}>
-                                    <Camera className="w-8 h-8 text-white/30" />
-                                    <span className="text-[8px] font-black uppercase mt-1 text-white/40">Sem foto</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {isOwner && (
-                            <>
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleAvatarChange}
-                                    accept="image/*"
-                                    style={{ display: 'none' }}
-                                    id="avatar-upload-input"
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={uploadingAvatar}
-                                    className="absolute bottom-0 right-0 w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:cursor-wait"
-                                    style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff' }}
-                                    title={profile.avatar_url ? 'Trocar foto' : 'Adicionar foto'}
-                                >
-                                    {uploadingAvatar ? (
-                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            {/* Avatar */}
+                            <div className="relative flex-shrink-0">
+                                <div className="w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden p-1 shadow-xl"
+                                    style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+                                    {profile.avatar_url ? (
+                                        <img src={getAvatarUrl(profile.avatar_url)!} className="w-full h-full object-cover rounded-full" alt={profile.name} />
                                     ) : (
-                                        <Pencil size={16} />
+                                        <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white/30">
+                                            {profile.name?.charAt(0)}
+                                        </div>
                                     )}
-                                </button>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="space-y-4">
-                        <h1 className="text-5xl md:text-7xl font-black italic text-white">{profile.name}</h1>
-                        <div className="flex items-center justify-center gap-4">
-                            <span className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest"
-                                style={{ background: 'rgba(124,58,237,0.2)', color: '#c084fc' }}>
-                                Verificado iUser
-                            </span>
-                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                                /{profile.profileSlug}
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Social Stats */}
-                    <div className="flex items-center gap-12">
-                        <div className="text-center">
-                            <p className="text-3xl font-black text-white">{followersCount}</p>
-                            <p className="text-[10px] font-bold uppercase text-white/40">Seguidores</p>
-                        </div>
-                        <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.1)' }} />
-                        <div className="text-center">
-                            <p className="text-3xl font-black text-white">{followingCount}</p>
-                            <p className="text-[10px] font-bold uppercase text-white/40">Seguindo</p>
-                        </div>
-                    </div>
-
-                    {/* Follow / Location */}
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                        {currentUser?.id !== profile.id ? (
-                            <button
-                                onClick={handleFollowToggle}
-                                className={`px-12 py-5 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${isFollowing
-                                    ? 'bg-transparent border-2 text-purple-400 hover:bg-white/10'
-                                    : 'text-white hover:scale-105 shadow-lg'
-                                    }`}
-                                style={!isFollowing ? { background: 'linear-gradient(135deg, #7c3aed, #a855f7)' } : { borderColor: 'rgba(168,85,247,0.5)' }}
-                            >
-                                {isFollowing ? 'Seguindo' : 'Seguir Perfil'}
-                            </button>
-                        ) : (
-                            <div className="flex flex-col items-center gap-4">
-                                {profile.address && !profile.address.toLowerCase().includes('rua tal') ? (
-                                    <div className="flex items-center gap-3 px-8 py-4 rounded-2xl shadow-md"
-                                        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <MapPin size={16} className="text-purple-400" />
-                                        <span className="text-sm font-bold text-white">{formatShortAddress(profile.address)}</span>
-                                        <button onClick={toggleLocationVisibility} className="ml-2 px-3 py-1 rounded-lg text-xs font-bold hover:bg-white/20 transition"
-                                            style={{ background: 'rgba(124,58,237,0.2)', color: '#c084fc' }}>
-                                            {profile.show_location ? 'Ocultar' : 'Mostrar'}
-                                        </button>
-                                        <button onClick={() => setShowLocationModal(true)} className="p-1.5 rounded-lg hover:bg-white/10 transition">
-                                            <Pencil size={14} className="text-purple-400" />
-                                        </button>
-                                    </div>
-                                ) : (
+                                </div>
+                                {isOwner && (
                                     <button
-                                        onClick={() => setShowLocationModal(true)}
-                                        className="flex items-center gap-3 px-8 py-4 rounded-2xl font-bold uppercase text-xs hover:border-purple-400 transition-all"
-                                        style={{ background: 'rgba(255,255,255,0.06)', border: '2px dashed rgba(255,255,255,0.2)', color: '#94a3b8' }}>
-                                        <MapPinned size={16} /> Localização não definida
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={uploadingAvatar}
+                                        className="absolute bottom-0 right-0 w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:cursor-wait"
+                                        style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff' }}
+                                    >
+                                        {uploadingAvatar ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <Camera size={14} />
+                                        )}
                                     </button>
                                 )}
+                                <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
+                            </div>
+
+                            {/* Informações */}
+                            <div className="flex-1 text-center md:text-left space-y-3">
+                                <h1 className="text-3xl md:text-5xl font-black italic text-white">{profile.name}</h1>
+                                <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                                        style={{ background: 'rgba(124,58,237,0.2)', color: '#c084fc' }}>Verificado iUser</span>
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                                        style={{ background: 'rgba(255,255,255,0.1)', color: '#ffffff80' }}>/{profile.profileSlug}</span>
+                                </div>
+
+                                {/* Stats */}
+                                <div className="flex justify-center md:justify-start gap-8 pt-2">
+                                    <div className="text-center">
+                                        <p className="text-2xl font-black text-white">{followersCount}</p>
+                                        <p className="text-[10px] font-bold uppercase text-white/40">Seguidores</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-black text-white">{followingCount}</p>
+                                        <p className="text-[10px] font-bold uppercase text-white/40">Seguindo</p>
+                                    </div>
+                                </div>
+
+                                {/* Follow / Location */}
+                                <div className="flex flex-wrap justify-center md:justify-start gap-3 pt-2">
+                                    {currentUser?.id !== profile.id ? (
+                                        <button onClick={handleFollowToggle}
+                                            className={`px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${isFollowing ? 'bg-transparent border-2 text-purple-400 hover:bg-white/10' : 'text-white hover:scale-105 shadow-lg'}`}
+                                            style={!isFollowing ? { background: 'linear-gradient(135deg, #7c3aed, #a855f7)' } : { borderColor: 'rgba(168,85,247,0.5)' }}>
+                                            {isFollowing ? 'Seguindo' : 'Seguir'}
+                                        </button>
+                                    ) : (
+                                        <>
+                                            {profile.address && !profile.address.toLowerCase().includes('rua tal') ? (
+                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl"
+                                                    style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+                                                    <MapPin size={14} className="text-purple-400" />
+                                                    <span className="text-xs font-bold text-white">{formatShortAddress(profile.address)}</span>
+                                                    <button onClick={toggleLocationVisibility}
+                                                        className="ml-2 px-2 py-1 rounded-lg text-[10px] font-bold"
+                                                        style={{ background: 'rgba(124,58,237,0.2)', color: '#c084fc' }}>
+                                                        {profile.show_location ? 'Ocultar' : 'Mostrar'}
+                                                    </button>
+                                                    <button onClick={() => setShowLocationModal(true)} className="p-1 rounded-lg hover:bg-white/10">
+                                                        <Pencil size={12} className="text-purple-400" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button onClick={() => setShowLocationModal(true)}
+                                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase border border-dashed border-white/30 text-white/60 hover:border-purple-400">
+                                                    <MapPinned size={14} /> Localização não definida
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Agenda de Hoje (dono) - mantida */}
+                        {isOwner && appointmentsToday.length > 0 && (
+                            <div className="w-full max-w-2xl mx-auto mt-8 space-y-4">
+                                <div className="flex items-center gap-4 px-2">
+                                    <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                                    <h3 className="text-xs font-black uppercase text-purple-400 tracking-widest flex items-center gap-2">
+                                        <CalendarDays size={16} /> Agenda de Hoje
+                                    </h3>
+                                    <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                                </div>
+                                <div className="flex overflow-x-auto pb-4 gap-4 snap-x">
+                                    {appointmentsToday.map((appt, i) => (
+                                        <div key={appt.id || i}
+                                            onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
+                                            className="flex-shrink-0 w-[240px] snap-start rounded-3xl p-5 flex items-center gap-4 hover:shadow-lg transition cursor-pointer"
+                                            style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div className="w-12 h-12 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                                {appt.profiles?.avatar_url ? (
+                                                    <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xs font-black text-purple-400">
+                                                        {appt.profiles?.name?.charAt(0) || 'U'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-purple-400">{appt.time}</p>
+                                                <p className="text-sm font-bold text-white truncate">{appt.profiles?.name || 'Cliente'}</p>
+                                                <p className="text-xs text-white/40 font-bold truncate">{appt.service_name || 'Agendamento'}</p>
+                                            </div>
+                                            <Clock className="w-4 h-4 text-white/30" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
-                    </div>
 
-                    {/* Resumo da Agenda de Hoje */}
-                    {isOwner && appointmentsToday.length > 0 && (
-                        <div className="w-full max-w-2xl mx-auto mt-12 space-y-4">
-                            <div className="flex items-center gap-4 px-2">
-                                <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
-                                <h3 className="text-xs font-black uppercase text-purple-400 tracking-widest flex items-center gap-2">
-                                    <CalendarDays size={16} />
-                                    Agenda de Hoje
-                                </h3>
-                                <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                        {isOwner && appointmentsToday.length === 0 && (
+                            <div className="w-full max-w-2xl mx-auto mt-8">
+                                <div className="rounded-3xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px dashed rgba(255,255,255,0.2)' }}>
+                                    <CalendarDays className="w-10 h-10 text-white/30 mx-auto mb-3" />
+                                    <p className="text-sm font-bold text-white/40">Você não tem agendamentos para hoje.</p>
+                                </div>
                             </div>
-                            <div className="flex overflow-x-auto pb-4 gap-4 snap-x">
-                                {appointmentsToday.map((appt, i) => (
-                                    <div
-                                        key={appt.id || i}
-                                        onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                        className="flex-shrink-0 w-[240px] snap-start rounded-3xl p-5 flex items-center gap-4 hover:shadow-lg transition cursor-pointer"
-                                        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                                    >
-                                        <div className="w-12 h-12 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                            {appt.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xs font-black text-purple-400">
-                                                    {appt.profiles?.name?.charAt(0) || 'U'}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold text-purple-400">{appt.time}</p>
-                                            <p className="text-sm font-bold text-white truncate">{appt.profiles?.name || 'Cliente'}</p>
-                                            <p className="text-xs text-white/40 font-bold truncate">{appt.service_name || 'Agendamento'}</p>
-                                        </div>
-                                        <Clock className="w-4 h-4 text-white/30" />
-                                    </div>
+                        )}
+
+                        {/* Lista de lojas */}
+                        {stores.length > 0 && (
+                            <div className="mt-12">
+                                <h3 className="text-xs font-black uppercase text-purple-400 tracking-widest mb-4 flex items-center gap-2">
+                                    <StoreIcon size={16} /> Lojas
+                                </h3>
+                                <div className="flex overflow-x-auto gap-3 pb-4 snap-x snap-mandatory">
+                                    {stores.map((store) => (
+                                        <button key={store.id} onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
+                                            className="flex-shrink-0 w-[140px] snap-start rounded-2xl p-3 flex flex-col items-center gap-2 hover:scale-105 transition-transform"
+                                            style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div className="w-12 h-12 rounded-full overflow-hidden bg-white/10">
+                                                {store.logo_url ? (
+                                                    <img src={getLogoUrl(store.logo_url)!} className="w-full h-full object-cover" alt={store.name} />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xl font-black text-white/40">
+                                                        {store.name?.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-bold text-white/80 truncate w-full text-center">/{store.storeSlug}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tabs de Compras/Agenda */}
+                        <div className="flex justify-center mt-12 mb-8">
+                            <div className="rounded-3xl p-2 flex gap-2 shadow-lg" style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                {tabs.map(tab => (
+                                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                                        className={`px-6 py-4 rounded-2xl flex items-center gap-3 transition-all ${activeTab === tab.id ? 'text-white shadow-lg' : 'text-white/50 hover:bg-white/10'}`}
+                                        style={activeTab === tab.id ? { background: 'linear-gradient(135deg, #7c3aed, #a855f7)' } : {}}>
+                                        <tab.icon size={18} />
+                                        <span className="text-xs font-black uppercase hidden sm:inline">{tab.label}</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: 'rgba(255,255,255,0.2)' }}>{tab.count}</span>
+                                    </button>
                                 ))}
                             </div>
                         </div>
-                    )}
 
-                    {isOwner && appointmentsToday.length === 0 && (
-                        <div className="w-full max-w-2xl mx-auto mt-8">
-                            <div className="rounded-3xl p-6 text-center"
-                                style={{ background: 'rgba(255,255,255,0.06)', border: '1px dashed rgba(255,255,255,0.2)' }}>
-                                <CalendarDays className="w-10 h-10 text-white/30 mx-auto mb-3" />
-                                <p className="text-sm font-bold text-white/40">Você não tem agendamentos para hoje.</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Tabs */}
-                <div className="flex justify-center mb-12">
-                    <div className="rounded-3xl p-2 flex gap-2 shadow-lg"
-                        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`px-6 py-4 rounded-2xl flex items-center gap-3 transition-all ${activeTab === tab.id
-                                    ? 'text-white shadow-lg'
-                                    : 'text-white/50 hover:bg-white/10'
-                                    }`}
-                                style={activeTab === tab.id ? { background: 'linear-gradient(135deg, #7c3aed, #a855f7)' } : {}}
-                            >
-                                <tab.icon size={18} />
-                                <span className="text-xs font-black uppercase hidden sm:inline">{tab.label}</span>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black"
-                                    style={{ background: 'rgba(255,255,255,0.2)' }}>{tab.count}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="space-y-12">
-                    {activeTab === 'lojas' && (
+                        {/* Conteúdo das abas (compras/agenda) */}
                         <div className="space-y-12">
-                            {stores.length === 0 ? (
-                                <div className="py-24 text-center rounded-3xl border border-dashed"
-                                    style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.2)' }}>
-                                    <StoreIcon className="w-16 h-16 text-white/30 mx-auto mb-6" />
-                                    <p className="text-white/50 font-bold uppercase">Nenhuma vitrine ativa</p>
-                                </div>
-                            ) : (
+                            {activeTab === 'compras' && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                    {stores.map(store => (
-                                        <div
-                                            key={store.id}
-                                            onClick={() => router.push(`/${profile.profileSlug}/${store.storeSlug}`)}
-                                            className="group rounded-3xl overflow-hidden hover:shadow-xl transition cursor-pointer"
-                                            style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                                        >
-                                            <div className="h-48 relative overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                                                {store.logo_url ? (
-                                                    <img src={getLogoUrl(store.logo_url)!} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" alt={store.name} />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white/30">{store.name?.charAt(0)}</div>
-                                                )}
-                                            </div>
-                                            <div className="p-6 space-y-4">
-                                                <div>
-                                                    <h3 className="text-2xl font-black text-white truncate">{store.name}</h3>
-                                                    <div className="flex items-center gap-3 text-xs font-bold text-white/40 mt-2">
-                                                        <span className="flex items-center gap-1 text-yellow-400">
-                                                            <Star size={14} className="fill-current" /> {store.ratings_avg?.toFixed(1) || '0.0'}
-                                                        </span>
-                                                        <span>{store.ratings_count || 0} Avaliações</span>
-                                                    </div>
+                                    {purchases.length === 0 ? (
+                                        <div className="col-span-full py-24 text-center rounded-3xl border border-dashed"
+                                            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.2)' }}>
+                                            <ShoppingBag className="w-16 h-16 text-white/30 mx-auto mb-6" />
+                                            <p className="text-white/50 font-bold uppercase">Ainda não realizou compras</p>
+                                        </div>
+                                    ) : (
+                                        purchases.map((purchase) => (
+                                            <div key={purchase.id}
+                                                onClick={() => router.push(`/${purchase.stores?.profileSlug || profileSlug}/${purchase.stores?.storeSlug}`)}
+                                                className="group rounded-3xl p-6 flex items-center gap-5 hover:shadow-lg transition cursor-pointer"
+                                                style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                <div className="w-16 h-16 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                                    {purchase.stores?.logo_url ? (
+                                                        <img src={getLogoUrl(purchase.stores.logo_url)!} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-xl font-black text-white/40">
+                                                            {purchase.stores?.name?.charAt(0)}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="pt-4 flex justify-between items-center" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                                                    <span className="text-xs font-black text-purple-400 group-hover:text-purple-300 transition-colors">Ver Loja →</span>
-                                                    <div className="w-10 h-10 rounded-xl text-white flex items-center justify-center transform group-hover:rotate-12 transition-all"
-                                                        style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}>
-                                                        <StoreIcon size={20} />
-                                                    </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-black text-purple-400 uppercase mb-1">Cliente desta Loja</p>
+                                                    <h3 className="text-xl font-black text-white truncate">{purchase.stores?.name}</h3>
+                                                    <p className="text-xs font-bold text-white/40 mt-1">/{purchase.stores?.storeSlug}</p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'compras' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {purchases.length === 0 ? (
-                                <div className="col-span-full py-24 text-center rounded-3xl border border-dashed"
-                                    style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.2)' }}>
-                                    <ShoppingBag className="w-16 h-16 text-white/30 mx-auto mb-6" />
-                                    <p className="text-white/50 font-bold uppercase">Ainda não realizou compras</p>
-                                </div>
-                            ) : (
-                                purchases.map(purchase => (
-                                    <div
-                                        key={purchase.id}
-                                        onClick={() => router.push(`/${purchase.stores?.profileSlug || profileSlug}/${purchase.stores?.storeSlug}`)}
-                                        className="group rounded-3xl p-6 flex items-center gap-5 hover:shadow-lg transition cursor-pointer"
-                                        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                                    >
-                                        <div className="w-16 h-16 rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                            {purchase.stores?.logo_url ? (
-                                                <img src={getLogoUrl(purchase.stores.logo_url)!} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xl font-black text-white/40">
-                                                    {purchase.stores?.name?.charAt(0)}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-black text-purple-400 uppercase mb-1">Cliente desta Loja</p>
-                                            <h3 className="text-xl font-black text-white truncate">{purchase.stores?.name}</h3>
-                                            <p className="text-xs font-bold text-white/40 mt-1">/{purchase.stores?.storeSlug}</p>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'agenda' && (
-                        <div className="space-y-8">
-                            {allAppointments.length === 0 ? (
-                                <div className="py-24 text-center rounded-3xl border border-dashed"
-                                    style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.2)' }}>
-                                    <Calendar className="w-16 h-16 text-white/30 mx-auto mb-6" />
-                                    <p className="text-white/50 font-bold uppercase">Nenhum compromisso na agenda</p>
-                                    {isOwner && (
-                                        <p className="text-xs text-white/40 mt-2">Configure seus serviços para receber agendamentos.</p>
+                                        ))
                                     )}
                                 </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {allAppointments.map(appt => (
-                                        <div
-                                            key={appt.id}
-                                            className="rounded-3xl p-6 flex gap-5 items-center hover:shadow-lg transition"
-                                            style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                                        >
-                                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                                                style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                                <CalendarDays size={28} className="text-white/40" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 text-xs font-black text-purple-400 mb-1">
-                                                    <Calendar size={12} />
-                                                    {formatDate(appt.date)}
-                                                    <span className="text-white/20">|</span>
-                                                    <Clock size={12} />
-                                                    {appt.time}
-                                                </div>
-                                                <h3 className="text-lg font-black text-white truncate">{appt.service_name}</h3>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <div className="w-5 h-5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                                        {appt.profiles?.avatar_url ? (
-                                                            <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-white/40">
-                                                                {appt.profiles?.name?.charAt(0) || 'C'}
-                                                            </div>
-                                                        )}
+                            )}
+
+                            {activeTab === 'agenda' && (
+                                <div className="space-y-8">
+                                    {allAppointments.length === 0 ? (
+                                        <div className="py-24 text-center rounded-3xl border border-dashed"
+                                            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.2)' }}>
+                                            <Calendar className="w-16 h-16 text-white/30 mx-auto mb-6" />
+                                            <p className="text-white/50 font-bold uppercase">Nenhum compromisso na agenda</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {allAppointments.map((appt) => (
+                                                <div key={appt.id}
+                                                    className="rounded-3xl p-6 flex gap-5 items-center hover:shadow-lg transition"
+                                                    style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                                        <CalendarDays size={28} className="text-white/40" />
                                                     </div>
-                                                    <p className="text-xs font-bold text-white/50">{appt.profiles?.name || 'Cliente'}</p>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 text-xs font-black text-purple-400 mb-1">
+                                                            <Calendar size={12} />{formatDate(appt.date)}
+                                                            <span className="text-white/20">|</span>
+                                                            <Clock size={12} />{appt.time}
+                                                        </div>
+                                                        <h3 className="text-lg font-black text-white truncate">{appt.service_name}</h3>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <div className="w-5 h-5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                                                {appt.profiles?.avatar_url ? (
+                                                                    <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-white/40">
+                                                                        {appt.profiles?.name?.charAt(0) || 'C'}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs font-bold text-white/50">{appt.profiles?.name || 'Cliente'}</p>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                {appt.duration_minutes && (
-                                                    <p className="text-xs text-white/40 mt-1">
-                                                        <Scissors size={12} className="inline mr-1" />
-                                                        {appt.duration_minutes} min
-                                                    </p>
-                                                )}
-                                            </div>
-                                            {appt.profiles?.profileSlug && (
-                                                <button
-                                                    onClick={() => router.push(`/${appt.profiles.profileSlug}`)}
-                                                    className="px-4 py-2 rounded-xl text-xs font-black transition hover:bg-white/20"
-                                                    style={{ background: 'rgba(124,58,237,0.2)', color: '#c084fc' }}>
-                                                    Ver Cliente
-                                                </button>
-                                            )}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {/* Modo Edição */}
+                {!loading && profile && editMode && (
+                    <EditarPerfil profile={profile} onUpdate={(updated) => setProfile(updated)} />
+                )}
+            </div>
+
+            {/* Modal de Localização (mantido) */}
+            {showLocationModal && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="w-full max-w-xl rounded-3xl p-8 shadow-2xl space-y-6" style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-2xl font-black text-white">Sua Localidade</h2>
+                            <button onClick={() => setShowLocationModal(false)} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                <X className="w-5 h-5 text-white/70" />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <input type="text" placeholder="Digite seu endereço" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)}
+                                className="w-full rounded-xl py-4 px-5 text-sm font-bold focus:outline-none transition"
+                                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }} />
+                            {suggestions.length > 0 && (
+                                <div className="rounded-2xl overflow-hidden shadow-lg" style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    {suggestions.map((s, i) => (
+                                        <div key={i} onClick={() => selectSuggestion(s)} className="p-4 hover:bg-white/10 cursor-pointer" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <p className="text-xs font-bold text-white/50 mb-1">Sugestão</p>
+                                            <p className="text-sm font-bold text-white">{s.place_name}</p>
                                         </div>
                                     ))}
                                 </div>
                             )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Location Modal */}
-                {showLocationModal && (
-                    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                        <div className="w-full max-w-xl rounded-3xl p-8 shadow-2xl space-y-6"
-                            style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-2xl font-black text-white">Sua Localidade</h2>
-                                <button onClick={() => setShowLocationModal(false)} className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-white/10 transition"
-                                    style={{ background: 'rgba(255,255,255,0.1)' }}>
-                                    <X className="w-5 h-5 text-white/70" />
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                <input
-                                    type="text"
-                                    placeholder="Digite seu endereço"
-                                    value={manualAddress}
-                                    onChange={(e) => setManualAddress(e.target.value)}
-                                    className="w-full rounded-xl py-4 px-5 text-sm font-bold focus:outline-none transition"
-                                    style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}
-                                />
-                                {suggestions.length > 0 && (
-                                    <div className="rounded-2xl overflow-hidden shadow-lg"
-                                        style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        {suggestions.map((s, i) => (
-                                            <div
-                                                key={i}
-                                                onClick={() => selectSuggestion(s)}
-                                                className="p-4 hover:bg-white/10 cursor-pointer"
-                                                style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                                                <p className="text-xs font-bold text-white/50 mb-1">Sugestão</p>
-                                                <p className="text-sm font-bold text-white">{s.place_name}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <button
-                                    onClick={saveLocation}
-                                    disabled={!tempAddress}
-                                    className="w-full py-4 rounded-xl font-black uppercase text-sm tracking-widest shadow-lg hover:scale-105 transition disabled:opacity-50"
-                                    style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff' }}>
-                                    Confirmar Endereço
-                                </button>
-                            </div>
+                            <button onClick={saveLocation} disabled={!tempAddress}
+                                className="w-full py-4 rounded-xl font-black uppercase text-sm tracking-widest shadow-lg hover:scale-105 transition disabled:opacity-50"
+                                style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff' }}>
+                                Confirmar Endereço
+                            </button>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </main>
     )
 }

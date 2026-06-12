@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 
+type BgMode = 'animated' | 'black' | 'white' | 'custom'
+
+interface AnimatedBackgroundProps {
+  bgMode?: BgMode
+  customBgUrl?: string | null
+}
+
 interface Particle {
   x: number
   y: number
@@ -11,18 +18,39 @@ interface Particle {
   baseOpacity: number
   phase: number
   speed: number
+  color: [number, number, number]
 }
 
-export default function AnimatedBackground() {
+const PALETTE: [number, number, number][] = [
+  [255, 77, 46],
+  [255, 215, 0],
+  [0, 200, 150],
+  [0, 180, 255],
+  [180, 100, 255],
+  [255, 50, 120],
+  [255, 140, 0],
+]
+
+export default function AnimatedBackgroundiUser({
+  bgMode = 'animated',
+  customBgUrl = null,
+}: AnimatedBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const mouseRef = useRef({ x: -1000, y: -1000 })
-  const particlesRef = useRef<Particle[]>([])
+  const animFrameRef = useRef<number | null>(null)
 
+  // Mouse move handler – apenas atualiza a posição do mouse
   const handleMouseMove = useCallback((e: MouseEvent) => {
     mouseRef.current = { x: e.clientX, y: e.clientY }
   }, [])
 
+  // Lógica de animação só é executada quando bgMode === 'animated'
   useEffect(() => {
+    if (bgMode !== 'animated') {
+      // Se não for animado, não faz nada (o canvas some)
+      return
+    }
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -36,32 +64,31 @@ export default function AnimatedBackground() {
     window.addEventListener('resize', resize)
     resize()
 
-    const PARTICLE_COUNT = 120
+    const PARTICLE_COUNT = 80
     const particles: Particle[] = []
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: (Math.random() - 0.5) * 0.6,
-        radius: Math.random() * 3 + 1.5,
-        baseOpacity: Math.random() * 0.6 + 0.2,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2,
+        radius: Math.random() * 20 + 15,
+        baseOpacity: Math.random() * 0.3 + 0.1,
         phase: Math.random() * Math.PI * 2,
-        speed: Math.random() * 0.015 + 0.005,
+        speed: Math.random() * 0.008 + 0.002,
+        color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
       })
     }
-    particlesRef.current = particles
 
     window.addEventListener('mousemove', handleMouseMove)
 
-    const MOUSE_RADIUS = 120
-    const REPULSE_STRENGTH = 1.8
-    const RETURN_SPEED = 0.98
-
-    let animationId: number
+    const MOUSE_RADIUS = 100
+    const REPULSE_STRENGTH = 1.2
+    const RETURN_SPEED = 0.995
 
     const animate = () => {
+      if (!ctx) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.fillStyle = '#000000'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -69,42 +96,43 @@ export default function AnimatedBackground() {
       const mouse = mouseRef.current
 
       for (const p of particles) {
-        // Interação com o mouse
         const dx = p.x - mouse.x
         const dy = p.y - mouse.y
         const dist = Math.sqrt(dx * dx + dy * dy)
 
         if (dist < MOUSE_RADIUS) {
           const angle = Math.atan2(dy, dx)
-          const force = (MOUSE_RADIUS - dist) / MOUSE_RADIUS * REPULSE_STRENGTH
-          p.vx += Math.cos(angle) * force * 0.15
-          p.vy += Math.sin(angle) * force * 0.15
+          const force = ((MOUSE_RADIUS - dist) / MOUSE_RADIUS) * REPULSE_STRENGTH
+          p.vx += Math.cos(angle) * force * 0.03
+          p.vy += Math.sin(angle) * force * 0.03
         }
 
-        // Fade
         p.phase += p.speed
-        const fade = Math.sin(p.phase) * 0.5 + 0.5
+        const fade = Math.sin(p.phase) * 0.2 + 0.8
         const currentOpacity = p.baseOpacity * fade
 
-        // Desenho
+        const [r, g, b] = p.color
+
+        const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius)
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${currentOpacity * 1.5})`)
+        gradient.addColorStop(0.1, `rgba(${r}, ${g}, ${b}, ${currentOpacity * 1.2})`)
+        gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${currentOpacity * 0.8})`)
+        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${currentOpacity * 0.4})`)
+        gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${currentOpacity * 0.1})`)
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
+
         ctx.beginPath()
         ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255, 255, 255, ${currentOpacity})`
-        ctx.shadowBlur = 25
-        ctx.shadowColor = `rgba(255, 255, 255, ${currentOpacity * 0.7})`
+        ctx.fillStyle = gradient
         ctx.fill()
-        ctx.shadowBlur = 0
 
-        // Atualiza posição
         p.x += p.vx
         p.y += p.vy
 
-        // Amortecimento (volta ao normal gradualmente)
         p.vx *= RETURN_SPEED
         p.vy *= RETURN_SPEED
 
-        // Mantém uma velocidade mínima para nunca ficarem paradas
-        const minSpeed = 0.2
+        const minSpeed = 0.05
         const currentSpeed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
         if (currentSpeed < minSpeed) {
           const angle = Math.atan2(p.vy, p.vx)
@@ -112,25 +140,56 @@ export default function AnimatedBackground() {
           p.vy = Math.sin(angle) * minSpeed
         }
 
-        // Reposicionamento nas bordas
         if (p.x < -p.radius) p.x = canvas.width + p.radius
         if (p.x > canvas.width + p.radius) p.x = -p.radius
         if (p.y < -p.radius) p.y = canvas.height + p.radius
         if (p.y > canvas.height + p.radius) p.y = -p.radius
       }
 
-      animationId = requestAnimationFrame(animate)
+      animFrameRef.current = requestAnimationFrame(animate)
     }
 
     animate()
 
     return () => {
-      cancelAnimationFrame(animationId)
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
       window.removeEventListener('resize', resize)
       window.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [handleMouseMove])
+  }, [bgMode, handleMouseMove]) // Dependência em bgMode para reiniciar ao trocar para 'animated'
 
+  // Renderização condicional
+  if (bgMode === 'black') {
+    return (
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: '#000000' }}
+      />
+    )
+  }
+
+
+
+  if (bgMode === 'custom' && customBgUrl) {
+    return (
+      <div
+        className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${customBgUrl})` }}
+      />
+    )
+  }
+
+  // Fallback: se for 'custom' mas sem URL, mostra preto (ou poderia ser um placeholder)
+  if (bgMode === 'custom' && !customBgUrl) {
+    return (
+      <div
+        className="fixed inset-0 z-0"
+        style={{ background: '#000000' }}
+      />
+    )
+  }
+
+  // bgMode === 'animated'
   return (
     <canvas
       ref={canvasRef}
