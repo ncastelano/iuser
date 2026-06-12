@@ -35,7 +35,9 @@ import {
 } from './dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
-import AnimatedBackground from '@/components/AnimatedBackground'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+
+type BgMode = 'animated' | 'black' | 'custom'
 
 /* ===================================================
    Busca nome do perfil a partir do slug
@@ -300,17 +302,25 @@ export default function CompromissosPage() {
     const [participantsMap, setParticipantsMap] = useState<Record<string, any[]>>({})
     const fetchedIdsRef = useRef<Set<string>>(new Set())
 
+    // Estados do fundo dinâmico
+    const [bgMode, setBgMode] = useState<BgMode>('black')
+    const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
                 setUserId(session.user.id)
                 supabase
                     .from('profiles')
-                    .select('avatar_url')
+                    .select('avatar_url, background_mode, background_image_url')
                     .eq('id', session.user.id)
                     .single()
                     .then(({ data }) => {
-                        if (data?.avatar_url) setUserAvatarUrl(data.avatar_url)
+                        if (data) {
+                            if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                            if (data.background_mode) setBgMode(data.background_mode)
+                            if (data.background_image_url) setCustomBgUrl(data.background_image_url)
+                        }
                     })
                 supabase
                     .from('stores')
