@@ -8,29 +8,23 @@ import {
     Clock,
     ChevronRight,
     Search,
-    ArrowLeft,
-    UtensilsCrossed,
-    ShoppingCart,
-    Pill,
-    PawPrint,
-    Dumbbell,
-    Shirt,
-    Truck,
-    type LucideIcon,
+    User,
+    Settings,
 } from 'lucide-react'
 import { dadosMockados, type Store } from '@/app/(main)/inicio/dadoDeLojas'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Link from 'next/link'
 import { useProfile } from '@/app/contexts/ProfileContext'
 
-const categoriasInfo: Record<string, { titulo: string; descricao: string; icon: LucideIcon; color: string }> = {
-    restaurantes: { titulo: 'Restaurantes', descricao: 'Peça sua comida favorita', icon: UtensilsCrossed, color: '#F97316' },
-    mercados: { titulo: 'Mercados', descricao: 'Compras do dia a dia', icon: ShoppingCart, color: '#10B981' },
-    farmacias: { titulo: 'Farmácias', descricao: 'Saúde e bem-estar', icon: Pill, color: '#3B82F6' },
-    petshops: { titulo: 'Pet Shops', descricao: 'Para seu melhor amigo', icon: PawPrint, color: '#EC4899' },
-    fitness: { titulo: 'Fitness', descricao: 'Academias e suplementos', icon: Dumbbell, color: '#8B5CF6' },
-    roupas: { titulo: 'Roupas', descricao: 'Moda e estilo', icon: Shirt, color: '#F59E0B' },
-    entregas: { titulo: 'Entregas', descricao: 'Envie ou receba pacotes', icon: Truck, color: '#06B6D4' },
+// Cores e ícones das categorias (mantidos para os cards)
+const categoriasInfo: Record<string, { titulo: string; descricao: string; color: string }> = {
+    restaurantes: { titulo: 'Restaurantes', descricao: 'Peça sua comida favorita', color: '#F97316' },
+    mercados: { titulo: 'Mercados', descricao: 'Compras do dia a dia', color: '#10B981' },
+    farmacias: { titulo: 'Farmácias', descricao: 'Saúde e bem-estar', color: '#3B82F6' },
+    petshops: { titulo: 'Pet Shops', descricao: 'Para seu melhor amigo', color: '#EC4899' },
+    fitness: { titulo: 'Fitness', descricao: 'Academias e suplementos', color: '#8B5CF6' },
+    roupas: { titulo: 'Roupas', descricao: 'Moda e estilo', color: '#F59E0B' },
+    entregas: { titulo: 'Entregas', descricao: 'Envie ou receba pacotes', color: '#06B6D4' },
 }
 
 function formatPrepTime(store: Store): string {
@@ -48,7 +42,7 @@ export default function ListaCategoriaPage() {
     const categoriaRaw = params.categoria
     const categoria: string | undefined = Array.isArray(categoriaRaw) ? categoriaRaw[0] : categoriaRaw
 
-    // 🔥 Tudo agora vem do contexto global
+    // Contexto do usuário logado
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading } = useProfile()
 
     if (!categoria || !categoriasInfo[categoria]) {
@@ -68,7 +62,6 @@ export default function ListaCategoriaPage() {
     const info = categoriasInfo[categoria]
     const categoryColor = info.color
     const stores: Store[] = useMemo(() => dadosMockados[categoria] || [], [categoria])
-    const recentStores: Store[] = stores.slice(0, 3)
 
     return (
         <div className="relative min-h-dvh" style={{ background: '#000' }}>
@@ -77,10 +70,10 @@ export default function ListaCategoriaPage() {
             </div>
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
-                {/* HEADER STICKY */}
+                {/* HEADER IDÊNTICO AO DA MAIN PAGE */}
                 <div
                     style={{
-                        background: 'linear-gradient(135deg, #000000, #000000)',
+                        background: 'linear-gradient(135deg, #000000ff, #000000)',
                         padding: '20px 24px',
                         color: '#ffffff',
                         borderBottomLeftRadius: 36,
@@ -92,7 +85,7 @@ export default function ListaCategoriaPage() {
                         overflow: 'hidden',
                     }}
                 >
-                    {/* Avatar do usuário */}
+                    {/* Imagem decorativa com avatar do usuário logado */}
                     <div
                         style={{
                             position: 'absolute',
@@ -100,10 +93,8 @@ export default function ListaCategoriaPage() {
                             top: -20,
                             opacity: 0.4,
                             transform: 'rotate(10deg)',
-                            maskImage:
-                                'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                            WebkitMaskImage:
-                                'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                         }}
                     >
                         {avatarUrl ? (
@@ -118,7 +109,7 @@ export default function ListaCategoriaPage() {
                     </div>
 
                     <div className="relative z-10">
-                        {/* Linha superior: seta + nome da categoria */}
+                        {/* Linha superior: logo + nome do app */}
                         <div className="flex items-center gap-3 mb-1">
                             <button
                                 onClick={() => router.back()}
@@ -130,54 +121,57 @@ export default function ListaCategoriaPage() {
                                     cursor: 'pointer',
                                 }}
                             >
-                                <ArrowLeft size={20} color="#fff" />
+                                <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
                             </button>
-                            <h2 className="text-lg font-semibold opacity-90">{info.titulo}</h2>
+                            <h2 className="text-lg font-semibold opacity-90">iUser</h2>
                         </div>
 
-                        {/* Saudação com @profileSlug */}
+                        {/* Saudação */}
                         <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
                             Olá, {loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}
                         </h1>
 
-                        {/* Últimos clicados (lojas recentes) */}
-                        {recentStores.length > 0 && (
-                            <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
-                                {recentStores.map((store: Store) => (
-                                    <Link
-                                        key={store.id}
-                                        href={`/lojas/${categoria}/${store.storeSlug}`}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.15)',
-                                            backdropFilter: 'blur(10px)',
-                                            color: '#fff',
-                                        }}
-                                    >
-                                        {store.logo_url ? (
-                                            <img
-                                                src={store.logo_url}
-                                                alt={store.name}
-                                                className="w-5 h-5 rounded-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-white text-xs">
-                                                {store.name.charAt(0)}
-                                            </div>
-                                        )}
-                                        <span>{store.name}</span>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
+                        {/* Chips de navegação (Perfil + Configurações) */}
+                        <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
+                            {/* Chip Perfil (leva ao perfil do usuário logado) */}
+                            <button
+                                onClick={() => profileSlug && router.push(`/${profileSlug}`)}
+                                disabled={!profileSlug}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50"
+                                style={{
+                                    background: 'rgba(255,255,255,0.25)',
+                                    backdropFilter: 'blur(10px)',
+                                }}
+                            >
+                                {avatarUrl ? (
+                                    <img src={avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                ) : (
+                                    <User size={16} />
+                                )}
+                                <span>{profileSlug ? `@${profileSlug}` : 'Perfil'}</span>
+                            </button>
 
-                        {/* Barra de busca */}
+                            {/* Chip Configurações (apenas visual) */}
+                            <button
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                                style={{
+                                    background: 'rgba(255,255,255,0.08)',
+                                    backdropFilter: 'blur(10px)',
+                                }}
+                                disabled
+                            >
+                                <Settings size={16} />
+                                <span>Configurações</span>
+                            </button>
+                        </div>
+
+                        {/* Barra de busca decorativa (placeholder) */}
                         <div
                             className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
                             style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}
                         >
                             <Search size={18} className="opacity-70" />
-                            <span className="opacity-70">Buscar em {info.titulo.toLowerCase()}...</span>
+                            <span className="opacity-70">Buscar restaurantes, mercados...</span>
                         </div>
                     </div>
                 </div>
@@ -200,6 +194,7 @@ export default function ListaCategoriaPage() {
                                     }}
                                 >
                                     <div className="flex gap-4">
+                                        {/* Logo da loja */}
                                         <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0 bg-white/10">
                                             {store.logo_url ? (
                                                 <img
