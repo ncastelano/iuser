@@ -1,3 +1,4 @@
+// app/(main)/[profileSlug]/page.tsx
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -19,13 +20,13 @@ import {
     Camera,
     Search,
     User,
-    Settings,
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import EditarPerfil from './EditarPerfil' // componente que criaremos
+import EditarPerfil from './EditarPerfil'
+import { useProfile } from '@/app/contexts/ProfileContext'
+
 
 type Tab = 'compras' | 'agenda'
-type BgMode = 'animated' | 'black' | 'custom'
 
 export default function ProfilePage() {
     const params = useParams()
@@ -33,6 +34,15 @@ export default function ProfilePage() {
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Contexto do usuário logado (avatar, slug, fundo)
+    const {
+        avatarUrl: loggedUserAvatarUrl,
+        profileSlug: loggedUserSlug,
+        bgMode,
+        customBgUrl,
+    } = useProfile()
+
+    // Estados do perfil visitado
     const [profile, setProfile] = useState<any>(null)
     const [stores, setStores] = useState<any[]>([])
     const [purchases, setPurchases] = useState<any[]>([])
@@ -42,7 +52,7 @@ export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState<Tab>('compras')
     const [loading, setLoading] = useState(true)
     const [profileNotFound, setProfileNotFound] = useState(false)
-    const [editMode, setEditMode] = useState(false) // alterna entre visualização e edição
+    const [editMode, setEditMode] = useState(false)
 
     const [uploadingAvatar, setUploadingAvatar] = useState(false)
     const [followersCount, setFollowersCount] = useState(0)
@@ -55,9 +65,6 @@ export default function ProfilePage() {
     const [suggestions, setSuggestions] = useState<any[]>([])
     const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [tempAddress, setTempAddress] = useState('')
-
-    const [bgMode, setBgMode] = useState<BgMode>('black')
-    const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
 
     useEffect(() => {
         const load = async () => {
@@ -83,9 +90,6 @@ export default function ProfilePage() {
 
             setProfile(profileData)
             setIsOwner(user?.id === profileData.id)
-
-            if (profileData.background_mode) setBgMode(profileData.background_mode)
-            if (profileData.background_image_url) setCustomBgUrl(profileData.background_image_url)
 
             const [storesRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('stores').select('*').eq('owner_id', profileData.id),
@@ -264,15 +268,13 @@ export default function ProfilePage() {
         { id: 'agenda', label: 'Agenda', icon: CalendarDays, count: allAppointments.length },
     ]
 
-    const avatarUrl = getAvatarUrl(profile?.avatar_url) || null
-
     return (
         <main className="relative min-h-dvh" style={{ background: '#000' }}>
             <div className="fixed inset-0 z-0">
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            {/* Header */}
+            {/* Header – sempre com o avatar e slug do USUÁRIO LOGADO */}
             <div
                 style={{
                     background: 'linear-gradient(135deg, #000000ff, #000000)',
@@ -298,8 +300,8 @@ export default function ProfilePage() {
                         WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                     }}
                 >
-                    {avatarUrl ? (
-                        <img src={avatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
+                    {loggedUserAvatarUrl ? (
+                        <img src={loggedUserAvatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
                     ) : (
                         <img src="/logotransparente.png" alt="Logo" style={{ width: 280, height: 280, objectFit: 'contain' }} />
                     )}
@@ -317,10 +319,12 @@ export default function ProfilePage() {
                     </div>
 
                     <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
-                        Olá, @{profileSlug || '...'}
+                        Olá, @{loggedUserSlug || '...'}
                     </h1>
 
+                    {/* Linha de chips: Perfil + Lojas + Editar */}
                     <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
+                        {/* Chip Perfil */}
                         <button
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
                             style={{
@@ -332,17 +336,48 @@ export default function ProfilePage() {
                             <User size={16} />
                             <span>Perfil</span>
                         </button>
-                        <button
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
-                            style={{
-                                background: editMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
-                                backdropFilter: 'blur(10px)',
-                            }}
-                            onClick={() => setEditMode(true)}
-                        >
-                            <Pencil size={16} />
-                            <span>Editar</span>
-                        </button>
+
+                        {/* Chips das lojas (apenas se houver lojas) */}
+                        {stores.length > 0 && stores.map((store) => (
+                            <button
+                                key={store.id}
+                                onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                                style={{
+                                    background: 'rgba(255,255,255,0.08)',
+                                    backdropFilter: 'blur(10px)',
+                                    color: '#fff',
+                                }}
+                            >
+                                {store.logo_url ? (
+                                    <img
+                                        src={getLogoUrl(store.logo_url)!}
+                                        className="w-5 h-5 rounded-full object-cover"
+                                        alt={store.name}
+                                    />
+                                ) : (
+                                    <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
+                                        {store.name?.charAt(0)}
+                                    </div>
+                                )}
+                                <span>/{store.storeSlug}</span>
+                            </button>
+                        ))}
+
+                        {/* Chip Editar (apenas dono) */}
+                        {isOwner && (
+                            <button
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap"
+                                style={{
+                                    background: editMode ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                    backdropFilter: 'blur(10px)',
+                                }}
+                                onClick={() => setEditMode(true)}
+                            >
+                                <Pencil size={16} />
+                                <span>Editar</span>
+                            </button>
+                        )}
                     </div>
 
                     <div
@@ -355,8 +390,9 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Conteúdo */}
+            {/* Conteúdo (mantido igual) */}
             <div className="relative z-10 max-w-5xl mx-auto px-4 pt-8 pb-24">
+                {/* ... resto do conteúdo permanece exatamente o mesmo ... */}
                 {loading && (
                     <div className="flex flex-col items-center justify-center py-20">
                         <div className="w-10 h-10 border-3 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
@@ -375,10 +411,10 @@ export default function ProfilePage() {
 
                 {!loading && profile && !editMode && (
                     <>
-                        {/* SEÇÃO DO PERFIL (ROW LAYOUT) */}
+                        {/* CARD HORIZONTAL DO PERFIL VISITADO */}
                         <div className="flex flex-col md:flex-row items-center gap-8 mb-12 p-6 rounded-3xl"
                             style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            {/* Avatar */}
+                            {/* Avatar do perfil visitado */}
                             <div className="relative flex-shrink-0">
                                 <div className="w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden p-1 shadow-xl"
                                     style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
@@ -407,7 +443,7 @@ export default function ProfilePage() {
                                 <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" style={{ display: 'none' }} />
                             </div>
 
-                            {/* Informações */}
+                            {/* Informações do perfil visitado */}
                             <div className="flex-1 text-center md:text-left space-y-3">
                                 <h1 className="text-3xl md:text-5xl font-black italic text-white">{profile.name}</h1>
                                 <div className="flex flex-wrap justify-center md:justify-start gap-2">
@@ -465,7 +501,7 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
-                        {/* Agenda de Hoje (dono) - mantida */}
+                        {/* Agenda de Hoje (dono) */}
                         {isOwner && appointmentsToday.length > 0 && (
                             <div className="w-full max-w-2xl mx-auto mt-8 space-y-4">
                                 <div className="flex items-center gap-4 px-2">
@@ -511,7 +547,7 @@ export default function ProfilePage() {
                             </div>
                         )}
 
-                        {/* Lista de lojas */}
+                        {/* Lista de lojas (mantida como seção extra) */}
                         {stores.length > 0 && (
                             <div className="mt-12">
                                 <h3 className="text-xs font-black uppercase text-purple-400 tracking-widest mb-4 flex items-center gap-2">
@@ -642,7 +678,7 @@ export default function ProfilePage() {
                 )}
             </div>
 
-            {/* Modal de Localização (mantido) */}
+            {/* Modal de Localização */}
             {showLocationModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                     <div className="w-full max-w-xl rounded-3xl p-8 shadow-2xl space-y-6" style={{ background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.1)' }}>
