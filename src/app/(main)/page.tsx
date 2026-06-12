@@ -26,7 +26,6 @@ import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ConfiguracoesContent from './Configuracoes'
 
-
 export default function HomePage() {
     const router = useRouter()
     const [sections, setSections] = useState([
@@ -42,7 +41,6 @@ export default function HomePage() {
     const [profileSlug, setProfileSlug] = useState<string | null>(null)
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
 
-    // Estado para controlar se as configurações estão abertas
     const [showConfig, setShowConfig] = useState(false)
 
     useEffect(() => {
@@ -126,7 +124,6 @@ export default function HomePage() {
 
     const avatarUrl = getPublicUrl(userAvatarUrl, 'avatars')
 
-    // Abas com destaque dinâmico
     const tabs = [
         {
             id: 'perfil',
@@ -134,25 +131,25 @@ export default function HomePage() {
             icon: User,
             imageUrl: avatarUrl,
             onClick: handleAvatarClick,
-            isActive: !showConfig, // ativo quando não estamos nas config
+            isActive: !showConfig,
         },
         {
             id: 'config',
             label: 'Configurações',
             icon: Settings,
             imageUrl: null,
-            onClick: () => setShowConfig(!showConfig), // alterna as config
-            isActive: showConfig, // ativo quando showConfig é true
+            onClick: () => setShowConfig(!showConfig),
+            isActive: showConfig,
         },
     ]
 
     return (
-        <div className="relative min-h-screen">
+        <div className="relative min-h-dvh" style={{ background: '#000' }}>
             <div className="fixed inset-0 z-0">
                 <AnimatedBackground />
             </div>
 
-            <main className="relative z-10 min-h-screen pb-24">
+            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <div
                     style={{
                         background: 'linear-gradient(135deg, #000000ff, #000000)',
@@ -217,7 +214,6 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {/* Conteúdo condicional: Configurações ou Seções arrastáveis */}
                 {showConfig ? (
                     <ConfiguracoesContent onBack={() => setShowConfig(false)} />
                 ) : (
