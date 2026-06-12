@@ -689,7 +689,7 @@ export default function CompromissosPage() {
     // Renderização principal
     return (
         <main style={{ minHeight: '100vh', background: '#000', paddingBottom: 120, position: 'relative' }}>
-            <AnimatedBackground />
+            <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             {loading ? (
                 <div className="min-h-screen flex items-center justify-center relative z-10">
                     <p className="text-white/70">Carregando agenda...</p>
