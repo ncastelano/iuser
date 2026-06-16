@@ -1,7 +1,7 @@
 // app/(main)/inicio/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, User, Settings, ArrowLeft } from 'lucide-react'
 import {
@@ -26,15 +26,18 @@ import ConfiguracoesContent from './Configuracoes'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
+import OrderSection from '@/components/OrderSection'
 import Header from '../Header'
 
 const DEFAULT_SECTIONS = [
+
     'categorias',
     'transporte',
     'motorista',
     'promocoes',
     'compromissosPessoal',
     'compromissosLoja',
+    'orderSection',
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
@@ -107,6 +110,16 @@ export default function HomePage() {
 
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
+            case 'orderSection':
+                return (
+                    <OrderSection
+                        isEditing={editMode}
+                        onToggleEdit={toggleEditMode}
+                        onSave={handleSaveOrder}
+                        onRestore={handleRestoreOrder}
+                        disabled={loading}
+                    />
+                )
             case 'categorias':
                 return <CategoriasSection />
             case 'transporte':
@@ -169,12 +182,6 @@ export default function HomePage() {
                     showSearch={!showConfig}
                     searchPlaceholder="Buscar restaurantes, mercados..."
                     onSearch={setSearchQuery}
-                    showOrderShortcuts={!showConfig}
-                    editMode={editMode}
-                    onToggleEdit={toggleEditMode}
-                    onSaveOrder={handleSaveOrder}
-                    onRestoreOrder={handleRestoreOrder}
-                    orderDisabled={loading}
                 />
 
                 {showConfig ? (

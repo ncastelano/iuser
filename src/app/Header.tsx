@@ -4,7 +4,6 @@
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Search } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import OrderShortcuts from '@/components/OrderShortcuts'
 
 export interface Tab {
     id: string
@@ -26,12 +25,6 @@ interface HeaderProps {
     showSearch?: boolean
     searchPlaceholder?: string
     onSearch?: (query: string) => void
-    showOrderShortcuts?: boolean
-    editMode?: boolean
-    onToggleEdit?: () => void
-    onSaveOrder?: () => void
-    onRestoreOrder?: () => void
-    orderDisabled?: boolean
 }
 
 export default function Header({
@@ -45,12 +38,6 @@ export default function Header({
     showSearch = false,
     searchPlaceholder = 'Buscar...',
     onSearch,
-    showOrderShortcuts = false,
-    editMode = false,
-    onToggleEdit,
-    onSaveOrder,
-    onRestoreOrder,
-    orderDisabled = false,
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -163,37 +150,26 @@ export default function Header({
                     </div>
                 )}
 
-                {/* Busca + Ordenação */}
-                {(showSearch || showOrderShortcuts) && (
+                {/* Busca */}
+                {showSearch && (
                     <div className="mt-4 flex items-center gap-3 flex-wrap">
-                        {showSearch && (
-                            <div
-                                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
-                                style={{
-                                    background: colors.background,
-                                    backdropFilter: 'blur(10px)',
-                                    border: `1px solid ${colors.border}`,
-                                }}
-                            >
-                                <Search size={18} style={{ color: colors.textSecondary }} />
-                                <input
-                                    type="text"
-                                    placeholder={searchPlaceholder}
-                                    onChange={(e) => onSearch?.(e.target.value)}
-                                    className="flex-1 bg-transparent outline-none"
-                                    style={{ color: colors.textPrimary }}
-                                />
-                            </div>
-                        )}
-                        {showOrderShortcuts && onToggleEdit && onSaveOrder && onRestoreOrder && (
-                            <OrderShortcuts
-                                isEditing={editMode}
-                                onToggleEdit={onToggleEdit}
-                                onSave={onSaveOrder}
-                                onRestore={onRestoreOrder}
-                                disabled={orderDisabled}
+                        <div
+                            className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
+                            style={{
+                                background: colors.background,
+                                backdropFilter: 'blur(10px)',
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <Search size={18} style={{ color: colors.textSecondary }} />
+                            <input
+                                type="text"
+                                placeholder={searchPlaceholder}
+                                onChange={(e) => onSearch?.(e.target.value)}
+                                className="flex-1 bg-transparent outline-none"
+                                style={{ color: colors.textPrimary }}
                             />
-                        )}
+                        </div>
                     </div>
                 )}
             </div>
