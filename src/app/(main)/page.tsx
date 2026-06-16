@@ -26,7 +26,7 @@ import ConfiguracoesContent from './Configuracoes'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
-import OrderShortcuts from '@/components/OrderShortcuts'
+import Header from '../Header'
 
 const DEFAULT_SECTIONS = [
     'categorias',
@@ -70,6 +70,7 @@ export default function HomePage() {
 
     const [showConfig, setShowConfig] = useState(false)
     const [editMode, setEditMode] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -117,7 +118,7 @@ export default function HomePage() {
             case 'compromissosPessoal':
                 return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
             case 'compromissosLoja':
-                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />   // 👈 AQUI
+                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
             default:
                 return null
         }
@@ -135,7 +136,7 @@ export default function HomePage() {
         {
             id: 'perfil',
             label: profileSlug ? `@${profileSlug}` : loading ? '...' : 'Entrar',
-            icon: User,
+            icon: User as React.ComponentType<{ size?: number }>,
             imageUrl: avatarUrl,
             onClick: handleAvatarClick,
             isActive: !showConfig,
@@ -143,7 +144,7 @@ export default function HomePage() {
         {
             id: 'config',
             label: 'Configurações',
-            icon: Settings,
+            icon: Settings as React.ComponentType<{ size?: number }>,
             imageUrl: null,
             onClick: () => setShowConfig(!showConfig),
             isActive: showConfig,
@@ -157,148 +158,25 @@ export default function HomePage() {
             </div>
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
-                {/* CABEÇALHO */}
-                <div
-                    style={{
-                        background: colors.surface,
-                        color: colors.textPrimary,
-                        padding: '20px 24px',
-                        borderBottomLeftRadius: 36,
-                        borderBottomRightRadius: 36,
-                        boxShadow: colors.shadow,
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 20,
-                        overflow: 'hidden',
-                    }}
-                >
-                    {/* Marca d'água */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            right: -20,
-                            top: -20,
-                            opacity: 0.4,
-                            transform: 'rotate(10deg)',
-                            maskImage:
-                                'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                            WebkitMaskImage:
-                                'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                        }}
-                    >
-                        {avatarUrl ? (
-                            <img src={avatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
-                        ) : (
-                            <img
-                                src="/logotransparente.png"
-                                alt="Logo"
-                                style={{ width: 280, height: 280, objectFit: 'contain' }}
-                            />
-                        )}
-                    </div>
+                <Header
+                    title={showConfig ? 'Configurações' : 'iUser'}
+                    showBack={showConfig}
+                    onBack={() => setShowConfig(false)}
+                    greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    avatarUrl={avatarUrl}
+                    loading={loading}
+                    tabs={showConfig ? undefined : tabs}
+                    showSearch={!showConfig}
+                    searchPlaceholder="Buscar restaurantes, mercados..."
+                    onSearch={setSearchQuery}
+                    showOrderShortcuts={!showConfig}
+                    editMode={editMode}
+                    onToggleEdit={toggleEditMode}
+                    onSaveOrder={handleSaveOrder}
+                    onRestoreOrder={handleRestoreOrder}
+                    orderDisabled={loading}
+                />
 
-                    <div className="relative z-10">
-                        {/* Linha superior */}
-                        <div className="flex items-center gap-3 mb-1">
-                            {showConfig ? (
-                                <>
-                                    <button
-                                        onClick={() => setShowConfig(false)}
-                                        className="w-10 h-10 rounded-full flex items-center justify-center"
-                                        style={{
-                                            background: colors.accentLight,
-                                            backdropFilter: 'blur(10px)',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <ArrowLeft size={20} color={colors.accent} />
-                                    </button>
-                                    <h2 className="text-lg font-semibold opacity-90">Configurações</h2>
-                                </>
-                            ) : (
-                                <>
-                                    <button
-                                        onClick={() => router.back()}
-                                        className="w-10 h-10 rounded-full flex items-center justify-center"
-                                        style={{
-                                            background: colors.accentLight,
-                                            backdropFilter: 'blur(10px)',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <img src="/logo.png" alt="Logo" className="w-6 h-6 object-contain" />
-                                    </button>
-                                    <h2 className="text-lg font-semibold opacity-90">iUser</h2>
-                                </>
-                            )}
-                        </div>
-
-                        <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
-                            Olá, {loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}
-                        </h1>
-
-                        {/* Tabs */}
-                        <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
-                            {tabs.map((tab) => {
-                                if (tab.id === 'config' && showConfig) return null
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={tab.onClick}
-                                        disabled={loading}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50"
-                                        style={{
-                                            background: tab.isActive
-                                                ? colors.accent
-                                                : colors.background,
-                                            color: tab.isActive
-                                                ? colors.accentText
-                                                : colors.textSecondary,
-                                            backdropFilter: 'blur(10px)',
-                                        }}
-                                    >
-                                        {tab.imageUrl ? (
-                                            <img
-                                                src={tab.imageUrl}
-                                                alt=""
-                                                className="w-5 h-5 rounded-full object-cover"
-                                            />
-                                        ) : (
-                                            <tab.icon size={16} />
-                                        )}
-                                        <span>{tab.label}</span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-
-                        {/* Barra de busca + Ordenação */}
-                        <div className="mt-4 flex items-center gap-3 flex-wrap">
-                            <div
-                                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
-                                style={{
-                                    background: colors.background,
-                                    backdropFilter: 'blur(10px)',
-                                    border: `1px solid ${colors.border}`,
-                                }}
-                            >
-                                <Search size={18} style={{ color: colors.textSecondary }} />
-                                <span style={{ color: colors.textSecondary }}>Buscar restaurantes, mercados...</span>
-                            </div>
-                            <OrderShortcuts
-                                isEditing={editMode}
-                                onToggleEdit={toggleEditMode}
-                                onSave={handleSaveOrder}
-                                onRestore={handleRestoreOrder}
-                                disabled={loading}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* CONTEÚDO PRINCIPAL */}
                 {showConfig ? (
                     <ConfiguracoesContent
                         onBack={() => setShowConfig(false)}

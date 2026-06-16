@@ -22,11 +22,11 @@ const themes: Record<ThemeName, ThemeColors> = {
         background: '#ffffff',
         surface: '#f9fafb',
         textPrimary: '#111827',
-        textSecondary: '#6b7280',
+        textSecondary: '#4b5563',   // estava #6b7280
         accent: '#f97316',
-        accentLight: '#fed7aa',
+        accentLight: '#fdba74',     // estava #fed7aa
         accentText: '#ffffff',
-        border: '#e5e7eb',
+        border: '#d1d5db',          // estava #e5e7eb
         shadow: '0 8px 32px rgba(0,0,0,0.08)',
     },
     'escuro-laranja': {
