@@ -1,5 +1,7 @@
+// components/AnimatedBackgroundiUser.tsx
 'use client'
 
+import { useTheme } from '@/app/theme'
 import { useEffect, useRef, useCallback } from 'react'
 
 type BgMode = 'animated' | 'black' | 'white' | 'custom'
@@ -38,18 +40,16 @@ export default function AnimatedBackgroundiUser({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const mouseRef = useRef({ x: -1000, y: -1000 })
   const animFrameRef = useRef<number | null>(null)
+  const { colors } = useTheme() // pega a cor de fundo do tema
 
-  // Mouse move handler – apenas atualiza a posição do mouse
+  // Mouse move handler
   const handleMouseMove = useCallback((e: MouseEvent) => {
     mouseRef.current = { x: e.clientX, y: e.clientY }
   }, [])
 
-  // Lógica de animação só é executada quando bgMode === 'animated'
+  // Lógica de animação (partículas)
   useEffect(() => {
-    if (bgMode !== 'animated') {
-      // Se não for animado, não faz nada (o canvas some)
-      return
-    }
+    if (bgMode !== 'animated') return
 
     const canvas = canvasRef.current
     if (!canvas) return
@@ -90,7 +90,9 @@ export default function AnimatedBackgroundiUser({
     const animate = () => {
       if (!ctx) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.fillStyle = '#000000'
+
+      // Fundo do canvas usa a cor do tema
+      ctx.fillStyle = colors.background
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       const mouse = mouseRef.current
@@ -156,20 +158,19 @@ export default function AnimatedBackgroundiUser({
       window.removeEventListener('resize', resize)
       window.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [bgMode, handleMouseMove]) // Dependência em bgMode para reiniciar ao trocar para 'animated'
+  }, [bgMode, colors.background, handleMouseMove]) // recria animação se bgMode ou cor mudar
 
-  // Renderização condicional
+  // Fundo sólido (agora usa a cor do tema)
   if (bgMode === 'black') {
     return (
       <div
         className="fixed inset-0 z-0"
-        style={{ background: '#000000' }}
+        style={{ background: colors.background }}
       />
     )
   }
 
-
-
+  // Fundo personalizado (imagem)
   if (bgMode === 'custom' && customBgUrl) {
     return (
       <div
@@ -179,22 +180,22 @@ export default function AnimatedBackgroundiUser({
     )
   }
 
-  // Fallback: se for 'custom' mas sem URL, mostra preto (ou poderia ser um placeholder)
+  // Fallback para custom sem URL (usa cor do tema)
   if (bgMode === 'custom' && !customBgUrl) {
     return (
       <div
         className="fixed inset-0 z-0"
-        style={{ background: '#000000' }}
+        style={{ background: colors.background }}
       />
     )
   }
 
-  // bgMode === 'animated'
+  // Animado (canvas)
   return (
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-0"
-      style={{ background: '#000' }}
+      style={{ background: colors.background }}
     />
   )
 }

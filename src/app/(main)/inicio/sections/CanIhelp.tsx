@@ -1,4 +1,5 @@
 // src/app/(main)/inicio/sections/CanIhelp.tsx
+'use client'
 
 import Link from 'next/link'
 import {
@@ -11,62 +12,30 @@ import {
     Truck,
 } from 'lucide-react'
 import { ReactNode } from 'react'
+import { useTheme } from '@/app/theme'
 
 interface CanIhelpProps {
     dragHandle?: ReactNode
 }
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
+    const { colors } = useTheme()
+
     const categorias = [
-        {
-            nome: 'Restaurantes',
-            slug: 'restaurantes',
-            icone: UtensilsCrossed,
-            color: '#f97316',
-        },
-        {
-            nome: 'Mercados',
-            slug: 'mercados',
-            icone: ShoppingCart,
-            color: '#22c55e',
-        },
-        {
-            nome: 'Farmácias',
-            slug: 'farmacias',
-            icone: Pill,
-            color: '#eab308',
-        },
-        {
-            nome: 'Pet Shops',
-            slug: 'petshops',
-            icone: PawPrint,
-            color: '#ec4899',
-        },
-        {
-            nome: 'Fitness',
-            slug: 'fitness',
-            icone: Dumbbell,
-            color: '#a855f7',
-        },
-        {
-            nome: 'Roupas',
-            slug: 'roupas',
-            icone: Shirt,
-            color: '#3b82f6',
-        },
-        {
-            nome: 'Entregas',
-            slug: 'entregas',
-            icone: Truck,
-            color: '#64748b',
-        },
+        { nome: 'Restaurantes', slug: 'restaurantes', icone: UtensilsCrossed, color: '#f97316' },
+        { nome: 'Mercados', slug: 'mercados', icone: ShoppingCart, color: '#22c55e' },
+        { nome: 'Farmácias', slug: 'farmacias', icone: Pill, color: '#eab308' },
+        { nome: 'Pet Shops', slug: 'petshops', icone: PawPrint, color: '#ec4899' },
+        { nome: 'Fitness', slug: 'fitness', icone: Dumbbell, color: '#a855f7' },
+        { nome: 'Roupas', slug: 'roupas', icone: Shirt, color: '#3b82f6' },
+        { nome: 'Entregas', slug: 'entregas', icone: Truck, color: '#64748b' },
     ]
 
     return (
         <section>
             <div className="flex items-center gap-2 mb-4">
                 {dragHandle}
-                <h2 className="text-xl font-black text-white">
+                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
                     Posso ajudar você a encontrar algo?
                 </h2>
             </div>
@@ -81,15 +50,19 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         <div
                             className="p-3 rounded-full shadow-md"
                             style={{
-                                background: 'rgba(255, 255, 255, 0.06)',
+                                background: colors.surface,
                                 backdropFilter: 'blur(10px)',
                                 WebkitBackdropFilter: 'blur(10px)',
+                                border: `1px solid ${colors.border}`,
                             }}
                         >
                             <cat.icone className="w-5 h-5" style={{ color: cat.color }} />
                         </div>
 
-                        <span className="text-xs text-center font-bold text-white leading-tight">
+                        <span
+                            className="text-xs text-center font-bold leading-tight"
+                            style={{ color: colors.textPrimary }}
+                        >
                             {cat.nome}
                         </span>
                     </Link>

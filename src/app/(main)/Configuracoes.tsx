@@ -7,10 +7,12 @@ import {
     ArrowLeft, Save, LogOut, Type, Bell, Smartphone, Sparkles,
     Image, Camera, Check, Palette
 } from 'lucide-react'
-import { useFontStore } from '@/store/useFontStore'
+import { useFontStore } from '@/store/useFontStore'            // ← tema global
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-
+import ColloriUser from '@/components/ColloriUser'             // ← seletor de temas
+import { useTheme } from '../theme'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -20,7 +22,7 @@ interface ConfiguracoesProps {
     setBgMode?: (mode: BgMode) => void
     customBgUrl?: string | null
     setCustomBgUrl?: (url: string | null) => void
-    isWhiteBg?: boolean // não usado na estilização, mantido para compatibilidade
+    isWhiteBg?: boolean // mantido para compatibilidade
 }
 
 export default function ConfiguracoesContent({
@@ -33,9 +35,11 @@ export default function ConfiguracoesContent({
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // Estados locais para evitar depender 100% das props
+    // Estados locais para background
     const [bgMode, _setBgMode] = useState<BgMode>(propBgMode)
     const [customBgUrl, _setCustomBgUrl] = useState<string | null>(propCustomBgUrl)
+
+    // Perfil
     const [whatsapp, setWhatsapp] = useState('')
     const [useWhatsapp, setUseWhatsapp] = useState(true)
     const { fontSize, setFontSize } = useFontStore()
@@ -43,7 +47,10 @@ export default function ConfiguracoesContent({
     const [saving, setSaving] = useState(false)
     const [uploadingBg, setUploadingBg] = useState(false)
 
-    // Sincroniza as props com os estados locais quando elas mudarem
+    // Tema (cores dinâmicas)
+    const { colors } = useTheme()
+
+    // Sincroniza as props com os estados locais
     useEffect(() => {
         _setBgMode(propBgMode)
     }, [propBgMode])
@@ -51,18 +58,6 @@ export default function ConfiguracoesContent({
     useEffect(() => {
         _setCustomBgUrl(propCustomBgUrl)
     }, [propCustomBgUrl])
-
-    // Cores fixas – NÃO DEPENDEM do fundo escolhido
-    const primaryColor = '#F97316'      // laranja
-    const primaryLight = '#FB923C'
-    const bgCard = 'rgba(0, 0, 0, 0.6)'
-    const borderCard = 'rgba(255, 255, 255, 0.1)'
-    const textMain = '#ffffff'
-    const textSecondary = '#94a3b8'
-    const inputBg = 'rgba(255, 255, 255, 0.05)'
-    const inputBorder = 'rgba(255, 255, 255, 0.15)'
-    const badgeBg = 'rgba(249, 115, 22, 0.2)'
-    const badgeText = '#F97316'
 
     useEffect(() => {
         async function loadProfile() {
@@ -103,7 +98,6 @@ export default function ConfiguracoesContent({
                 toast.error(`Erro ao salvar: ${error.message}`)
             } else {
                 toast.success('Configurações salvas com sucesso!')
-                // Notifica o pai sobre as mudanças (opcional)
                 setBgMode(bgMode)
                 setCustomBgUrl(customBgUrl)
             }
@@ -134,7 +128,7 @@ export default function ConfiguracoesContent({
             const { data } = supabase.storage.from('backgrounds').getPublicUrl(fileName)
             const url = data.publicUrl
             _setCustomBgUrl(url)
-            setCustomBgUrl(url) // notifica o pai
+            setCustomBgUrl(url)
         } catch (err: any) {
             toast.error('Erro ao enviar imagem: ' + err.message)
         } finally {
@@ -145,56 +139,59 @@ export default function ConfiguracoesContent({
 
     const handleBgModeChange = (mode: BgMode) => {
         _setBgMode(mode)
-        setBgMode(mode) // notifica o pai imediatamente, se existir
+        setBgMode(mode)
     }
 
     if (loading) {
-        return (
-            <div className="relative z-10 flex flex-col items-center justify-center py-20">
-                <div className="w-10 h-10 border-3 border-orange-500/20 border-t-orange-500 rounded-full animate-spin" />
-                <p className="text-sm font-bold text-gray-300 mt-4 animate-pulse">
-                    Carregando configurações...
-                </p>
-            </div>
-        )
+        return <LoadingSpinner message="Carregando configurações..." />
     }
 
     const bgOptions = [
         { mode: 'animated' as const, label: 'Animado', icon: Sparkles, desc: 'Partículas coloridas' },
-        { mode: 'black' as const, label: 'Preto', icon: Palette, desc: 'Fundo escuro sólido' },
-        { mode: 'custom' as const, label: 'Foto', icon: Camera, desc: 'Sua própria imagem' },
-
+        { mode: 'black' as const, label: 'Sem animação', icon: Palette, desc: 'Fundo sólido' },
+        { mode: 'custom' as const, label: 'Sua foto', icon: Camera, desc: 'Sua própria imagem' },
     ]
 
     return (
         <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 pb-24">
+            {/* Cabeçalho */}
             <div className="mb-8 text-center">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 shadow-md"
-                    style={{ background: badgeBg, color: badgeText }}>
+                <div
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 shadow-md"
+                    style={{ background: colors.accentLight, color: colors.accent }}
+                >
                     <Sparkles size={12} />
                     Personalize sua experiência
                 </div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter"
-                    style={{ color: textMain }}>
+                <h1 className="text-4xl font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
                     Configurações
                 </h1>
-                <p className="text-sm mt-2" style={{ color: textSecondary }}>
+                <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
                     Ajuste o app do seu jeito
                 </p>
             </div>
 
             <div className="space-y-6">
+                {/* ========= NOVO CARD: Tema do iUser ========= */}
+                <div
+                    className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
+                    style={{ background: colors.surface, borderColor: colors.border }}
+                >
+                    <ColloriUser />
+                </div>
 
-                {/* Plano de Fundo */}
-                <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
-                    style={{ background: bgCard, borderColor: borderCard }}>
+                {/* Plano de Fundo (independente) */}
+                <div
+                    className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
+                    style={{ background: colors.surface, borderColor: colors.border }}
+                >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: badgeBg }}>
-                            <Image className="w-5 h-5" style={{ color: badgeText }} />
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                            <Image className="w-5 h-5" style={{ color: colors.accent }} />
                         </div>
                         <div>
-                            <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: textMain }}>Plano de Fundo</h3>
-                            <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Escolha o visual do app</p>
+                            <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Plano de Fundo</h3>
+                            <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Escolha o visual do app</p>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -206,19 +203,21 @@ export default function ConfiguracoesContent({
                                     onClick={() => handleBgModeChange(opt.mode)}
                                     className="relative flex flex-col items-center gap-1 p-3 rounded-xl border transition-all"
                                     style={{
-                                        background: isSelected ? badgeBg : inputBg,
-                                        borderColor: isSelected ? primaryColor : borderCard,
+                                        background: isSelected ? colors.accentLight : colors.background,
+                                        borderColor: isSelected ? colors.accent : colors.border,
                                     }}
                                 >
                                     {isSelected && (
-                                        <div className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                                            style={{ background: primaryColor }}>
-                                            <Check size={12} color="#fff" />
+                                        <div
+                                            className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                                            style={{ background: colors.accent }}
+                                        >
+                                            <Check size={12} color={colors.accentText} />
                                         </div>
                                     )}
-                                    <opt.icon size={20} color={isSelected ? primaryColor : textSecondary} />
-                                    <span className="text-xs font-bold" style={{ color: isSelected ? textMain : textSecondary }}>{opt.label}</span>
-                                    <span className="text-[9px]" style={{ color: textSecondary }}>{opt.desc}</span>
+                                    <opt.icon size={20} color={isSelected ? colors.accent : colors.textSecondary} />
+                                    <span className="text-xs font-bold" style={{ color: isSelected ? colors.textPrimary : colors.textSecondary }}>{opt.label}</span>
+                                    <span className="text-[9px]" style={{ color: colors.textSecondary }}>{opt.desc}</span>
                                 </button>
                             )
                         })}
@@ -231,7 +230,8 @@ export default function ConfiguracoesContent({
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploadingBg}
                                 className="w-full py-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2"
-                                style={{ background: inputBg, borderColor: borderCard, color: textSecondary }}>
+                                style={{ background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                            >
                                 {uploadingBg ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
@@ -249,21 +249,24 @@ export default function ConfiguracoesContent({
                 </div>
 
                 {/* WhatsApp */}
-                <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
-                    style={{ background: bgCard, borderColor: borderCard }}>
+                <div
+                    className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
+                    style={{ background: colors.surface, borderColor: colors.border }}
+                >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                                 <Smartphone className="w-5 h-5 text-green-400" />
                             </div>
                             <div>
-                                <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: textMain }}>WhatsApp</h3>
-                                <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Notificações em tempo real</p>
+                                <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>WhatsApp</h3>
+                                <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Notificações em tempo real</p>
                             </div>
                         </div>
                         <button
                             onClick={() => setUseWhatsapp(!useWhatsapp)}
-                            className={`relative w-12 h-6 rounded-full transition-all ${useWhatsapp ? 'bg-green-500' : 'bg-gray-600'}`}>
+                            className={`relative w-12 h-6 rounded-full transition-all ${useWhatsapp ? 'bg-green-500' : 'bg-gray-600'}`}
+                        >
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${useWhatsapp ? 'right-1' : 'left-1'}`} />
                         </button>
                     </div>
@@ -271,93 +274,119 @@ export default function ConfiguracoesContent({
                         <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
                             <div className="rounded-xl p-4 border" style={{ background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' }}>
                                 <p className="text-[9px] font-black text-green-400 uppercase tracking-wider mb-1">✨ Receba alertas no celular</p>
-                                <p className="text-xs leading-relaxed" style={{ color: textSecondary }}>
+                                <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
                                     Quando um cliente comprar na sua loja, você receberá os detalhes do pedido diretamente no WhatsApp.
                                 </p>
                             </div>
                             <div>
-                                <label className="block text-[9px] font-black uppercase tracking-wider mb-2" style={{ color: textSecondary }}>Seu número com DDD</label>
-                                <input type="tel" placeholder="(00) 00000-0000" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)}
+                                <label className="block text-[9px] font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>Seu número com DDD</label>
+                                <input
+                                    type="tel"
+                                    placeholder="(00) 00000-0000"
+                                    value={whatsapp}
+                                    onChange={(e) => setWhatsapp(e.target.value)}
                                     className="w-full px-5 py-4 rounded-xl placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-                                    style={{ background: inputBg, border: `1px solid ${inputBorder}`, color: textMain }} />
-                                <p className="text-[8px] mt-2" style={{ color: textSecondary }}>Exemplo: (11) 99999-9999</p>
+                                    style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                                <p className="text-[8px] mt-2" style={{ color: colors.textSecondary }}>Exemplo: (11) 99999-9999</p>
                             </div>
                         </div>
                     )}
                     {!useWhatsapp && (
-                        <div className="rounded-xl p-4 border text-center" style={{ background: inputBg, borderColor: borderCard }}>
-                            <Bell className="w-6 h-6 mx-auto mb-2" style={{ color: textSecondary }} />
-                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>Notificações apenas no app</p>
-                            <p className="text-[9px] mt-1" style={{ color: textSecondary }}>Você verá os pedidos na aba Painel</p>
+                        <div className="rounded-xl p-4 border text-center" style={{ background: colors.background, borderColor: colors.border }}>
+                            <Bell className="w-6 h-6 mx-auto mb-2" style={{ color: colors.textSecondary }} />
+                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>Notificações apenas no app</p>
+                            <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>Você verá os pedidos na aba Painel</p>
                         </div>
                     )}
                 </div>
 
                 {/* Fonte */}
-                <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
-                    style={{ background: bgCard, borderColor: borderCard }}>
+                <div
+                    className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
+                    style={{ background: colors.surface, borderColor: colors.border }}
+                >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: badgeBg }}>
-                            <Type className="w-5 h-5" style={{ color: badgeText }} />
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                            <Type className="w-5 h-5" style={{ color: colors.accent }} />
                         </div>
                         <div>
-                            <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: textMain }}>Tamanho da Fonte</h3>
-                            <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: textSecondary }}>Para melhor leitura</p>
+                            <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Tamanho da Fonte</h3>
+                            <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Para melhor leitura</p>
                         </div>
                     </div>
-                    <p className="text-xs mb-4" style={{ color: textSecondary }}>Aumente ou diminua o tamanho dos textos em todo o aplicativo.</p>
+                    <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Aumente ou diminua o tamanho dos textos em todo o aplicativo.</p>
                     <div className="grid grid-cols-3 gap-3">
-                        <button onClick={() => setFontSize('normal')}
-                            className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'normal' ? { background: primaryColor } : { background: inputBg, borderColor: borderCard, color: textSecondary }}>
+                        <button
+                            onClick={() => setFontSize('normal')}
+                            className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'
+                                }`}
+                            style={fontSize === 'normal' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                        >
                             Padrão
                         </button>
-                        <button onClick={() => setFontSize('large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'large' ? { background: primaryColor } : { background: inputBg, borderColor: borderCard, color: textSecondary }}>
+                        <button
+                            onClick={() => setFontSize('large')}
+                            className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'
+                                }`}
+                            style={fontSize === 'large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                        >
                             Grande
                         </button>
-                        <button onClick={() => setFontSize('extra-large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'extra-large' ? { background: primaryColor } : { background: inputBg, borderColor: borderCard, color: textSecondary }}>
+                        <button
+                            onClick={() => setFontSize('extra-large')}
+                            className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'
+                                }`}
+                            style={fontSize === 'extra-large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                        >
                             Enorme
                         </button>
                     </div>
-                    <div className="mt-4 p-3 rounded-xl border" style={{ background: inputBg, borderColor: borderCard }}>
-                        <p style={{ color: textSecondary }}
-                            className={`${fontSize === 'normal' ? 'text-sm' : fontSize === 'large' ? 'text-base' : 'text-lg'}`}>
+                    <div className="mt-4 p-3 rounded-xl border" style={{ background: colors.background, borderColor: colors.border }}>
+                        <p
+                            style={{ color: colors.textPrimary }}
+                            className={`${fontSize === 'normal' ? 'text-sm' : fontSize === 'large' ? 'text-base' : 'text-lg'}`}
+                        >
                             🔤 Exemplo de texto com esta fonte
                         </p>
                     </div>
                 </div>
 
                 {/* Salvar */}
-                <button onClick={handleSave} disabled={saving}
-                    className="group relative w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-white"
-                    style={{ background: primaryColor }}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="group relative w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: colors.accent, color: colors.accentText }}
+                >
                     <span className="relative z-10 flex items-center justify-center gap-2">
                         {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save className="w-5 h-5" /> Salvar Configurações</>}
                     </span>
                 </button>
 
                 {/* Sair */}
-                <button onClick={handleLogout}
-                    className="group w-full bg-red-500/20 border-2 border-red-500/40 text-red-400 py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-lg active:scale-95">
+                <button
+                    onClick={handleLogout}
+                    className="group w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg active:scale-95 border-2"
+                    style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent }}
+                >
                     <span className="flex items-center justify-center gap-2"><LogOut className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" /> Sair da Conta</span>
                 </button>
 
-                {/* Botão Voltar (substitui a versão) */}
-                <button onClick={onBack}
-                    className="group w-full bg-gray-500/20 border-2 border-gray-500/40 text-gray-300 py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:bg-gray-500 hover:text-white hover:border-gray-500 hover:shadow-lg active:scale-95">
+                {/* Voltar */}
+                <button
+                    onClick={onBack}
+                    className="group w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg active:scale-95 border-2"
+                    style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary }}
+                >
                     <span className="flex items-center justify-center gap-2">
                         <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
                         Voltar
                     </span>
                 </button>
 
-                {/* Mensagem final opcional */}
                 <div className="text-center pt-4">
-                    <p className="text-[7px] mt-1" style={{ color: textSecondary }}>Mostre ao mundo o que você tem de melhor</p>
+                    <p className="text-[7px] mt-1" style={{ color: colors.textSecondary }}>Mostre ao mundo o que você tem de melhor</p>
                 </div>
             </div>
         </div>

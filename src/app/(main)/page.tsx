@@ -1,7 +1,7 @@
 // app/(main)/inicio/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, User, Settings, ArrowLeft } from 'lucide-react'
 import {
@@ -25,6 +25,19 @@ import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ConfiguracoesContent from './Configuracoes'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
+import { useTheme } from '../theme'
+import OrderShortcuts from '@/components/OrderShortcuts'
+
+const DEFAULT_SECTIONS = [
+    'categorias',
+    'transporte',
+    'motorista',
+    'promocoes',
+    'compromissosPessoal',
+    'compromissosLoja',
+]
+
+const ORDER_STORAGE_KEY = 'homepage_sections_order'
 
 export default function HomePage() {
     const router = useRouter()
@@ -38,15 +51,25 @@ export default function HomePage() {
         setCustomBgUrl,
     } = useProfile()
 
-    const [sections, setSections] = useState([
-        'categorias',
-        'transporte',
-        'motorista',
-        'promocoes',
-        'compromissosPessoal',
-        'compromissosLoja',
-    ])
+    const { colors } = useTheme()
+
+    const [sections, setSections] = useState<string[]>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved)
+                    if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTIONS.length) {
+                        return parsed
+                    }
+                } catch { }
+            }
+        }
+        return DEFAULT_SECTIONS
+    })
+
     const [showConfig, setShowConfig] = useState(false)
+    const [editMode, setEditMode] = useState(false)
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -57,6 +80,29 @@ export default function HomePage() {
             return arrayMove(items, oldIndex, newIndex)
         })
     }
+
+    const handleSaveOrder = () => {
+        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(sections))
+        setEditMode(false)
+    }
+
+    const handleRestoreOrder = () => {
+        const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved)
+                if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTIONS.length) {
+                    setSections(parsed)
+                    setEditMode(false)
+                    return
+                }
+            } catch { }
+        }
+        setSections(DEFAULT_SECTIONS)
+        setEditMode(false)
+    }
+
+    const toggleEditMode = () => setEditMode((prev) => !prev)
 
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
@@ -71,7 +117,7 @@ export default function HomePage() {
             case 'compromissosPessoal':
                 return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
             case 'compromissosLoja':
-                return <AtalhoCompromissosDaLoja />
+                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />   // 👈 AQUI
             default:
                 return null
         }
@@ -105,26 +151,28 @@ export default function HomePage() {
     ]
 
     return (
-        <div className="relative min-h-dvh" style={{ background: '#000' }}>
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
+                {/* CABEÇALHO */}
                 <div
                     style={{
-                        background: 'linear-gradient(135deg, #000000ff, #000000)',
+                        background: colors.surface,
+                        color: colors.textPrimary,
                         padding: '20px 24px',
-                        color: '#ffffff',
                         borderBottomLeftRadius: 36,
                         borderBottomRightRadius: 36,
-                        boxShadow: '0 10px 40px rgba(255,255,255,0.25)',
+                        boxShadow: colors.shadow,
                         position: 'sticky',
                         top: 0,
                         zIndex: 20,
                         overflow: 'hidden',
                     }}
                 >
+                    {/* Marca d'água */}
                     <div
                         style={{
                             position: 'absolute',
@@ -150,7 +198,7 @@ export default function HomePage() {
                     </div>
 
                     <div className="relative z-10">
-                        {/* Cabeçalho condicional */}
+                        {/* Linha superior */}
                         <div className="flex items-center gap-3 mb-1">
                             {showConfig ? (
                                 <>
@@ -158,13 +206,13 @@ export default function HomePage() {
                                         onClick={() => setShowConfig(false)}
                                         className="w-10 h-10 rounded-full flex items-center justify-center"
                                         style={{
-                                            background: 'rgba(255,255,255,0.15)',
+                                            background: colors.accentLight,
                                             backdropFilter: 'blur(10px)',
                                             border: 'none',
                                             cursor: 'pointer',
                                         }}
                                     >
-                                        <ArrowLeft size={20} color="#fff" />
+                                        <ArrowLeft size={20} color={colors.accent} />
                                     </button>
                                     <h2 className="text-lg font-semibold opacity-90">Configurações</h2>
                                 </>
@@ -174,7 +222,7 @@ export default function HomePage() {
                                         onClick={() => router.back()}
                                         className="w-10 h-10 rounded-full flex items-center justify-center"
                                         style={{
-                                            background: 'rgba(255,255,255,0.15)',
+                                            background: colors.accentLight,
                                             backdropFilter: 'blur(10px)',
                                             border: 'none',
                                             cursor: 'pointer',
@@ -191,6 +239,7 @@ export default function HomePage() {
                             Olá, {loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}
                         </h1>
 
+                        {/* Tabs */}
                         <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
                             {tabs.map((tab) => {
                                 if (tab.id === 'config' && showConfig) return null
@@ -202,8 +251,11 @@ export default function HomePage() {
                                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50"
                                         style={{
                                             background: tab.isActive
-                                                ? 'rgba(255,255,255,0.25)'
-                                                : 'rgba(255,255,255,0.08)',
+                                                ? colors.accent
+                                                : colors.background,
+                                            color: tab.isActive
+                                                ? colors.accentText
+                                                : colors.textSecondary,
                                             backdropFilter: 'blur(10px)',
                                         }}
                                     >
@@ -222,16 +274,31 @@ export default function HomePage() {
                             })}
                         </div>
 
-                        <div
-                            className="mt-4 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
-                            style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}
-                        >
-                            <Search size={18} className="opacity-70" />
-                            <span className="opacity-70">Buscar restaurantes, mercados...</span>
+                        {/* Barra de busca + Ordenação */}
+                        <div className="mt-4 flex items-center gap-3 flex-wrap">
+                            <div
+                                className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
+                                style={{
+                                    background: colors.background,
+                                    backdropFilter: 'blur(10px)',
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                <Search size={18} style={{ color: colors.textSecondary }} />
+                                <span style={{ color: colors.textSecondary }}>Buscar restaurantes, mercados...</span>
+                            </div>
+                            <OrderShortcuts
+                                isEditing={editMode}
+                                onToggleEdit={toggleEditMode}
+                                onSave={handleSaveOrder}
+                                onRestore={handleRestoreOrder}
+                                disabled={loading}
+                            />
                         </div>
                     </div>
                 </div>
 
+                {/* CONTEÚDO PRINCIPAL */}
                 {showConfig ? (
                     <ConfiguracoesContent
                         onBack={() => setShowConfig(false)}
@@ -241,22 +308,32 @@ export default function HomePage() {
                         setCustomBgUrl={setCustomBgUrl}
                     />
                 ) : (
-                    <div>
-                        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                            <SortableContext items={sections} strategy={verticalListSortingStrategy}>
-                                <div className="space-y-6 mt-6">
-                                    {sections.map((sectionId) => {
-                                        const section = renderSection(sectionId)
-                                        if (!section) return null
-                                        return (
-                                            <SortableSection key={sectionId} id={sectionId}>
-                                                {section}
-                                            </SortableSection>
-                                        )
-                                    })}
-                                </div>
-                            </SortableContext>
-                        </DndContext>
+                    <div className="mt-6 px-4 md:px-6">
+                        {editMode ? (
+                            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                <SortableContext items={sections} strategy={verticalListSortingStrategy}>
+                                    <div className="space-y-6">
+                                        {sections.map((sectionId) => {
+                                            const section = renderSection(sectionId)
+                                            if (!section) return null
+                                            return (
+                                                <SortableSection key={sectionId} id={sectionId}>
+                                                    {section}
+                                                </SortableSection>
+                                            )
+                                        })}
+                                    </div>
+                                </SortableContext>
+                            </DndContext>
+                        ) : (
+                            <div className="space-y-6">
+                                {sections.map((sectionId) => {
+                                    const section = renderSection(sectionId)
+                                    if (!section) return null
+                                    return <div key={sectionId}>{section}</div>
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
