@@ -47,61 +47,115 @@ export default function Header({
         else router.back()
     }
 
+    // Converte cor de superfície para rgb e monta gradiente
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return {
+            r: (bigint >> 16) & 255,
+            g: (bigint >> 8) & 255,
+            b: bigint & 255,
+        }
+    }
+    const surfaceRgb = hexToRgb(colors.surface)
+    const gradientBg = `linear-gradient(to bottom, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
+
     return (
         <div
             style={{
-                background: colors.surface,
                 color: colors.textPrimary,
-                padding: '20px 24px',
-                borderBottomLeftRadius: 36,
-                borderBottomRightRadius: 36,
-                boxShadow: colors.shadow,
+                padding: '20px 24px 0 24px',
                 position: 'sticky',
                 top: 0,
                 zIndex: 20,
                 overflow: 'hidden',
+                background: gradientBg,
+                backdropFilter: 'blur(20px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                minHeight: 160,
             }}
         >
-            {/* Marca d'água */}
+            {/* Marca d'água – avatar preenche tudo, logo mantém fundo colorido */}
             <div
                 style={{
                     position: 'absolute',
-                    right: -20,
-                    top: -20,
-                    opacity: 0.4,
+                    right: avatarUrl ? -40 : -30,
+                    top: avatarUrl ? -40 : -30,
+                    width: avatarUrl ? 240 : 180,
+                    height: avatarUrl ? 240 : 180,
+                    opacity: avatarUrl ? 0.5 : 0.4,
                     transform: 'rotate(10deg)',
                     maskImage:
                         'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                     WebkitMaskImage:
                         'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                    pointerEvents: 'none',
+                    background: avatarUrl ? 'transparent' : colors.accent,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1,
                 }}
             >
                 {avatarUrl ? (
-                    <img src={avatarUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
+                    <img
+                        src={avatarUrl}
+                        alt=""
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            borderRadius: '50%',
+                        }}
+                    />
                 ) : (
                     <img
                         src="/logotransparente.png"
                         alt="Logo"
-                        style={{ width: 280, height: 280, objectFit: 'contain' }}
+                        style={{
+                            width: 90,
+                            height: 90,
+                            objectFit: 'contain',
+                        }}
                     />
                 )}
             </div>
 
+            {/* Conteúdo do header */}
             <div className="relative z-10">
                 {/* Linha superior */}
                 <div className="flex items-center gap-3 mb-1">
-                    {showBack && (
+                    {showBack ? (
                         <button
                             onClick={handleBack}
                             className="w-10 h-10 rounded-full flex items-center justify-center"
                             style={{
-                                background: colors.accentLight,
-                                backdropFilter: 'blur(10px)',
+                                background: 'transparent',
                                 border: 'none',
                                 cursor: 'pointer',
                             }}
                         >
                             <ArrowLeft size={20} color={colors.accent} />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => router.push('/')}
+                            className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
+                            style={{
+                                background: 'linear-gradient(135deg, #f97316, #ef4444)',
+                                border: '2px solid rgba(255,255,255,0.2)',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <img
+                                src="/logo.png"
+                                alt="iUser"
+                                className="w-7 h-7 object-contain"
+                            />
                         </button>
                     )}
                     {title && (
@@ -128,11 +182,11 @@ export default function Header({
                                 style={{
                                     background: tab.isActive
                                         ? colors.accent
-                                        : colors.background,
+                                        : `${colors.surface}88`,
+                                    backdropFilter: 'blur(10px)',
                                     color: tab.isActive
                                         ? colors.accentText
                                         : colors.textSecondary,
-                                    backdropFilter: 'blur(10px)',
                                 }}
                             >
                                 {tab.imageUrl ? (
@@ -150,13 +204,13 @@ export default function Header({
                     </div>
                 )}
 
-                {/* Busca */}
+                {/* Busca – agora totalmente nítida (área transparente) */}
                 {showSearch && (
-                    <div className="mt-4 flex items-center gap-3 flex-wrap">
+                    <div className="mt-4 flex items-center gap-3 flex-wrap pb-4">
                         <div
                             className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm"
                             style={{
-                                background: colors.background,
+                                background: `${colors.surface}88`,
                                 backdropFilter: 'blur(10px)',
                                 border: `1px solid ${colors.border}`,
                             }}

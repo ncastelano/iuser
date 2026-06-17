@@ -21,6 +21,9 @@ interface CanIhelpProps {
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
 
+    // Força preto puro no tema claro para máxima legibilidade
+    const titleColor = colors.name === 'claro' ? '#000000' : colors.textPrimary
+
     const categorias = [
         { nome: 'Restaurantes', slug: 'restaurantes', icone: UtensilsCrossed, color: '#f97316' },
         { nome: 'Mercados', slug: 'mercados', icone: ShoppingCart, color: '#22c55e' },
@@ -35,7 +38,13 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         <section>
             <div className="flex items-center gap-2 mb-4">
                 {dragHandle}
-                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
+                <h2
+                    className="text-xl font-black"
+                    style={{
+                        color: titleColor,
+                        textShadow: colors.name === 'claro' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                    }}
+                >
                     Posso ajudar você a encontrar algo?
                 </h2>
             </div>

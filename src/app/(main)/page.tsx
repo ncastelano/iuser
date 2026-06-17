@@ -27,10 +27,10 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
 import OrderSection from '@/components/OrderSection'
+import SearchResultsSection from '@/components/SearchResultsSection' // nova seção
 import Header from '../Header'
 
 const DEFAULT_SECTIONS = [
-
     'categorias',
     'transporte',
     'motorista',
@@ -121,7 +121,12 @@ export default function HomePage() {
                     />
                 )
             case 'categorias':
-                return <CategoriasSection />
+                // Se houver busca, mostra resultados; senão, grade normal
+                return searchQuery.trim() ? (
+                    <SearchResultsSection searchQuery={searchQuery} />
+                ) : (
+                    <CategoriasSection />
+                )
             case 'transporte':
                 return <TransporteSection />
             case 'motorista':
@@ -193,7 +198,7 @@ export default function HomePage() {
                         setCustomBgUrl={setCustomBgUrl}
                     />
                 ) : (
-                    <div className="mt-6 px-4 md:px-6">
+                    <div className="mt-2 px-4 md:px-6">
                         {editMode ? (
                             <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                                 <SortableContext items={sections} strategy={verticalListSortingStrategy}>

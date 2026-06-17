@@ -2,15 +2,15 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
     ArrowLeft, Save, LogOut, Type, Bell, Smartphone, Sparkles,
     Image, Camera, Check, Palette
 } from 'lucide-react'
-import { useFontStore } from '@/store/useFontStore'            // ← tema global
+import { useFontStore } from '@/store/useFontStore'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
-import ColloriUser from '@/components/ColloriUser'             // ← seletor de temas
+import ColloriUser from '@/components/ColloriUser'
 import { useTheme } from '../theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -22,7 +22,7 @@ interface ConfiguracoesProps {
     setBgMode?: (mode: BgMode) => void
     customBgUrl?: string | null
     setCustomBgUrl?: (url: string | null) => void
-    isWhiteBg?: boolean // mantido para compatibilidade
+    isWhiteBg?: boolean
 }
 
 export default function ConfiguracoesContent({
@@ -34,23 +34,32 @@ export default function ConfiguracoesContent({
 }: ConfiguracoesProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const { colors } = useTheme()
+    const { fontSize, setFontSize } = useFontStore()
 
-    // Estados locais para background
     const [bgMode, _setBgMode] = useState<BgMode>(propBgMode)
     const [customBgUrl, _setCustomBgUrl] = useState<string | null>(propCustomBgUrl)
-
-    // Perfil
     const [whatsapp, setWhatsapp] = useState('')
     const [useWhatsapp, setUseWhatsapp] = useState(true)
-    const { fontSize, setFontSize } = useFontStore()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [uploadingBg, setUploadingBg] = useState(false)
+    const [authChecked, setAuthChecked] = useState(false) // evita piscar
 
-    // Tema (cores dinâmicas)
-    const { colors } = useTheme()
+    // Redireciona para login se não houver sessão
+    useEffect(() => {
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                router.push('/login')
+                return
+            }
+            setAuthChecked(true)
+        }
+        checkSession()
+    }, [router])
 
-    // Sincroniza as props com os estados locais
+    // Sincroniza props
     useEffect(() => {
         _setBgMode(propBgMode)
     }, [propBgMode])
@@ -59,7 +68,10 @@ export default function ConfiguracoesContent({
         _setCustomBgUrl(propCustomBgUrl)
     }, [propCustomBgUrl])
 
+    // Carrega perfil (whatsapp) apenas se autenticado
     useEffect(() => {
+        if (!authChecked) return
+
         async function loadProfile() {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
@@ -78,7 +90,7 @@ export default function ConfiguracoesContent({
             setLoading(false)
         }
         loadProfile()
-    }, [])
+    }, [authChecked])
 
     const handleSave = async () => {
         setSaving(true)
@@ -101,6 +113,9 @@ export default function ConfiguracoesContent({
                 setBgMode(bgMode)
                 setCustomBgUrl(customBgUrl)
             }
+        } else {
+            // Se por algum motivo a sessão expirou
+            router.push('/login')
         }
         setSaving(false)
         onBack()
@@ -142,7 +157,8 @@ export default function ConfiguracoesContent({
         setBgMode(mode)
     }
 
-    if (loading) {
+    // Enquanto verifica autenticação, mostra spinner
+    if (!authChecked || loading) {
         return <LoadingSpinner message="Carregando configurações..." />
     }
 
@@ -154,25 +170,8 @@ export default function ConfiguracoesContent({
 
     return (
         <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 pb-24">
-            {/* Cabeçalho */}
-            <div className="mb-8 text-center">
-                <div
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-wider mb-4 shadow-md"
-                    style={{ background: colors.accentLight, color: colors.accent }}
-                >
-                    <Sparkles size={12} />
-                    Personalize sua experiência
-                </div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
-                    Configurações
-                </h1>
-                <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
-                    Ajuste o app do seu jeito
-                </p>
-            </div>
-
             <div className="space-y-6">
-                {/* ========= NOVO CARD: Tema do iUser ========= */}
+                {/* Card Tema do iUser */}
                 <div
                     className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
                     style={{ background: colors.surface, borderColor: colors.border }}
@@ -180,7 +179,7 @@ export default function ConfiguracoesContent({
                     <ColloriUser />
                 </div>
 
-                {/* Plano de Fundo (independente) */}
+                {/* Plano de Fundo */}
                 <div
                     className="rounded-2xl p-6 border shadow-sm backdrop-blur-md"
                     style={{ background: colors.surface, borderColor: colors.border }}
@@ -319,24 +318,21 @@ export default function ConfiguracoesContent({
                     <div className="grid grid-cols-3 gap-3">
                         <button
                             onClick={() => setFontSize('normal')}
-                            className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'
-                                }`}
+                            className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
                             style={fontSize === 'normal' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Padrão
                         </button>
                         <button
                             onClick={() => setFontSize('large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'
-                                }`}
+                            className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
                             style={fontSize === 'large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Grande
                         </button>
                         <button
                             onClick={() => setFontSize('extra-large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'
-                                }`}
+                            className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
                             style={fontSize === 'extra-large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Enorme

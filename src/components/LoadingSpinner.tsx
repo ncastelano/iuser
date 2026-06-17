@@ -2,7 +2,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import AnimatedBackground from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/theme'
 
 type LoadingSpinnerProps = {
@@ -91,17 +90,32 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
     if (!mounted) return null
 
-    return (
-        <div
-            className="min-h-screen flex items-center justify-center relative overflow-hidden"
-            style={{ background: colors.background }}
-        >
-            <AnimatedBackground />
+    // Converte cor hex para rgb e gera fundo transparente
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return {
+            r: (bigint >> 16) & 255,
+            g: (bigint >> 8) & 255,
+            b: bigint & 255,
+        }
+    }
 
+    const surfaceRgb = hexToRgb(colors.surface)
+    const transparentBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`
+
+    return (
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
+            style={{
+                background: transparentBg,
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+            }}
+        >
             <div className="relative z-10 flex flex-col items-center gap-8">
-                {/* Animação orbital + logo (mantida igual, mas com fundo de ícone adaptado?) */}
+                {/* Animação orbital + logo */}
                 <div className="relative animate-[float_3s_ease-in-out_infinite]">
-                    {/* Órbitas e bolinhas – mantemos as cores originais do iUser (laranja/vermelho/amarelo) */}
+                    {/* Órbitas e bolinhas – cores originais do iUser (laranja/vermelho/amarelo) */}
                     <div className="absolute inset-0 w-32 h-32 -m-6 animate-[spin_4s_linear_infinite]">
                         <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-orange-500 rounded-full shadow-lg shadow-orange-500/50 transition-all duration-700 ${scaleStates.orbit1[0] ? 'scale-[2.5]' : 'scale-100'}`} />
                         <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-red-500 rounded-full shadow-lg shadow-red-500/50 transition-all duration-700 ${scaleStates.orbit1[1] ? 'scale-[3]' : 'scale-100'}`} />
@@ -187,7 +201,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                     )}
                 </div>
 
-                {/* Mensagem de texto (se houver) */}
+                {/* Mensagem de texto */}
                 {message && (
                     <p className="text-sm font-bold animate-pulse" style={{ color: colors.textSecondary }}>
                         {message}
@@ -196,41 +210,41 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
             </div>
 
             <style jsx>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes spin_reverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.5; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.1); }
-        }
-        @keyframes crossVertical {
-          0% { transform: translateY(-50px); opacity: 0; }
-          20% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { transform: translateY(50px); opacity: 0; }
-        }
-        @keyframes crossHorizontal {
-          0% { transform: translateX(-50px); opacity: 0; }
-          20% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { transform: translateX(50px); opacity: 0; }
-        }
-        @keyframes crossDiagonal {
-          0% { transform: translate(-35px, -35px); opacity: 0; }
-          20% { opacity: 1; }
-          80% { opacity: 1; }
-          100% { transform: translate(35px, 35px); opacity: 0; }
-        }
-      `}</style>
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-10px); }
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes spin_reverse {
+                    from { transform: rotate(360deg); }
+                    to { transform: rotate(0deg); }
+                }
+                @keyframes pulse {
+                    0%, 100% { opacity: 0.5; transform: scale(1); }
+                    50% { opacity: 0.8; transform: scale(1.1); }
+                }
+                @keyframes crossVertical {
+                    0% { transform: translateY(-50px); opacity: 0; }
+                    20% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { transform: translateY(50px); opacity: 0; }
+                }
+                @keyframes crossHorizontal {
+                    0% { transform: translateX(-50px); opacity: 0; }
+                    20% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { transform: translateX(50px); opacity: 0; }
+                }
+                @keyframes crossDiagonal {
+                    0% { transform: translate(-35px, -35px); opacity: 0; }
+                    20% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { transform: translate(35px, 35px); opacity: 0; }
+                }
+            `}</style>
         </div>
     )
 }
