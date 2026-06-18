@@ -1,3 +1,4 @@
+//app/(main)/criar-loja/page.tsx
 
 "use client";
 

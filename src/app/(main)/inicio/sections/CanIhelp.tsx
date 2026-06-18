@@ -10,6 +10,7 @@ import {
     Dumbbell,
     Shirt,
     Truck,
+    Users,   // ícone para Social
 } from 'lucide-react'
 import { ReactNode } from 'react'
 import { useTheme } from '@/app/theme'
@@ -21,7 +22,6 @@ interface CanIhelpProps {
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
 
-    // Força preto puro no tema claro para máxima legibilidade
     const titleColor = colors.name === 'claro' ? '#000000' : colors.textPrimary
 
     const categorias = [
@@ -32,6 +32,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         { nome: 'Fitness', slug: 'fitness', icone: Dumbbell, color: '#a855f7' },
         { nome: 'Roupas', slug: 'roupas', icone: Shirt, color: '#3b82f6' },
         { nome: 'Entregas', slug: 'entregas', icone: Truck, color: '#64748b' },
+        { nome: 'Social', slug: 'social', icone: Users, color: '#06b6d4' },  // NOVA
     ]
 
     return (

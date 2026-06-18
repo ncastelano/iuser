@@ -2,7 +2,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Search } from 'lucide-react'
+import { ArrowLeft, Search, Store } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 export interface Tab {
@@ -12,6 +12,12 @@ export interface Tab {
     imageUrl?: string | null
     onClick: () => void
     isActive: boolean
+}
+
+interface StoreInfo {
+    slug: string
+    logoUrl: string | null
+    name: string
 }
 
 interface HeaderProps {
@@ -25,6 +31,9 @@ interface HeaderProps {
     showSearch?: boolean
     searchPlaceholder?: string
     onSearch?: (query: string) => void
+    profileSlug?: string | null
+    store?: StoreInfo | null            // (mantido para compatibilidade, mas não utilizado na lógica atual)
+    stores?: StoreInfo[]                // (idem)
 }
 
 export default function Header({
@@ -38,6 +47,9 @@ export default function Header({
     showSearch = false,
     searchPlaceholder = 'Buscar...',
     onSearch,
+    profileSlug,
+    store,
+    stores,
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -47,7 +59,6 @@ export default function Header({
         else router.back()
     }
 
-    // Converte cor de superfície para rgb e monta gradiente
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -64,6 +75,9 @@ export default function Header({
         rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
         rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
+    // Simplesmente usa as abas recebidas – sem inserir lojas ou "Criar loja"
+    const enhancedTabs: Tab[] = tabs || []
+
     return (
         <div
             style={{
@@ -79,7 +93,7 @@ export default function Header({
                 minHeight: 160,
             }}
         >
-            {/* Marca d'água – avatar preenche tudo, logo mantém fundo colorido */}
+            {/* Marca d'água */}
             <div
                 style={{
                     position: 'absolute',
@@ -127,7 +141,6 @@ export default function Header({
 
             {/* Conteúdo do header */}
             <div className="relative z-10">
-                {/* Linha superior */}
                 <div className="flex items-center gap-3 mb-1">
                     {showBack ? (
                         <button
@@ -163,17 +176,15 @@ export default function Header({
                     )}
                 </div>
 
-                {/* Saudação */}
                 {greeting && (
                     <h1 className="text-3xl font-extrabold mt-2 tracking-tight">
                         {greeting}
                     </h1>
                 )}
 
-                {/* Abas */}
-                {tabs && tabs.length > 0 && (
+                {enhancedTabs.length > 0 && (
                     <div className="flex gap-2 mt-5 overflow-x-auto pb-1">
-                        {tabs.map((tab) => (
+                        {enhancedTabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={tab.onClick}
@@ -204,7 +215,6 @@ export default function Header({
                     </div>
                 )}
 
-                {/* Busca – agora totalmente nítida (área transparente) */}
                 {showSearch && (
                     <div className="mt-4 flex items-center gap-3 flex-wrap pb-4">
                         <div

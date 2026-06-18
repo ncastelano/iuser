@@ -1,9 +1,8 @@
-// app/(main)/inicio/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, User, Settings, ArrowLeft } from 'lucide-react'
+import { User, Settings, Store } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -27,8 +26,13 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
 import OrderSection from '@/components/OrderSection'
-import SearchResultsSection from '@/components/SearchResultsSection' // nova seção
+import SearchResultsSection from '@/components/SearchResultsSection'
+import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
+import StoreDashboard from './StoreDashboard'
+import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
+import LoginScreen from './LoginScreen'
+import ProfileDashboard from './ProfileDashboard'
 
 const DEFAULT_SECTIONS = [
     'categorias',
@@ -41,6 +45,12 @@ const DEFAULT_SECTIONS = [
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
+
+export interface StoreInfo {
+    slug: string
+    logoUrl: string | null
+    name: string
+}
 
 export default function HomePage() {
     const router = useRouter()
@@ -74,6 +84,45 @@ export default function HomePage() {
     const [showConfig, setShowConfig] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+
+    const [stores, setStores] = useState<StoreInfo[]>([])
+    const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
+    const [showCreateStore, setShowCreateStore] = useState(false)
+    const [showLogin, setShowLogin] = useState(false)
+    const [showProfile, setShowProfile] = useState(false) // novo estado
+
+    // Carrega lojas do usuário logado
+    useEffect(() => {
+        async function loadStores() {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.user || !profileSlug) return
+
+            const { data: fetchedStores } = await supabase
+                .from('stores')
+                .select('id, name, storeSlug, logo_url')
+                .eq('owner_id', session.user.id)
+                .order('created_at', { ascending: true })
+
+            if (fetchedStores) {
+                const storesData = fetchedStores.map((s) => {
+                    let logoUrl: string | null = null
+                    if (s.logo_url) {
+                        const { data: publicUrlData } = supabase.storage
+                            .from('store-logos')
+                            .getPublicUrl(s.logo_url)
+                        logoUrl = publicUrlData.publicUrl
+                    }
+                    return {
+                        slug: s.storeSlug,
+                        logoUrl,
+                        name: s.name,
+                    }
+                })
+                setStores(storesData)
+            }
+        }
+        loadStores()
+    }, [profileSlug])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -121,7 +170,6 @@ export default function HomePage() {
                     />
                 )
             case 'categorias':
-                // Se houver busca, mostra resultados; senão, grade normal
                 return searchQuery.trim() ? (
                     <SearchResultsSection searchQuery={searchQuery} />
                 ) : (
@@ -142,32 +190,114 @@ export default function HomePage() {
         }
     }
 
-    const handleAvatarClick = () => {
-        if (!profileSlug) {
-            router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)
+    // Reset
+    const showHomeSections = () => {
+        setShowConfig(false)
+        setActiveStoreSlug(null)
+        setShowCreateStore(false)
+        setShowLogin(false)
+        setShowProfile(false)
+    }
+
+    const handleStoreTabClick = (storeSlug: string) => {
+        setShowConfig(false)
+        setActiveStoreSlug(storeSlug)
+        setShowCreateStore(false)
+        setShowLogin(false)
+        setShowProfile(false)
+    }
+
+    const handleLoginClick = () => {
+        setShowLogin(true)
+        setShowConfig(false)
+        setActiveStoreSlug(null)
+        setShowCreateStore(false)
+        setShowProfile(false)
+    }
+
+    const handleSwitchToRegister = () => {
+        setShowLogin(false)
+        setShowCreateStore(true)
+    }
+
+    const handleProfileClick = () => {
+        if (profileSlug && !loading) {
+            setShowProfile(true)
+            setShowConfig(false)
+            setActiveStoreSlug(null)
+            setShowCreateStore(false)
+            setShowLogin(false)
         } else {
-            router.push(`/${profileSlug}`)
+            handleLoginClick()
         }
     }
 
-    const tabs = [
-        {
-            id: 'perfil',
-            label: profileSlug ? `@${profileSlug}` : loading ? '...' : 'Entrar',
-            icon: User as React.ComponentType<{ size?: number }>,
-            imageUrl: avatarUrl,
-            onClick: handleAvatarClick,
-            isActive: !showConfig,
-        },
-        {
-            id: 'config',
-            label: 'Configurações',
-            icon: Settings as React.ComponentType<{ size?: number }>,
-            imageUrl: null,
-            onClick: () => setShowConfig(!showConfig),
-            isActive: showConfig,
-        },
-    ]
+    // Abas do header
+    const tabs = useMemo(() => {
+        const isLoggedIn = !!profileSlug && !loading
+
+        const allTabs: any[] = [
+            // Aba Início (com mini logo)
+            {
+                id: 'inicio',
+                label: 'Tudo',
+                icon: User, // não usado, pois temos imageUrl
+                imageUrl: '/logo.png', // mini logo
+                onClick: showHomeSections,
+                isActive: !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile,
+            },
+            // Aba Perfil
+            {
+                id: 'perfil',
+                label: isLoggedIn ? `@${profileSlug}` : 'Entrar',
+                icon: User,
+                imageUrl: isLoggedIn ? avatarUrl : null,
+                onClick: handleProfileClick,
+                isActive: (isLoggedIn && showProfile) || (!isLoggedIn && showLogin),
+            },
+        ]
+
+        if (stores.length > 0) {
+            stores.forEach((s) => {
+                allTabs.push({
+                    id: `loja-${s.slug}`,
+                    label: s.name,
+                    icon: Store,
+                    imageUrl: s.logoUrl,
+                    onClick: () => handleStoreTabClick(s.slug),
+                    isActive: activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin,
+                })
+            })
+        } else {
+            allTabs.push({
+                id: 'criar-loja',
+                label: 'Criar loja',
+                icon: Store,
+                imageUrl: null,
+                onClick: isLoggedIn
+                    ? () => router.push('/criar-loja')
+                    : () => setShowCreateStore(true),
+                isActive: !isLoggedIn && showCreateStore,
+            })
+        }
+
+        return allTabs
+    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
+
+    // Estilo comum de cartão (igual ao OrderSection)
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+    }
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardStyle = {
+        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${colors.border}`,
+        boxShadow: colors.shadow,
+    }
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -177,16 +307,16 @@ export default function HomePage() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title={showConfig ? 'Configurações' : 'iUser'}
-                    showBack={showConfig}
-                    onBack={() => setShowConfig(false)}
+                    title="iUser"
+                    showBack={false} // sem botão voltar no cabeçalho
                     greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={loading}
-                    tabs={showConfig ? undefined : tabs}
-                    showSearch={!showConfig}
+                    tabs={tabs}
+                    showSearch={!showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile}
                     searchPlaceholder="Buscar restaurantes, mercados..."
                     onSearch={setSearchQuery}
+                    profileSlug={profileSlug}
                 />
 
                 {showConfig ? (
@@ -197,11 +327,39 @@ export default function HomePage() {
                         customBgUrl={customBgUrl}
                         setCustomBgUrl={setCustomBgUrl}
                     />
+                ) : showCreateStore ? (
+                    <CreateStoreAndRegisterProfile
+                        embedded
+                        onBack={() => setShowCreateStore(false)}
+                    />
+                ) : showLogin ? (
+                    <LoginScreen
+                        embedded
+                        onBack={() => setShowLogin(false)}
+                        onSwitchToRegister={handleSwitchToRegister}
+                    />
+                ) : showProfile ? (
+                    <ProfileDashboard
+                        profileSlug={profileSlug}
+                        onBack={() => setShowProfile(false)}
+                    />
+                ) : activeStoreSlug ? (
+                    <StoreDashboard
+                        profileSlug={profileSlug}
+                        storeSlug={activeStoreSlug}
+                        onBack={showHomeSections}
+                    />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
                         {editMode ? (
-                            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                                <SortableContext items={sections} strategy={verticalListSortingStrategy}>
+                            <DndContext
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext
+                                    items={sections}
+                                    strategy={verticalListSortingStrategy}
+                                >
                                     <div className="space-y-6">
                                         {sections.map((sectionId) => {
                                             const section = renderSection(sectionId)
@@ -224,6 +382,50 @@ export default function HomePage() {
                                 })}
                             </div>
                         )}
+
+                        {/* Seção Criar Loja */}
+                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
+                            <h2 className="text-xl font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                <Store size={24} /> Criar Loja
+                            </h2>
+                            <button
+                                onClick={() => {
+                                    if (profileSlug && !loading) {
+                                        router.push('/criar-loja')
+                                    } else {
+                                        setShowCreateStore(true)
+                                    }
+                                }}
+                                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold backdrop-blur-md transition-colors"
+                                style={{
+                                    background: `${colors.accent}22`,
+                                    border: `1px dashed ${colors.accent}`,
+                                    color: colors.accent,
+                                }}
+                            >
+                                <Store size={18} />
+                                {profileSlug ? 'Criar nova loja' : 'Criar loja e perfil'}
+                            </button>
+                        </div>
+
+                        {/* Seção Configurações */}
+                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
+                            <h2 className="text-xl font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                <Settings size={24} /> Configurações
+                            </h2>
+                            <button
+                                onClick={() => setShowConfig(true)}
+                                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold backdrop-blur-md transition-colors"
+                                style={{
+                                    background: `${colors.accent}22`,
+                                    border: `1px dashed ${colors.accent}`,
+                                    color: colors.accent,
+                                }}
+                            >
+                                <Settings size={18} />
+                                Acessar Configurações
+                            </button>
+                        </div>
                     </div>
                 )}
             </main>
