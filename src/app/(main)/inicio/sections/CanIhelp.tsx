@@ -2,18 +2,9 @@
 'use client'
 
 import Link from 'next/link'
-import {
-    UtensilsCrossed,
-    ShoppingCart,
-    Pill,
-    PawPrint,
-    Dumbbell,
-    Shirt,
-    Truck,
-    Users,   // ícone para Social
-} from 'lucide-react'
 import { ReactNode } from 'react'
 import { useTheme } from '@/app/theme'
+import { categorias } from '@/lib/categorias'
 
 interface CanIhelpProps {
     dragHandle?: ReactNode
@@ -21,19 +12,7 @@ interface CanIhelpProps {
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
-
     const titleColor = colors.name === 'claro' ? '#000000' : colors.textPrimary
-
-    const categorias = [
-        { nome: 'Restaurantes', slug: 'restaurantes', icone: UtensilsCrossed, color: '#f97316' },
-        { nome: 'Mercados', slug: 'mercados', icone: ShoppingCart, color: '#22c55e' },
-        { nome: 'Farmácias', slug: 'farmacias', icone: Pill, color: '#eab308' },
-        { nome: 'Pet Shops', slug: 'petshops', icone: PawPrint, color: '#ec4899' },
-        { nome: 'Fitness', slug: 'fitness', icone: Dumbbell, color: '#a855f7' },
-        { nome: 'Roupas', slug: 'roupas', icone: Shirt, color: '#3b82f6' },
-        { nome: 'Entregas', slug: 'entregas', icone: Truck, color: '#64748b' },
-        { nome: 'Social', slug: 'social', icone: Users, color: '#06b6d4' },  // NOVA
-    ]
 
     return (
         <section>
@@ -50,33 +29,44 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                 </h2>
             </div>
 
-            <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
-                {categorias.map((cat) => (
-                    <Link
-                        key={cat.slug}
-                        href={`/lojas/${cat.slug}`}
-                        className="flex flex-col items-center gap-2 p-2 rounded-xl hover:scale-105 active:scale-95 transition-transform"
-                    >
-                        <div
-                            className="p-3 rounded-full shadow-md"
-                            style={{
-                                background: colors.surface,
-                                backdropFilter: 'blur(10px)',
-                                WebkitBackdropFilter: 'blur(10px)',
-                                border: `1px solid ${colors.border}`,
-                            }}
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                {categorias.map((cat) => {
+                    const Icon = cat.icone
+                    return (
+                        <Link
+                            key={cat.slug}
+                            href={`/lojas/${cat.slug}`}
+                            className="flex flex-col items-center gap-2 p-3 rounded-xl hover:scale-105 active:scale-95 transition-transform"
                         >
-                            <cat.icone className="w-5 h-5" style={{ color: cat.color }} />
-                        </div>
+                            <div
+                                className="p-3 rounded-full shadow-md"
+                                style={{
+                                    background: colors.surface,
+                                    backdropFilter: 'blur(10px)',
+                                    WebkitBackdropFilter: 'blur(10px)',
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                <Icon className="w-5 h-5" style={{ color: cat.color }} />
+                            </div>
 
-                        <span
-                            className="text-xs text-center font-bold leading-tight"
-                            style={{ color: colors.textPrimary }}
-                        >
-                            {cat.nome}
-                        </span>
-                    </Link>
-                ))}
+                            <div className="text-center">
+                                <span
+                                    className="text-xs font-bold block leading-tight"
+                                    style={{ color: colors.textPrimary }}
+                                >
+                                    {cat.nome}
+                                </span>
+                                <span
+                                    className="text-[10px] font-medium block mt-0.5 opacity-70"
+                                    style={{ color: colors.textSecondary }}
+                                >
+                                    {cat.desc}
+                                </span>
+                            </div>
+                        </Link>
+                    )
+                })}
             </div>
         </section>
     )

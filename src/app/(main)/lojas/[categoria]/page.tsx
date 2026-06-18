@@ -15,20 +15,7 @@ import Link from 'next/link'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
-
-// ----------------------------------------------------------------------
-// Informações visuais de cada categoria (cores, títulos, etc.)
-// ----------------------------------------------------------------------
-const categoriasInfo: Record<string, { titulo: string; descricao: string; color: string }> = {
-    restaurantes: { titulo: 'Restaurantes', descricao: 'Peça sua comida favorita', color: '#F97316' },
-    mercados: { titulo: 'Mercados', descricao: 'Compras do dia a dia', color: '#10B981' },
-    farmacias: { titulo: 'Farmácias', descricao: 'Saúde e bem-estar', color: '#3B82F6' },
-    petshops: { titulo: 'Pet Shops', descricao: 'Para seu melhor amigo', color: '#EC4899' },
-    fitness: { titulo: 'Fitness', descricao: 'Academias e suplementos', color: '#8B5CF6' },
-    roupas: { titulo: 'Roupas', descricao: 'Moda e estilo', color: '#F59E0B' },
-    entregas: { titulo: 'Entregas', descricao: 'Envie ou receba pacotes', color: '#06B6D4' },
-    social: { titulo: 'Social', descricao: 'Conecte-se com pessoas', color: '#06b6d4' },
-}
+import { categoriasMap } from '@/lib/categorias' // <-- IMPORTE O MAPA CENTRAL
 
 // ----------------------------------------------------------------------
 // Tipagem para loja vinda do Supabase (simplificada)
@@ -43,7 +30,6 @@ interface StoreFromDB {
     ratings_count?: number | null
     prep_time_min?: number | null
     prep_time_max?: number | null
-    // owner
     owner_id: string
     profiles?: {
         profileSlug: string
@@ -116,14 +102,15 @@ export default function ListaCategoriaPage() {
         const loadStores = async () => {
             setLoadingData(true)
 
-            // Mapeamento de slug da categoria para nome (ex: "restaurantes" → "Restaurantes")
-            const categoryName = categoriasInfo[categoria]?.titulo || categoria
+            // Obtém a informação da categoria a partir do mapa central
+            const info = categoriasMap[categoria]
+            const categoryName = info?.nome || categoria // fallback para o próprio slug
 
-            // Busca lojas que contenham a palavra da categoria no nome, descrição ou no campo category (se existir)
-            // Uma abordagem mais robusta seria ter um campo "category" na tabela stores.
-            // Por enquanto, faremos uma busca com ILIKE no nome ou na descrição.
-            // Também trazemos o profileSlug do dono (join com profiles).
-            const { data, error } = await supabase
+            // --------------------------------------------------------------
+            // 1. Buscar lojas SEM a relação com profiles
+            //    (usamos o campo "category" da tabela stores para filtrar)
+            // --------------------------------------------------------------
+            const { data: storesData, error: storesError } = await supabase
                 .from('stores')
                 .select(`
                     id,
@@ -136,25 +123,79 @@ export default function ListaCategoriaPage() {
                     prep_time_min,
                     prep_time_max,
                     owner_id,
-                    profiles ( "profileSlug" )
+                    category
                 `)
-                .or(`name.ilike.%${categoryName}%, description.ilike.%${categoryName}%`)
+                // Filtra pelo campo category (que deve ser o slug da categoria)
+                // Ex: "alimentacao", "saude", etc.
+                .eq('category', categoria)
                 .order('ratings_avg', { ascending: false })
                 .limit(30)
 
-            if (!error && data) {
-                // Mapeia logo_url para URL pública
-                const mapped = data.map((store: any) => ({
-                    ...store,
-                    logo_url: store.logo_url
-                        ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                        : null,
-                    profiles: Array.isArray(store.profiles) ? store.profiles[0] : store.profiles,
-                }))
-                setStores(mapped as StoreFromDB[])
-            } else {
+            if (storesError) {
+                console.error('Erro ao buscar lojas:', storesError)
                 setStores([])
+                setLoadingData(false)
+                return
             }
+
+            // Se não veio nenhuma loja, tenta uma busca mais ampla (fallback)
+            let finalStores = storesData || []
+            if (finalStores.length === 0) {
+                // Fallback: busca por nome/descrição contendo o nome da categoria
+                const { data: fallbackData, error: fallbackError } = await supabase
+                    .from('stores')
+                    .select(`
+                        id,
+                        name,
+                        "storeSlug",
+                        description,
+                        logo_url,
+                        ratings_avg,
+                        ratings_count,
+                        prep_time_min,
+                        prep_time_max,
+                        owner_id,
+                        category
+                    `)
+                    .or(`name.ilike.%${categoryName}%, description.ilike.%${categoryName}%`)
+                    .order('ratings_avg', { ascending: false })
+                    .limit(30)
+
+                if (!fallbackError && fallbackData) {
+                    finalStores = fallbackData
+                }
+            }
+
+            // --------------------------------------------------------------
+            // 2. Buscar os profileSlug dos donos (owner_id → profiles)
+            // --------------------------------------------------------------
+            const ownerIds = [...new Set(finalStores.map(s => s.owner_id).filter(Boolean))]
+            let profilesMap: Record<string, string> = {}
+            if (ownerIds.length) {
+                const { data: profilesData, error: profError } = await supabase
+                    .from('profiles')
+                    .select('id, "profileSlug"')
+                    .in('id', ownerIds)
+
+                if (profError) {
+                    console.error('Erro ao buscar profileSlug dos donos:', profError)
+                } else {
+                    profilesMap = Object.fromEntries((profilesData || []).map(p => [p.id, p.profileSlug]))
+                }
+            }
+
+            // --------------------------------------------------------------
+            // 3. Mapear as lojas com o profileSlug (e logo pública)
+            // --------------------------------------------------------------
+            const mappedStores = finalStores.map((store: any) => ({
+                ...store,
+                logo_url: store.logo_url
+                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                    : null,
+                profiles: { profileSlug: profilesMap[store.owner_id] || null },
+            }))
+
+            setStores(mappedStores as StoreFromDB[])
             setLoadingData(false)
         }
 
@@ -185,9 +226,10 @@ export default function ListaCategoriaPage() {
     }, [profiles, searchQuery])
 
     // ------------------------------------------------------------------
-    // Fallback: categoria inválida
+    // Fallback: categoria inválida (agora usando o mapa central)
     // ------------------------------------------------------------------
-    if (!categoria || !categoriasInfo[categoria]) {
+    const info = categoriasMap[categoria as string]
+    if (!categoria || !info) {
         return (
             <div className="relative min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
@@ -203,7 +245,6 @@ export default function ListaCategoriaPage() {
         )
     }
 
-    const info = categoriasInfo[categoria]
     const categoryColor = info.color
 
     // ------------------------------------------------------------------
@@ -228,7 +269,7 @@ export default function ListaCategoriaPage() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title={info.titulo}
+                    title={info.nome} // <-- agora usa "nome" em vez de "titulo"
                     showBack={true}
                     onBack={() => router.push('/')}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
@@ -308,7 +349,7 @@ export default function ListaCategoriaPage() {
                                                                 className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
                                                                 style={{ background: `${categoryColor}20`, color: categoryColor }}
                                                             >
-                                                                {info.titulo}
+                                                                {info.nome}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -344,7 +385,6 @@ export default function ListaCategoriaPage() {
                             ) : (
                                 <div className="space-y-4">
                                     {filteredStores.map((store) => {
-                                        // Monta o link correto: /[profileSlug]/[storeSlug]
                                         const ownerSlug = store.profiles?.profileSlug || 'perfil'
                                         const storeUrl = `/${ownerSlug}/${store.storeSlug}`
 
@@ -428,7 +468,7 @@ export default function ListaCategoriaPage() {
                                                                         color: categoryColor,
                                                                     }}
                                                                 >
-                                                                    {info.titulo}
+                                                                    {info.nome}
                                                                 </span>
                                                             </div>
                                                         </div>
