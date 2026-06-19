@@ -29,36 +29,45 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                 </h2>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                 {categorias.map((cat) => {
                     const Icon = cat.icone
                     return (
                         <Link
                             key={cat.slug}
                             href={`/lojas/${cat.slug}`}
-                            className="flex flex-col items-center gap-2 p-3 rounded-xl hover:scale-105 active:scale-95 transition-transform"
+                            className="group relative flex items-center justify-center rounded-xl overflow-hidden transition-all duration-200 hover:scale-105 active:scale-95"
+                            style={{
+                                background: colors.surface,
+                                border: `1px solid ${colors.border}`,
+                                boxShadow: colors.shadow,
+                                aspectRatio: '1 / 1', // card quadrado
+                            }}
                         >
+                            {/* Ícone grande ocupando todo o card */}
+                            <Icon
+                                className="w-4/5 h-4/5 object-contain"
+                                style={{ color: cat.color }}
+                                strokeWidth={1.5}
+                            />
+
+                            {/* Texto sobreposto na parte inferior com fundo suave */}
                             <div
-                                className="p-3 rounded-full shadow-md"
+                                className="absolute bottom-0 left-0 right-0 px-1 py-1.5 text-center"
                                 style={{
-                                    background: colors.surface,
-                                    backdropFilter: 'blur(10px)',
-                                    WebkitBackdropFilter: 'blur(10px)',
-                                    border: `1px solid ${colors.border}`,
+                                    background: `linear-gradient(transparent, ${colors.surface}cc)`,
+                                    backdropFilter: 'blur(4px)',
+                                    WebkitBackdropFilter: 'blur(4px)',
                                 }}
                             >
-                                <Icon className="w-5 h-5" style={{ color: cat.color }} />
-                            </div>
-
-                            <div className="text-center">
                                 <span
-                                    className="text-xs font-bold block leading-tight"
+                                    className="text-[10px] font-bold block leading-tight"
                                     style={{ color: colors.textPrimary }}
                                 >
                                     {cat.nome}
                                 </span>
                                 <span
-                                    className="text-[10px] font-medium block mt-0.5 opacity-70"
+                                    className="text-[8px] font-medium block opacity-70 truncate"
                                     style={{ color: colors.textSecondary }}
                                 >
                                     {cat.desc}
