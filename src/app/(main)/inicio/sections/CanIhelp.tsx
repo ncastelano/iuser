@@ -36,43 +36,36 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         <Link
                             key={cat.slug}
                             href={`/lojas/${cat.slug}`}
-                            className="group relative flex items-center justify-center rounded-xl overflow-hidden transition-all duration-200 hover:scale-105 active:scale-95"
+                            className="group flex flex-col items-center justify-center p-1 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95"
                             style={{
                                 background: colors.surface,
                                 border: `1px solid ${colors.border}`,
                                 boxShadow: colors.shadow,
-                                aspectRatio: '1 / 1', // card quadrado
+                                aspectRatio: '1 / 1',
                             }}
                         >
-                            {/* Ícone grande ocupando todo o card */}
+                            {/* Ícone no topo, centralizado */}
                             <Icon
-                                className="w-4/5 h-4/5 object-contain"
+                                className="w-3/5 h-3/5 object-contain"
                                 style={{ color: cat.color }}
                                 strokeWidth={1.5}
                             />
 
-                            {/* Texto sobreposto na parte inferior com fundo suave */}
-                            <div
-                                className="absolute bottom-0 left-0 right-0 px-1 py-1.5 text-center"
-                                style={{
-                                    background: `linear-gradient(transparent, ${colors.surface}cc)`,
-                                    backdropFilter: 'blur(4px)',
-                                    WebkitBackdropFilter: 'blur(4px)',
-                                }}
+                            {/* Nome da categoria */}
+                            <span
+                                className="text-[10px] font-bold text-center leading-tight mt-1"
+                                style={{ color: colors.textPrimary }}
                             >
-                                <span
-                                    className="text-[10px] font-bold block leading-tight"
-                                    style={{ color: colors.textPrimary }}
-                                >
-                                    {cat.nome}
-                                </span>
-                                <span
-                                    className="text-[8px] font-medium block opacity-70 truncate"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    {cat.desc}
-                                </span>
-                            </div>
+                                {cat.nome}
+                            </span>
+
+                            {/* Descrição da categoria */}
+                            <span
+                                className="text-[8px] font-medium text-center opacity-60 truncate w-full px-0.5"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                {cat.desc}
+                            </span>
                         </Link>
                     )
                 })}
