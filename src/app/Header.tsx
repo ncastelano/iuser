@@ -2,7 +2,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Search, Store } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 export interface Tab {
@@ -32,8 +32,11 @@ interface HeaderProps {
     searchPlaceholder?: string
     onSearch?: (query: string) => void
     profileSlug?: string | null
-    store?: StoreInfo | null            // (mantido para compatibilidade, mas não utilizado na lógica atual)
-    stores?: StoreInfo[]                // (idem)
+    store?: StoreInfo | null
+    stores?: StoreInfo[]
+    // Corrigido para receber o evento de foco
+    onSearchFocus?: () => void
+    onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
 }
 
 export default function Header({
@@ -50,6 +53,8 @@ export default function Header({
     profileSlug,
     store,
     stores,
+    onSearchFocus,
+    onSearchBlur,
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -75,7 +80,6 @@ export default function Header({
         rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
         rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
-    // Simplesmente usa as abas recebidas – sem inserir lojas ou "Criar loja"
     const enhancedTabs: Tab[] = tabs || []
 
     return (
@@ -230,6 +234,8 @@ export default function Header({
                                 type="text"
                                 placeholder={searchPlaceholder}
                                 onChange={(e) => onSearch?.(e.target.value)}
+                                onFocus={onSearchFocus}
+                                onBlur={onSearchBlur}
                                 className="flex-1 bg-transparent outline-none"
                                 style={{ color: colors.textPrimary }}
                             />

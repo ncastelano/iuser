@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Settings, Store } from 'lucide-react'
 import {
@@ -26,7 +26,8 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
 import OrderSection from '@/components/OrderSection'
-import SearchResultsSection from '@/components/SearchResultsSection'
+import SearchResultsSection from '@/app/SearchResultsSection'
+import LastSearched, { getRecentClicks } from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
 import StoreDashboard from './StoreDashboard'
@@ -84,14 +85,17 @@ export default function HomePage() {
     const [showConfig, setShowConfig] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
 
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
-    const [showProfile, setShowProfile] = useState(false) // novo estado
+    const [showProfile, setShowProfile] = useState(false)
 
-    // Carrega lojas do usuário logado
+    // Referência para o contêiner do LastSearched (evita desmontar ao clicar)
+    const lastSearchedRef = useRef<HTMLDivElement>(null)
+
     useEffect(() => {
         async function loadStores() {
             const { data: { session } } = await supabase.auth.getSession()
@@ -157,6 +161,8 @@ export default function HomePage() {
 
     const toggleEditMode = () => setEditMode((prev) => !prev)
 
+    const isSearchVisible = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
+
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'orderSection':
@@ -170,11 +176,35 @@ export default function HomePage() {
                     />
                 )
             case 'categorias':
-                return searchQuery.trim() ? (
-                    <SearchResultsSection searchQuery={searchQuery} />
-                ) : (
-                    <CategoriasSection />
-                )
+                if (!isSearchVisible) return <CategoriasSection />
+
+                // Busca focada e vazia → verifica se há itens recentes
+                if (searchFocused && !searchQuery.trim()) {
+                    const recentItems = getRecentClicks()
+                    if (recentItems.length > 0) {
+                        return (
+                            <div ref={lastSearchedRef}>
+                                <LastSearched />
+                            </div>
+                        )
+                    }
+                    // Se não há itens, mantém as categorias
+                    return <CategoriasSection />
+                }
+
+                // Termo digitado → resultados da busca
+                if (searchQuery.trim()) {
+                    return (
+                        <SearchResultsSection
+                            searchQuery={searchQuery}
+                            onSearchSelect={setSearchQuery}
+                        />
+                    )
+                }
+
+                // Nenhum foco e sem termo → categorias normais
+                return <CategoriasSection />
+
             case 'transporte':
                 return <TransporteSection />
             case 'motorista':
@@ -190,7 +220,6 @@ export default function HomePage() {
         }
     }
 
-    // Reset
     const showHomeSections = () => {
         setShowConfig(false)
         setActiveStoreSlug(null)
@@ -232,21 +261,18 @@ export default function HomePage() {
         }
     }
 
-    // Abas do header
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
 
         const allTabs: any[] = [
-            // Aba Início (com mini logo)
             {
                 id: 'inicio',
                 label: 'Tudo',
-                icon: User, // não usado, pois temos imageUrl
-                imageUrl: '/logo.png', // mini logo
+                icon: User,
+                imageUrl: '/logo.png',
                 onClick: showHomeSections,
                 isActive: !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile,
             },
-            // Aba Perfil
             {
                 id: 'perfil',
                 label: isLoggedIn ? `@${profileSlug}` : 'Entrar',
@@ -284,7 +310,6 @@ export default function HomePage() {
         return allTabs
     }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
 
-    // Estilo comum de cartão (igual ao OrderSection)
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -299,6 +324,24 @@ export default function HomePage() {
         boxShadow: colors.shadow,
     }
 
+    const primaryButtonStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        width: '100%',
+        padding: '0.75rem 1rem',
+        borderRadius: '1rem',
+        fontSize: '0.875rem',
+        fontWeight: 700,
+        transition: 'all 0.2s',
+        background: colors.accent,
+        color: colors.accentText,
+        border: `1px solid ${colors.accent}`,
+        boxShadow: `0 4px 12px ${colors.accent}40`,
+        cursor: 'pointer',
+    }
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -308,14 +351,22 @@ export default function HomePage() {
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={false} // sem botão voltar no cabeçalho
+                    showBack={false}
                     greeting={`Olá, ${loading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={loading}
                     tabs={tabs}
-                    showSearch={!showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile}
+                    showSearch={isSearchVisible}
                     searchPlaceholder="Buscar restaurantes, mercados..."
                     onSearch={setSearchQuery}
+                    onSearchFocus={() => setSearchFocused(true)}
+                    onSearchBlur={(e) => {
+                        // Não remove o foco se o clique foi dentro do contêiner dos últimos acessados
+                        if (lastSearchedRef.current?.contains(e.relatedTarget as Node)) {
+                            return
+                        }
+                        setSearchFocused(false)
+                    }}
                     profileSlug={profileSlug}
                 />
 
@@ -384,10 +435,16 @@ export default function HomePage() {
                         )}
 
                         {/* Seção Criar Loja */}
-                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
-                            <h2 className="text-xl font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                                <Store size={24} /> Criar Loja
-                            </h2>
+                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Store size={20} style={{ color: colors.accent }} />
+                                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
+                                    Criar Loja
+                                </h2>
+                            </div>
+                            <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
+                                Crie uma nova loja para vender seus produtos ou serviços.
+                            </p>
                             <button
                                 onClick={() => {
                                     if (profileSlug && !loading) {
@@ -396,11 +453,13 @@ export default function HomePage() {
                                         setShowCreateStore(true)
                                     }
                                 }}
-                                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold backdrop-blur-md transition-colors"
-                                style={{
-                                    background: `${colors.accent}22`,
-                                    border: `1px dashed ${colors.accent}`,
-                                    color: colors.accent,
+                                className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
+                                style={primaryButtonStyle}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.filter = 'brightness(0.95)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.filter = 'brightness(1)'
                                 }}
                             >
                                 <Store size={18} />
@@ -409,17 +468,25 @@ export default function HomePage() {
                         </div>
 
                         {/* Seção Configurações */}
-                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-4" style={cardStyle}>
-                            <h2 className="text-xl font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                                <Settings size={24} /> Configurações
-                            </h2>
+                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Settings size={20} style={{ color: colors.accent }} />
+                                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
+                                    Configurações
+                                </h2>
+                            </div>
+                            <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
+                                Personalize sua experiência, altere o fundo e muito mais.
+                            </p>
                             <button
                                 onClick={() => setShowConfig(true)}
-                                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold backdrop-blur-md transition-colors"
-                                style={{
-                                    background: `${colors.accent}22`,
-                                    border: `1px dashed ${colors.accent}`,
-                                    color: colors.accent,
+                                className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
+                                style={primaryButtonStyle}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.filter = 'brightness(0.95)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.filter = 'brightness(1)'
                                 }}
                             >
                                 <Settings size={18} />

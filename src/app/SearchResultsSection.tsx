@@ -1,11 +1,11 @@
-// components/SearchResultsSection.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
 import { Star, Clock, ChevronRight, Search, Loader2 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import { addRecentClick } from '@/components/LastSearched'
 
 const categoriasInfo: { titulo: string; slug: string; color: string; keywords: string[] }[] = [
     { titulo: 'Alimentação', slug: 'alimentacao', color: '#f97316', keywords: ['restaurante', 'lanchonete', 'pizzaria', 'comida', 'alimentação', 'mercado', 'supermercado', 'hortifruti', 'bebidas'] },
@@ -38,12 +38,23 @@ function formatPrepTime(store: any): string {
     return `${store.prep_time_max} min`
 }
 
-export default function SearchResultsSection({ dragHandle, searchQuery }: { dragHandle?: React.ReactNode; searchQuery: string }) {
+export default function SearchResultsSection({
+    dragHandle,
+    searchQuery,
+    onSearchSelect,
+}: {
+    dragHandle?: React.ReactNode
+    searchQuery: string
+    onSearchSelect?: (query: string) => void
+}) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(false)
     const [profiles, setProfiles] = useState<any[]>([])
     const [storesByCategory, setStoresByCategory] = useState<Record<string, any[]>>({})
 
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    // Efeito de busca
     useEffect(() => {
         if (!searchQuery.trim()) {
             setProfiles([])
@@ -55,16 +66,13 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
             setLoading(true)
             const query = searchQuery.trim()
 
-            // 1. Buscar perfis (sem alterações)
             const { data: profilesData, error: profilesError } = await supabase
                 .from('profiles')
                 .select('id, name, avatar_url, "profileSlug"')
                 .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%`)
                 .limit(10)
 
-            if (profilesError) {
-                console.error('Erro ao buscar perfis:', profilesError)
-            }
+            if (profilesError) console.error('Erro ao buscar perfis:', profilesError)
 
             const mappedProfiles = (profilesData || []).map((p: any) => ({
                 ...p,
@@ -74,18 +82,14 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
             }))
             setProfiles(mappedProfiles)
 
-            // 2. Buscar lojas (sem relação com profiles)
             const { data: storesData, error: storesError } = await supabase
                 .from('stores')
                 .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category, owner_id')
                 .or(`name.ilike.%${query}%,description.ilike.%${query}%,"storeSlug".ilike.%${query}%,category.ilike.%${query}%`)
                 .limit(30)
 
-            if (storesError) {
-                console.error('Erro ao buscar lojas:', storesError)
-            }
+            if (storesError) console.error('Erro ao buscar lojas:', storesError)
 
-            // 3. Obter os profileSlug dos donos (owner_id → profiles)
             const ownerIds = [...new Set((storesData || []).map(s => s.owner_id).filter(Boolean))]
             let profilesMap: Record<string, string> = {}
             if (ownerIds.length) {
@@ -94,24 +98,18 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
                     .select('id, "profileSlug"')
                     .in('id', ownerIds)
 
-                if (profError) {
-                    console.error('Erro ao buscar profileSlug dos donos:', profError)
-                } else {
-                    profilesMap = Object.fromEntries((profilesData || []).map(p => [p.id, p.profileSlug]))
-                }
+                if (profError) console.error('Erro ao buscar profileSlug dos donos:', profError)
+                else profilesMap = Object.fromEntries((profilesData || []).map(p => [p.id, p.profileSlug]))
             }
 
-            // 4. Mapear as lojas com o profileSlug encontrado (ou null)
             const mappedStores = (storesData || []).map((s: any) => ({
                 ...s,
                 logo_url: s.logo_url
                     ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
                     : null,
-                // Simula o campo "profiles" que era esperado anteriormente
                 profiles: { profileSlug: profilesMap[s.owner_id] || null },
             }))
 
-            // 5. Agrupar por categoria
             const grouped: Record<string, any[]> = {}
             for (const store of mappedStores) {
                 const cat = getCategoryForStore(store)
@@ -126,7 +124,31 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
         fetchResults()
     }, [searchQuery])
 
+    // Sem termo → não renderiza nada
+    if (!searchQuery.trim()) return null
+
     const hasResults = profiles.length > 0 || Object.keys(storesByCategory).length > 0
+
+    // Funções auxiliares para salvar clique no histórico
+    const handleProfileClick = (profile: any) => {
+        addRecentClick({
+            type: 'profile',
+            id: profile.id,
+            name: profile.name,
+            imageUrl: profile.avatar_url,
+            url: `/${profile.profileSlug}`,
+        })
+    }
+
+    const handleStoreClick = (store: any, ownerSlug: string) => {
+        addRecentClick({
+            type: 'store',
+            id: store.id,
+            name: store.name,
+            imageUrl: store.logo_url,
+            url: `/${ownerSlug}/${store.storeSlug}`,
+        })
+    }
 
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
@@ -135,8 +157,6 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
     }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
-
-    if (!searchQuery.trim()) return null
 
     return (
         <section>
@@ -173,7 +193,12 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
                             </div>
                             <div className="space-y-3">
                                 {profiles.map((profile) => (
-                                    <Link key={profile.id} href={`/${profile.profileSlug}`} className="block group">
+                                    <Link
+                                        key={profile.id}
+                                        href={`/${profile.profileSlug}`}
+                                        onClick={() => handleProfileClick(profile)}
+                                        className="block group"
+                                    >
                                         <div className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
                                             <div className="flex gap-4 items-center">
                                                 <div className="w-16 h-16 rounded-full overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>
@@ -215,7 +240,12 @@ export default function SearchResultsSection({ dragHandle, searchQuery }: { drag
                                         const ownerSlug = store.profiles?.profileSlug || 'perfil'
                                         const storeUrl = `/${ownerSlug}/${store.storeSlug}`
                                         return (
-                                            <Link key={store.id} href={storeUrl} className="block group">
+                                            <Link
+                                                key={store.id}
+                                                href={storeUrl}
+                                                onClick={() => handleStoreClick(store, ownerSlug)}
+                                                className="block group"
+                                            >
                                                 <div className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
                                                     <div className="flex gap-4">
                                                         <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>

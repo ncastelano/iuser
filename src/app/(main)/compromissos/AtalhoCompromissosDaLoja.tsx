@@ -9,13 +9,13 @@ import { useTheme } from '@/app/theme'
 
 interface AtalhoCompromissosDaLojaProps {
     dragHandle?: ReactNode
-    profileSlug?: string | null   // recebido do componente pai (HomePage)
+    profileSlug?: string | null
 }
 
 interface StoreCard {
     id: string
     name: string
-    logoUrl: string | null   // agora é a URL pública completa ou null
+    logoUrl: string | null
     slug: string
     upcoming_appointments: number
 }
@@ -64,7 +64,6 @@ function StoreAvatar({
     )
 }
 
-// Função de compartilhamento com o link correto (profileSlug + storeSlug)
 const shareStoreLink = async (profileSlug: string, storeSlug: string, storeName: string) => {
     const storeUrl = `${window.location.origin}/${profileSlug}/${storeSlug}`
     const shareText = `Conheça ${storeName} no iUser! Agende agora: ${storeUrl}`
@@ -80,7 +79,6 @@ const shareStoreLink = async (profileSlug: string, storeSlug: string, storeName:
             console.log('Erro ao compartilhar:', err)
         }
     } else {
-        // Fallback: abre WhatsApp ou Facebook
         const encoded = encodeURIComponent(shareText)
         const choice = window.confirm(
             `Deseja compartilhar o link da loja?\n\n"OK" para WhatsApp\n"Cancelar" para Facebook`
@@ -119,7 +117,6 @@ export default function AtalhoCompromissosDaLoja({
                 }
                 setUserId(user.id)
 
-                // Buscar lojas do proprietário
                 const { data: storeData, error: storeError } = await supabase
                     .from('stores')
                     .select('id, name, storeSlug, logo_url')
@@ -131,7 +128,6 @@ export default function AtalhoCompromissosDaLoja({
                     return
                 }
 
-                // Contar agendamentos futuros confirmados
                 const storeIds = storeData.map((s) => s.id)
                 let countByStore: Record<string, number> = {}
                 if (storeIds.length > 0) {
@@ -150,7 +146,6 @@ export default function AtalhoCompromissosDaLoja({
                     }
                 }
 
-                // Mapeia as lojas, convertendo logo_url para URL pública
                 const enhancedStores: StoreCard[] = storeData.map((s) => {
                     let publicLogoUrl: string | null = null
                     if (s.logo_url) {
@@ -162,7 +157,7 @@ export default function AtalhoCompromissosDaLoja({
                     return {
                         id: s.id,
                         name: s.name,
-                        logoUrl: publicLogoUrl,   // URL pública completa ou null
+                        logoUrl: publicLogoUrl,
                         slug: s.storeSlug,
                         upcoming_appointments: countByStore[s.id] || 0,
                     }
@@ -180,7 +175,6 @@ export default function AtalhoCompromissosDaLoja({
         fetchData()
     }, [])
 
-    // Auxiliar para converter hex em rgba (necessário para efeitos de vidro)
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -243,7 +237,7 @@ export default function AtalhoCompromissosDaLoja({
 
             {stores.length === 0 ? (
                 <div
-                    className="rounded-2xl p-6 flex flex-col items-center gap-4"
+                    className="rounded-2xl p-6 flex flex-row items-center gap-4"
                     style={{
                         background: cardBg,
                         backdropFilter: 'blur(12px)',
@@ -251,8 +245,8 @@ export default function AtalhoCompromissosDaLoja({
                         border: `1px solid ${colors.border}`,
                     }}
                 >
-                    <Store className="w-8 h-8" style={{ color: colors.textSecondary }} />
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                    <Store className="w-8 h-8 flex-shrink-0" style={{ color: colors.textSecondary }} />
+                    <p className="text-sm font-medium flex-1" style={{ color: colors.textSecondary }}>
                         Você ainda não cadastrou nenhuma loja.
                     </p>
                     <Link
@@ -266,10 +260,8 @@ export default function AtalhoCompromissosDaLoja({
             ) : (
                 <div className="flex flex-col gap-3">
                     {stores.map((store) => {
-                        // store.logoUrl já é a URL pública (ou null)
                         const logoSource = store.logoUrl
 
-                        // Card para loja com compromissos
                         if (store.upcoming_appointments > 0) {
                             return (
                                 <div
@@ -305,7 +297,6 @@ export default function AtalhoCompromissosDaLoja({
                             )
                         }
 
-                        // Card motivacional para loja sem compromissos
                         return (
                             <div
                                 key={store.id}
