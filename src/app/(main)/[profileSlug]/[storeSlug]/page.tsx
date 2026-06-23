@@ -1,7 +1,7 @@
 // src/app/(app)/[profileSlug]/[storeSlug]/page.tsx
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -26,12 +26,13 @@ import {
     Grid3X3,
     MessageCircle,
     QrCode,
-    Eye
+    Eye,
+    Users,
+    X
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { getAvatarUrl } from '@/lib/avatar'
-import AnimatedBackground from '@/components/AnimatedBackground'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StoreFlow } from '../../eu/components/StoreFlow'
@@ -175,6 +176,7 @@ export default function StorePage() {
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
+
     const { colors } = useTheme()
 
     const [store, setStore] = useState<StoreType | null>(null)
@@ -202,15 +204,23 @@ export default function StorePage() {
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [activeTab, setActiveTab] = useState<TabType>('products')
-    const [onlineCount, setOnlineCount] = useState(0)
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
     // ═══════════════════════════════════════════════════════════
-    // FUNÇÕES DE CAPTURA AVANÇADA
+    // NOVOS ESTADOS PARA VISITANTES
     // ═══════════════════════════════════════════════════════════
+    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
+    const [todayVisitsCount, setTodayVisitsCount] = useState(0)
+    const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([])
+    const [dialogOpen, setDialogOpen] = useState<'online' | 'visits' | null>(null)
+    const [fullOnlineVisitors, setFullOnlineVisitors] = useState<any[]>([])
+    const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([])
 
+    const realtimeChannel = useRef<any>(null)
+
+    // Captura de dados
     const getAnonymousId = useCallback(() => {
         const key = 'iuser_anonymous_id'
         let id = localStorage.getItem(key)
@@ -288,7 +298,7 @@ export default function StorePage() {
     }, [supabase, getAnonymousId, getSessionId, getDeviceType])
 
     // ═══════════════════════════════════════════════════════════
-    // FIM DAS NOVAS FUNÇÕES
+    // FIM DAS FUNÇÕES DE CAPTURA
     // ═══════════════════════════════════════════════════════════
 
     const filteredProducts = useMemo(() => {
@@ -404,7 +414,6 @@ export default function StorePage() {
             await captureVisit(foundStore.id, userId)
         }
 
-        // Total de visitantes únicos
         const { data: viewsData } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id')
@@ -412,15 +421,6 @@ export default function StorePage() {
         const uniqueLogados = new Set(viewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
         const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
         setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
-
-        // Online agora (últimos 5 minutos)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-        const { count: onlineCountResult } = await supabase
-            .from('store_views')
-            .select('*', { count: 'exact', head: true })
-            .eq('store_id', foundStore.id)
-            .gte('created_at', fiveMinutesAgo)
-        setOnlineCount(onlineCountResult || 0)
 
         const { data: productsData } = await supabase
             .from('products')
@@ -521,6 +521,86 @@ export default function StorePage() {
         loadAdminData()
     }, [adminPanelOpen, store, supabase])
 
+    // ═══════════════════════════════════════════════════════════
+    // VISITORS DATA FETCHING + REALTIME
+    // ═══════════════════════════════════════════════════════════
+    const fetchVisitorData = useCallback(async () => {
+        if (!store?.id) return
+
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+        const todayISO = todayStart.toISOString()
+
+        // Online agora
+        const { data: online } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', store.id)
+            .gte('created_at', fiveMinAgo)
+            .order('created_at', { ascending: false })
+
+        const onlineMap = new Map<string, any>()
+        online?.forEach(v => {
+            const key = v.viewer_id || v.anonymous_id
+            if (!onlineMap.has(key)) {
+                onlineMap.set(key, {
+                    ...v,
+                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                })
+            }
+        })
+        const onlineList = Array.from(onlineMap.values())
+        setOnlineVisitors(onlineList.slice(0, 5))
+        setFullOnlineVisitors(onlineList)
+
+        // Visitantes únicos de hoje
+        const { data: todayViews } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', store.id)
+            .gte('created_at', todayISO)
+            .order('created_at', { ascending: false })
+            .limit(200)
+
+        const uniqueTodayMap = new Map<string, any>()
+        todayViews?.forEach(v => {
+            const key = v.viewer_id || v.anonymous_id
+            if (key && !uniqueTodayMap.has(key)) {
+                uniqueTodayMap.set(key, {
+                    ...v,
+                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                })
+            }
+        })
+        const uniqueTodayList = Array.from(uniqueTodayMap.values())
+        // Conta visitantes únicos (não visitas totais)
+        setTodayVisitsCount(uniqueTodayList.length)
+        setTodayRecentVisitors(uniqueTodayList.slice(0, 5))
+        // Para o diálogo: lista de visitantes únicos
+        setFullTodayVisitors(uniqueTodayList)
+    }, [store?.id])
+
+    useEffect(() => {
+        if (!store?.id) return
+        fetchVisitorData()
+
+        const channel = supabase
+            .channel(`store-views-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'store_views', filter: `store_id=eq.${store.id}` },
+                () => fetchVisitorData()
+            )
+            .subscribe()
+
+        realtimeChannel.current = channel
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [store?.id, fetchVisitorData])
+
     const openGoogleMaps = () => {
         if (!store) return
         let url = ''
@@ -555,9 +635,16 @@ export default function StorePage() {
         }
     }
 
-    const handleProductClick = (product: any) => {
+    const toggleProduct = (product: any) => {
         if (isOwner) {
             router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+            return
+        }
+        const isSelected = cartItems.some((item: any) => item.product.id === product.id)
+        if (isSelected) {
+            removeItem(storeSlug as string, product.id)
+            setCartAnimating(true)
+            setTimeout(() => setCartAnimating(false), 500)
         } else {
             if (store) captureProductView(product.id, store.id, currentUserId)
             addItem(storeSlug as string, { name: store!.name, logo_url: store!.logo_url ?? null }, product)
@@ -566,22 +653,18 @@ export default function StorePage() {
         }
     }
 
-    const getAvatarPublicUrl = (path: string | null) => {
-        if (!path) return null
-        if (path.startsWith('http')) return path
-        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-        return data?.publicUrl || null
+    const handleProductClick = (product: any) => {
+        toggleProduct(product)
     }
 
     if (loading) return <LoadingSpinner />
 
     if (error || !store)
         return (
-            <div className="min-h-screen flex items-center justify-center px-4 text-center"
-                style={{ background: colors.background }}>
+            <div className="min-h-screen flex items-center justify-center px-4 text-center">
                 <div className="flex flex-col gap-4 max-w-sm items-center">
                     {error ? (
-                        <AlertTriangle className="w-12 h-12 text-red-500" />
+                        <AlertTriangle className="w-12 h-12" style={{ color: colors.accent }} />
                     ) : (
                         <Search className="w-12 h-12" style={{ color: colors.textSecondary }} />
                     )}
@@ -602,9 +685,78 @@ export default function StorePage() {
             </div>
         )
 
+    // Cards de visitantes
+    const renderVisitorCards = () => (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+            {/* Online agora */}
+            <button
+                onClick={() => setDialogOpen('online')}
+                className="p-4 rounded-2xl border text-left transition-all hover:shadow-md"
+                style={{ background: `${colors.accent}15`, borderColor: `${colors.accent}30` }}
+            >
+                <div className="flex items-center gap-2 mb-2">
+                    <Users size={16} style={{ color: colors.accent }} />
+                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Online agora</span>
+                </div>
+                <p className="text-2xl font-black" style={{ color: colors.accent }}>{fullOnlineVisitors.length}</p>
+                <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>últimos 5 min</p>
+                {onlineVisitors.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2">
+                        {onlineVisitors.map((v, i) => (
+                            <div key={i} className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+                                {v.profiles?.avatar_url ? (
+                                    <img
+                                        src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                        className="w-full h-full object-cover"
+                                        alt=""
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[8px] font-bold text-white">
+                                        {v.profiles?.name?.charAt(0) || '?'}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </button>
+
+            {/* Visitas hoje */}
+            <button
+                onClick={() => setDialogOpen('visits')}
+                className="p-4 rounded-2xl border text-left transition-all hover:shadow-md"
+                style={{ background: `${colors.accentLight}15`, borderColor: `${colors.accentLight}30` }}
+            >
+                <div className="flex items-center gap-2 mb-2">
+                    <Eye size={16} style={{ color: colors.accentLight }} />
+                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Visitas hoje</span>
+                </div>
+                <p className="text-2xl font-black" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
+                {todayRecentVisitors.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2">
+                        {todayRecentVisitors.map((v, i) => (
+                            <div key={i} className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+                                {v.profiles?.avatar_url ? (
+                                    <img
+                                        src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                        className="w-full h-full object-cover"
+                                        alt=""
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[8px] font-bold text-white">
+                                        {v.profiles?.name?.charAt(0) || '?'}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </button>
+        </div>
+    )
+
     return (
-        <div className="relative flex flex-col min-h-screen pb-28" style={{ background: colors.background }}>
-            <AnimatedBackground />
+        <div className="relative flex flex-col min-h-screen pb-28">
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
 
             {store && (
@@ -617,35 +769,44 @@ export default function StorePage() {
             )}
 
             {/* Header */}
-            <header className="sticky top-0 z-50 px-3 py-2.5 border-b backdrop-blur-xl"
-                style={{ background: `${colors.surface}cc`, borderColor: colors.border }}>
+            <header className="sticky top-0 z-50 px-3 py-2.5 border-b backdrop-blur-xl" style={{ background: colors.surface, borderColor: colors.border }}>
                 <div className="flex items-center justify-between gap-2">
                     <button
                         onClick={() => router.push('/')}
-                        className="flex w-9 h-9 items-center justify-center rounded-xl border transition-all shadow-sm flex-shrink-0"
+                        className="flex w-9 h-9 items-center justify-center border rounded-xl transition-all shadow-sm"
                         style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
-
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {[
-                            { icon: MessageCircle, title: 'Mensagem' },
-                            { icon: QrCode, title: 'QR Code' },
-                            { icon: Navigation, title: 'Como chegar', onClick: openGoogleMaps },
-                            { icon: Share2, title: 'Compartilhar', onClick: () => { if (navigator.share) navigator.share({ title: store.name, url: storeUrl }).catch(() => { }) } },
-                            ...(isOwner ? [{ icon: Settings, title: 'Gerenciar', onClick: () => setAdminPanelOpen(true) }] : []),
-                        ].map((btn, idx) => (
+                        <button className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
+                            style={{ background: colors.surface, borderColor: colors.border }}>
+                            <MessageCircle className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                        </button>
+                        <button className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
+                            style={{ background: colors.surface, borderColor: colors.border }}>
+                            <QrCode className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                        </button>
+                        <button
+                            onClick={openGoogleMaps}
+                            className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
+                            style={{ background: colors.surface, borderColor: colors.border }}>
+                            <Navigation className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                        </button>
+                        <button
+                            onClick={() => navigator.share?.({ title: store.name, url: storeUrl }).catch(() => { })}
+                            className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
+                            style={{ background: colors.surface, borderColor: colors.border }}>
+                            <Share2 className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                        </button>
+                        {isOwner && (
                             <button
-                                key={idx}
-                                onClick={btn.onClick}
-                                className="flex w-8 h-8 items-center justify-center rounded-xl border transition-all shadow-sm"
-                                style={{ background: colors.surface, borderColor: colors.border }}
-                                title={btn.title}
-                            >
-                                <btn.icon className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                                onClick={() => setAdminPanelOpen(true)}
+                                className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
+                                style={{ background: colors.surface, borderColor: colors.border }}>
+                                <Settings className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
                             </button>
-                        ))}
+                        )}
                     </div>
                 </div>
             </header>
@@ -654,9 +815,8 @@ export default function StorePage() {
                 {/* Perfil da loja */}
                 <div className="flex gap-4">
                     <div className="flex-shrink-0">
-                        <div className="w-16 h-16 rounded-full p-[2px] shadow-md"
-                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                            <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
+                        <div className="w-16 h-16 rounded-full p-[2px] shadow-md" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
                                 {store.logo_url ? (
                                     <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
@@ -667,7 +827,6 @@ export default function StorePage() {
                             </div>
                         </div>
                     </div>
-
                     <div className="flex-1 min-w-0">
                         <h2 className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h2>
                         <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
@@ -675,20 +834,11 @@ export default function StorePage() {
                                 <Eye size={12} />
                                 <span className="font-medium">{totalVisitors} visitantes</span>
                             </div>
-                            <span className="opacity-50">·</span>
+                            <span className="text-gray-300">·</span>
                             <div className="flex items-center gap-1">
                                 <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
                                 <span className="font-medium">{Number(store.ratings_avg || 0).toFixed(1)}</span>
-                                <span className="opacity-70">({store.ratings_count ?? 0})</span>
-                            </div>
-                            {/* Online agora */}
-                            <span className="opacity-50">·</span>
-                            <div className="flex items-center gap-1">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                </span>
-                                <span className="font-medium">{onlineCount} online</span>
+                                <span>({store.ratings_count ?? 0})</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
@@ -707,13 +857,17 @@ export default function StorePage() {
                             <>
                                 {store.description}
                                 {store.description.length > DESC_LIMIT && (
-                                    <button onClick={() => setExpandedDesc(false)} className="font-bold ml-1" style={{ color: colors.accent }}>ver menos</button>
+                                    <button onClick={() => setExpandedDesc(false)} className="font-bold ml-1" style={{ color: colors.accent }}>
+                                        ver menos
+                                    </button>
                                 )}
                             </>
                         ) : (
                             <>
                                 {store.description.slice(0, DESC_LIMIT)}...
-                                <button onClick={() => setExpandedDesc(true)} className="font-bold ml-1" style={{ color: colors.accent }}>ver mais</button>
+                                <button onClick={() => setExpandedDesc(true)} className="font-bold ml-1" style={{ color: colors.accent }}>
+                                    ver mais
+                                </button>
                             </>
                         )}
                     </div>
@@ -722,71 +876,72 @@ export default function StorePage() {
                 {/* Botões de ação */}
                 <div className="flex items-center gap-2 flex-wrap">
                     {store.address && (
-                        <button onClick={openGoogleMaps} className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm transition-all"
-                            style={{ background: `${colors.accent}10`, borderColor: colors.accent, color: colors.accent }}>
+                        <button
+                            onClick={openGoogleMaps}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border transition-all shadow-sm"
+                            style={{ background: colors.accentLight, borderColor: colors.accent, color: colors.accent }}>
                             <MapPin className="w-3.5 h-3.5" />
-                            {formatAddress(store.address).substring(0, 15)}...
+                            <span className="text-[10px] font-black uppercase">{formatAddress(store.address).substring(0, 15)}...</span>
                         </button>
                     )}
                     {store.allow_scheduling && (
-                        <button onClick={() => setIsScheduleModalOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full font-black text-[10px] uppercase shadow-md"
-                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
+                        <button
+                            onClick={() => setIsScheduleModalOpen(true)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full font-black text-[10px] uppercase shadow-md"
+                            style={{ background: colors.accent, color: colors.accentText }}>
                             <Calendar className="w-3.5 h-3.5" /> Agendar
                         </button>
                     )}
                     {store.business_hours && Object.keys(store.business_hours).length > 0 && (
-                        <button onClick={() => setShowAllHours(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm"
-                            style={{
-                                background: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b98120' : `${colors.surface}88` })(),
-                                borderColor: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b981' : colors.border })(),
-                                color: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b981' : colors.textSecondary })(),
-                            }}>
+                        <button
+                            onClick={() => setShowAllHours(true)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm"
+                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textSecondary }}>
                             <Clock className="w-3.5 h-3.5" />
-                            {(() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? 'Aberto' : 'Horários' })()}
+                            {getTodaySchedule(store.business_hours) && isOpenNow(getTodaySchedule(store.business_hours)) ? 'Aberto' : 'Horários'}
                         </button>
                     )}
                 </div>
 
-                {/* Agendados hoje */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-black uppercase" style={{ color: colors.accent }}>Agendados Hoje</h4>
+                        <h4 className="text-[10px] font-black uppercase" style={{ color: colors.textSecondary }}>Agendados Hoje</h4>
                         <div className="grid grid-cols-2 gap-2">
                             {appointmentsToday.slice(0, 4).map((appt, i) => (
                                 <div
                                     key={appt.id || i}
                                     onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                    className="group backdrop-blur-sm border rounded-2xl p-3 hover:shadow-lg transition-all duration-300 cursor-pointer"
-                                    style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
+                                    className="group border rounded-2xl p-3 transition-all duration-300 cursor-pointer backdrop-blur-sm"
+                                    style={{ background: colors.surface, borderColor: colors.border }}>
                                     <div className="flex items-center gap-2.5 mb-2">
                                         <div className="relative">
-                                            <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-md ring-2"
+                                            <div
+                                                className="w-9 h-9 rounded-full flex items-center justify-center shadow-md ring-2"
                                                 style={{
                                                     background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                                    boxShadow: `0 0 0 2px ${colors.accent}40`,
-                                                }}>
+                                                    '--tw-ring-color': colors.accentLight,
+                                                } as React.CSSProperties}>
                                                 {appt.profiles?.avatar_url ? (
-                                                    <img src={getAvatarPublicUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover rounded-full" alt="" />
+                                                    <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover rounded-full" alt="" />
                                                 ) : (
                                                     <span className="text-xs font-black" style={{ color: colors.accentText }}>
                                                         {appt.profiles?.name?.charAt(0) || '?'}
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="absolute -bottom-0.5 -right-0.5 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center"
-                                                style={{ background: colors.accent }}>
-                                                <Clock className="w-2 h-2 text-white mr-0.5" />
-                                                <span className="text-[6px] font-black text-white">
+                                            <div className="absolute -bottom-0.5 -right-0.5 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center" style={{ background: colors.accent }}>
+                                                <Clock className="w-2 h-2 mr-0.5" style={{ color: colors.accentText }} />
+                                                <span className="text-[6px] font-black" style={{ color: colors.accentText }}>
                                                     {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[11px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.profiles?.name || 'Cliente'}</p>
-                                            <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.accent }}>Agendado</p>
+                                            <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Agendado</p>
                                         </div>
                                     </div>
-                                    <div className="rounded-xl p-2 border" style={{ background: `${colors.accent}10`, borderColor: `${colors.accent}20` }}>
+                                    <div className="rounded-xl p-2 border" style={{ background: colors.accentLight, borderColor: colors.accentLight }}>
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: colors.surface }}>
                                                 <Calendar className="w-3.5 h-3.5" style={{ color: colors.accent }} />
@@ -801,50 +956,63 @@ export default function StorePage() {
                 )}
 
                 {store.allow_scheduling && (
-                    <button onClick={() => setIsScheduleModalOpen(true)} className="w-full py-2.5 rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
-                        style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
+                    <button
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        className="w-full py-2.5 rounded-xl font-black uppercase text-xs tracking-wider transition-all shadow-md"
+                        style={{ background: colors.accent, color: colors.accentText }}>
                         <Calendar className="w-4 h-4 inline mr-1" /> Agendar
                     </button>
                 )}
 
+                {/* CARDS DE VISITANTES */}
+                {renderVisitorCards()}
+
                 {/* Abas */}
-                <div className="flex gap-1 rounded-xl p-1 border" style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
+                <div className="flex gap-1 backdrop-blur-sm rounded-xl p-1 border" style={{ background: colors.surface, borderColor: colors.border }}>
                     {[
                         { key: 'products', label: 'Produtos', icon: Grid3X3 },
                         { key: 'reviews', label: 'Avaliações', icon: Star },
                     ].map(tab => (
-                        <button key={tab.key} onClick={() => setActiveTab(tab.key as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key ? 'text-white shadow-md' : ''}`}
-                            style={{
-                                background: activeTab === tab.key ? `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` : 'transparent',
-                                color: activeTab === tab.key ? colors.accentText : colors.textSecondary,
-                            }}>
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key as TabType)}
+                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key ? 'shadow-md' : ''}`}
+                            style={
+                                activeTab === tab.key
+                                    ? { background: colors.accent, color: colors.accentText }
+                                    : { background: 'transparent', color: colors.textSecondary }
+                            }>
                             <tab.icon className="w-3.5 h-3.5" />
                             {tab.label}
                         </button>
                     ))}
                 </div>
 
-                {/* Produtos */}
+                {/* Conteúdo das abas (produtos e avaliações) */}
                 {activeTab === 'products' && (
                     <>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
-                            <input type="text" placeholder="procurar..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: colors.accent }} />
+                            <input
+                                type="text"
+                                placeholder="procurar..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
                                 className="w-full border rounded-xl py-2 pl-8 pr-3 text-xs focus:outline-none transition-all"
-                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} />
+                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                            />
                         </div>
 
                         {filteredProducts.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ borderColor: colors.border, background: `${colors.surface}80` }}>
+                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ background: colors.surface, borderColor: colors.border }}>
                                 <Search className="w-6 h-6 mx-auto mb-1" style={{ color: colors.textSecondary }} />
                                 <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>Nenhum produto</p>
                             </div>
                         ) : (
                             Object.entries(groupedProducts).map(([category, products]) => (
                                 <div key={category} className="space-y-2">
-                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em]"
-                                        style={{ background: `linear-gradient(to right, ${colors.accent}, ${colors.accentLight})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em] bg-clip-text text-transparent"
+                                        style={{ backgroundImage: `linear-gradient(to right, ${colors.accent}, ${colors.accentLight})`, WebkitBackgroundClip: 'text' }}>
                                         {category}
                                     </h4>
                                     <div className="grid grid-cols-2 gap-2">
@@ -852,10 +1020,12 @@ export default function StorePage() {
                                             const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                             const isHourly = product.price_type === 'hourly'
                                             return (
-                                                <div key={product.id} onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2' : ''}`}
+                                                <div
+                                                    key={product.id}
+                                                    onClick={() => handleProductClick(product)}
+                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2 ring-orange-500 border-orange-500' : ''}`}
                                                     style={{ background: colors.surface, borderColor: isSelected ? colors.accent : colors.border }}>
-                                                    <div className="aspect-square overflow-hidden" style={{ background: `${colors.accent}10` }}>
+                                                    <div className="aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
@@ -875,26 +1045,30 @@ export default function StorePage() {
                                                                 {isHourly && <span className="text-[9px] font-bold ml-1" style={{ color: colors.textSecondary }}>/h</span>}
                                                             </div>
                                                             {isOwner ? (
-                                                                <button onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                <button
+                                                                    onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                     className="w-7 h-7 rounded-full border transition-all flex items-center justify-center"
-                                                                    style={{ borderColor: colors.border, color: colors.accent }}>
+                                                                    style={{ background: colors.surface, borderColor: colors.border, color: colors.accent }}>
                                                                     <ExternalLink className="w-3 h-3" />
                                                                 </button>
                                                             ) : mounted && isSelected ? (
                                                                 <div className="flex items-center gap-1">
-                                                                    <button onClick={e => { e.stopPropagation(); router.push('/sacola') }}
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); router.push('/sacola') }}
                                                                         className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
                                                                         style={{ background: colors.accent }}>
                                                                         <CheckCircle2 className="w-3.5 h-3.5" />
                                                                     </button>
-                                                                    <button onClick={e => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
                                                                         className="w-7 h-7 rounded-full border flex items-center justify-center"
-                                                                        style={{ borderColor: colors.border, color: colors.textSecondary }}>
+                                                                        style={{ background: colors.accentLight, borderColor: colors.accent, color: colors.accent }}>
                                                                         <Trash2 className="w-3 h-3" />
                                                                     </button>
                                                                 </div>
                                                             ) : (
-                                                                <button onClick={e => { e.stopPropagation(); addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product) }}
+                                                                <button
+                                                                    onClick={e => { e.stopPropagation(); toggleProduct(product) }}
                                                                     className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
                                                                     style={{ background: colors.accent }}>
                                                                     <Plus className="w-3.5 h-3.5" />
@@ -902,8 +1076,7 @@ export default function StorePage() {
                                                             )}
                                                         </div>
                                                         {product.type && (
-                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full"
-                                                                style={{ background: `${colors.surface}cc`, color: colors.accent }}>
+                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full" style={{ background: colors.surface, color: colors.accent }}>
                                                                 {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
@@ -918,104 +1091,98 @@ export default function StorePage() {
                     </>
                 )}
 
-                {/* Avaliações */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
                         {ratings.length > 0 && (
-                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: `${colors.surface}80`, borderColor: colors.border }}>
+                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: colors.surface, borderColor: colors.border }}>
                                 <div className="flex items-center gap-2">
                                     <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
                                     <span className="text-xs font-black" style={{ color: colors.textPrimary }}>{Number(store.ratings_avg || 0).toFixed(1)}</span>
                                     <span className="text-[9px] font-bold" style={{ color: colors.accent }}>({store.ratings_count ?? 0})</span>
-                                    {myRating > 0 && <span className="text-[8px] font-black text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full">✓</span>}
+                                    {myRating > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>✓</span>}
                                 </div>
                                 <div className="flex -space-x-1.5">
                                     {ratings.slice(0, 3).map((r, i) => (
-                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border bg-white overflow-hidden" style={{ borderColor: colors.border }}>
+                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border overflow-hidden" style={{ background: colors.surface, borderColor: colors.border }}>
                                             {r.profiles?.avatar_url ? (
-                                                <img src={getAvatarPublicUrl(r.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-gray-400">{r.profiles?.name?.charAt(0) || '?'}</div>
+                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold" style={{ color: colors.textSecondary }}>{r.profiles?.name?.charAt(0) || '?'}</div>
                                             )}
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
-
                         {ratings.length === 0 ? (
-                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: `${colors.surface}80`, borderColor: colors.border }}>
+                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: colors.surface, borderColor: colors.border }}>
                                 <Star className="w-10 h-10 mx-auto mb-2" style={{ color: colors.textSecondary }} />
                                 <p className="font-bold text-sm" style={{ color: colors.textSecondary }}>Nenhuma avaliação ainda</p>
                                 <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {ratings.map((rating: any) => (
-                                    <div key={rating.id} className="flex gap-3 p-4 rounded-2xl backdrop-blur-sm border transition-all"
-                                        style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
-                                        <div className="w-10 h-10 rounded-full overflow-hidden p-[2px] shrink-0"
-                                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                            <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
-                                                {rating.profiles?.avatar_url ? (
-                                                    <img src={getAvatarPublicUrl(rating.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center font-bold text-xs" style={{ color: colors.accent }}>
-                                                        {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                {ratings.map((rating: any) => {
+                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                    return (
+                                        <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border transition-all backdrop-blur-sm" style={{ background: colors.surface, borderColor: colors.border }}>
+                                            <div className="w-10 h-10 rounded-full overflow-hidden p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                                                <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                                    {avatarUrl ? (
+                                                        <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                                            <span className="font-bold text-xs" style={{ color: colors.accent }}>{(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <div>
+                                                        <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
+                                                        <p className="text-[10px] font-medium" style={{ color: colors.accent }}>{new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                                     </div>
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border" style={{ background: colors.accentLight, borderColor: colors.accent }}>
+                                                        <Shield className="w-3 h-3" style={{ color: colors.accent }} />
+                                                        <span className="text-[8px] font-black uppercase" style={{ color: colors.accent }}>Verificada</span>
+                                                    </div>
+                                                </div>
+                                                <div className="mb-1">
+                                                    <RatingStars value={rating.rating} size={12} />
+                                                    {!rating.is_anonymous && rating.products?.name && (
+                                                        <span className="ml-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>{rating.products.name}</span>
+                                                    )}
+                                                </div>
+                                                {rating.comment && (
+                                                    <p className="text-xs italic leading-relaxed mt-1" style={{ color: colors.textSecondary }}>"{rating.comment}"</p>
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div>
-                                                    <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
-                                                    <p className="text-[10px] font-medium" style={{ color: colors.accent }}>{new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                                </div>
-                                                <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 border border-green-300 rounded-full">
-                                                    <Shield className="w-3 h-3 text-green-600" />
-                                                    <span className="text-[8px] font-black text-green-600 uppercase">Verificada</span>
-                                                </div>
-                                            </div>
-                                            <div className="mb-1">
-                                                <RatingStars value={rating.rating} size={12} />
-                                                {!rating.is_anonymous && rating.products?.name && (
-                                                    <span className="ml-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
-                                                        style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                                        {rating.products.name}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {rating.comment && (
-                                                <p className="text-xs italic leading-relaxed mt-1" style={{ color: colors.textSecondary }}>"{rating.comment}"</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
                 )}
             </main>
 
-            {/* Modal de horários */}
+            {/* Modal de horários (já existente) */}
             {showAllHours && store.business_hours && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllHours(false)}>
-                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
-                        style={{ background: colors.surface, color: colors.textPrimary }}
-                        onClick={e => e.stopPropagation()}>
+                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black">Horários de Funcionamento</h3>
-                            <button onClick={() => setShowAllHours(false)} className="text-2xl">&times;</button>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Horários de Funcionamento</h3>
+                            <button onClick={() => setShowAllHours(false)} className="text-2xl" style={{ color: colors.textSecondary }}>×</button>
                         </div>
                         <div className="space-y-2">
                             {Object.entries(DAY_LABELS).map(([key, label]) => {
                                 const schedule = store.business_hours![key]
                                 return (
                                     <div key={key} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: colors.border }}>
-                                        <span className="text-sm font-bold">{label}</span>
+                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{label}</span>
                                         {schedule && schedule.open && schedule.close ? (
-                                            <span className="text-sm">{schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}</span>
+                                            <span className="text-sm" style={{ color: colors.textSecondary }}>{schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}</span>
                                         ) : (
                                             <span className="text-sm italic" style={{ color: colors.textSecondary }}>Fechado</span>
                                         )}
@@ -1027,15 +1194,13 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* Painel de administração */}
+            {/* Admin panel (StoreFlow) */}
             {adminPanelOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" onClick={() => setAdminPanelOpen(false)}>
-                    <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
-                        style={{ background: colors.surface, color: colors.textPrimary }}
-                        onClick={e => e.stopPropagation()}>
+                    <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black">Gerenciar Loja</h3>
-                            <button onClick={() => setAdminPanelOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl text-2xl">&times;</button>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Gerenciar Loja</h3>
+                            <button onClick={() => setAdminPanelOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl text-2xl" style={{ color: colors.textSecondary }}>×</button>
                         </div>
                         <StoreFlow
                             store={store}
@@ -1044,21 +1209,99 @@ export default function StorePage() {
                             onToggleStatus={() => toast.success('Status da loja alterado')}
                             profile={{ profileSlug }}
                             onUpdateOrder={() => {
-                                supabase
-                                    .from('store_sales')
-                                    .select('*')
-                                    .eq('store_id', store.id)
-                                    .order('created_at', { ascending: false })
-                                    .limit(50)
-                                    .then(({ data }) => setAdminSales(data || []))
+                                supabase.from('store_sales').select('*').eq('store_id', store.id).order('created_at', { ascending: false }).limit(50).then(({ data }) => setAdminSales(data || []))
                             }}
                             onAddProduct={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
                             onEditStore={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
                             onToggleScheduling={toggleScheduling}
                             storeViews={storeViews}
                             productViews={productViews}
-                            onUpdateStore={(updatedFields) => setStore(prev => (prev ? { ...prev, ...updatedFields } : null))}
+                            onUpdateStore={(updatedFields) => setStore(prev => prev ? { ...prev, ...updatedFields } : null)}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* Diálogo Online agora */}
+            {dialogOpen === 'online' && (
+                <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
+                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Online agora</h3>
+                            <button onClick={() => setDialogOpen(null)}><X size={20} style={{ color: colors.textSecondary }} /></button>
+                        </div>
+                        {fullOnlineVisitors.length === 0 ? (
+                            <p style={{ color: colors.textSecondary }}>Nenhum visitante no momento.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {fullOnlineVisitors.map((v, i) => (
+                                    <div key={i} className="flex items-center gap-3 py-2 border-b border-opacity-20" style={{ borderColor: colors.border }}>
+                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
+                                            {v.profiles?.avatar_url ? (
+                                                <img
+                                                    src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                                    className="w-full h-full object-cover"
+                                                    alt=""
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
+                                                    {v.profiles?.name?.charAt(0) || '?'}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                                {v.profiles?.name || 'Anônimo'}
+                                            </p>
+                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                {v.profiles?.profileSlug ? `@${v.profiles.profileSlug}` : v.anonymous_id?.slice(0, 8)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Diálogo Visitas hoje */}
+            {dialogOpen === 'visits' && (
+                <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
+                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Visitantes hoje ({todayVisitsCount})</h3>
+                            <button onClick={() => setDialogOpen(null)}><X size={20} style={{ color: colors.textSecondary }} /></button>
+                        </div>
+                        {fullTodayVisitors.length === 0 ? (
+                            <p style={{ color: colors.textSecondary }}>Nenhuma visita hoje.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {fullTodayVisitors.map((v, i) => (
+                                    <div key={i} className="flex items-center gap-3 py-2 border-b border-opacity-20" style={{ borderColor: colors.border }}>
+                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
+                                            {v.profiles?.avatar_url ? (
+                                                <img
+                                                    src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                                    className="w-full h-full object-cover"
+                                                    alt=""
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">?</div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                                {v.profiles?.name || 'Visitante'}
+                                            </p>
+                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

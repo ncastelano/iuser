@@ -37,7 +37,7 @@ function findStore(categoria: string, slug: string): Store | undefined {
     return stores.find((store) => store.storeSlug === slug)
 }
 
-export default function StorePage() {
+export default function CategoriaPage() {
     const params = useParams<{ categoria: string; storeSlug: string }>()
     const router = useRouter()
     const categoria = params.categoria
