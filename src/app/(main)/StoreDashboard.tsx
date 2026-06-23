@@ -113,7 +113,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const [sales, setSales] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
-    // Visitantes recentes (últimos únicos)
+    // Visitantes recentes (únicos)
     const [visitors, setVisitors] = useState<any[]>([])
 
     // Horários
@@ -123,7 +123,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
     const [customClose, setCustomClose] = useState<Record<string, boolean>>({})
 
-    // Estados para os cards de visitantes com diálogo
+    // Cards com diálogo
     const [todayVisitsCount, setTodayVisitsCount] = useState(0)
     const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([])
     const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([])
@@ -132,7 +132,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
-    // Função para buscar dados dos visitantes (online e hoje)
+    // Busca dados de visitantes online e de hoje
     const fetchVisitorData = useCallback(async (storeId?: string) => {
         const id = storeId || store?.id
         if (!id) return
@@ -142,7 +142,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         todayStart.setHours(0, 0, 0, 0)
         const todayISO = todayStart.toISOString()
 
-        // Online agora: busca todas as views dos últimos 5 minutos e deduplica
+        // Online agora (últimos 5 min) – deduplicado por viewer_id ou anonymous_id
         const { data: online } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -162,8 +162,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         })
         const onlineList = Array.from(onlineMap.values())
         setOnlineNow(onlineList.length)
-        setOnlineVisitors(onlineList.slice(0, 5))
-        setFullOnlineVisitors(onlineList)
+        setOnlineVisitors(onlineList.slice(0, 5))      // para avatares no card
+        setFullOnlineVisitors(onlineList)               // para o diálogo
 
         // Visitantes únicos de hoje
         const { data: todayViews } = await supabase
@@ -174,7 +174,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .order('created_at', { ascending: false })
             .limit(200)
 
-        // Lista única de visitantes de hoje
         const uniqueTodayMap = new Map<string, any>()
         todayViews?.forEach(v => {
             const key = v.viewer_id || v.anonymous_id
@@ -191,11 +190,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setFullTodayVisitors(uniqueTodayList)
     }, [store?.id])
 
+    // Carrega todo o dashboard
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
 
-        // 1. Dados da loja
+        // 1. Loja
         const { data: storeData, error: storeError } = await supabase
             .from('stores')
             .select('*')
@@ -237,7 +237,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .order('start_time', { ascending: true })
         setPendingAppointments(appointments || [])
 
-        // 4. Visitas da loja por período
+        // 4. Visitas da loja por período (page views)
         const nowISO = new Date().toISOString()
         const periods: Record<string, { gte?: string; lte?: string }> = {
             today: { gte: startOfDay(), lte: nowISO },
@@ -278,18 +278,20 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .limit(100)
         setSales(salesData || [])
 
-        // 7. Visitantes recentes únicos (últimos 50 registros, sem duplicar viewer_id)
+        // 7. Visitantes recentes únicos (para o card "Visitantes recentes")
         const { data: viewsData } = await supabase
             .from('store_views')
-            .select('id, viewer_id, created_at, profiles(id, avatar_url, name, profileSlug)')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
             .eq('store_id', storeId)
             .order('created_at', { ascending: false })
             .limit(100)
+
         if (viewsData) {
             const uniqueMap = new Map<string, any>()
             viewsData.forEach((item: any) => {
-                if (item.viewer_id && !uniqueMap.has(item.viewer_id)) {
-                    uniqueMap.set(item.viewer_id, {
+                const key = item.viewer_id || item.anonymous_id
+                if (key && !uniqueMap.has(key)) {
+                    uniqueMap.set(key, {
                         ...item,
                         profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
                     })
@@ -303,11 +305,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .from('store_views')
             .select('viewer_id, anonymous_id')
             .eq('store_id', storeId)
+
         const uniqueLogados = new Set(allViews?.filter((v: any) => v.viewer_id).map((v: any) => v.viewer_id))
         const uniqueAnonimos = new Set(allViews?.filter((v: any) => v.anonymous_id).map((v: any) => v.anonymous_id))
         setTotalUniqueVisitors(uniqueLogados.size + uniqueAnonimos.size)
 
-        // Carrega os dados dos visitantes online e de hoje (passa storeId diretamente)
+        // Carrega dados dos visitantes online/hoje
         await fetchVisitorData(storeId)
 
         setLoading(false)
@@ -318,15 +321,15 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         loadDashboard()
     }, [loadDashboard])
 
-    // Configura canal Realtime e intervalo de atualização
+    // Realtime + atualização periódica
     useEffect(() => {
         if (!store?.id) return
 
-        // Executa imediatamente ao montar
+        // Executa imediatamente
         fetchVisitorData(store.id)
         loadDashboard()
 
-        // Canal Realtime para inserções
+        // Canal Realtime
         const channel = supabase
             .channel(`store-dash-views-${store.id}`)
             .on(
@@ -536,9 +539,9 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </button>
             </div>
 
-            {/* Cards de visitantes (substituem os antigos) */}
+            {/* Cards principais (visitantes) */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-                {/* Card Online agora */}
+                {/* Online agora */}
                 <button
                     onClick={() => setDialogOpen('online')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
@@ -573,7 +576,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     )}
                 </button>
 
-                {/* Card Visitas hoje */}
+                {/* Visitantes hoje */}
                 <button
                     onClick={() => setDialogOpen('visits')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
@@ -609,7 +612,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </button>
             </div>
 
-            {/* Produtos vistos agora e Agendamentos pendentes (cards menores) */}
+            {/* Cards secundários */}
             <div className="grid grid-cols-2 gap-3 mb-6">
                 <DashboardCard
                     title="Prod. vistos hoje"
@@ -670,7 +673,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </div>
             )}
 
-            {/* Métricas de vendas do dia + Visitantes únicos */}
+            {/* Métricas de vendas do dia + Visitantes únicos totais */}
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <Link href={`/${profileSlug}/${storeSlug}`} className="block">
                     <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md h-full" style={cardStyle}>
@@ -713,7 +716,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 )}
             </div>
 
-            {/* Pedidos (StoreFlow) */}
+            {/* Pedidos */}
             <div className="mb-6 space-y-5">
                 {invites.length > 0 && (
                     <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
