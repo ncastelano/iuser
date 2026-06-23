@@ -329,6 +329,11 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     useEffect(() => {
         if (!store?.id) return
 
+        // Executa imediatamente ao montar
+        fetchVisitorData()
+        loadDashboard()
+
+        // Canal Realtime para inserções
         const channel = supabase
             .channel(`store-dash-views-${store.id}`)
             .on(
@@ -336,9 +341,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 { event: 'INSERT', schema: 'public', table: 'store_views', filter: `store_id=eq.${store.id}` },
                 () => {
                     fetchVisitorData()
-                    // Também atualiza as métricas de visitas (storeVisits) para refletir novas inserções
-                    // Podemos re-executar uma parte do loadDashboard ou apenas incrementar. Mas para simplicidade,
-                    // vamos chamar loadDashboard() sem loading.
                     loadDashboard()
                 }
             )
@@ -346,8 +348,16 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
         realtimeChannel.current = channel
 
+        // Atualização periódica a cada 5 segundos
+        const interval = setInterval(() => {
+            fetchVisitorData()
+            // Se quiser atualizar também as métricas de vendas e visitas, descomente:
+            // loadDashboard()
+        }, 5000)
+
         return () => {
             supabase.removeChannel(channel)
+            clearInterval(interval)
         }
     }, [store?.id, fetchVisitorData, loadDashboard])
 
@@ -548,7 +558,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                         <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Online agora</span>
                     </div>
                     <p className="text-2xl font-black" style={{ color: colors.accent }}>{onlineNow}</p>
-                <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>últimos 5 min</p>
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>últimos 5 min</p>
                     {onlineVisitors.length > 0 && (
                         <div className="flex items-center gap-1 mt-2">
                             {onlineVisitors.map((v, i) => (
