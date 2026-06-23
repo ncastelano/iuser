@@ -20,12 +20,7 @@ import {
     Users,
     PackageOpen,
     RefreshCw,
-    ArrowRight,
-    AlertCircle,
-    ArrowUpRight,
-    Pencil,
     ChevronRight,
-    Store as StoreIcon,
     Package,
     CheckCircle2,
     Save,
@@ -106,8 +101,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
     // Estatísticas de visualização
     const [onlineNow, setOnlineNow] = useState(0)
-    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([]) // avatares recentes do online
-    const [fullOnlineVisitors, setFullOnlineVisitors] = useState<any[]>([]) // para o diálogo
+    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
+    const [fullOnlineVisitors, setFullOnlineVisitors] = useState<any[]>([])
     const [productsViewedNow, setProductsViewedNow] = useState<any[]>([])
     const [pendingAppointments, setPendingAppointments] = useState<any[]>([])
     const [storeVisits, setStoreVisits] = useState<Record<string, number>>({})
@@ -128,16 +123,16 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
     const [customClose, setCustomClose] = useState<Record<string, boolean>>({})
 
-    // Novos estados para os cards de visitantes com diálogo
-    const [todayVisitsCount, setTodayVisitsCount] = useState(0) // contagem de todas as visitas hoje
-    const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([]) // avatares dos visitantes únicos de hoje
-    const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([]) // lista completa para o diálogo
+    // Estados para os cards de visitantes com diálogo
+    const [todayVisitsCount, setTodayVisitsCount] = useState(0)
+    const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([])
+    const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([])
     const [dialogOpen, setDialogOpen] = useState<'online' | 'visits' | null>(null)
 
     const realtimeChannel = useRef<any>(null)
+    const intervalRef = useRef<any>(null)
 
-    // Função para buscar dados dos visitantes (online + hoje)
-    // Recebe storeId como parâmetro para não depender do estado store (que pode ser null durante loadDashboard)
+    // Função para buscar dados dos visitantes (online e hoje)
     const fetchVisitorData = useCallback(async (storeId?: string) => {
         const id = storeId || store?.id
         if (!id) return
@@ -191,10 +186,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             }
         })
         const uniqueTodayList = Array.from(uniqueTodayMap.values())
-        // Mostra contagem de visitantes únicos (não visitas totais)
         setTodayVisitsCount(uniqueTodayList.length)
         setTodayRecentVisitors(uniqueTodayList.slice(0, 5))
-        // Para o diálogo: lista de visitantes únicos (sem duplicatas)
         setFullTodayVisitors(uniqueTodayList)
     }, [store?.id])
 
@@ -314,7 +307,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         const uniqueAnonimos = new Set(allViews?.filter((v: any) => v.anonymous_id).map((v: any) => v.anonymous_id))
         setTotalUniqueVisitors(uniqueLogados.size + uniqueAnonimos.size)
 
-        // Carrega os dados dos visitantes online e de hoje (passa storeId diretamente pois store state ainda não atualizou)
+        // Carrega os dados dos visitantes online e de hoje (passa storeId diretamente)
         await fetchVisitorData(storeId)
 
         setLoading(false)
@@ -325,12 +318,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         loadDashboard()
     }, [loadDashboard])
 
-    // Configura canal Realtime para atualizações em tempo real dos visitantes
+    // Configura canal Realtime e intervalo de atualização
     useEffect(() => {
         if (!store?.id) return
 
         // Executa imediatamente ao montar
-        fetchVisitorData()
+        fetchVisitorData(store.id)
         loadDashboard()
 
         // Canal Realtime para inserções
@@ -340,7 +333,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'store_views', filter: `store_id=eq.${store.id}` },
                 () => {
-                    fetchVisitorData()
+                    fetchVisitorData(store.id)
                     loadDashboard()
                 }
             )
@@ -349,15 +342,13 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         realtimeChannel.current = channel
 
         // Atualização periódica a cada 5 segundos
-        const interval = setInterval(() => {
-            fetchVisitorData()
-            // Se quiser atualizar também as métricas de vendas e visitas, descomente:
-            // loadDashboard()
+        intervalRef.current = setInterval(() => {
+            fetchVisitorData(store.id)
         }, 5000)
 
         return () => {
             supabase.removeChannel(channel)
-            clearInterval(interval)
+            clearInterval(intervalRef.current)
         }
     }, [store?.id, fetchVisitorData, loadDashboard])
 
@@ -550,14 +541,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 {/* Card Online agora */}
                 <button
                     onClick={() => setDialogOpen('online')}
-                    className="p-4 rounded-2xl border text-left transition-all hover:shadow-md"
+                    className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
                     style={{ background: `${colors.accent}15`, borderColor: `${colors.accent}30` }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Users size={16} style={{ color: colors.accent }} />
                         <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Online agora</span>
                     </div>
-                    <p className="text-2xl font-black" style={{ color: colors.accent }}>{onlineNow}</p>
+                    <p className="text-2xl font-black transition-all group-hover:scale-105" style={{ color: colors.accent }}>{onlineNow}</p>
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>últimos 5 min</p>
                     {onlineVisitors.length > 0 && (
                         <div className="flex items-center gap-1 mt-2">
@@ -585,14 +576,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 {/* Card Visitas hoje */}
                 <button
                     onClick={() => setDialogOpen('visits')}
-                    className="p-4 rounded-2xl border text-left transition-all hover:shadow-md"
+                    className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
                     style={{ background: `${colors.accentLight}15`, borderColor: `${colors.accentLight}30` }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Eye size={16} style={{ color: colors.accentLight }} />
                         <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Visitantes hoje</span>
                     </div>
-                    <p className="text-2xl font-black" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
+                    <p className="text-2xl font-black transition-all group-hover:scale-105" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>únicos</p>
                     {todayRecentVisitors.length > 0 && (
                         <div className="flex items-center gap-1 mt-2">
@@ -945,7 +936,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
                     <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Online agora</h3>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Online agora ({onlineNow})</h3>
                             <button onClick={() => setDialogOpen(null)}><X size={20} style={{ color: colors.textSecondary }} /></button>
                         </div>
                         {fullOnlineVisitors.length === 0 ? (
