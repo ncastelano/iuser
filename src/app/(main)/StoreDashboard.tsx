@@ -105,6 +105,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
     // Estatísticas de visualização
     const [onlineNow, setOnlineNow] = useState(0)
+    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([]) // NOVO estado
     const [productsViewedNow, setProductsViewedNow] = useState<any[]>([])
     const [pendingAppointments, setPendingAppointments] = useState<any[]>([])
     const [storeVisits, setStoreVisits] = useState<Record<string, number>>({})
@@ -148,7 +149,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setBusinessHours(storeData.business_hours || {})
         const storeId = storeData.id
 
-        // 2. Online now (últimos 5 min)
+        // 2. Online now (últimos 5 min) e detalhes dos visitantes online
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const { count: onlineCount } = await supabase
             .from('store_views')
@@ -156,6 +157,29 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .eq('store_id', storeId)
             .gte('created_at', fiveMinutesAgo)
         setOnlineNow(onlineCount || 0)
+
+        // Buscar detalhes para avatares dos online
+        const { data: onlineVisitorsData } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles(avatar_url, name, profileSlug)')
+            .eq('store_id', storeId)
+            .gte('created_at', fiveMinutesAgo)
+            .order('created_at', { ascending: false })
+            .limit(20)
+
+        const uniqueOnlineMap = new Map<string, any>()
+        if (onlineVisitorsData) {
+            onlineVisitorsData.forEach((v: any) => {
+                const key = v.viewer_id || v.anonymous_id
+                if (!uniqueOnlineMap.has(key)) {
+                    uniqueOnlineMap.set(key, {
+                        ...v,
+                        profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                    })
+                }
+            })
+        }
+        setOnlineVisitors(Array.from(uniqueOnlineMap.values()).slice(0, 5))
 
         // 3. Produtos visualizados agora
         const { data: recentProductViews } = await supabase
@@ -356,7 +380,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setSavingSchedule(false)
     }
 
-    // LOADING – agora ocupa a altura total da viewport e centraliza o spinner
     if (loading && !store) {
         return <LoadingSpinner message="Carregando estatísticas da sua loja..." />
     }
@@ -377,7 +400,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         })()
         : store.is_open
 
-    // Estilos comuns do Configuracoes
     const cardStyle = {
         background: colors.surface,
         border: `1px solid ${colors.border}`,
@@ -431,9 +453,39 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </button>
             </div>
 
-            {/* Cards rápidos – agora usam tema dinâmico */}
+            {/* Cards rápidos */}
             <div className="grid grid-cols-2 gap-3 mb-6">
-                <DashboardCard title="Online agora" value={onlineNow} icon={<Users size={20} />} color={colors.accent} subtext="últimos 5 min" />
+                <DashboardCard
+                    title="Online agora"
+                    value={onlineNow}
+                    icon={<Users size={20} />}
+                    color={colors.accent}
+                    subtext={
+                        onlineVisitors.length > 0 ? (
+                            <div className="flex items-center gap-1 mt-1">
+                                {onlineVisitors.map((v: any, idx: number) => (
+                                    <div key={idx} className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
+                                        {v.profiles?.avatar_url ? (
+                                            <img
+                                                src={
+                                                    v.profiles.avatar_url.startsWith('http')
+                                                        ? v.profiles.avatar_url
+                                                        : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl
+                                                }
+                                                className="w-full h-full object-cover"
+                                                alt=""
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[8px] font-bold text-white">
+                                                {v.profiles?.name?.charAt(0) || '?'}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : undefined
+                    }
+                />
                 <DashboardCard title="Visitas hoje" value={storeVisits.today || 0} icon={<Eye size={20} />} color={colors.accentLight} />
                 <DashboardCard title="Prod. vistos hoje" value={productViews.today || 0} icon={<ShoppingBag size={20} />} color="#10b981" />
                 <DashboardCard title="Agend. pendentes" value={pendingAppointments.length} icon={<Clock size={20} />} color="#f59e0b" />
@@ -742,7 +794,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 }
 
 // Componentes auxiliares
-
 function DashboardCard({ title, value, icon, color, subtext }: any) {
     const { colors } = useTheme()
     return (

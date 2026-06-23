@@ -26,6 +26,7 @@ import {
     LayoutGrid,
     User,
     Lock,
+    Home,
 } from 'lucide-react'
 import {
     useAppointments,
@@ -36,6 +37,8 @@ import {
 import { supabase } from '@/lib/supabase/client'
 import HorarioEDisponibilidade from './HorarioEDisponibilidade'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { useTheme } from '@/app/theme'
+import Header from '../../Header' // ajuste o caminho conforme necessário
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -56,126 +59,77 @@ function ProfileName({ slug }: { slug: string }) {
             })
     }, [slug])
     if (name) return <>{name}</>
-    return <span className="text-white/50">@{slug}</span>
+    return <span style={{ opacity: 0.5 }}>@{slug}</span>
 }
 
 /* ===================================================
-   Avatar adaptável: loja (logo), convite (avatar do convidado), pessoal (avatar do usuário)
+   Avatar adaptável
    =================================================== */
 function AppointmentAvatar({
     url,
     name,
     type,
     size = 72,
+    colors,
 }: {
     url: string | null
     name: string
     type: 'store' | 'personal' | 'invite'
     size?: number
+    colors: any
 }) {
     const isValidImageUrl = (url: string | null): boolean => {
         if (!url) return false
         return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')
     }
 
-    if (type === 'store') {
-        if (isValidImageUrl(url)) {
-            return (
-                <div style={{
-                    position: 'relative',
-                    width: size,
-                    height: size,
-                    borderRadius: size > 56 ? 18 : 16,
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                }}>
-                    <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
-                </div>
-            )
-        }
-        return (
-            <div style={{
-                width: size,
-                height: size,
-                borderRadius: size > 56 ? 18 : 16,
-                background: 'linear-gradient(135deg, #f97316, #fbbf24)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                color: '#fff',
-                boxShadow: '0 4px 12px rgba(249,115,22,0.25)',
-            }}>
-                <Store size={size * 0.5} strokeWidth={1.5} />
-            </div>
-        )
-    }
+    const gradient =
+        type === 'store'
+            ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`
+            : type === 'invite'
+                ? 'linear-gradient(135deg, #7c3aed, #a855f7)'
+                : 'linear-gradient(135deg, #10b981, #34d399)'
 
-    if (type === 'invite') {
-        if (isValidImageUrl(url)) {
-            return (
-                <div style={{
-                    position: 'relative',
-                    width: size,
-                    height: size,
-                    borderRadius: size > 56 ? 18 : 16,
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                }}>
-                    <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
-                </div>
-            )
-        }
-        return (
-            <div style={{
-                width: size,
-                height: size,
-                borderRadius: size > 56 ? 18 : 16,
-                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                color: '#fff',
-                boxShadow: '0 4px 12px rgba(124,58,237,0.3)',
-            }}>
-                <User size={size * 0.5} strokeWidth={1.5} />
-            </div>
-        )
-    }
-
-    // personal
     if (isValidImageUrl(url)) {
         return (
-            <div style={{
-                position: 'relative',
-                width: size,
-                height: size,
-                borderRadius: size > 56 ? 18 : 16,
-                overflow: 'hidden',
-                flexShrink: 0,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            }}>
+            <div
+                style={{
+                    position: 'relative',
+                    width: size,
+                    height: size,
+                    borderRadius: size > 56 ? 18 : 16,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    boxShadow: colors.shadow,
+                }}
+            >
                 <Image src={url!} alt={name} fill style={{ objectFit: 'cover' }} />
             </div>
         )
     }
+
     return (
-        <div style={{
-            width: size,
-            height: size,
-            borderRadius: size > 56 ? 18 : 16,
-            background: 'linear-gradient(135deg, #10b981, #34d399)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            color: '#fff',
-            boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
-        }}>
-            <Lock size={size * 0.5} strokeWidth={1.5} />
+        <div
+            style={{
+                width: size,
+                height: size,
+                borderRadius: size > 56 ? 18 : 16,
+                background: gradient,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                color: '#fff',
+                boxShadow: colors.shadow,
+            }}
+        >
+            {type === 'store' ? (
+                <Store size={size * 0.5} strokeWidth={1.5} />
+            ) : type === 'invite' ? (
+                <User size={size * 0.5} strokeWidth={1.5} />
+            ) : (
+                <Lock size={size * 0.5} strokeWidth={1.5} />
+            )}
         </div>
     )
 }
@@ -197,7 +151,7 @@ function SenderName({ ownerSlug }: { ownerSlug: string }) {
             })
     }, [ownerSlug])
     if (name) return <>{name}</>
-    return <span className="text-white/50">@{ownerSlug}</span>
+    return <span style={{ opacity: 0.5 }}>@{ownerSlug}</span>
 }
 
 /* ===================================================
@@ -268,6 +222,14 @@ function ParticipantsMini({ participants }: { participants: any[] }) {
 export default function CompromissosPage() {
     const router = useRouter()
     const hoje = new Date()
+    const { colors } = useTheme()
+
+    // Movida para antes do uso
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+    }
 
     const { appointments, loading, error, refetch } = useAppointments()
     const { updateStatus } = useUpdateAppointmentStatus()
@@ -293,6 +255,7 @@ export default function CompromissosPage() {
 
     const [userId, setUserId] = useState<string | null>(null)
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
+    const [userProfileSlug, setUserProfileSlug] = useState<string | null>(null)
 
     const [myStores, setMyStores] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<string>('pessoal')
@@ -312,12 +275,13 @@ export default function CompromissosPage() {
                 setUserId(session.user.id)
                 supabase
                     .from('profiles')
-                    .select('avatar_url, background_mode, background_image_url')
+                    .select('avatar_url, profileSlug, background_mode, background_image_url')
                     .eq('id', session.user.id)
                     .single()
                     .then(({ data }) => {
                         if (data) {
                             if (data.avatar_url) setUserAvatarUrl(data.avatar_url)
+                            if (data.profileSlug) setUserProfileSlug(data.profileSlug)
                             if (data.background_mode) setBgMode(data.background_mode)
                             if (data.background_image_url) setCustomBgUrl(data.background_image_url)
                         }
@@ -641,7 +605,6 @@ export default function CompromissosPage() {
         }
     }
 
-    // Helpers de URL pública
     const getPublicUrl = (path: string | null | undefined, bucket: 'store-logos' | 'avatars'): string | null => {
         if (!path) return null
         if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) return path
@@ -649,34 +612,22 @@ export default function CompromissosPage() {
         return data?.publicUrl || null
     }
 
-    // Imagem de fundo do header
-    const headerImageUrl = useMemo(() => {
-        if (activeTab === 'pessoal') {
-            return userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null
-        } else {
-            const store = myStores.find(s => s.id === activeTab)
-            return store?.logo_url ? getPublicUrl(store.logo_url, 'store-logos') : null
-        }
-    }, [activeTab, userAvatarUrl, myStores])
-
-    // Abas com imagem/ícone
+    // Construir abas para o Header (Pessoal e lojas)
     const tabs = useMemo(() => {
         const personalTab = {
             id: 'pessoal',
             label: 'Pessoal',
-            icon: User,
+            icon: User as any,
             imageUrl: userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null,
         }
         const storeTabs = myStores.map((store) => ({
             id: store.id,
             label: store.name,
-            icon: Store,
+            icon: Store as any,
             imageUrl: store.logo_url ? getPublicUrl(store.logo_url, 'store-logos') : null,
         }))
         return [personalTab, ...storeTabs]
     }, [userAvatarUrl, myStores])
-
-    const activeStoreName = activeTab === 'pessoal' ? 'Agenda pessoal' : myStores.find((s) => s.id === activeTab)?.name || 'Loja'
 
     const getAvatarType = (appointment: Appointment): 'store' | 'personal' | 'invite' => {
         if (appointment.store_id) {
@@ -696,13 +647,22 @@ export default function CompromissosPage() {
         return getPublicUrl(userAvatarUrl, 'avatars')
     }
 
-    // Renderização principal
+    // Estilos do tema
+    const cardStyle = {
+        background: `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${colors.border}`,
+        boxShadow: colors.shadow,
+        borderRadius: 24,
+    }
+
     return (
-        <main style={{ minHeight: '100vh', background: '#000', paddingBottom: 120, position: 'relative' }}>
+        <main style={{ minHeight: '100vh', background: colors.background, paddingBottom: 120, position: 'relative' }}>
             <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             {loading ? (
                 <div className="min-h-screen flex items-center justify-center relative z-10">
-                    <p className="text-white/70">Carregando agenda...</p>
+                    <p style={{ color: colors.textSecondary }}>Carregando agenda...</p>
                 </div>
             ) : error ? (
                 <div className="min-h-screen flex items-center justify-center flex-col gap-4 relative z-10">
@@ -711,144 +671,41 @@ export default function CompromissosPage() {
                 </div>
             ) : (
                 <div className="relative z-10">
-                    {/* HEADER ESTILO INICIO */}
-                    <div style={{
-                        background: 'linear-gradient(135deg, #000, #000)',
-                        padding: '20px 24px',
-                        color: '#fff',
-                        borderBottomLeftRadius: 36,
-                        borderBottomRightRadius: 36,
-                        boxShadow: '0 10px 40px rgba(255,255,255,0.15)',
-                        position: 'relative',
-                        overflow: 'hidden',
-                    }}>
-                        {/* Imagem decorativa à direita */}
-                        <div style={{
-                            position: 'absolute',
-                            right: -30,
-                            top: -30,
-                            opacity: 0.4,
-                            transform: 'rotate(10deg)',
-                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                        }}>
-                            {headerImageUrl ? (
-                                <img src={headerImageUrl} alt="" style={{ width: 280, height: 280, objectFit: 'cover' }} />
-                            ) : (
-                                <img src="/logotransparente.png" alt="" style={{ width: 280, height: 280, objectFit: 'contain' }} />
-                            )}
-                        </div>
+                    <Header
+                        title="Compromissos"
+                        showBack={true}
+                        onBack={() => router.back()}
+                        greeting="Sua agenda"
+                        avatarUrl={userAvatarUrl ? getPublicUrl(userAvatarUrl, 'avatars') : null}
+                        loading={false}
+                        tabs={tabs.map(tab => ({
+                            ...tab,
+                            onClick: () => setActiveTab(tab.id),
+                            isActive: activeTab === tab.id,
+                        }))}
+                        showSearch={false}
+                        onHomeClick={() => router.push('/')}
+                    />
 
-                        <div className="relative z-10">
-                            {/* Linha topo com botão voltar */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <button onClick={() => router.back()} style={{
-                                    background: 'rgba(255,255,255,0.15)',
-                                    border: 'none',
-                                    borderRadius: 14,
-                                    width: 42,
-                                    height: 42,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', backdropFilter: 'blur(10px)',
-                                }}>
-                                    <ChevronLeft size={24} color="#fff" />
-                                </button>
-                                <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, opacity: 0.9 }}>Compromissos</h2>
-                            </div>
-
-                            {/* Título */}
-                            <h1 style={{ fontSize: 32, fontWeight: 800, marginTop: 12, letterSpacing: '-0.5px' }}>{activeStoreName}</h1>
-
-                            {/* Abas */}
-                            <div style={{ display: 'flex', gap: 8, marginTop: 20, overflowX: 'auto', paddingBottom: 4 }}>
-                                {tabs.map((tab) => {
-                                    const isActive = activeTab === tab.id
-                                    return (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 6,
-                                                padding: '8px 16px',
-                                                borderRadius: 20,
-                                                border: 'none',
-                                                background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
-                                                color: '#fff',
-                                                fontWeight: isActive ? 800 : 600,
-                                                fontSize: 14,
-                                                cursor: 'pointer',
-                                                whiteSpace: 'nowrap',
-                                                backdropFilter: 'blur(10px)',
-                                                transition: 'all 0.2s',
-                                            }}
-                                        >
-                                            {tab.imageUrl ? (
-                                                <img
-                                                    src={tab.imageUrl}
-                                                    alt={tab.label}
-                                                    style={{
-                                                        width: 20,
-                                                        height: 20,
-                                                        borderRadius: '50%',
-                                                        objectFit: 'cover',
-                                                    }}
-                                                />
-                                            ) : (
-                                                <tab.icon size={16} />
-                                            )}
-                                            {tab.label}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-
-                            {/* Barra de busca */}
-                            <div style={{
-                                marginTop: 16,
-                                background: 'rgba(255,255,255,0.1)',
-                                borderRadius: 20,
-                                padding: 14,
-                                display: 'flex',
-                                gap: 10,
-                                alignItems: 'center',
-                                backdropFilter: 'blur(10px)',
-                            }}>
-                                <Search size={18} opacity={0.7} />
-                                <span style={{ opacity: 0.7 }}>Buscar compromissos...</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* CONTEÚDO PRINCIPAL */}
                     <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>
                         {/* PRÓXIMOS COMPROMISSOS */}
                         <section>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, color: '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <ListChecks size={22} color="#a78bfa" /> Próximos Compromissos
+                                <h2 style={{ fontWeight: 800, fontSize: 22, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <ListChecks size={22} color={colors.accent} /> Próximos Compromissos
                                 </h2>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600 }}>Mostrar pendentes</span>
+                                    <span style={{ fontSize: 13, color: colors.textSecondary, fontWeight: 600 }}>Mostrar pendentes</span>
                                     <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
                                         <input type="checkbox" checked={showPendingInNext} onChange={(e) => setShowPendingInNext(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
-                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? '#7c3aed' : '#475569', borderRadius: 24, transition: '0.3s' }}>
+                                        <span style={{ position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: showPendingInNext ? colors.accent : '#475569', borderRadius: 24, transition: '0.3s' }}>
                                             <span style={{ position: 'absolute', height: 18, width: 18, left: showPendingInNext ? 23 : 3, bottom: 3, backgroundColor: 'white', transition: '0.3s', borderRadius: '50%' }} />
                                         </span>
                                     </label>
                                 </div>
                             </div>
                             {proximosCompromissos.length === 0 ? (
-                                <div style={{
-                                    background: 'rgba(255,255,255,0.06)',
-                                    borderRadius: 24,
-                                    padding: 28,
-                                    textAlign: 'center',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    color: '#94a3b8',
-                                    backdropFilter: 'blur(10px)',
-                                }}>
+                                <div style={{ ...cardStyle, padding: 28, textAlign: 'center', color: colors.textSecondary }}>
                                     Nenhum compromisso futuro.
                                 </div>
                             ) : (
@@ -862,26 +719,25 @@ export default function CompromissosPage() {
                                         const displayDate = parseDate(comp.date).toLocaleDateString('pt-BR')
                                         return (
                                             <div key={comp.id} onClick={() => openDetailModal(comp)} style={{
-                                                background: isFirst ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.06)',
-                                                borderRadius: 20, padding: 16, display: 'flex', alignItems: 'center', gap: 16,
-                                                boxShadow: isFirst ? '0 8px 25px rgba(124,58,237,0.3)' : '0 2px 10px rgba(0,0,0,0.2)',
-                                                border: isFirst ? '2px solid #7c3aed' : '1px solid rgba(255,255,255,0.1)',
+                                                ...cardStyle,
+                                                padding: 16, display: 'flex', alignItems: 'center', gap: 16,
+                                                boxShadow: isFirst ? `0 8px 25px ${colors.accent}40` : colors.shadow,
+                                                border: isFirst ? `2px solid ${colors.accent}` : `1px solid ${colors.border}`,
                                                 position: 'relative', cursor: 'pointer', transition: 'all 0.2s',
-                                                backdropFilter: 'blur(10px)',
                                             }}>
-                                                {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: '#7c3aed', borderRadius: 20, padding: '2px 10px', color: '#fff', fontWeight: 700, fontSize: 12, boxShadow: '0 4px 10px rgba(124,58,237,0.5)' }}>{remaining}</div>}
-                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
+                                                {isFirst && <div style={{ position: 'absolute', top: -10, left: -10, background: colors.accent, borderRadius: 20, padding: '2px 10px', color: colors.accentText, fontWeight: 700, fontSize: 12, boxShadow: `0 4px 10px ${colors.accent}80` }}>{remaining}</div>}
+                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? comp.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                         <div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                                <h3 style={{ fontWeight: 800, fontSize: 17, color: isFirst ? '#c084fc' : '#fff' }}>{comp.service_name}</h3>
+                                                                <h3 style={{ fontWeight: 800, fontSize: 17, color: isFirst ? colors.accent : colors.textPrimary }}>{comp.service_name}</h3>
                                                                 {comp.is_public !== undefined && <VisibilityBadge isPublic={comp.is_public} />}
                                                                 <span style={{ fontSize: 10, fontWeight: 700, background: comp.status === 'confirmed' ? 'rgba(16,185,129,0.2)' : 'rgba(234,179,8,0.2)', color: comp.status === 'confirmed' ? '#10b981' : '#facc15', padding: '2px 8px', borderRadius: 12 }}>
                                                                     {comp.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
                                                                 </span>
                                                             </div>
-                                                            <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                                 {avatarType === 'store' && <><Store size={12} /> {comp.store_name}</>}
                                                                 {avatarType === 'invite' && <><User size={12} /> Convite</>}
                                                                 {avatarType === 'personal' && <><Lock size={12} /> Compromisso pessoal</>}
@@ -889,8 +745,8 @@ export default function CompromissosPage() {
                                                             <ParticipantsMini participants={compParticipants} />
                                                         </div>
                                                         <div style={{ textAlign: 'right' }}>
-                                                            <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? '#c084fc' : '#e2e8f0' }}>{formatTime(comp.time)}</p>
-                                                            <p style={{ fontSize: 12, color: '#94a3b8' }}>{displayDate}</p>
+                                                            <p style={{ fontWeight: 700, fontSize: 18, color: isFirst ? colors.accent : colors.textPrimary }}>{formatTime(comp.time)}</p>
+                                                            <p style={{ fontSize: 12, color: colors.textSecondary }}>{displayDate}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -904,19 +760,19 @@ export default function CompromissosPage() {
                         {/* CALENDÁRIO */}
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <h2 style={{ fontWeight: 700, fontSize: 20, display: 'flex', alignItems: 'center', gap: 6, color: '#fff' }}>
-                                    <LayoutGrid size={20} color="#a78bfa" /> {meses[selectedDate.getMonth()]} {selectedDate.getFullYear()}
+                                <h2 style={{ fontWeight: 700, fontSize: 20, display: 'flex', alignItems: 'center', gap: 6, color: colors.textPrimary }}>
+                                    <LayoutGrid size={20} color={colors.accent} /> {meses[selectedDate.getMonth()]} {selectedDate.getFullYear()}
                                 </h2>
                                 <button onClick={() => setCalendarOpen(true)} style={{
-                                    background: '#7c3aed',
-                                    color: '#fff',
+                                    background: colors.accent,
+                                    color: colors.accentText,
                                     border: 'none',
                                     borderRadius: 14,
                                     padding: '10px 16px',
                                     cursor: 'pointer',
                                     fontWeight: 600,
                                     fontSize: 14,
-                                    boxShadow: '0 4px 15px rgba(124,58,237,0.3)',
+                                    boxShadow: `0 4px 15px ${colors.accent}40`,
                                 }}>
                                     Ver calendário
                                 </button>
@@ -927,16 +783,16 @@ export default function CompromissosPage() {
                                     return (
                                         <button key={item.numero} onClick={() => setSelectedDate(item.date)} style={{
                                             minWidth: 72, border: 'none',
-                                            background: ativo ? '#7c3aed' : 'rgba(255,255,255,0.1)',
-                                            color: ativo ? '#fff' : '#fff',
+                                            background: ativo ? colors.accent : `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`,
+                                            color: ativo ? colors.accentText : colors.textPrimary,
                                             borderRadius: 20, padding: 14,
-                                            boxShadow: ativo ? '0 8px 20px rgba(124,58,237,0.3)' : '0 2px 8px rgba(0,0,0,0.2)',
+                                            boxShadow: ativo ? `0 8px 20px ${colors.accent}40` : colors.shadow,
                                             cursor: 'pointer', position: 'relative', transition: 'all 0.2s',
                                             backdropFilter: 'blur(10px)',
                                         }}>
                                             <p style={{ fontSize: 12, fontWeight: 600 }}>{item.dia}</p>
                                             <h3 style={{ fontSize: 22, fontWeight: 800 }}>{item.numero}</h3>
-                                            {item.count > 0 && <div style={{ position: 'absolute', top: 6, right: 6, background: '#a855f7', color: '#fff', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 6px rgba(168,85,247,0.5)' }}>{item.count}</div>}
+                                            {item.count > 0 && <div style={{ position: 'absolute', top: 6, right: 6, background: colors.accent, color: colors.accentText, width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: `0 2px 6px ${colors.accent}80` }}>{item.count}</div>}
                                         </button>
                                     )
                                 })}
@@ -946,17 +802,17 @@ export default function CompromissosPage() {
                         {/* CALENDÁRIO POPUP */}
                         {calendarOpen && (
                             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                                <div style={{ width: '100%', maxWidth: 500, background: '#1e1e2e', borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: '#fff', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <div style={{ width: '100%', maxWidth: 500, background: colors.background, borderRadius: 28, padding: 24, maxHeight: '85vh', overflowY: 'auto', color: colors.textPrimary, backdropFilter: 'blur(20px)', border: `1px solid ${colors.border}` }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                                         <h2 style={{ fontSize: 22, fontWeight: 800 }}>Calendário</h2>
-                                        <button onClick={() => setCalendarOpen(false)} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: '#fff' }}>✕</button>
+                                        <button onClick={() => setCalendarOpen(false)} style={{ border: 'none', background: 'rgba(255,255,255,0.1)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', color: colors.textPrimary }}>✕</button>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                        <button onClick={() => { if (calendarYear > 2026) setCalendarYear((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>«</button>
-                                        <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((prev) => prev - 1) } else setCalendarMonth((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><ChevronLeft /></button>
+                                        <button onClick={() => { if (calendarYear > 2026) setCalendarYear((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: colors.textPrimary, cursor: 'pointer' }}>«</button>
+                                        <button onClick={() => { if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((prev) => prev - 1) } else setCalendarMonth((prev) => prev - 1) }} style={{ background: 'transparent', border: 'none', color: colors.textPrimary, cursor: 'pointer' }}><ChevronLeft /></button>
                                         <strong>{meses[calendarMonth]} {calendarYear}</strong>
-                                        <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((prev) => prev + 1) } else setCalendarMonth((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><ChevronRight /></button>
-                                        <button onClick={() => { if (calendarYear < 2028) setCalendarYear((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>»</button>
+                                        <button onClick={() => { if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((prev) => prev + 1) } else setCalendarMonth((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: colors.textPrimary, cursor: 'pointer' }}><ChevronRight /></button>
+                                        <button onClick={() => { if (calendarYear < 2028) setCalendarYear((prev) => prev + 1) }} style={{ background: 'transparent', border: 'none', color: colors.textPrimary, cursor: 'pointer' }}>»</button>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8, marginBottom: 12 }}>
                                         {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((dia, idx) => (
@@ -979,15 +835,15 @@ export default function CompromissosPage() {
                                                         height: 42,
                                                         border: 'none',
                                                         borderRadius: 12,
-                                                        background: ativo ? '#7c3aed' : 'rgba(255,255,255,0.1)',
-                                                        color: '#fff',
+                                                        background: ativo ? colors.accent : 'rgba(255,255,255,0.1)',
+                                                        color: colors.textPrimary,
                                                         cursor: 'pointer',
                                                         position: 'relative',
                                                     }}
                                                 >
                                                     {dia}
                                                     {count > 0 && (
-                                                        <div style={{ position: 'absolute', top: -4, right: -4, background: '#a855f7', color: '#fff', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: '0 2px 6px rgba(168,85,247,.4)' }}>
+                                                        <div style={{ position: 'absolute', top: -4, right: -4, background: colors.accent, color: colors.accentText, width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, boxShadow: `0 2px 6px ${colors.accent}80` }}>
                                                             {count}
                                                         </div>
                                                     )}
@@ -996,23 +852,23 @@ export default function CompromissosPage() {
                                         })}
                                     </div>
                                     <div style={{ marginTop: 24 }}>
-                                        <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 12 }}>Agendamentos de {meses[calendarMonth]} {calendarYear}</h3>
-                                        {eventosDoMes.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center' }}>Nenhum agendamento neste mês</p> : eventosDoMes.map((evento) => {
+                                        <h3 style={{ fontWeight: 700, fontSize: 18, marginBottom: 12, color: colors.textPrimary }}>Agendamentos de {meses[calendarMonth]} {calendarYear}</h3>
+                                        {eventosDoMes.length === 0 ? <p style={{ color: colors.textSecondary, textAlign: 'center' }}>Nenhum agendamento neste mês</p> : eventosDoMes.map((evento) => {
                                             const avatarType = getAvatarType(evento)
                                             const avatarUrl = getAvatarUrl(evento, avatarType)
                                             return (
-                                                <div key={evento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', backdropFilter: 'blur(10px)' }}>
-                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
+                                                <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
+                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                     <div style={{ flex: 1 }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                <h4 style={{ fontWeight: 800, fontSize: 16 }}>{evento.service_name}</h4>
+                                                                <h4 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{evento.service_name}</h4>
                                                                 {evento.is_public !== undefined && <VisibilityBadge isPublic={evento.is_public} />}
                                                             </div>
                                                             <span style={{ fontWeight: 700, color: evento.status === 'confirmed' ? '#10b981' : '#facc15' }}>{evento.status === 'confirmed' ? 'Confirmado' : 'Pendente'}</span>
                                                         </div>
-                                                        <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
-                                                        <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
+                                                        <p style={{ color: colors.textSecondary, marginTop: 2 }}>{avatarType === 'store' ? evento.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                        <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                             <Clock3 size={14} />
                                                             <span>{evento.date.split('-').reverse().join('/')} • {formatTime(evento.time)}</span>
                                                         </div>
@@ -1027,34 +883,34 @@ export default function CompromissosPage() {
 
                         {/* AGENDA DO DIA */}
                         <section>
-                            <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: '#fff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Clock3 size={22} color="#a78bfa" /> Agenda • {selectedDate.toLocaleDateString('pt-BR')}
+                            <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, color: colors.textPrimary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Clock3 size={22} color={colors.accent} /> Agenda • {selectedDate.toLocaleDateString('pt-BR')}
                             </h2>
                             {eventosDoDia.length === 0 ? (
-                                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 24, textAlign: 'center', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum agendamento para este dia.</div>
+                                <div style={{ ...cardStyle, padding: 24, textAlign: 'center', color: colors.textSecondary }}>Nenhum agendamento para este dia.</div>
                             ) : (
                                 eventosDoDia.map((evento) => {
                                     const avatarType = getAvatarType(evento)
                                     const avatarUrl = getAvatarUrl(evento, avatarType)
                                     return (
-                                        <div key={evento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} />
+                                        <div key={evento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center' }}>
+                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? evento.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={64} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>{evento.service_name}</h3>
+                                                    <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{evento.service_name}</h3>
                                                     {evento.is_public !== undefined && <VisibilityBadge isPublic={evento.is_public} />}
                                                 </div>
-                                                <p style={{ color: '#94a3b8', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                <p style={{ color: colors.textSecondary, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     {avatarType === 'store' && <><Store size={14} /> {evento.store_name}</>}
                                                     {avatarType === 'invite' && <><User size={14} /> Convite</>}
                                                     {avatarType === 'personal' && <><Lock size={14} /> Compromisso pessoal</>}
                                                 </p>
-                                                <div style={{ fontSize: 20, fontWeight: 800, color: '#c084fc', marginBottom: 8 }}>{formatTime(evento.time)}</div>
+                                                <div style={{ fontSize: 20, fontWeight: 800, color: colors.accent, marginBottom: 8 }}>{formatTime(evento.time)}</div>
                                                 <div style={{ display: 'flex', gap: 8 }}>
                                                     {evento.status === 'confirmed' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} color="#fff" /></div>}
                                                     {evento.status === 'pending' && <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#facc15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Clock3 size={16} color="#000" /></div>}
                                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(evento.id) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#ef4444', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash2 size={16} color="#fff" /></button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(evento) }} style={{ width: 32, height: 32, borderRadius: '50%', background: '#7c3aed', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Edit3 size={16} color="#fff" /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(evento) }} style={{ width: 32, height: 32, borderRadius: '50%', background: colors.accent, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Edit3 size={16} color={colors.accentText} /></button>
                                                 </div>
                                             </div>
                                         </div>
@@ -1066,23 +922,23 @@ export default function CompromissosPage() {
                         {/* CONVITES (apenas na aba Pessoal) */}
                         {activeTab === 'pessoal' && (
                             <section>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
-                                    <Bell size={22} color="#a78bfa" /> Convites
+                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
+                                    <Bell size={22} color={colors.accent} /> Convites
                                 </h2>
                                 {convitesRecebidos.length === 0 ? (
-                                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum convite pendente.</div>
+                                    <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum convite pendente.</div>
                                 ) : (
                                     convitesRecebidos.map((convite) => {
                                         const avatarType = getAvatarType(convite)
                                         const avatarUrl = getAvatarUrl(convite, avatarType)
                                         return (
-                                            <div key={convite.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                            <div key={convite.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                                 <div style={{ display: 'flex', gap: 16 }}>
-                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} />
+                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
                                                     <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontWeight: 800, color: '#fff' }}>{convite.service_name}</h3>
-                                                        <p style={{ marginTop: 4, fontSize: 14, color: '#94a3b8' }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', marginTop: 4 }}>
+                                                        <h3 style={{ fontWeight: 800, color: colors.textPrimary }}>{convite.service_name}</h3>
+                                                        <p style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: colors.textSecondary, marginTop: 4 }}>
                                                             <Clock3 size={14} />
                                                             <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
                                                         </div>
@@ -1091,7 +947,7 @@ export default function CompromissosPage() {
                                                 <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
                                                     <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                     <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
                                                 </div>
                                             </div>
                                         )
@@ -1103,20 +959,20 @@ export default function CompromissosPage() {
                         {/* PENDENTES DA LOJA */}
                         {activeTab !== 'pessoal' && (
                             <section>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
+                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
                                     <Bell size={22} color="#f97316" /> Pendentes
                                 </h2>
                                 {pendentesLoja.length === 0 ? (
-                                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>Nenhum agendamento pendente.</div>
+                                    <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum agendamento pendente.</div>
                                 ) : (
                                     pendentesLoja.map((agendamento) => (
-                                        <div key={agendamento.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+                                        <div key={agendamento.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
                                             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                                <AppointmentAvatar url={agendamento.store_logo_url ?? null} name={agendamento.store_name || 'Loja'} type="store" size={56} />
+                                                <AppointmentAvatar url={agendamento.store_logo_url ?? null} name={agendamento.store_name || 'Loja'} type="store" size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
-                                                    <h3 style={{ fontWeight: 800, fontSize: 16, color: '#fff' }}>{agendamento.service_name}</h3>
-                                                    <p style={{ color: '#94a3b8', fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: '#94a3b8' }}>
+                                                    <h3 style={{ fontWeight: 800, fontSize: 16, color: colors.textPrimary }}>{agendamento.service_name}</h3>
+                                                    <p style={{ color: colors.textSecondary, fontSize: 14, marginTop: 2 }}>Cliente: @{agendamento.customer_slug}</p>
+                                                    <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', color: colors.textSecondary }}>
                                                         <Clock3 size={14} />
                                                         <span>{agendamento.date.split('-').reverse().join('/')} • {formatTime(agendamento.time)}</span>
                                                     </div>
@@ -1126,7 +982,7 @@ export default function CompromissosPage() {
                                             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                                                 <button onClick={() => aceitarCompromisso(agendamento.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
                                                 <button onClick={() => recusarCompromisso(agendamento.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                <button onClick={() => openDetailModal(agendamento)} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                <button onClick={() => openDetailModal(agendamento)} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
                                             </div>
                                         </div>
                                     ))
@@ -1137,13 +993,13 @@ export default function CompromissosPage() {
                         {/* ACEITOS / CONFIRMADOS */}
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
-                                    <UserCheck size={22} color="#a78bfa" /> {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'}
+                                <h2 style={{ fontWeight: 800, fontSize: 22, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
+                                    <UserCheck size={22} color={colors.accent} /> {activeTab === 'pessoal' ? 'Aceitos' : 'Confirmados'}
                                 </h2>
-                                {hasMoreAceitos && <button onClick={() => setShowAllAcceptedModal(true)} style={{ border: 'none', background: 'transparent', color: '#a78bfa', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Ver todos ({listaAceitos.length})</button>}
+                                {hasMoreAceitos && <button onClick={() => setShowAllAcceptedModal(true)} style={{ border: 'none', background: 'transparent', color: colors.accent, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>Ver todos ({listaAceitos.length})</button>}
                             </div>
                             {listaAceitos.length === 0 ? (
-                                <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 20, color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
+                                <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>{activeTab === 'pessoal' ? 'Nenhum convite aceito.' : 'Nenhum agendamento confirmado.'}</div>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                     {aceitosExibidos.map((item) => {
@@ -1152,15 +1008,15 @@ export default function CompromissosPage() {
                                         const itemParticipants = participantsMap[item.id] || []
                                         const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                         return (
-                                            <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 24, padding: 16, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
-                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
+                                            <div key={item.id} style={{ ...cardStyle, padding: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
+                                                <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <h3 style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>{item.service_name}</h3>
+                                                        <h3 style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{item.service_name}</h3>
                                                         {item.is_public !== undefined && <VisibilityBadge isPublic={item.is_public} />}
                                                     </div>
-                                                    <p style={{ color: '#94a3b8', marginTop: 4 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
-                                                    <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: '#94a3b8' }}>
+                                                    <p style={{ color: colors.textSecondary, marginTop: 4 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
+                                                    <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'center', color: colors.textSecondary }}>
                                                         <Clock3 size={16} />
                                                         <span>{displayDate} • {formatTime(item.time)}</span>
                                                     </div>
@@ -1188,7 +1044,7 @@ export default function CompromissosPage() {
                                     const avatarUrl = getAvatarUrl(convite, avatarType)
                                     return (
                                         <div key={convite.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} />
+                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{convite.service_name}</h4>
                                                 <p style={{ color: '#94a3b8', marginTop: 2 }}>Para: @{convite.customer_slug}</p>
@@ -1225,7 +1081,7 @@ export default function CompromissosPage() {
                                     const displayDate = parseDate(item.date).toLocaleDateString('pt-BR')
                                     return (
                                         <div key={item.id} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 20, padding: 16, marginBottom: 12, display: 'flex', gap: 16, alignItems: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} />
+                                            <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? item.store_name || 'Loja' : avatarType === 'invite' ? 'Convite' : 'Pessoal'} type={avatarType} size={56} colors={colors} />
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ fontWeight: 800, fontSize: 16 }}>{item.service_name}</h4>
                                                 <p style={{ color: '#94a3b8', marginTop: 2 }}>{avatarType === 'store' ? item.store_name : avatarType === 'invite' ? 'Convite' : 'Compromisso pessoal'}</p>
@@ -1256,6 +1112,7 @@ export default function CompromissosPage() {
                                         name={!selectedAppointment.store_id ? (selectedAppointment.direction ? 'Convite' : 'Pessoal') : selectedAppointment.store_name || 'Loja'}
                                         type={getAvatarType(selectedAppointment)}
                                         size={64}
+                                        colors={colors}
                                     />
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1345,9 +1202,9 @@ export default function CompromissosPage() {
                                 position: 'fixed',
                                 bottom: 32,
                                 left: 24,
-                                background: '#fff',
-                                color: '#7c3aed',
-                                border: '2px solid #7c3aed',
+                                background: colors.background,
+                                color: colors.accent,
+                                border: `2px solid ${colors.accent}`,
                                 borderRadius: 32,
                                 padding: '12px 20px',
                                 fontWeight: 700,
@@ -1355,28 +1212,99 @@ export default function CompromissosPage() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 8,
-                                boxShadow: '0 8px 24px rgba(124,58,237,0.25)',
+                                boxShadow: `0 8px 24px ${colors.accent}40`,
                                 cursor: 'pointer',
                                 zIndex: 998,
                                 transition: 'all 0.2s',
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.background = '#7c3aed'
-                                e.currentTarget.style.color = '#fff'
+                                e.currentTarget.style.background = colors.accent
+                                e.currentTarget.style.color = colors.accentText
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.background = '#fff'
-                                e.currentTarget.style.color = '#7c3aed'
+                                e.currentTarget.style.background = colors.background
+                                e.currentTarget.style.color = colors.accent
                             }}
                         >
                             <Settings size={18} /> Horários
                         </button>
                     )}
 
-                    {/* BOTÃO FLUTUANTE: AGENDAR */}
-                    <button onClick={() => router.push('/compromissos/agendar')} style={{ position: 'fixed', bottom: 32, right: 24, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: '#fff', border: 'none', borderRadius: 32, padding: '16px 28px', fontWeight: 800, fontSize: 18, display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 12px 40px rgba(124,58,237,0.5)', cursor: 'pointer', zIndex: 998, transition: 'transform 0.2s' }} onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')} onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
-                        <Plus size={24} /> Agendar
-                    </button>
+                    {/* Botões flutuantes: Agendar + Home */}
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+
+                        <button
+                            onClick={() => router.push('/compromissos/agendar')}
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: 'none',
+                                borderRadius: 32,
+                                padding: '16px 28px',
+                                fontWeight: 800,
+                                fontSize: 18,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                boxShadow: `0 12px 40px ${colors.accent}80`,
+                                cursor: 'pointer',
+                                transition: 'transform 0.2s',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                        >
+                            <Plus size={24} /> Agendar
+                        </button>
+                        <button
+                            onClick={() => router.push('/')}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: `2px solid ${colors.border}`,
+                                boxShadow: `0 8px 24px ${colors.accent}60`,
+                            }}
+                            aria-label="Voltar ao início"
+                        >
+                            <Home size={24} />
+                        </button>
+                    </div>
+
+                    {/* Botão flutuante: Horários (mantido separado à esquerda) */}
+                    {userId && (
+                        <button
+                            onClick={() => setShowSettingsModal(true)}
+                            style={{
+                                position: 'fixed',
+                                bottom: 32,
+                                left: 24,
+                                background: colors.background,
+                                color: colors.accent,
+                                border: `2px solid ${colors.accent}`,
+                                borderRadius: 32,
+                                padding: '12px 20px',
+                                fontWeight: 700,
+                                fontSize: 15,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                boxShadow: `0 8px 24px ${colors.accent}40`,
+                                cursor: 'pointer',
+                                zIndex: 998,
+                                transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = colors.accent
+                                e.currentTarget.style.color = colors.accentText
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = colors.background
+                                e.currentTarget.style.color = colors.accent
+                            }}
+                        >
+                            <Settings size={18} /> Horários
+                        </button>
+                    )}
                 </div>
             )}
         </main>

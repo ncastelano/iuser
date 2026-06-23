@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Settings, Store } from 'lucide-react'
+import { User, Settings, Store, Home } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -93,7 +93,6 @@ export default function HomePage() {
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
 
-    // Referência para o contêiner do LastSearched (evita desmontar ao clicar)
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -178,7 +177,6 @@ export default function HomePage() {
             case 'categorias':
                 if (!isSearchVisible) return <CategoriasSection />
 
-                // Busca focada e vazia → verifica se há itens recentes
                 if (searchFocused && !searchQuery.trim()) {
                     const recentItems = getRecentClicks()
                     if (recentItems.length > 0) {
@@ -188,11 +186,9 @@ export default function HomePage() {
                             </div>
                         )
                     }
-                    // Se não há itens, mantém as categorias
                     return <CategoriasSection />
                 }
 
-                // Termo digitado → resultados da busca
                 if (searchQuery.trim()) {
                     return (
                         <SearchResultsSection
@@ -202,7 +198,6 @@ export default function HomePage() {
                     )
                 }
 
-                // Nenhum foco e sem termo → categorias normais
                 return <CategoriasSection />
 
             case 'transporte':
@@ -261,18 +256,12 @@ export default function HomePage() {
         }
     }
 
+    // ══════════════ REMOÇÃO DA ABA "TUDO" ══════════════
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
 
+        // Não adicionamos mais a aba "inicio"
         const allTabs: any[] = [
-            {
-                id: 'inicio',
-                label: 'Tudo',
-                icon: User,
-                imageUrl: '/logo.png',
-                onClick: showHomeSections,
-                isActive: !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile,
-            },
             {
                 id: 'perfil',
                 label: isLoggedIn ? `@${profileSlug}` : 'Entrar',
@@ -342,6 +331,8 @@ export default function HomePage() {
         cursor: 'pointer',
     }
 
+    const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -361,7 +352,6 @@ export default function HomePage() {
                     onSearch={setSearchQuery}
                     onSearchFocus={() => setSearchFocused(true)}
                     onSearchBlur={(e) => {
-                        // Não remove o foco se o clique foi dentro do contêiner dos últimos acessados
                         if (lastSearchedRef.current?.contains(e.relatedTarget as Node)) {
                             return
                         }
@@ -494,6 +484,23 @@ export default function HomePage() {
                             </button>
                         </div>
                     </div>
+                )}
+
+                {/* Botão flutuante "Voltar ao início" */}
+                {showFab && (
+                    <button
+                        onClick={showHomeSections}
+                        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                            color: colors.accentText,
+                            border: `2px solid ${colors.border}`,
+                            boxShadow: `0 8px 24px ${colors.accent}60`,
+                        }}
+                        aria-label="Voltar ao início"
+                    >
+                        <Home size={24} />
+                    </button>
                 )}
             </main>
         </div>

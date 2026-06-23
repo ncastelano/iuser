@@ -36,6 +36,7 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StoreFlow } from '../../eu/components/StoreFlow'
 import { useCartStore } from '@/store/useCartStore'
+import { useTheme } from '@/app/theme'
 
 type RatingRow = {
     id: string
@@ -174,6 +175,7 @@ export default function StorePage() {
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
+    const { colors } = useTheme()
 
     const [store, setStore] = useState<StoreType | null>(null)
     const [products, setProducts] = useState<any[]>([])
@@ -192,7 +194,6 @@ export default function StorePage() {
     const { itemsByStore, addItem, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
 
-
     const [adminPanelOpen, setAdminPanelOpen] = useState(false)
     const [adminSales, setAdminSales] = useState<any[]>([])
     const [storeViews, setStoreViews] = useState(0)
@@ -201,12 +202,13 @@ export default function StorePage() {
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [activeTab, setActiveTab] = useState<TabType>('products')
+    const [onlineCount, setOnlineCount] = useState(0)
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
     // ═══════════════════════════════════════════════════════════
-    // 🆕 FUNÇÕES DE CAPTURA AVANÇADA
+    // FUNÇÕES DE CAPTURA AVANÇADA
     // ═══════════════════════════════════════════════════════════
 
     const getAnonymousId = useCallback(() => {
@@ -398,12 +400,11 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        // 🆕 Registrar visita (todos os visitantes, uma vez por sessão)
         if (userId !== foundStore.owner_id) {
             await captureVisit(foundStore.id, userId)
         }
 
-        // Total de visitantes únicos (logados + anônimos)
+        // Total de visitantes únicos
         const { data: viewsData } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id')
@@ -411,6 +412,15 @@ export default function StorePage() {
         const uniqueLogados = new Set(viewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
         const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
         setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
+
+        // Online agora (últimos 5 minutos)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+        const { count: onlineCountResult } = await supabase
+            .from('store_views')
+            .select('*', { count: 'exact', head: true })
+            .eq('store_id', foundStore.id)
+            .gte('created_at', fiveMinutesAgo)
+        setOnlineCount(onlineCountResult || 0)
 
         const { data: productsData } = await supabase
             .from('products')
@@ -556,26 +566,35 @@ export default function StorePage() {
         }
     }
 
+    const getAvatarPublicUrl = (path: string | null) => {
+        if (!path) return null
+        if (path.startsWith('http')) return path
+        const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+        return data?.publicUrl || null
+    }
+
     if (loading) return <LoadingSpinner />
 
     if (error || !store)
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 px-4 text-center">
+            <div className="min-h-screen flex items-center justify-center px-4 text-center"
+                style={{ background: colors.background }}>
                 <div className="flex flex-col gap-4 max-w-sm items-center">
                     {error ? (
                         <AlertTriangle className="w-12 h-12 text-red-500" />
                     ) : (
-                        <Search className="w-12 h-12 text-orange-300" />
+                        <Search className="w-12 h-12" style={{ color: colors.textSecondary }} />
                     )}
-                    <h2 className="text-2xl font-black text-gray-800">
+                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
                         {error ? 'Erro ao carregar' : 'Loja não encontrada'}
                     </h2>
-                    <p className="text-gray-600 text-sm">
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
                         {error || `Nenhuma loja com /${storeSlug} foi encontrada.`}
                     </p>
                     <button
                         onClick={() => router.push('/')}
-                        className="text-orange-500 hover:text-orange-600 font-bold mt-2"
+                        className="font-bold mt-2"
+                        style={{ color: colors.accent }}
                     >
                         Voltar
                     </button>
@@ -584,7 +603,7 @@ export default function StorePage() {
         )
 
     return (
-        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-28">
+        <div className="relative flex flex-col min-h-screen pb-28" style={{ background: colors.background }}>
             <AnimatedBackground />
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
 
@@ -598,66 +617,50 @@ export default function StorePage() {
             )}
 
             {/* Header */}
-            <header className="sticky top-0 z-50 px-3 py-2.5 border-b border-orange-200/30 bg-white/70 backdrop-blur-xl">
+            <header className="sticky top-0 z-50 px-3 py-2.5 border-b backdrop-blur-xl"
+                style={{ background: `${colors.surface}cc`, borderColor: colors.border }}>
                 <div className="flex items-center justify-between gap-2">
                     <button
                         onClick={() => router.push('/')}
-                        className="flex w-9 h-9 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm flex-shrink-0"
+                        className="flex w-9 h-9 items-center justify-center rounded-xl border transition-all shadow-sm flex-shrink-0"
+                        style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </button>
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
-                            title="Mensagem"
-                        >
-                            <MessageCircle className="w-3.5 h-3.5 text-gray-500" />
-                        </button>
-                        <button
-                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
-                            title="QR Code"
-                        >
-                            <QrCode className="w-3.5 h-3.5 text-gray-500" />
-                        </button>
-                        <button
-                            onClick={openGoogleMaps}
-                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
-                            title="Como chegar"
-                        >
-                            <Navigation className="w-3.5 h-3.5 text-gray-500" />
-                        </button>
-                        <button
-                            onClick={() => {
-                                if (navigator.share)
-                                    navigator.share({ title: store.name, url: storeUrl }).catch(() => { })
-                            }}
-                            className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
-                        >
-                            <Share2 className="w-3.5 h-3.5 text-gray-500" />
-                        </button>
-                        {isOwner && (
+                        {[
+                            { icon: MessageCircle, title: 'Mensagem' },
+                            { icon: QrCode, title: 'QR Code' },
+                            { icon: Navigation, title: 'Como chegar', onClick: openGoogleMaps },
+                            { icon: Share2, title: 'Compartilhar', onClick: () => { if (navigator.share) navigator.share({ title: store.name, url: storeUrl }).catch(() => { }) } },
+                            ...(isOwner ? [{ icon: Settings, title: 'Gerenciar', onClick: () => setAdminPanelOpen(true) }] : []),
+                        ].map((btn, idx) => (
                             <button
-                                onClick={() => setAdminPanelOpen(true)}
-                                className="flex w-8 h-8 items-center justify-center bg-white/80 border border-orange-200 rounded-xl hover:border-orange-500 transition-all shadow-sm"
+                                key={idx}
+                                onClick={btn.onClick}
+                                className="flex w-8 h-8 items-center justify-center rounded-xl border transition-all shadow-sm"
+                                style={{ background: colors.surface, borderColor: colors.border }}
+                                title={btn.title}
                             >
-                                <Settings className="w-3.5 h-3.5 text-gray-500" />
+                                <btn.icon className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
                             </button>
-                        )}
+                        ))}
                     </div>
                 </div>
             </header>
 
             <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
-                {/* Perfil da loja - layout horizontal */}
+                {/* Perfil da loja */}
                 <div className="flex gap-4">
                     <div className="flex-shrink-0">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-500 p-[2px] shadow-md">
-                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                        <div className="w-16 h-16 rounded-full p-[2px] shadow-md"
+                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                            <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
                                 {store.logo_url ? (
                                     <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-xl font-black text-orange-500">
+                                    <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.accent }}>
                                         {store.name?.charAt(0) || '?'}
                                     </div>
                                 )}
@@ -666,157 +669,129 @@ export default function StorePage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-base font-black text-gray-800 truncate">{store.name}</h2>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                        <h2 className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h2>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
                             <div className="flex items-center gap-1">
-                                <Eye size={12} className="text-gray-400" />
+                                <Eye size={12} />
                                 <span className="font-medium">{totalVisitors} visitantes</span>
                             </div>
-                            <span className="text-gray-300">·</span>
+                            <span className="opacity-50">·</span>
                             <div className="flex items-center gap-1">
                                 <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
-                                <span className="font-medium">
-                                    {Number(store.ratings_avg || 0).toFixed(1)}
+                                <span className="font-medium">{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                                <span className="opacity-70">({store.ratings_count ?? 0})</span>
+                            </div>
+                            {/* Online agora */}
+                            <span className="opacity-50">·</span>
+                            <div className="flex items-center gap-1">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                                 </span>
-                                <span className="text-gray-400">({store.ratings_count ?? 0})</span>
+                                <span className="font-medium">{onlineCount} online</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
-                            <span
-                                className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}
-                            />
-                            <span className="text-[10px] font-black uppercase text-gray-500">
+                            <span className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+                            <span className="text-[10px] font-black uppercase" style={{ color: colors.textSecondary }}>
                                 {isStoreOpen ? 'Aberto' : 'Fechado'}
                             </span>
                         </div>
                     </div>
                 </div>
 
-                {/* Descrição com ver mais / ver menos */}
+                {/* Descrição */}
                 {store.description && (
-                    <div className="text-sm text-gray-600 leading-relaxed">
+                    <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || (store.description.length <= DESC_LIMIT) ? (
                             <>
                                 {store.description}
                                 {store.description.length > DESC_LIMIT && (
-                                    <button
-                                        onClick={() => setExpandedDesc(false)}
-                                        className="text-orange-500 font-bold ml-1"
-                                    >
-                                        ver menos
-                                    </button>
+                                    <button onClick={() => setExpandedDesc(false)} className="font-bold ml-1" style={{ color: colors.accent }}>ver menos</button>
                                 )}
                             </>
                         ) : (
                             <>
                                 {store.description.slice(0, DESC_LIMIT)}...
-                                <button
-                                    onClick={() => setExpandedDesc(true)}
-                                    className="text-orange-500 font-bold ml-1"
-                                >
-                                    ver mais
-                                </button>
+                                <button onClick={() => setExpandedDesc(true)} className="font-bold ml-1" style={{ color: colors.accent }}>ver mais</button>
                             </>
                         )}
                     </div>
                 )}
 
-                {/* Botões de ação e agendados */}
+                {/* Botões de ação */}
                 <div className="flex items-center gap-2 flex-wrap">
                     {store.address && (
-                        <button
-                            onClick={openGoogleMaps}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 hover:bg-red-500 hover:text-white transition-all group shadow-sm"
-                        >
-                            <MapPin className="w-3.5 h-3.5 text-red-500 group-hover:text-white" />
-                            <span className="text-[10px] font-black uppercase text-red-500 group-hover:text-white">
-                                {formatAddress(store.address).substring(0, 15)}...
-                            </span>
+                        <button onClick={openGoogleMaps} className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm transition-all"
+                            style={{ background: `${colors.accent}10`, borderColor: colors.accent, color: colors.accent }}>
+                            <MapPin className="w-3.5 h-3.5" />
+                            {formatAddress(store.address).substring(0, 15)}...
                         </button>
                     )}
                     {store.allow_scheduling && (
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-black text-[10px] uppercase shadow-md"
-                        >
+                        <button onClick={() => setIsScheduleModalOpen(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full font-black text-[10px] uppercase shadow-md"
+                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
                             <Calendar className="w-3.5 h-3.5" /> Agendar
                         </button>
                     )}
                     {store.business_hours && Object.keys(store.business_hours).length > 0 && (
-                        <button
-                            onClick={() => setShowAllHours(true)}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm ${(() => {
-                                const today = getTodaySchedule(store.business_hours)
-                                return today && isOpenNow(today)
-                                    ? 'bg-green-50 border-green-200 text-green-600'
-                                    : 'bg-gray-50 border-gray-200 text-gray-600'
-                            })()
-                                }`}
-                        >
+                        <button onClick={() => setShowAllHours(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm"
+                            style={{
+                                background: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b98120' : `${colors.surface}88` })(),
+                                borderColor: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b981' : colors.border })(),
+                                color: (() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? '#10b981' : colors.textSecondary })(),
+                            }}>
                             <Clock className="w-3.5 h-3.5" />
-                            {(() => {
-                                const today = getTodaySchedule(store.business_hours)
-                                return today && isOpenNow(today) ? 'Aberto' : 'Horários'
-                            })()}
+                            {(() => { const today = getTodaySchedule(store.business_hours); return today && isOpenNow(today) ? 'Aberto' : 'Horários' })()}
                         </button>
                     )}
                 </div>
 
+                {/* Agendados hoje */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-black uppercase text-blue-600">Agendados Hoje</h4>
+                        <h4 className="text-[10px] font-black uppercase" style={{ color: colors.accent }}>Agendados Hoje</h4>
                         <div className="grid grid-cols-2 gap-2">
                             {appointmentsToday.slice(0, 4).map((appt, i) => (
                                 <div
                                     key={appt.id || i}
-                                    onClick={() =>
-                                        appt.profiles?.profileSlug &&
-                                        router.push(`/${appt.profiles.profileSlug}`)
-                                    }
-                                    className="group bg-white/70 backdrop-blur-sm border border-blue-100 rounded-2xl p-3 hover:border-blue-300 hover:bg-white hover:shadow-lg transition-all duration-300 cursor-pointer"
-                                >
+                                    onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
+                                    className="group backdrop-blur-sm border rounded-2xl p-3 hover:shadow-lg transition-all duration-300 cursor-pointer"
+                                    style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
                                     <div className="flex items-center gap-2.5 mb-2">
                                         <div className="relative">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shadow-md ring-2 ring-blue-100">
+                                            <div className="w-9 h-9 rounded-full flex items-center justify-center shadow-md ring-2"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                                    boxShadow: `0 0 0 2px ${colors.accent}40`,
+                                                }}>
                                                 {appt.profiles?.avatar_url ? (
-                                                    <img
-                                                        src={getAvatarUrl(supabase, appt.profiles.avatar_url)!}
-                                                        className="w-full h-full object-cover rounded-full"
-                                                        alt=""
-                                                    />
+                                                    <img src={getAvatarPublicUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover rounded-full" alt="" />
                                                 ) : (
-                                                    <span className="text-xs font-black text-white">
+                                                    <span className="text-xs font-black" style={{ color: colors.accentText }}>
                                                         {appt.profiles?.name?.charAt(0) || '?'}
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="absolute -bottom-0.5 -right-0.5 bg-orange-500 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center">
+                                            <div className="absolute -bottom-0.5 -right-0.5 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center"
+                                                style={{ background: colors.accent }}>
                                                 <Clock className="w-2 h-2 text-white mr-0.5" />
                                                 <span className="text-[6px] font-black text-white">
-                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}
+                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-bold text-gray-800 truncate leading-tight">
-                                                {appt.profiles?.name || 'Cliente'}
-                                            </p>
-                                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-wider">
-                                                Agendado
-                                            </p>
+                                            <p className="text-[11px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.profiles?.name || 'Cliente'}</p>
+                                            <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.accent }}>Agendado</p>
                                         </div>
                                     </div>
-                                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-2 border border-blue-100/50">
+                                    <div className="rounded-xl p-2 border" style={{ background: `${colors.accent}10`, borderColor: `${colors.accent}20` }}>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
-                                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: colors.surface }}>
+                                                <Calendar className="w-3.5 h-3.5" style={{ color: colors.accent }} />
                                             </div>
-                                            <p className="text-[9px] font-bold text-gray-700 truncate leading-tight">
-                                                {appt.service_name || 'Agendamento'}
-                                            </p>
+                                            <p className="text-[9px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.service_name || 'Agendamento'}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -826,164 +801,110 @@ export default function StorePage() {
                 )}
 
                 {store.allow_scheduling && (
-                    <button
-                        onClick={() => setIsScheduleModalOpen(true)}
-                        className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
-                    >
+                    <button onClick={() => setIsScheduleModalOpen(true)} className="w-full py-2.5 rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all"
+                        style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
                         <Calendar className="w-4 h-4 inline mr-1" /> Agendar
                     </button>
                 )}
 
-                {/* Abas: Produtos e Avaliações */}
-                <div className="flex gap-1 bg-white/60 backdrop-blur-sm rounded-xl p-1 border border-orange-100">
+                {/* Abas */}
+                <div className="flex gap-1 rounded-xl p-1 border" style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
                     {[
                         { key: 'products', label: 'Produtos', icon: Grid3X3 },
                         { key: 'reviews', label: 'Avaliações', icon: Star },
                     ].map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key
-                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md'
-                                : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
+                        <button key={tab.key} onClick={() => setActiveTab(tab.key as TabType)}
+                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key ? 'text-white shadow-md' : ''}`}
+                            style={{
+                                background: activeTab === tab.key ? `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` : 'transparent',
+                                color: activeTab === tab.key ? colors.accentText : colors.textSecondary,
+                            }}>
                             <tab.icon className="w-3.5 h-3.5" />
                             {tab.label}
                         </button>
                     ))}
                 </div>
 
-                {/* Conteúdo das tabs */}
+                {/* Produtos */}
                 {activeTab === 'products' && (
                     <>
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-orange-400" />
-                            <input
-                                type="text"
-                                placeholder="procurar..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full bg-white border border-orange-200 rounded-xl py-2 pl-8 pr-3 text-xs text-gray-800 placeholder:text-orange-300 focus:outline-none focus:border-orange-500 transition-all"
-                            />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                            <input type="text" placeholder="procurar..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                                className="w-full border rounded-xl py-2 pl-8 pr-3 text-xs focus:outline-none transition-all"
+                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} />
                         </div>
 
                         {filteredProducts.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl border border-dashed border-orange-200 bg-white/50">
-                                <Search className="w-6 h-6 text-orange-300 mx-auto mb-1" />
-                                <p className="text-gray-400 font-bold text-[10px] uppercase">Nenhum produto</p>
+                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ borderColor: colors.border, background: `${colors.surface}80` }}>
+                                <Search className="w-6 h-6 mx-auto mb-1" style={{ color: colors.textSecondary }} />
+                                <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>Nenhum produto</p>
                             </div>
                         ) : (
                             Object.entries(groupedProducts).map(([category, products]) => (
                                 <div key={category} className="space-y-2">
-                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em] bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em]"
+                                        style={{ background: `linear-gradient(to right, ${colors.accent}, ${colors.accentLight})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                                         {category}
                                     </h4>
                                     <div className="grid grid-cols-2 gap-2">
                                         {products.map(product => {
-                                            const isSelected =
-                                                mounted &&
-                                                cartItems.some((item: any) => item.product.id === product.id)
+                                            const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                             const isHourly = product.price_type === 'hourly'
                                             return (
-                                                <div
-                                                    key={product.id}
-                                                    onClick={() => handleProductClick(product)}
-                                                    className={`relative bg-white rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected
-                                                        ? 'ring-2 ring-orange-500 border-orange-500'
-                                                        : 'border-orange-100 hover:border-orange-300'
-                                                        }`}
-                                                >
-                                                    <div className="aspect-square bg-gradient-to-br from-orange-50 to-red-50 overflow-hidden">
+                                                <div key={product.id} onClick={() => handleProductClick(product)}
+                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2' : ''}`}
+                                                    style={{ background: colors.surface, borderColor: isSelected ? colors.accent : colors.border }}>
+                                                    <div className="aspect-square overflow-hidden" style={{ background: `${colors.accent}10` }}>
                                                         {product.image_url ? (
-                                                            <img
-                                                                src={product.image_url}
-                                                                className="w-full h-full object-cover"
-                                                                alt=""
-                                                            />
+                                                            <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-orange-300 text-xl font-black">
+                                                            <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.accent }}>
                                                                 {product.name?.charAt(0) || '?'}
                                                             </div>
                                                         )}
                                                     </div>
                                                     <div className="p-2.5">
-                                                        <h4 className="text-xs font-black text-gray-800 line-clamp-1">
-                                                            {product.name}
-                                                        </h4>
-                                                        <p className="text-[10px] text-gray-400 line-clamp-1 mt-0.5">
-                                                            {product.description || 'Sem descrição'}
-                                                        </p>
+                                                        <h4 className="text-xs font-black line-clamp-1" style={{ color: colors.textPrimary }}>{product.name}</h4>
+                                                        <p className="text-[10px] line-clamp-1 mt-0.5" style={{ color: colors.textSecondary }}>{product.description || 'Sem descrição'}</p>
                                                         <div className="flex items-center justify-between mt-2">
                                                             <div>
-                                                                <span className="text-sm font-black text-orange-600">
-                                                                    R${' '}
-                                                                    {(product.price || 0).toLocaleString('pt-BR', {
-                                                                        minimumFractionDigits: 2,
-                                                                    })}
+                                                                <span className="text-sm font-black" style={{ color: colors.accent }}>
+                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                 </span>
-                                                                {isHourly && (
-                                                                    <span className="text-[9px] font-bold text-gray-400 ml-1">
-                                                                        /h
-                                                                    </span>
-                                                                )}
+                                                                {isHourly && <span className="text-[9px] font-bold ml-1" style={{ color: colors.textSecondary }}>/h</span>}
                                                             </div>
                                                             {isOwner ? (
-                                                                <button
-                                                                    onClick={e => {
-                                                                        e.stopPropagation()
-                                                                        router.push(
-                                                                            `/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`
-                                                                        )
-                                                                    }}
-                                                                    className="w-7 h-7 rounded-full bg-white border border-orange-200 text-orange-500 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center"
-                                                                >
+                                                                <button onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                    className="w-7 h-7 rounded-full border transition-all flex items-center justify-center"
+                                                                    style={{ borderColor: colors.border, color: colors.accent }}>
                                                                     <ExternalLink className="w-3 h-3" />
                                                                 </button>
                                                             ) : mounted && isSelected ? (
                                                                 <div className="flex items-center gap-1">
-                                                                    <button
-                                                                        onClick={e => {
-                                                                            e.stopPropagation()
-                                                                            router.push('/sacola')
-                                                                        }}
-                                                                        className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md"
-                                                                    >
+                                                                    <button onClick={e => { e.stopPropagation(); router.push('/sacola') }}
+                                                                        className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
+                                                                        style={{ background: colors.accent }}>
                                                                         <CheckCircle2 className="w-3.5 h-3.5" />
                                                                     </button>
-                                                                    <button
-                                                                        onClick={e => {
-                                                                            e.stopPropagation()
-                                                                            removeItem(storeSlug as string, product.id)
-                                                                        }}
-                                                                        className="w-7 h-7 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center justify-center"
-                                                                    >
+                                                                    <button onClick={e => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
+                                                                        className="w-7 h-7 rounded-full border flex items-center justify-center"
+                                                                        style={{ borderColor: colors.border, color: colors.textSecondary }}>
                                                                         <Trash2 className="w-3 h-3" />
                                                                     </button>
                                                                 </div>
                                                             ) : (
-                                                                <button
-                                                                    onClick={e => {
-                                                                        e.stopPropagation()
-                                                                        addItem(
-                                                                            storeSlug as string,
-                                                                            { name: store.name, logo_url: store.logo_url ?? null },
-                                                                            product
-                                                                        )
-                                                                    }}
-                                                                    className="w-7 h-7 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center justify-center shadow-md"
-                                                                >
+                                                                <button onClick={e => { e.stopPropagation(); addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product) }}
+                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
+                                                                    style={{ background: colors.accent }}>
                                                                     <Plus className="w-3.5 h-3.5" />
                                                                 </button>
                                                             )}
                                                         </div>
                                                         {product.type && (
-                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase bg-white/80 backdrop-blur-sm px-1.5 py-0.5 rounded-full text-orange-500">
-                                                                {product.type === 'physical'
-                                                                    ? 'Produto'
-                                                                    : product.type === 'service'
-                                                                        ? 'Serviço'
-                                                                        : 'Digital'}
+                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full"
+                                                                style={{ background: `${colors.surface}cc`, color: colors.accent }}>
+                                                                {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
                                                     </div>
@@ -997,41 +918,24 @@ export default function StorePage() {
                     </>
                 )}
 
+                {/* Avaliações */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
-                        {/* Resumo geral das avaliações */}
                         {ratings.length > 0 && (
-                            <div className="flex items-center justify-between bg-white/50 rounded-xl p-3 border border-orange-100">
+                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: `${colors.surface}80`, borderColor: colors.border }}>
                                 <div className="flex items-center gap-2">
                                     <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
-                                    <span className="text-xs font-black text-gray-700">
-                                        {Number(store.ratings_avg || 0).toFixed(1)}
-                                    </span>
-                                    <span className="text-[9px] font-bold text-orange-500">
-                                        ({store.ratings_count ?? 0})
-                                    </span>
-                                    {myRating > 0 && (
-                                        <span className="text-[8px] font-black text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full">
-                                            ✓
-                                        </span>
-                                    )}
+                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                                    <span className="text-[9px] font-bold" style={{ color: colors.accent }}>({store.ratings_count ?? 0})</span>
+                                    {myRating > 0 && <span className="text-[8px] font-black text-green-500 bg-green-50 px-1.5 py-0.5 rounded-full">✓</span>}
                                 </div>
                                 <div className="flex -space-x-1.5">
                                     {ratings.slice(0, 3).map((r, i) => (
-                                        <div
-                                            key={i}
-                                            className="w-6 h-6 rounded-full ring-1 ring-white border border-orange-200 bg-white overflow-hidden"
-                                        >
+                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border bg-white overflow-hidden" style={{ borderColor: colors.border }}>
                                             {r.profiles?.avatar_url ? (
-                                                <img
-                                                    src={getAvatarUrl(supabase, r.profiles.avatar_url)!}
-                                                    className="w-full h-full object-cover"
-                                                    alt=""
-                                                />
+                                                <img src={getAvatarPublicUrl(r.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-gray-400">
-                                                    {r.profiles?.name?.charAt(0) || '?'}
-                                                </div>
+                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold text-gray-400">{r.profiles?.name?.charAt(0) || '?'}</div>
                                             )}
                                         </div>
                                     ))}
@@ -1039,114 +943,81 @@ export default function StorePage() {
                             </div>
                         )}
 
-                        {/* Lista de avaliações */}
                         {ratings.length === 0 ? (
-                            <div className="py-12 text-center bg-white/50 rounded-2xl border border-dashed border-orange-200">
-                                <Star className="w-10 h-10 text-orange-300 mx-auto mb-2" />
-                                <p className="text-gray-400 font-bold text-sm">Nenhuma avaliação ainda</p>
-                                <p className="text-gray-400 text-xs mt-1">Seja o primeiro a avaliar!</p>
+                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: `${colors.surface}80`, borderColor: colors.border }}>
+                                <Star className="w-10 h-10 mx-auto mb-2" style={{ color: colors.textSecondary }} />
+                                <p className="font-bold text-sm" style={{ color: colors.textSecondary }}>Nenhuma avaliação ainda</p>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {ratings.map((rating: any) => {
-                                    const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
-                                    return (
-                                        <div
-                                            key={rating.id}
-                                            className="flex gap-3 p-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-orange-100 hover:border-orange-300 transition-all"
-                                        >
-                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 to-red-400 p-[2px] shrink-0">
-                                                <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                                                    {avatarUrl ? (
-                                                        <img
-                                                            src={avatarUrl}
-                                                            alt=""
-                                                            className="w-full h-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50">
-                                                            <span className="font-bold text-xs text-orange-600">
-                                                                {(rating.profiles?.name || '?')
-                                                                    .slice(0, 1)
-                                                                    .toUpperCase()}
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <div>
-                                                        <p className="font-bold text-sm text-gray-900">
-                                                            {rating.profiles?.name || 'Usuário'}
-                                                        </p>
-                                                        <p className="text-[10px] text-orange-400 font-medium">
-                                                            {new Date(rating.created_at).toLocaleDateString('pt-BR', {
-                                                                day: 'numeric',
-                                                                month: 'long',
-                                                                year: 'numeric',
-                                                            })}
-                                                        </p>
+                                {ratings.map((rating: any) => (
+                                    <div key={rating.id} className="flex gap-3 p-4 rounded-2xl backdrop-blur-sm border transition-all"
+                                        style={{ background: `${colors.surface}aa`, borderColor: colors.border }}>
+                                        <div className="w-10 h-10 rounded-full overflow-hidden p-[2px] shrink-0"
+                                            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                                            <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
+                                                {rating.profiles?.avatar_url ? (
+                                                    <img src={getAvatarPublicUrl(rating.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center font-bold text-xs" style={{ color: colors.accent }}>
+                                                        {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
                                                     </div>
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 border border-green-300 rounded-full">
-                                                        <Shield className="w-3 h-3 text-green-600" />
-                                                        <span className="text-[8px] font-black text-green-600 uppercase">
-                                                            Verificada
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div className="mb-1">
-                                                    <RatingStars value={rating.rating} size={12} />
-                                                    {!rating.is_anonymous && rating.products?.name && (
-                                                        <span className="ml-2 text-[10px] font-black text-orange-500 uppercase tracking-wider bg-orange-100 px-2 py-0.5 rounded-full">
-                                                            {rating.products.name}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {rating.comment && (
-                                                    <p className="text-xs text-gray-600 italic leading-relaxed mt-1">
-                                                        "{rating.comment}"
-                                                    </p>
                                                 )}
                                             </div>
                                         </div>
-                                    )
-                                })}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div>
+                                                    <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
+                                                    <p className="text-[10px] font-medium" style={{ color: colors.accent }}>{new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                                </div>
+                                                <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 border border-green-300 rounded-full">
+                                                    <Shield className="w-3 h-3 text-green-600" />
+                                                    <span className="text-[8px] font-black text-green-600 uppercase">Verificada</span>
+                                                </div>
+                                            </div>
+                                            <div className="mb-1">
+                                                <RatingStars value={rating.rating} size={12} />
+                                                {!rating.is_anonymous && rating.products?.name && (
+                                                    <span className="ml-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full"
+                                                        style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                                                        {rating.products.name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {rating.comment && (
+                                                <p className="text-xs italic leading-relaxed mt-1" style={{ color: colors.textSecondary }}>"{rating.comment}"</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 )}
             </main>
 
-            {/* Modal de todos os horários */}
+            {/* Modal de horários */}
             {showAllHours && store.business_hours && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-                    onClick={() => setShowAllHours(false)}
-                >
-                    <div
-                        className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
-                        onClick={e => e.stopPropagation()}
-                    >
+                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllHours(false)}>
+                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+                        style={{ background: colors.surface, color: colors.textPrimary }}
+                        onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black text-gray-800">Horários de Funcionamento</h3>
+                            <h3 className="text-lg font-black">Horários de Funcionamento</h3>
                             <button onClick={() => setShowAllHours(false)} className="text-2xl">&times;</button>
                         </div>
                         <div className="space-y-2">
                             {Object.entries(DAY_LABELS).map(([key, label]) => {
                                 const schedule = store.business_hours![key]
                                 return (
-                                    <div
-                                        key={key}
-                                        className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                                    >
-                                        <span className="text-sm font-bold text-gray-700">{label}</span>
+                                    <div key={key} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: colors.border }}>
+                                        <span className="text-sm font-bold">{label}</span>
                                         {schedule && schedule.open && schedule.close ? (
-                                            <span className="text-sm text-gray-600">
-                                                {schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}
-                                            </span>
+                                            <span className="text-sm">{schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}</span>
                                         ) : (
-                                            <span className="text-sm text-gray-400 italic">Fechado</span>
+                                            <span className="text-sm italic" style={{ color: colors.textSecondary }}>Fechado</span>
                                         )}
                                     </div>
                                 )
@@ -1156,24 +1027,15 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* Painel de administração (StoreFlow drawer) */}
+            {/* Painel de administração */}
             {adminPanelOpen && (
-                <div
-                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm"
-                    onClick={() => setAdminPanelOpen(false)}
-                >
-                    <div
-                        className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
-                        onClick={e => e.stopPropagation()}
-                    >
+                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" onClick={() => setAdminPanelOpen(false)}>
+                    <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
+                        style={{ background: colors.surface, color: colors.textPrimary }}
+                        onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black text-gray-800">Gerenciar Loja</h3>
-                            <button
-                                onClick={() => setAdminPanelOpen(false)}
-                                className="p-2 hover:bg-gray-100 rounded-xl text-2xl"
-                            >
-                                &times;
-                            </button>
+                            <h3 className="text-lg font-black">Gerenciar Loja</h3>
+                            <button onClick={() => setAdminPanelOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl text-2xl">&times;</button>
                         </div>
                         <StoreFlow
                             store={store}
@@ -1190,18 +1052,12 @@ export default function StorePage() {
                                     .limit(50)
                                     .then(({ data }) => setAdminSales(data || []))
                             }}
-                            onAddProduct={() =>
-                                router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)
-                            }
-                            onEditStore={() =>
-                                router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)
-                            }
+                            onAddProduct={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
+                            onEditStore={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
                             onToggleScheduling={toggleScheduling}
                             storeViews={storeViews}
                             productViews={productViews}
-                            onUpdateStore={(updatedFields) =>
-                                setStore(prev => (prev ? { ...prev, ...updatedFields } : null))
-                            }
+                            onUpdateStore={(updatedFields) => setStore(prev => (prev ? { ...prev, ...updatedFields } : null))}
                         />
                     </div>
                 </div>

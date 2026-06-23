@@ -28,7 +28,7 @@ function VisibilityBadge({ isPublic, colors }: { isPublic: boolean; colors: any 
                 fontWeight: 700,
                 padding: '1px 6px',
                 borderRadius: 8,
-                backgroundColor: isPublic ? 'rgba(16,185,129,0.2)' : `${colors.textSecondary}20`, // 20% de opacidade
+                backgroundColor: isPublic ? 'rgba(16,185,129,0.2)' : `${colors.textSecondary}20`,
                 color: isPublic ? '#10b981' : colors.textSecondary,
                 display: 'flex',
                 alignItems: 'center',
@@ -86,8 +86,9 @@ export default function AtalhoCompromissosPessoal({
         return personalAppointments
     }, [personalAppointments, showPending])
 
+    // Ordenação DECRESCENTE: mais recentes primeiro
     const sorted = useMemo(() => {
-        return [...filtered].sort((a, b) => parseDateTime(a.date, a.time) - parseDateTime(b.date, b.time))
+        return [...filtered].sort((a, b) => parseDateTime(b.date, b.time) - parseDateTime(a.date, a.time))
     }, [filtered])
 
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
@@ -134,7 +135,6 @@ export default function AtalhoCompromissosPessoal({
 
     const title = profileSlug ? `Agenda de @${profileSlug}` : 'Agenda Pessoal'
 
-    // Estilos dinâmicos baseados no tema (para fundos com transparência)
     const cardBg = `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.5)`
     const borderColor = colors.border
     const accentColor = colors.accent

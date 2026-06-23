@@ -34,9 +34,9 @@ interface HeaderProps {
     profileSlug?: string | null
     store?: StoreInfo | null
     stores?: StoreInfo[]
-    // Corrigido para receber o evento de foco
     onSearchFocus?: () => void
     onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+    onHomeClick?: () => void   // <-- ADICIONE ESTA LINHA
 }
 
 export default function Header({
@@ -55,6 +55,7 @@ export default function Header({
     stores,
     onSearchFocus,
     onSearchBlur,
+    onHomeClick,  // <-- ADICIONE AQUI
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -62,6 +63,14 @@ export default function Header({
     const handleBack = () => {
         if (onBack) onBack()
         else router.back()
+    }
+
+    const handleHome = () => {
+        if (onHomeClick) {
+            onHomeClick()
+        } else {
+            router.push('/')
+        }
     }
 
     const hexToRgb = (hex: string) => {
@@ -160,7 +169,7 @@ export default function Header({
                         </button>
                     ) : (
                         <button
-                            onClick={() => router.push('/')}
+                            onClick={handleHome}
                             className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg"
                             style={{
                                 background: 'linear-gradient(135deg, #f97316, #ef4444)',
@@ -176,7 +185,13 @@ export default function Header({
                         </button>
                     )}
                     {title && (
-                        <h2 className="text-lg font-semibold opacity-90">{title}</h2>
+                        <button
+                            onClick={handleHome}
+                            className="text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer"
+                            style={{ color: colors.textPrimary }}
+                        >
+                            {title}
+                        </button>
                     )}
                 </div>
 
@@ -193,7 +208,7 @@ export default function Header({
                                 key={tab.id}
                                 onClick={tab.onClick}
                                 disabled={loading}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50"
+                                className="flex items-center gap-0 pl-0 pr-3 py-0 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50"
                                 style={{
                                     background: tab.isActive
                                         ? colors.accent
@@ -208,12 +223,14 @@ export default function Header({
                                     <img
                                         src={tab.imageUrl}
                                         alt=""
-                                        className="w-5 h-5 rounded-full object-cover"
+                                        className="h-10 w-10 object-cover rounded-full"
                                     />
                                 ) : (
-                                    <tab.icon size={16} />
+                                    <div className="ml-3">
+                                        <tab.icon size={20} />
+                                    </div>
                                 )}
-                                <span>{tab.label}</span>
+                                <span className="ml-2">{tab.label}</span>
                             </button>
                         ))}
                     </div>
