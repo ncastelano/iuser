@@ -200,7 +200,9 @@ export default function StorePage() {
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
-    const [recentVisitors, setRecentVisitors] = useState<any[]>([]) // <-- novo estado
+    const [recentVisitors, setRecentVisitors] = useState<any[]>([]) // avatares dos últimos visitantes (total)
+    const [onlineNow, setOnlineNow] = useState(0)
+    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([]) // avatares online
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const [expandedDesc, setExpandedDesc] = useState(false)
@@ -365,6 +367,31 @@ export default function StorePage() {
         [supabase]
     )
 
+    // Buscar visitantes online (últimos 60 segundos)
+    const fetchOnlineVisitors = useCallback(async (storeId: string) => {
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+        const { data } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', storeId)
+            .gte('created_at', oneMinuteAgo)
+            .order('created_at', { ascending: false })
+
+        const uniqueMap = new Map<string, any>()
+        data?.forEach(v => {
+            const key = v.viewer_id || v.anonymous_id
+            if (key && !uniqueMap.has(key)) {
+                uniqueMap.set(key, {
+                    ...v,
+                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                })
+            }
+        })
+        const onlineList = Array.from(uniqueMap.values())
+        setOnlineNow(onlineList.length)
+        setOnlineVisitors(onlineList.slice(0, 4)) // até 4 avatares
+    }, [supabase])
+
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
         setLoading(true)
@@ -396,7 +423,7 @@ export default function StorePage() {
             await captureVisit(foundStore.id, userId)
         }
 
-        // Total de visitantes únicos (logados + anônimos)
+        // Total de visitantes únicos (logados + anônimos) - histórico
         const { data: viewsData } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id')
@@ -405,7 +432,7 @@ export default function StorePage() {
         const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
         setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
 
-        // Buscar últimos visitantes únicos para mostrar avatares
+        // Buscar últimos visitantes únicos (para fallback dos avatares)
         const { data: recentViews } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -424,9 +451,11 @@ export default function StorePage() {
                     })
                 }
             }
-            // Pega os 4 primeiros (pode ajustar a quantidade desejada)
             setRecentVisitors(Array.from(uniqueVisitors.values()).slice(0, 4))
         }
+
+        // Carrega também os visitantes online
+        fetchOnlineVisitors(foundStore.id)
 
         const { data: productsData } = await supabase
             .from('products')
@@ -493,11 +522,41 @@ export default function StorePage() {
         )
 
         setLoading(false)
-    }, [loadRatings, storeSlug, supabase, captureVisit])
+    }, [loadRatings, storeSlug, supabase, captureVisit, fetchOnlineVisitors])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
+
+    // Realtime + polling para visitantes online
+    useEffect(() => {
+        if (!store) return
+
+        const channel = supabase
+            .channel(`store-online-${store.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'store_views',
+                    filter: `store_id=eq.${store.id}`,
+                },
+                () => {
+                    fetchOnlineVisitors(store.id)
+                }
+            )
+            .subscribe()
+
+        const interval = setInterval(() => {
+            fetchOnlineVisitors(store.id)
+        }, 10000) // fallback a cada 10s
+
+        return () => {
+            supabase.removeChannel(channel)
+            clearInterval(interval)
+        }
+    }, [store, fetchOnlineVisitors])
 
     useEffect(() => {
         if (!adminPanelOpen || !store) return
@@ -688,9 +747,36 @@ export default function StorePage() {
                         <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
-                                <span className="font-medium">{totalVisitors} visitantes</span>
-                                {/* Avatares dos últimos visitantes */}
-                                {recentVisitors.length > 0 && (
+                                <span className="font-medium">
+                                    {onlineNow > 0 ? `${onlineNow} online` : `${totalVisitors} visitantes`}
+                                </span>
+                                {/* Avatares online (prioridade) ou fallback com visitantes recentes */}
+                                {onlineVisitors.length > 0 ? (
+                                    <div className="flex items-center -space-x-1 ml-1">
+                                        {onlineVisitors.map((visitor, i) => (
+                                            <div
+                                                key={i}
+                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border"
+                                                style={{ background: colors.surface, borderColor: colors.border }}
+                                            >
+                                                {visitor.profiles?.avatar_url ? (
+                                                    <img
+                                                        src={getAvatarUrl(supabase, visitor.profiles.avatar_url)!}
+                                                        className="w-full h-full object-cover"
+                                                        alt=""
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="w-full h-full flex items-center justify-center text-[6px] font-bold"
+                                                        style={{ color: colors.textSecondary }}
+                                                    >
+                                                        {visitor.profiles?.name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : recentVisitors.length > 0 ? (
                                     <div className="flex items-center -space-x-1 ml-1">
                                         {recentVisitors.map((visitor, i) => (
                                             <div
@@ -715,7 +801,7 @@ export default function StorePage() {
                                             </div>
                                         ))}
                                     </div>
-                                )}
+                                ) : null}
                             </div>
                             <span className="text-gray-300">·</span>
                             <div className="flex items-center gap-1">
