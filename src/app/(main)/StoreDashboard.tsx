@@ -1,7 +1,7 @@
 // components/StoreDashboard.tsx
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
@@ -99,55 +99,51 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    // Estatísticas de visualização
+    // Visitantes
     const [onlineNow, setOnlineNow] = useState(0)
     const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
     const [fullOnlineVisitors, setFullOnlineVisitors] = useState<any[]>([])
+    const [todayVisitsCount, setTodayVisitsCount] = useState(0)
+    const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([])
+    const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([])
+    const [totalUniqueVisitors, setTotalUniqueVisitors] = useState(0)
+    const [allUniqueVisitors, setAllUniqueVisitors] = useState<any[]>([])
+
     const [productsViewedNow, setProductsViewedNow] = useState<any[]>([])
     const [pendingAppointments, setPendingAppointments] = useState<any[]>([])
     const [storeVisits, setStoreVisits] = useState<Record<string, number>>({})
     const [productViews, setProductViews] = useState<Record<string, number>>({})
-    const [totalUniqueVisitors, setTotalUniqueVisitors] = useState(0)
 
-    // Vendas e pedidos
     const [sales, setSales] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
-    // Visitantes recentes (únicos)
-    const [visitors, setVisitors] = useState<any[]>([])
-
-    // Horários
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
     const [savingSchedule, setSavingSchedule] = useState(false)
     const [showScheduleEditor, setShowScheduleEditor] = useState(false)
     const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({})
     const [customClose, setCustomClose] = useState<Record<string, boolean>>({})
 
-    // Cards com diálogo
-    const [todayVisitsCount, setTodayVisitsCount] = useState(0)
-    const [todayRecentVisitors, setTodayRecentVisitors] = useState<any[]>([])
-    const [fullTodayVisitors, setFullTodayVisitors] = useState<any[]>([])
-    const [dialogOpen, setDialogOpen] = useState<'online' | 'visits' | null>(null)
+    const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
 
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
-    // Busca dados de visitantes online e de hoje
+    // Busca dados de visitantes online, hoje e total
     const fetchVisitorData = useCallback(async (storeId?: string) => {
         const id = storeId || store?.id
         if (!id) return
 
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+        const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString()
         const todayStart = new Date()
         todayStart.setHours(0, 0, 0, 0)
         const todayISO = todayStart.toISOString()
 
-        // Online agora (últimos 5 min) – deduplicado por viewer_id ou anonymous_id
+        // Online agora (último 1 min)
         const { data: online } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
             .eq('store_id', id)
-            .gte('created_at', fiveMinAgo)
+            .gte('created_at', oneMinuteAgo)
             .order('created_at', { ascending: false })
 
         const onlineMap = new Map<string, any>()
@@ -162,8 +158,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         })
         const onlineList = Array.from(onlineMap.values())
         setOnlineNow(onlineList.length)
-        setOnlineVisitors(onlineList.slice(0, 5))      // para avatares no card
-        setFullOnlineVisitors(onlineList)               // para o diálogo
+        setOnlineVisitors(onlineList.slice(0, 5))
+        setFullOnlineVisitors(onlineList)
 
         // Visitantes únicos de hoje
         const { data: todayViews } = await supabase
@@ -188,6 +184,28 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setTodayVisitsCount(uniqueTodayList.length)
         setTodayRecentVisitors(uniqueTodayList.slice(0, 5))
         setFullTodayVisitors(uniqueTodayList)
+
+        // Todos os visitantes únicos (para diálogo do card "Visitantes")
+        const { data: allViews } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', id)
+            .order('created_at', { ascending: false })
+            .limit(500)
+
+        const allUniqueMap = new Map<string, any>()
+        allViews?.forEach(v => {
+            const key = v.viewer_id || v.anonymous_id
+            if (key && !allUniqueMap.has(key)) {
+                allUniqueMap.set(key, {
+                    ...v,
+                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                })
+            }
+        })
+        const allUniqueList = Array.from(allUniqueMap.values())
+        setAllUniqueVisitors(allUniqueList)
+        setTotalUniqueVisitors(allUniqueList.length)
     }, [store?.id])
 
     // Carrega todo o dashboard
@@ -278,39 +296,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .limit(100)
         setSales(salesData || [])
 
-        // 7. Visitantes recentes únicos (para o card "Visitantes recentes")
-        const { data: viewsData } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
-            .eq('store_id', storeId)
-            .order('created_at', { ascending: false })
-            .limit(100)
-
-        if (viewsData) {
-            const uniqueMap = new Map<string, any>()
-            viewsData.forEach((item: any) => {
-                const key = item.viewer_id || item.anonymous_id
-                if (key && !uniqueMap.has(key)) {
-                    uniqueMap.set(key, {
-                        ...item,
-                        profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
-                    })
-                }
-            })
-            setVisitors(Array.from(uniqueMap.values()).slice(0, 5))
-        }
-
-        // 8. Total de visitantes únicos (logados + anônimos)
-        const { data: allViews } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id')
-            .eq('store_id', storeId)
-
-        const uniqueLogados = new Set(allViews?.filter((v: any) => v.viewer_id).map((v: any) => v.viewer_id))
-        const uniqueAnonimos = new Set(allViews?.filter((v: any) => v.anonymous_id).map((v: any) => v.anonymous_id))
-        setTotalUniqueVisitors(uniqueLogados.size + uniqueAnonimos.size)
-
-        // Carrega dados dos visitantes online/hoje
+        // 7. Carrega dados dos visitantes online/hoje/total
         await fetchVisitorData(storeId)
 
         setLoading(false)
@@ -504,6 +490,38 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         marginBottom: '1rem',
     }
 
+    // Função para renderizar um visitante no diálogo
+    const renderVisitorItem = (v: any) => (
+        <Link
+            key={v.viewer_id || v.anonymous_id}
+            href={v.profiles?.profileSlug ? `/${v.profiles.profileSlug}` : '#'}
+            className="flex items-center gap-3 py-2 border-b border-opacity-20"
+            style={{ borderColor: colors.border }}
+        >
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex-shrink-0">
+                {v.profiles?.avatar_url ? (
+                    <img
+                        src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                        className="w-full h-full object-cover"
+                        alt=""
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
+                        {v.profiles?.name?.charAt(0) || '?'}
+                    </div>
+                )}
+            </div>
+            <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                    {v.profiles?.name || 'Anônimo'}
+                </p>
+                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                    {v.profiles?.profileSlug ? `@${v.profiles.profileSlug}` : v.anonymous_id?.slice(0, 8)}
+                </p>
+            </div>
+        </Link>
+    )
+
     return (
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
             {/* Cabeçalho */}
@@ -539,8 +557,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </button>
             </div>
 
-            {/* Cards principais (visitantes) */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            {/* Cards principais (3 colunas) */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
                 {/* Online agora */}
                 <button
                     onClick={() => setDialogOpen('online')}
@@ -549,24 +567,22 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Users size={16} style={{ color: colors.accent }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Online agora</span>
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Online</span>
                     </div>
-                    <p className="text-2xl font-black transition-all group-hover:scale-105" style={{ color: colors.accent }}>{onlineNow}</p>
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>últimos 5 min</p>
+                    <p className="text-2xl font-black" style={{ color: colors.accent }}>{onlineNow}</p>
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>agora</p>
                     {onlineVisitors.length > 0 && (
                         <div className="flex items-center gap-1 mt-2">
                             {onlineVisitors.map((v, i) => (
-                                <div key={i} className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+                                <div key={i} className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
                                     {v.profiles?.avatar_url ? (
                                         <img
-                                            src={v.profiles.avatar_url.startsWith('http')
-                                                ? v.profiles.avatar_url
-                                                : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                            src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
                                             className="w-full h-full object-cover"
                                             alt=""
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[8px] font-bold text-white">
+                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[7px] font-bold text-white">
                                             {v.profiles?.name?.charAt(0) || '?'}
                                         </div>
                                     )}
@@ -578,30 +594,61 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
                 {/* Visitantes hoje */}
                 <button
-                    onClick={() => setDialogOpen('visits')}
+                    onClick={() => setDialogOpen('today')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
                     style={{ background: `${colors.accentLight}15`, borderColor: `${colors.accentLight}30` }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Eye size={16} style={{ color: colors.accentLight }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Visitantes hoje</span>
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Hoje</span>
                     </div>
-                    <p className="text-2xl font-black transition-all group-hover:scale-105" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
+                    <p className="text-2xl font-black" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>únicos</p>
                     {todayRecentVisitors.length > 0 && (
                         <div className="flex items-center gap-1 mt-2">
                             {todayRecentVisitors.map((v, i) => (
-                                <div key={i} className="w-6 h-6 rounded-full overflow-hidden border border-white/20">
+                                <div key={i} className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
                                     {v.profiles?.avatar_url ? (
                                         <img
-                                            src={v.profiles.avatar_url.startsWith('http')
-                                                ? v.profiles.avatar_url
-                                                : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                            src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
                                             className="w-full h-full object-cover"
                                             alt=""
                                         />
                                     ) : (
-                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[8px] font-bold text-white">
+                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[7px] font-bold text-white">
+                                            {v.profiles?.name?.charAt(0) || '?'}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </button>
+
+                {/* Visitantes (total) */}
+                <button
+                    onClick={() => setDialogOpen('all')}
+                    className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
+                    style={{ background: `${colors.accent}10`, borderColor: `${colors.accent}25` }}
+                >
+                    <div className="flex items-center gap-2 mb-2">
+                        <Users size={16} style={{ color: colors.accent }} />
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Visitantes</span>
+                    </div>
+                    <p className="text-2xl font-black" style={{ color: colors.accent }}>{totalUniqueVisitors}</p>
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: colors.textSecondary }}>total</p>
+                    {allUniqueVisitors.length > 0 && (
+                        <div className="flex items-center gap-1 mt-2">
+                            {allUniqueVisitors.slice(0, 5).map((v, i) => (
+                                <div key={i} className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
+                                    {v.profiles?.avatar_url ? (
+                                        <img
+                                            src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
+                                            className="w-full h-full object-cover"
+                                            alt=""
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full bg-gray-600 flex items-center justify-center text-[7px] font-bold text-white">
                                             {v.profiles?.name?.charAt(0) || '?'}
                                         </div>
                                     )}
@@ -612,7 +659,20 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </button>
             </div>
 
-            {/* Cards secundários */}
+            {/* Vendas do dia */}
+            <div className="mb-6">
+                <Link href={`/${profileSlug}/${storeSlug}`} className="block">
+                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Vendas hoje</p>
+                        <p className="text-2xl font-black mt-1" style={{ color: colors.textPrimary }}>
+                            R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[10px] font-bold mt-1" style={{ color: colors.accent }}>{metrics.daily.orders} pedidos</p>
+                    </div>
+                </Link>
+            </div>
+
+            {/* Produtos vistos agora e Agendamentos pendentes */}
             <div className="grid grid-cols-2 gap-3 mb-6">
                 <DashboardCard
                     title="Prod. vistos hoje"
@@ -672,49 +732,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     </div>
                 </div>
             )}
-
-            {/* Métricas de vendas do dia + Visitantes únicos totais */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-                <Link href={`/${profileSlug}/${storeSlug}`} className="block">
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md h-full" style={cardStyle}>
-                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Vendas hoje</p>
-                        <p className="text-2xl font-black mt-1" style={{ color: colors.textPrimary }}>
-                            R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </p>
-                        <p className="text-[10px] font-bold mt-1" style={{ color: colors.accent }}>{metrics.daily.orders} pedidos</p>
-                    </div>
-                </Link>
-                <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md h-full" style={cardStyle}>
-                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Visitantes</p>
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.textPrimary }}>{totalUniqueVisitors}</p>
-                    <p className="text-[10px] font-bold mt-1" style={{ color: colors.accent }}>total</p>
-                </div>
-            </div>
-
-            {/* Visitantes recentes (últimos únicos) */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
-                <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>Visitantes recentes</p>
-                {visitors.length > 0 ? (
-                    <div className="flex items-center gap-1 mt-2">
-                        {visitors.slice(0, 5).map((v: any) => (
-                            <Link key={v.id} href={v.profiles?.profileSlug ? `/${v.profiles.profileSlug}` : '#'}
-                                className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/20 shadow-sm">
-                                {v.profiles?.avatar_url ? (
-                                    <img src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
-                                        className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                    <div className="w-full h-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-300">
-                                        {v.profiles?.name?.charAt(0) || '?'}
-                                    </div>
-                                )}
-                            </Link>
-                        ))}
-                        {visitors.length > 5 && <span className="text-[10px] font-bold text-gray-400 ml-1">+{visitors.length - 5}</span>}
-                    </div>
-                ) : (
-                    <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>Nenhum visitante ainda</p>
-                )}
-            </div>
 
             {/* Pedidos */}
             <div className="mb-6 space-y-5">
@@ -936,86 +953,23 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
             {/* Diálogo Online agora */}
             {dialogOpen === 'online' && (
-                <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
-                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Online agora ({onlineNow})</h3>
-                            <button onClick={() => setDialogOpen(null)}><X size={20} style={{ color: colors.textSecondary }} /></button>
-                        </div>
-                        {fullOnlineVisitors.length === 0 ? (
-                            <p style={{ color: colors.textSecondary }}>Nenhum visitante no momento.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {fullOnlineVisitors.map((v, i) => (
-                                    <div key={i} className="flex items-center gap-3 py-2 border-b border-opacity-20" style={{ borderColor: colors.border }}>
-                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
-                                            {v.profiles?.avatar_url ? (
-                                                <img
-                                                    src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
-                                                    className="w-full h-full object-cover"
-                                                    alt=""
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">
-                                                    {v.profiles?.name?.charAt(0) || '?'}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                {v.profiles?.name || 'Anônimo'}
-                                            </p>
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                {v.profiles?.profileSlug ? `@${v.profiles.profileSlug}` : v.anonymous_id?.slice(0, 8)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <DialogContainer title="Visitantes olhando a loja atualmente" count={onlineNow} onClose={() => setDialogOpen(null)}>
+                    {fullOnlineVisitors.map(renderVisitorItem)}
+                </DialogContainer>
             )}
 
-            {/* Diálogo Visitas hoje */}
-            {dialogOpen === 'visits' && (
-                <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
-                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Visitantes hoje ({todayVisitsCount})</h3>
-                            <button onClick={() => setDialogOpen(null)}><X size={20} style={{ color: colors.textSecondary }} /></button>
-                        </div>
-                        {fullTodayVisitors.length === 0 ? (
-                            <p style={{ color: colors.textSecondary }}>Nenhuma visita hoje.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {fullTodayVisitors.map((v, i) => (
-                                    <div key={i} className="flex items-center gap-3 py-2 border-b border-opacity-20" style={{ borderColor: colors.border }}>
-                                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-700">
-                                            {v.profiles?.avatar_url ? (
-                                                <img
-                                                    src={v.profiles.avatar_url.startsWith('http') ? v.profiles.avatar_url : supabase.storage.from('avatars').getPublicUrl(v.profiles.avatar_url).data.publicUrl}
-                                                    className="w-full h-full object-cover"
-                                                    alt=""
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white">?</div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                {v.profiles?.name || 'Visitante'}
-                                            </p>
-                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                {new Date(v.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
+            {/* Diálogo Visitantes hoje */}
+            {dialogOpen === 'today' && (
+                <DialogContainer title="Visitantes hoje" count={todayVisitsCount} onClose={() => setDialogOpen(null)}>
+                    {fullTodayVisitors.map(renderVisitorItem)}
+                </DialogContainer>
+            )}
+
+            {/* Diálogo Visitantes (total) */}
+            {dialogOpen === 'all' && (
+                <DialogContainer title="Visitantes" count={totalUniqueVisitors} onClose={() => setDialogOpen(null)}>
+                    {allUniqueVisitors.map(renderVisitorItem)}
+                </DialogContainer>
             )}
         </div>
     )
@@ -1056,5 +1010,25 @@ function QuickActionButton({ icon, label, onClick }: any) {
             {icon}
             <span className="text-xs font-bold">{label}</span>
         </button>
+    )
+}
+
+// Componente de diálogo reutilizável (agora com import React)
+function DialogContainer({ title, count, onClose, children }: { title: string; count: number; onClose: () => void; children: React.ReactNode }) {
+    const { colors } = useTheme()
+    return (
+        <div className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>{title} ({count})</h3>
+                    <button onClick={onClose}><X size={20} style={{ color: colors.textSecondary }} /></button>
+                </div>
+                {React.Children.count(children) === 0 ? (
+                    <p style={{ color: colors.textSecondary }}>Nenhum visitante.</p>
+                ) : (
+                    <div className="space-y-2">{children}</div>
+                )}
+            </div>
+        </div>
     )
 }

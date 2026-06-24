@@ -23,7 +23,9 @@ import {
     Grid3X3,
     MessageCircle,
     QrCode,
-    Eye
+    Eye,
+    ShoppingCart,
+    Home
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -198,6 +200,7 @@ export default function StorePage() {
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
+    const [recentVisitors, setRecentVisitors] = useState<any[]>([]) // <-- novo estado
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const [expandedDesc, setExpandedDesc] = useState(false)
@@ -401,6 +404,29 @@ export default function StorePage() {
         const uniqueLogados = new Set(viewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
         const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
         setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
+
+        // Buscar últimos visitantes únicos para mostrar avatares
+        const { data: recentViews } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .order('created_at', { ascending: false })
+            .limit(20)
+
+        if (recentViews) {
+            const uniqueVisitors = new Map<string, any>()
+            for (const view of recentViews) {
+                const key = view.viewer_id ?? view.anonymous_id
+                if (!uniqueVisitors.has(key)) {
+                    uniqueVisitors.set(key, {
+                        ...view,
+                        profiles: Array.isArray(view.profiles) ? view.profiles[0] : view.profiles,
+                    })
+                }
+            }
+            // Pega os 4 primeiros (pode ajustar a quantidade desejada)
+            setRecentVisitors(Array.from(uniqueVisitors.values()).slice(0, 4))
+        }
 
         const { data: productsData } = await supabase
             .from('products')
@@ -663,6 +689,33 @@ export default function StorePage() {
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
                                 <span className="font-medium">{totalVisitors} visitantes</span>
+                                {/* Avatares dos últimos visitantes */}
+                                {recentVisitors.length > 0 && (
+                                    <div className="flex items-center -space-x-1 ml-1">
+                                        {recentVisitors.map((visitor, i) => (
+                                            <div
+                                                key={i}
+                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border"
+                                                style={{ background: colors.surface, borderColor: colors.border }}
+                                            >
+                                                {visitor.profiles?.avatar_url ? (
+                                                    <img
+                                                        src={getAvatarUrl(supabase, visitor.profiles.avatar_url)!}
+                                                        className="w-full h-full object-cover"
+                                                        alt=""
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="w-full h-full flex items-center justify-center text-[6px] font-bold"
+                                                        style={{ color: colors.textSecondary }}
+                                                    >
+                                                        {visitor.profiles?.name?.charAt(0) || '?'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <span className="text-gray-300">·</span>
                             <div className="flex items-center gap-1">
@@ -989,6 +1042,61 @@ export default function StorePage() {
                     </div>
                 )}
             </main>
+
+            {/* Botões flutuantes: Sacola + Início */}
+            <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                <button
+                    onClick={() => router.push('/sacola')}
+                    style={{
+                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                        color: colors.accentText,
+                        border: 'none',
+                        borderRadius: 32,
+                        padding: '16px 28px',
+                        fontWeight: 800,
+                        fontSize: 18,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        boxShadow: `0 12px 40px ${colors.accent}80`,
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s',
+                        position: 'relative',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                    <ShoppingCart size={24} />
+                    Sacola
+                    {cartItems.length > 0 && (
+                        <span
+                            className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
+                            style={{
+                                background: colors.accentText,
+                                color: colors.accent,
+                                border: `2px solid ${colors.accent}`,
+                                transform: cartAnimating ? 'scale(1.3)' : 'scale(1)',
+                                transition: 'transform 0.2s ease',
+                            }}
+                        >
+                            {cartItems.length}
+                        </span>
+                    )}
+                </button>
+                <button
+                    onClick={() => router.push('/')}
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                    style={{
+                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                        color: colors.accentText,
+                        border: `2px solid ${colors.border}`,
+                        boxShadow: `0 8px 24px ${colors.accent}60`,
+                    }}
+                    aria-label="Voltar ao início"
+                >
+                    <Home size={24} />
+                </button>
+            </div>
 
             {/* Modal de horários */}
             {showAllHours && store.business_hours && (

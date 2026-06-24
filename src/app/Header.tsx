@@ -8,16 +8,10 @@ import { useTheme } from '@/app/theme'
 export interface Tab {
     id: string
     label: string
-    icon: React.ComponentType<{ size?: number }>
+    icon: React.ComponentType<{ size?: number; color?: string }>   // ← ALTERADO
     imageUrl?: string | null
     onClick: () => void
     isActive: boolean
-}
-
-interface StoreInfo {
-    slug: string
-    logoUrl: string | null
-    name: string
 }
 
 interface HeaderProps {
@@ -32,11 +26,9 @@ interface HeaderProps {
     searchPlaceholder?: string
     onSearch?: (query: string) => void
     profileSlug?: string | null
-    store?: StoreInfo | null
-    stores?: StoreInfo[]
     onSearchFocus?: () => void
     onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
-    onHomeClick?: () => void   // <-- ADICIONE ESTA LINHA
+    onHomeClick?: () => void
 }
 
 export default function Header({
@@ -51,11 +43,9 @@ export default function Header({
     searchPlaceholder = 'Buscar...',
     onSearch,
     profileSlug,
-    store,
-    stores,
     onSearchFocus,
     onSearchBlur,
-    onHomeClick,  // <-- ADICIONE AQUI
+    onHomeClick,
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -84,10 +74,10 @@ export default function Header({
     }
     const surfaceRgb = hexToRgb(colors.surface)
     const gradientBg = `linear-gradient(to bottom, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
-        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
+    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
+    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
+    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
+    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
     const enhancedTabs: Tab[] = tabs || []
 
@@ -226,8 +216,17 @@ export default function Header({
                                         className="h-10 w-10 object-cover rounded-full"
                                     />
                                 ) : (
-                                    <div className="ml-3">
-                                        <tab.icon size={20} />
+                                    <div
+                                        className="h-10 w-10 rounded-full flex items-center justify-center ml-0"
+                                        style={{
+                                            background: tab.isActive ? colors.accent : `${colors.surface}88`,
+                                            backdropFilter: 'blur(10px)',
+                                        }}
+                                    >
+                                        <tab.icon
+                                            size={20}
+                                            color={tab.isActive ? colors.accentText : colors.textSecondary}
+                                        />
                                     </div>
                                 )}
                                 <span className="ml-2">{tab.label}</span>

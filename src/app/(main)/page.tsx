@@ -1,8 +1,9 @@
+// src/app/(main)/page.tsx
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Settings, Store, Home } from 'lucide-react'
+import { User, Settings, Store, ShoppingCart, Clock, ChefHat, CheckCircle2, Star, Home } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -34,6 +35,7 @@ import StoreDashboard from './StoreDashboard'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
+import { useCartStore } from '@/store/useCartStore'
 
 const DEFAULT_SECTIONS = [
     'categorias',
@@ -66,6 +68,7 @@ export default function HomePage() {
     } = useProfile()
 
     const { colors } = useTheme()
+    const { itemsByStore } = useCartStore()
 
     const [sections, setSections] = useState<string[]>(() => {
         if (typeof window !== 'undefined') {
@@ -86,6 +89,7 @@ export default function HomePage() {
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+    const [cartAnimating, setCartAnimating] = useState(false)
 
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
@@ -94,6 +98,64 @@ export default function HomePage() {
     const [showProfile, setShowProfile] = useState(false)
 
     const lastSearchedRef = useRef<HTMLDivElement>(null)
+
+    const totalCartItems = useMemo(() => {
+        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
+    }, [itemsByStore])
+
+    // Estados dos pedidos (buscados do Supabase)
+    const [pendingCount, setPendingCount] = useState(0)
+    const [preparingCount, setPreparingCount] = useState(0)
+    const [readyCount, setReadyCount] = useState(0)
+    const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
+
+    useEffect(() => {
+        if (totalCartItems > 0) {
+            setCartAnimating(true)
+            const timer = setTimeout(() => setCartAnimating(false), 3000)
+            return () => clearTimeout(timer)
+        }
+    }, [totalCartItems])
+
+    // Busca os pedidos do usuário para contar status
+    useEffect(() => {
+        const fetchOrderStatuses = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Buscar pedidos da tabela orders
+            const { data: orders } = await supabase
+                .from('orders')
+                .select('status')
+                .eq('buyer_id', user.id)
+
+            if (orders) {
+                setPendingCount(orders.filter(o => o.status === 'pending').length)
+                setPreparingCount(orders.filter(o => o.status === 'preparing').length)
+                setReadyCount(orders.filter(o => o.status === 'ready').length)
+            }
+
+            // Avaliações pendentes (produtos comprados sem review)
+            const { data: purchases } = await supabase
+                .from('store_sales')
+                .select('id')
+                .eq('buyer_id', user.id)
+                .eq('status', 'paid')
+
+            if (purchases) {
+                const { data: reviews } = await supabase
+                    .from('product_reviews')
+                    .select('id')
+                    .eq('profile_id', user.id)
+
+                const reviewedIds = new Set(reviews?.map(r => r.id) || [])
+                const pending = purchases.filter(p => !reviewedIds.has(p.id)).length
+                setPendingReviewsCount(pending)
+            }
+        }
+
+        fetchOrderStatuses()
+    }, [])
 
     useEffect(() => {
         async function loadStores() {
@@ -256,11 +318,9 @@ export default function HomePage() {
         }
     }
 
-    // ══════════════ REMOÇÃO DA ABA "TUDO" ══════════════
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
 
-        // Não adicionamos mais a aba "inicio"
         const allTabs: any[] = [
             {
                 id: 'perfil',
@@ -332,6 +392,7 @@ export default function HomePage() {
     }
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
+    const showHomeFab = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -339,7 +400,7 @@ export default function HomePage() {
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
+            <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
                     showBack={false}
@@ -486,7 +547,133 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* Botão flutuante "Voltar ao início" */}
+                {/* Botão Sacola (tela principal) */}
+                {showHomeFab && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                        <button
+                            onClick={() => router.push('/sacola')}
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: 'none',
+                                borderRadius: 32,
+                                padding: '16px 28px',
+                                fontWeight: 800,
+                                fontSize: 18,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                boxShadow: `0 12px 40px ${colors.accent}80`,
+                                cursor: 'pointer',
+                                transition: 'transform 0.2s',
+                                position: 'relative',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                        >
+                            <ShoppingCart size={24} />
+                            <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                Sacola
+                                {/* Indicadores de status compactos */}
+                                <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                                    {pendingCount > 0 && (
+                                        <span style={{
+                                            background: '#3b82f6',
+                                            color: 'white',
+                                            borderRadius: 999,
+                                            padding: '0 4px',
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            lineHeight: '14px',
+                                        }}>
+                                            <Clock size={9} />{pendingCount}
+                                        </span>
+                                    )}
+                                    {preparingCount > 0 && (
+                                        <span style={{
+                                            background: '#eab308',
+                                            color: 'white',
+                                            borderRadius: 999,
+                                            padding: '0 4px',
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            lineHeight: '14px',
+                                        }}>
+                                            <ChefHat size={9} />{preparingCount}
+                                        </span>
+                                    )}
+                                    {readyCount > 0 && (
+                                        <span style={{
+                                            background: '#a855f7',
+                                            color: 'white',
+                                            borderRadius: 999,
+                                            padding: '0 4px',
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            lineHeight: '14px',
+                                        }}>
+                                            <CheckCircle2 size={9} />{readyCount}
+                                        </span>
+                                    )}
+                                    {pendingReviewsCount > 0 && (
+                                        <span style={{
+                                            background: '#facc15',
+                                            color: '#000',
+                                            borderRadius: 999,
+                                            padding: '0 4px',
+                                            fontSize: 9,
+                                            fontWeight: 700,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 1,
+                                            lineHeight: '14px',
+                                        }}>
+                                            <Star size={9} />{pendingReviewsCount}
+                                        </span>
+                                    )}
+                                </span>
+                                {/* Badge de itens no carrinho */}
+                                {totalCartItems > 0 && (
+                                    <span
+                                        className="absolute"
+                                        style={{
+                                            top: -8,
+                                            right: -18,
+                                            minWidth: 20,
+                                            height: 20,
+                                            borderRadius: 999,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            background: colors.accentText,
+                                            color: colors.accent,
+                                            border: `2px solid ${colors.accent}`,
+                                            boxShadow: `0 2px 6px rgba(0,0,0,0.15)`,
+                                            transform: cartAnimating ? 'scale(1.3)' : 'scale(1)',
+                                            transition: 'transform 0.2s ease',
+                                            padding: '0 4px',
+                                        }}
+                                    >
+                                        {totalCartItems}
+                                    </span>
+                                )}
+                            </span>
+                        </button>
+                    </div>
+                )}
+
+                {/* Botão flutuante "Voltar ao início" (subpáginas) */}
                 {showFab && (
                     <button
                         onClick={showHomeSections}
@@ -503,6 +690,15 @@ export default function HomePage() {
                     </button>
                 )}
             </main>
+
+            <style jsx global>{`
+                @keyframes badge-pop {
+                    0% { transform: scale(0); opacity: 0; }
+                    50% { transform: scale(1.5); }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                .animate-badge-pop { animation: badge-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+            `}</style>
         </div>
     )
 }
