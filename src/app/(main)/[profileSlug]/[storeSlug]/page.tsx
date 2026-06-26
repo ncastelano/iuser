@@ -25,7 +25,9 @@ import {
     QrCode,
     Eye,
     ShoppingCart,
-    Home
+    Home,
+    ShoppingBag,
+    UserCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -105,6 +107,7 @@ type StoreType = {
     allow_scheduling?: boolean
     business_hours?: Record<string, { open: string; close: string }> | null
     location?: any
+    view_count?: number   // Adicionado
 }
 
 const formatAddress = (fullAddress: string | null | undefined): string => {
@@ -200,9 +203,9 @@ export default function StorePage() {
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
-    const [recentVisitors, setRecentVisitors] = useState<any[]>([]) // avatares dos últimos visitantes (total)
+    const [recentVisitors, setRecentVisitors] = useState<any[]>([])
     const [onlineNow, setOnlineNow] = useState(0)
-    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([]) // avatares online
+    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const [expandedDesc, setExpandedDesc] = useState(false)
@@ -230,6 +233,8 @@ export default function StorePage() {
     }, [])
 
     const hasVisitedThisSession = useCallback(() => {
+        // Mantido apenas para uso em store_views (avatares online)
+        // Não bloqueia mais o incremento do contador principal
         const key = `iuser_visited_store_${storeSlug}`
         if (sessionStorage.getItem(key)) return true
         sessionStorage.setItem(key, '1')
@@ -244,6 +249,8 @@ export default function StorePage() {
     }, [])
 
     const captureVisit = useCallback(async (storeId: string, userId: string | null) => {
+        // Ainda registramos no store_views para os avatares online,
+        // mas não usamos isso para a contagem total.
         if (hasVisitedThisSession()) return
 
         const anonymousId = userId ? null : getAnonymousId()
@@ -388,8 +395,9 @@ export default function StorePage() {
             }
         })
         const onlineList = Array.from(uniqueMap.values())
-        setOnlineNow(onlineList.length)
-        setOnlineVisitors(onlineList.slice(0, 4)) // até 4 avatares
+        // Sempre mostra pelo menos 1 online (o pr\u00f3prio visitante atual)
+        setOnlineNow(Math.max(1, onlineList.length))
+        setOnlineVisitors(onlineList.slice(0, 4))
     }, [supabase])
 
     const loadStore = useCallback(async () => {
@@ -419,20 +427,11 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        if (userId !== foundStore.owner_id) {
-            await captureVisit(foundStore.id, userId)
-        }
+        // 1) Apenas lê o view_count atual do Supabase (sem incrementar aqui)
+        //    O incremento acontece após 3s em um useEffect separado.
+        setTotalVisitors(foundStore.view_count ?? 0)
 
-        // Total de visitantes únicos (logados + anônimos) - histórico
-        const { data: viewsData } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id')
-            .eq('store_id', foundStore.id)
-        const uniqueLogados = new Set(viewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
-        const uniqueAnonimos = new Set(viewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
-        setTotalVisitors(uniqueLogados.size + uniqueAnonimos.size)
-
-        // Buscar últimos visitantes únicos (para fallback dos avatares)
+        // 4) Buscar últimos visitantes para fallback de avatares
         const { data: recentViews } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -454,7 +453,7 @@ export default function StorePage() {
             setRecentVisitors(Array.from(uniqueVisitors.values()).slice(0, 4))
         }
 
-        // Carrega também os visitantes online
+        // Carrega os visitantes online via query real
         fetchOnlineVisitors(foundStore.id)
 
         const { data: productsData } = await supabase
@@ -522,11 +521,65 @@ export default function StorePage() {
         )
 
         setLoading(false)
-    }, [loadRatings, storeSlug, supabase, captureVisit, fetchOnlineVisitors])
+    }, [loadRatings, storeSlug, supabase, fetchOnlineVisitors])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
+
+    // Após a loja carregar: aguarda 3s, anima o +1 visual e salva no Supabase
+    useEffect(() => {
+        if (!store) return
+
+        const storeId = store.id
+        let cancelled = false
+
+        const timer = setTimeout(async () => {
+            if (cancelled) return
+
+            // Cooldown de 30 minutos por loja no localStorage
+            // (permite re-contagem se o visitante voltar depois de 30min)
+            const cooldownKey = `iuser_visit_ts_${storeId}`
+            const lastVisit = localStorage.getItem(cooldownKey)
+            const COOLDOWN_MS = 30 * 60 * 1000 // 30 minutos
+            const now = Date.now()
+
+            if (lastVisit && now - Number(lastVisit) < COOLDOWN_MS) {
+                // Ainda no cooldown — apenas mostra o valor atual sem incrementar
+                return
+            }
+
+            // Registra o timestamp desta visita
+            localStorage.setItem(cooldownKey, String(now))
+
+            // Anima o +1 visualmente antes de salvar
+            setTotalVisitors(prev => prev + 1)
+
+            // Registra a visita nos avatares online
+            const { data: { user } } = await supabase.auth.getUser()
+            const userId = user?.id ?? null
+            if (!cancelled) {
+                await captureVisit(storeId, userId)
+            }
+
+            // Salva o incremento no Supabase via RPC
+            if (!cancelled) {
+                const { data: newCount, error: rpcError } = await supabase
+                    .rpc('increment_store_view', { store_id: storeId })
+                if (!rpcError && typeof newCount === 'number') {
+                    setTotalVisitors(newCount)
+                } else {
+                    console.warn('[StorePage] Erro ao incrementar view_count:', rpcError)
+                }
+            }
+        }, 3000)
+
+        return () => {
+            cancelled = true
+            clearTimeout(timer)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [store?.id])
 
     // Realtime + polling para visitantes online
     useEffect(() => {
@@ -550,7 +603,7 @@ export default function StorePage() {
 
         const interval = setInterval(() => {
             fetchOnlineVisitors(store.id)
-        }, 10000) // fallback a cada 10s
+        }, 10000)
 
         return () => {
             supabase.removeChannel(channel)
@@ -642,6 +695,29 @@ export default function StorePage() {
         toggleProduct(product)
     }
 
+    const shareProduct = (product: any) => {
+        const url = `${window.location.origin}/${profileSlug}/${storeSlug}/${product.slug || product.id}`
+        if (navigator.share) {
+            navigator.share({
+                title: product.name,
+                text: `${product.name} - ${store?.name}`,
+                url: url,
+            }).catch(() => { })
+        } else {
+            navigator.clipboard?.writeText(url).then(() => {
+                toast.success('Link copiado!')
+            }).catch(() => {
+                const textarea = document.createElement('textarea')
+                textarea.value = url
+                document.body.appendChild(textarea)
+                textarea.select()
+                document.execCommand('copy')
+                document.body.removeChild(textarea)
+                toast.success('Link copiado!')
+            })
+        }
+    }
+
     if (loading) return <LoadingSpinner />
 
     if (error || !store)
@@ -728,7 +804,7 @@ export default function StorePage() {
 
             <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
                 {/* Perfil da loja */}
-                <div className="flex gap-4">
+                <div className="flex gap-4 p-3 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                     <div className="flex-shrink-0">
                         <div className="w-16 h-16 rounded-full p-[2px] shadow-md" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
                             <div className="w-full h-full rounded-full overflow-hidden bg-white">
@@ -748,15 +824,14 @@ export default function StorePage() {
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
                                 <span className="font-medium">
-                                    {onlineNow > 0 ? `${onlineNow} online` : `${totalVisitors} visitantes`}
+                                    {totalVisitors} visitantes{onlineNow > 0 && <span className="text-[10px] ml-0.5 opacity-70"> · {onlineNow} online</span>}
                                 </span>
-                                {/* Avatares online (prioridade) ou fallback com visitantes recentes */}
                                 {onlineVisitors.length > 0 ? (
                                     <div className="flex items-center -space-x-1 ml-1">
                                         {onlineVisitors.map((visitor, i) => (
                                             <div
                                                 key={i}
-                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border"
+                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border flex items-center justify-center"
                                                 style={{ background: colors.surface, borderColor: colors.border }}
                                             >
                                                 {visitor.profiles?.avatar_url ? (
@@ -765,13 +840,12 @@ export default function StorePage() {
                                                         className="w-full h-full object-cover"
                                                         alt=""
                                                     />
-                                                ) : (
-                                                    <div
-                                                        className="w-full h-full flex items-center justify-center text-[6px] font-bold"
-                                                        style={{ color: colors.textSecondary }}
-                                                    >
+                                                ) : visitor.viewer_id ? (
+                                                    <span className="text-[6px] font-bold" style={{ color: colors.textSecondary }}>
                                                         {visitor.profiles?.name?.charAt(0) || '?'}
-                                                    </div>
+                                                    </span>
+                                                ) : (
+                                                    <UserCircle className="w-3 h-3" style={{ color: colors.accent }} />
                                                 )}
                                             </div>
                                         ))}
@@ -781,7 +855,7 @@ export default function StorePage() {
                                         {recentVisitors.map((visitor, i) => (
                                             <div
                                                 key={i}
-                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border"
+                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border flex items-center justify-center"
                                                 style={{ background: colors.surface, borderColor: colors.border }}
                                             >
                                                 {visitor.profiles?.avatar_url ? (
@@ -790,13 +864,12 @@ export default function StorePage() {
                                                         className="w-full h-full object-cover"
                                                         alt=""
                                                     />
-                                                ) : (
-                                                    <div
-                                                        className="w-full h-full flex items-center justify-center text-[6px] font-bold"
-                                                        style={{ color: colors.textSecondary }}
-                                                    >
+                                                ) : visitor.viewer_id ? (
+                                                    <span className="text-[6px] font-bold" style={{ color: colors.textSecondary }}>
                                                         {visitor.profiles?.name?.charAt(0) || '?'}
-                                                    </div>
+                                                    </span>
+                                                ) : (
+                                                    <UserCircle className="w-3 h-3" style={{ color: colors.accent }} />
                                                 )}
                                             </div>
                                         ))}
@@ -821,7 +894,7 @@ export default function StorePage() {
 
                 {/* Descrição */}
                 {store.description && (
-                    <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                    <div className="text-sm leading-relaxed p-3 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: colors.textSecondary }}>
                         {expandedDesc || (store.description.length <= DESC_LIMIT) ? (
                             <>
                                 {store.description}
@@ -844,7 +917,7 @@ export default function StorePage() {
                         <button
                             onClick={openGoogleMaps}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full border transition-all shadow-sm"
-                            style={{ background: colors.accentLight, borderColor: colors.accent, color: colors.accent }}>
+                            style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                             <MapPin className="w-3.5 h-3.5" />
                             <span className="text-[10px] font-black uppercase">{formatAddress(store.address).substring(0, 15)}...</span>
                         </button>
@@ -861,7 +934,7 @@ export default function StorePage() {
                         <button
                             onClick={() => setShowAllHours(true)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm"
-                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textSecondary }}>
+                            style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                             <Clock className="w-3.5 h-3.5" />
                             {getTodaySchedule(store.business_hours) && isOpenNow(getTodaySchedule(store.business_hours)) ? 'Aberto' : 'Horários'}
                         </button>
@@ -876,8 +949,8 @@ export default function StorePage() {
                                 <div
                                     key={appt.id || i}
                                     onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                    className="group border rounded-2xl p-3 transition-all duration-300 cursor-pointer backdrop-blur-sm"
-                                    style={{ background: colors.surface, borderColor: colors.border }}>
+                                    className="group border rounded-2xl p-3 transition-all duration-300 cursor-pointer"
+                                    style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                                     <div className="flex items-center gap-2.5 mb-2">
                                         <div className="relative">
                                             <div
@@ -906,9 +979,9 @@ export default function StorePage() {
                                             <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Agendado</p>
                                         </div>
                                     </div>
-                                    <div className="rounded-xl p-2 border" style={{ background: colors.accentLight, borderColor: colors.accentLight }}>
+                                    <div className="rounded-xl p-2 border" style={{ background: 'transparent', borderColor: colors.accentLight, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                         <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: colors.surface }}>
+                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: 'transparent' }}>
                                                 <Calendar className="w-3.5 h-3.5" style={{ color: colors.accent }} />
                                             </div>
                                             <p className="text-[9px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.service_name || 'Agendamento'}</p>
@@ -930,7 +1003,7 @@ export default function StorePage() {
                 )}
 
                 {/* Abas */}
-                <div className="flex gap-1 backdrop-blur-sm rounded-xl p-1 border" style={{ background: colors.surface, borderColor: colors.border }}>
+                <div className="flex gap-1 rounded-xl p-1 border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                     {[
                         { key: 'products', label: 'Produtos', icon: Grid3X3 },
                         { key: 'reviews', label: 'Avaliações', icon: Star },
@@ -950,7 +1023,7 @@ export default function StorePage() {
                     ))}
                 </div>
 
-                {/* Conteúdo das abas (produtos e avaliações) */}
+                {/* Produtos */}
                 {activeTab === 'products' && (
                     <>
                         <div className="relative">
@@ -961,12 +1034,12 @@ export default function StorePage() {
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="w-full border rounded-xl py-2 pl-8 pr-3 text-xs focus:outline-none transition-all"
-                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                style={{ background: 'transparent', borderColor: colors.border, color: colors.textPrimary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                             />
                         </div>
 
                         {filteredProducts.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ background: colors.surface, borderColor: colors.border }}>
+                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <Search className="w-6 h-6 mx-auto mb-1" style={{ color: colors.textSecondary }} />
                                 <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>Nenhum produto</p>
                             </div>
@@ -985,8 +1058,14 @@ export default function StorePage() {
                                                 <div
                                                     key={product.id}
                                                     onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2 ring-orange-500 border-orange-500' : ''}`}
-                                                    style={{ background: colors.surface, borderColor: isSelected ? colors.accent : colors.border }}>
+                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2' : ''}`}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        borderColor: isSelected ? '#22c55e' : colors.border,
+                                                        backdropFilter: 'blur(8px)',
+                                                        WebkitBackdropFilter: 'blur(8px)',
+                                                        ...(isSelected && { ringColor: '#22c55e' })
+                                                    }}>
                                                     <div className="aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
@@ -1010,7 +1089,7 @@ export default function StorePage() {
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                     className="w-7 h-7 rounded-full border transition-all flex items-center justify-center"
-                                                                    style={{ background: colors.surface, borderColor: colors.border, color: colors.accent }}>
+                                                                    style={{ background: 'transparent', borderColor: colors.border, color: colors.accent }}>
                                                                     <ExternalLink className="w-3 h-3" />
                                                                 </button>
                                                             ) : mounted && isSelected ? (
@@ -1019,12 +1098,12 @@ export default function StorePage() {
                                                                         onClick={e => { e.stopPropagation(); router.push('/sacola') }}
                                                                         className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
                                                                         style={{ background: colors.accent }}>
-                                                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                        <ShoppingBag className="w-3.5 h-3.5" />
                                                                     </button>
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
                                                                         className="w-7 h-7 rounded-full border flex items-center justify-center"
-                                                                        style={{ background: colors.accentLight, borderColor: colors.accent, color: colors.accent }}>
+                                                                        style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent }}>
                                                                         <Trash2 className="w-3 h-3" />
                                                                     </button>
                                                                 </div>
@@ -1038,9 +1117,20 @@ export default function StorePage() {
                                                             )}
                                                         </div>
                                                         {product.type && (
-                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full" style={{ background: colors.surface, color: colors.accent }}>
+                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full" style={{ background: 'transparent', color: colors.accent }}>
                                                                 {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
+                                                        )}
+                                                        <button
+                                                            onClick={e => { e.stopPropagation(); shareProduct(product) }}
+                                                            className="absolute top-2 right-2 p-1.5 rounded-full border transition-colors hover:bg-opacity-20"
+                                                            style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary }}>
+                                                            <Share2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        {isSelected && (
+                                                            <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-lg">
+                                                                <ShoppingBag className="w-4 h-4" />
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1053,10 +1143,11 @@ export default function StorePage() {
                     </>
                 )}
 
+                {/* Avaliações */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
                         {ratings.length > 0 && (
-                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: colors.surface, borderColor: colors.border }}>
+                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                                 <div className="flex items-center gap-2">
                                     <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
                                     <span className="text-xs font-black" style={{ color: colors.textPrimary }}>{Number(store.ratings_avg || 0).toFixed(1)}</span>
@@ -1065,7 +1156,7 @@ export default function StorePage() {
                                 </div>
                                 <div className="flex -space-x-1.5">
                                     {ratings.slice(0, 3).map((r, i) => (
-                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border overflow-hidden" style={{ background: colors.surface, borderColor: colors.border }}>
+                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border overflow-hidden" style={{ background: 'transparent', borderColor: colors.border }}>
                                             {r.profiles?.avatar_url ? (
                                                 <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                             ) : (
@@ -1077,7 +1168,7 @@ export default function StorePage() {
                             </div>
                         )}
                         {ratings.length === 0 ? (
-                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: colors.surface, borderColor: colors.border }}>
+                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                                 <Star className="w-10 h-10 mx-auto mb-2" style={{ color: colors.textSecondary }} />
                                 <p className="font-bold text-sm" style={{ color: colors.textSecondary }}>Nenhuma avaliação ainda</p>
                                 <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
@@ -1087,7 +1178,7 @@ export default function StorePage() {
                                 {ratings.map((rating: any) => {
                                     const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
                                     return (
-                                        <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border transition-all backdrop-blur-sm" style={{ background: colors.surface, borderColor: colors.border }}>
+                                        <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border transition-all" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
                                             <div className="w-10 h-10 rounded-full overflow-hidden p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
                                                 <div className="w-full h-full rounded-full overflow-hidden bg-white">
                                                     {avatarUrl ? (
@@ -1105,7 +1196,7 @@ export default function StorePage() {
                                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
                                                         <p className="text-[10px] font-medium" style={{ color: colors.accent }}>{new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                                     </div>
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border" style={{ background: colors.accentLight, borderColor: colors.accent }}>
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border" style={{ background: 'transparent', borderColor: colors.accent }}>
                                                         <Shield className="w-3 h-3" style={{ color: colors.accent }} />
                                                         <span className="text-[8px] font-black uppercase" style={{ color: colors.accent }}>Verificada</span>
                                                     </div>
@@ -1129,7 +1220,7 @@ export default function StorePage() {
                 )}
             </main>
 
-            {/* Botões flutuantes: Sacola + Início */}
+            {/* Botões flutuantes */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <button
                     onClick={() => router.push('/sacola')}

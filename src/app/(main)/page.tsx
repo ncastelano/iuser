@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Settings, Store, ShoppingCart, Clock, ChefHat, CheckCircle2, Star, Home } from 'lucide-react'
+import { User, Settings, Store, ShoppingCart, Clock, ChefHat, CheckCircle2, Star, Home, ShoppingBag } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -571,7 +571,7 @@ export default function HomePage() {
                             onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
                             onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                         >
-                            <ShoppingCart size={24} />
+                            <ShoppingBag size={24} />
                             <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                                 Sacola
                                 {/* Indicadores de status compactos */}

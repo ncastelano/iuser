@@ -25,7 +25,8 @@ import {
     CheckCircle2,
     Save,
     Clock3,
-    X
+    X,
+    StoreIcon
 } from 'lucide-react'
 import { OrderModal } from './eu/components/OrderModal'
 
@@ -35,7 +36,7 @@ interface StoreDashboardProps {
     onBack?: () => void
 }
 
-// Helpers de data
+// Helpers de data (mantidos)
 function daysAgo(n: number): string {
     const d = new Date()
     d.setDate(d.getDate() - n)
@@ -94,7 +95,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
     if (!profileSlug) return null
 
-    // Estados gerais
+    // Estados gerais (mantidos)
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
@@ -128,7 +129,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
-    // Busca dados de visitantes online, hoje e total
+    // Funções (mantidas)
     const fetchVisitorData = useCallback(async (storeId?: string) => {
         const id = storeId || store?.id
         if (!id) return
@@ -138,7 +139,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         todayStart.setHours(0, 0, 0, 0)
         const todayISO = todayStart.toISOString()
 
-        // Online agora (último 1 min)
         const { data: online } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -161,7 +161,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setOnlineVisitors(onlineList.slice(0, 5))
         setFullOnlineVisitors(onlineList)
 
-        // Visitantes únicos de hoje
         const { data: todayViews } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -185,7 +184,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setTodayRecentVisitors(uniqueTodayList.slice(0, 5))
         setFullTodayVisitors(uniqueTodayList)
 
-        // Todos os visitantes únicos (para diálogo do card "Visitantes")
         const { data: allViews } = await supabase
             .from('store_views')
             .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
@@ -208,12 +206,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setTotalUniqueVisitors(allUniqueList.length)
     }, [store?.id])
 
-    // Carrega todo o dashboard
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
 
-        // 1. Loja
         const { data: storeData, error: storeError } = await supabase
             .from('stores')
             .select('*')
@@ -233,7 +229,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setBusinessHours(storeData.business_hours || {})
         const storeId = storeData.id
 
-        // 2. Produtos visualizados agora
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const { data: recentProductViews } = await supabase
             .from('product_views')
@@ -246,7 +241,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         ).map(([id, name]) => ({ id, name }))
         setProductsViewedNow(uniqueProducts)
 
-        // 3. Agendamentos pendentes
         const { data: appointments } = await supabase
             .from('appointments')
             .select('*, client:client_id(name, "profileSlug", avatar_url)')
@@ -255,7 +249,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .order('start_time', { ascending: true })
         setPendingAppointments(appointments || [])
 
-        // 4. Visitas da loja por período (page views)
         const nowISO = new Date().toISOString()
         const periods: Record<string, { gte?: string; lte?: string }> = {
             today: { gte: startOfDay(), lte: nowISO },
@@ -276,7 +269,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         }
         setStoreVisits(visitsData)
 
-        // 5. Visualizações de produtos por período
         const prodViewsData: Record<string, number> = {}
         for (const [key, range] of Object.entries(periods)) {
             let query = supabase.from('product_views').select('*', { count: 'exact', head: true }).eq('store_id', storeId)
@@ -287,7 +279,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         }
         setProductViews(prodViewsData)
 
-        // 6. Vendas
         const { data: salesData } = await supabase
             .from('store_sales')
             .select('*')
@@ -296,7 +287,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .limit(100)
         setSales(salesData || [])
 
-        // 7. Carrega dados dos visitantes online/hoje/total
         await fetchVisitorData(storeId)
 
         setLoading(false)
@@ -307,15 +297,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         loadDashboard()
     }, [loadDashboard])
 
-    // Realtime + atualização periódica
     useEffect(() => {
         if (!store?.id) return
 
-        // Executa imediatamente
         fetchVisitorData(store.id)
         loadDashboard()
 
-        // Canal Realtime
         const channel = supabase
             .channel(`store-dash-views-${store.id}`)
             .on(
@@ -330,7 +317,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
         realtimeChannel.current = channel
 
-        // Atualização periódica a cada 5 segundos
         intervalRef.current = setInterval(() => {
             fetchVisitorData(store.id)
         }, 5000)
@@ -346,7 +332,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         loadDashboard()
     }
 
-    // Processamento de pedidos
     const groupedOrders = useMemo(() => {
         const groups: Record<string, any> = {}
         sales.forEach((s: any) => {
@@ -407,7 +392,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         }
     }
 
-    // Horários
     const setTimeForDay = (day: string, type: 'open' | 'close', value: string) => {
         setBusinessHours(prev => ({
             ...prev,
@@ -472,12 +456,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         })()
         : store.is_open
 
+    // Estilos padronizados com fundo transparente
     const cardStyle = {
-        background: colors.surface,
+        background: 'transparent',
         border: `1px solid ${colors.border}`,
-        backdropFilter: 'blur(10px)',
         borderRadius: '1rem',
         padding: '1.5rem',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
     }
 
     const sectionTitle = {
@@ -490,7 +476,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         marginBottom: '1rem',
     }
 
-    // Função para renderizar um visitante no diálogo
     const renderVisitorItem = (v: any) => (
         <Link
             key={v.viewer_id || v.anonymous_id}
@@ -526,10 +511,13 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
             {/* Cabeçalho */}
             <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full p-[2px] shadow-md"
+                <Link
+                    href={`/${profileSlug}/${storeSlug}`}
+                    className="flex items-center gap-3 group cursor-pointer"
+                >
+                    <div className="w-12 h-12 rounded-full p-[2px] shadow-md transition-transform group-hover:scale-105"
                         style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                        <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
+                        <div className="w-full h-full rounded-full overflow-hidden" style={{ background: 'transparent' }}>
                             {store.logo_url ? (
                                 <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                             ) : (
@@ -540,7 +528,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                         </div>
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>{store.name}</h2>
+                        <h2 className="text-2xl font-black group-hover:text-opacity-80 transition-colors" style={{ color: colors.textPrimary }}>{store.name}</h2>
                         <div className="flex items-center gap-2 text-xs mt-1" style={{ color: colors.textSecondary }}>
                             <span className={`w-2 h-2 rounded-full ${storeOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
                             <span className="font-black uppercase text-[10px]">{storeOpen ? 'Aberto' : 'Fechado'}</span>
@@ -549,21 +537,39 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <span>{Number(store.ratings_avg || 0).toFixed(1)} ({store.ratings_count || 0})</span>
                         </div>
                     </div>
-                </div>
+                </Link>
                 <button onClick={handleRefresh} disabled={refreshing}
                     className="p-2 rounded-full transition-colors"
-                    style={{ background: `${colors.surface}88`, color: colors.accent }}>
+                    style={{ background: 'transparent', color: colors.accent, border: `1px solid ${colors.border}` }}>
                     <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
                 </button>
             </div>
 
+            {/* Link rápido para a página da loja */}
+            <div className="mb-6">
+                <Link
+                    href={`/${profileSlug}/${storeSlug}`}
+                    className="flex items-center justify-center gap-2 w-full py-2 rounded-xl text-sm font-bold transition-colors hover:bg-opacity-80"
+                    style={{
+                        background: `${colors.accent}15`,
+                        border: `1px solid ${colors.accent}30`,
+                        color: colors.accent,
+                        backdropFilter: 'blur(4px)',
+                        WebkitBackdropFilter: 'blur(4px)',
+                    }}
+                >
+                    <StoreIcon size={16} />
+                    Página da Loja
+                    <ChevronRight size={16} />
+                </Link>
+            </div>
+
             {/* Cards principais (3 colunas) */}
             <div className="grid grid-cols-3 gap-3 mb-6">
-                {/* Online agora */}
                 <button
                     onClick={() => setDialogOpen('online')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
-                    style={{ background: `${colors.accent}15`, borderColor: `${colors.accent}30` }}
+                    style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Users size={16} style={{ color: colors.accent }} />
@@ -592,11 +598,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     )}
                 </button>
 
-                {/* Visitantes hoje */}
                 <button
                     onClick={() => setDialogOpen('today')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
-                    style={{ background: `${colors.accentLight}15`, borderColor: `${colors.accentLight}30` }}
+                    style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Eye size={16} style={{ color: colors.accentLight }} />
@@ -625,11 +630,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     )}
                 </button>
 
-                {/* Visitantes (total) */}
                 <button
                     onClick={() => setDialogOpen('all')}
                     className="p-4 rounded-2xl border text-left transition-all hover:shadow-md group"
-                    style={{ background: `${colors.accent}10`, borderColor: `${colors.accent}25` }}
+                    style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                 >
                     <div className="flex items-center gap-2 mb-2">
                         <Users size={16} style={{ color: colors.accent }} />
@@ -662,7 +666,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             {/* Vendas do dia */}
             <div className="mb-6">
                 <Link href={`/${profileSlug}/${storeSlug}`} className="block">
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                    <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                         <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Vendas hoje</p>
                         <p className="text-2xl font-black mt-1" style={{ color: colors.textPrimary }}>
                             R$ {metrics.daily.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -678,19 +682,19 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     title="Prod. vistos hoje"
                     value={productViews.today || 0}
                     icon={<ShoppingBag size={20} />}
-                    color="#10b981"
+                    color={colors.accent}
                 />
                 <DashboardCard
                     title="Agend. pendentes"
                     value={pendingAppointments.length}
                     icon={<Clock size={20} />}
-                    color="#f59e0b"
+                    color={colors.accentLight}
                 />
             </div>
 
             {/* Produtos sendo vistos agora */}
             {productsViewedNow.length > 0 && (
-                <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                     <div style={sectionTitle}>
                         <Eye size={16} /> Produtos sendo vistos agora
                     </div>
@@ -705,14 +709,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
             {/* Agendamentos pendentes */}
             {pendingAppointments.length > 0 && (
-                <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                     <div style={sectionTitle}>
                         <Calendar size={16} /> Agendamentos aguardando confirmação
                     </div>
                     <div className="space-y-2">
                         {pendingAppointments.slice(0, 3).map((apt: any) => (
                             <div key={apt.id} className="flex items-center justify-between py-2 px-3 rounded-xl"
-                                style={{ background: colors.background }}>
+                                style={{ background: 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-xs font-bold">
                                         {apt.client?.name?.[0] || '?'}
@@ -736,14 +740,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             {/* Pedidos */}
             <div className="mb-6 space-y-5">
                 {invites.length > 0 && (
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                    <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                         <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: colors.accent }}>
                             <Clock size={12} /> Novos Pedidos ({invites.length})
                         </h4>
                         {invites.map((order: any) => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer transition-all"
-                                style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}>
+                                style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <div>
                                     <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                     <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} itens</p>
@@ -758,18 +762,18 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 )}
 
                 {inPreparo.length > 0 && (
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
-                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2 text-yellow-600">
+                    <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
+                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: colors.accentLight }}>
                             <Package size={12} /> Em Preparo ({inPreparo.length})
                         </h4>
                         {inPreparo.map((order: any) => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
-                                style={{ background: '#f59e0b10', border: '1px solid #f59e0b30' }}>
+                                style={{ background: `${colors.accentLight}10`, border: `1px solid ${colors.accentLight}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                    <ChevronRight size={16} className="text-yellow-500" />
+                                    <ChevronRight size={16} style={{ color: colors.accentLight }} />
                                 </div>
                             </div>
                         ))}
@@ -777,18 +781,18 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 )}
 
                 {forReady.length > 0 && (
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
-                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2 text-purple-600">
+                    <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
+                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: '#8b5cf6' }}>
                             <CheckCircle2 size={12} /> Prontos ({forReady.length})
                         </h4>
                         {forReady.map((order: any) => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
-                                style={{ background: '#7c3aed10', border: '1px solid #7c3aed30' }}>
+                                style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                    <ChevronRight size={16} className="text-purple-500" />
+                                    <ChevronRight size={16} style={{ color: '#8b5cf6' }} />
                                 </div>
                             </div>
                         ))}
@@ -796,18 +800,18 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 )}
 
                 {accepted.length > 0 && (
-                    <div className="rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
-                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2 text-green-600">
+                    <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
+                        <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: '#22c55e' }}>
                             <CheckCircle2 size={12} /> Finalizados ({accepted.length})
                         </h4>
                         {accepted.slice(0, 3).map((order: any) => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
-                                style={{ background: '#10b98110', border: '1px solid #10b98130' }}>
+                                style={{ background: '#22c55e10', border: '1px solid #22c55e30', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                    <ChevronRight size={16} className="text-green-500" />
+                                    <ChevronRight size={16} style={{ color: '#22c55e' }} />
                                 </div>
                             </div>
                         ))}
@@ -824,7 +828,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             </div>
 
             {/* Estatísticas de Visitas */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                 <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                     <TrendingUp size={16} /> Visitas na loja
                 </h3>
@@ -834,12 +838,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     <StatItem label="Semana" value={storeVisits.week || 0} />
                     <StatItem label="Mês" value={storeVisits.month || 0} />
                     <StatItem label="Ano" value={storeVisits.year || 0} />
-                    <StatItem label="Total" value={storeVisits.all || 0} highlight />
+                    <StatItem label="Total" value={storeVisits.all || 0} highlight color={colors.accent} />
                 </div>
             </div>
 
             {/* Visualizações de Produtos */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                 <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                     <PackageOpen size={16} /> Visualizações de produtos
                 </h3>
@@ -849,12 +853,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     <StatItem label="Semana" value={productViews.week || 0} />
                     <StatItem label="Mês" value={productViews.month || 0} />
                     <StatItem label="Ano" value={productViews.year || 0} />
-                    <StatItem label="Total" value={productViews.all || 0} highlight />
+                    <StatItem label="Total" value={productViews.all || 0} highlight color={colors.accent} />
                 </div>
             </div>
 
             {/* Horários de Funcionamento */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                 <button onClick={() => setShowScheduleEditor(!showScheduleEditor)}
                     className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:text-opacity-80 transition-colors"
                     style={{ color: colors.textSecondary }}>
@@ -874,7 +878,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                                         <span className="text-xs font-bold uppercase w-20" style={{ color: colors.textPrimary }}>{day.label}</span>
                                         <button onClick={() => clearDay(day.key)} className="text-[9px] font-bold text-red-400 hover:text-red-300">Fechado</button>
                                     </div>
-                                    {/* Abertura */}
                                     <div className="mb-1">
                                         <p className="text-[8px] mb-1" style={{ color: colors.textSecondary }}>Abre às</p>
                                         <div className="flex flex-wrap gap-1 items-center">
@@ -882,13 +885,13 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                                                 <button key={`open-${day.key}-${hour}`}
                                                     onClick={() => { setTimeForDay(day.key, 'open', hour); setCustomOpen(prev => ({ ...prev, [day.key]: false })) }}
                                                     className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-colors ${current.open === hour ? 'text-white border-transparent' : 'border-gray-500 text-gray-400 hover:border-orange-500'}`}
-                                                    style={current.open === hour ? { background: colors.accent } : { background: `${colors.background}88` }}>
+                                                    style={current.open === hour ? { background: colors.accent } : { background: 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                                     {hour}
                                                 </button>
                                             ))}
                                             <button onClick={() => toggleCustom(day.key, 'open')}
                                                 className={`px-2 py-1 text-[10px] font-bold rounded-lg border ${customOpen[day.key] ? 'bg-gray-600 border-gray-400' : 'border-dashed border-gray-500 text-gray-400'}`}
-                                                style={{ background: customOpen[day.key] ? undefined : `${colors.background}44` }}>
+                                                style={{ background: customOpen[day.key] ? undefined : 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                                 {customOpen[day.key] ? 'Fechar' : 'Outro'}
                                             </button>
                                         </div>
@@ -898,7 +901,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                                                 className="mt-1 w-full bg-gray-800 border border-gray-600 rounded-lg px-2 py-1 text-xs font-bold text-white focus:outline-none focus:border-orange-500" />
                                         )}
                                     </div>
-                                    {/* Fechamento */}
                                     <div>
                                         <p className="text-[8px] mb-1" style={{ color: colors.textSecondary }}>Fecha às</p>
                                         <div className="flex flex-wrap gap-1 items-center">
@@ -906,13 +908,13 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                                                 <button key={`close-${day.key}-${hour}`}
                                                     onClick={() => { setTimeForDay(day.key, 'close', hour); setCustomClose(prev => ({ ...prev, [day.key]: false })) }}
                                                     className={`px-2 py-1 text-[10px] font-bold rounded-lg border transition-colors ${current.close === hour ? 'text-white border-transparent' : 'border-gray-500 text-gray-400 hover:border-orange-500'}`}
-                                                    style={current.close === hour ? { background: colors.accent } : { background: `${colors.background}88` }}>
+                                                    style={current.close === hour ? { background: colors.accent } : { background: 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                                     {hour}
                                                 </button>
                                             ))}
                                             <button onClick={() => toggleCustom(day.key, 'close')}
                                                 className={`px-2 py-1 text-[10px] font-bold rounded-lg border ${customClose[day.key] ? 'bg-gray-600 border-gray-400' : 'border-dashed border-gray-500 text-gray-400'}`}
-                                                style={{ background: customClose[day.key] ? undefined : `${colors.background}44` }}>
+                                                style={{ background: customClose[day.key] ? undefined : 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                                 {customClose[day.key] ? 'Fechar' : 'Outro'}
                                             </button>
                                         </div>
@@ -942,8 +944,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} />
                 <QuickActionButton icon={<Calendar size={18} />} label="Agendamentos"
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/agendamentos`)} />
-                <QuickActionButton icon={<Eye size={18} />} label="Ver loja pública"
-                    onClick={() => router.push(`/${profileSlug}/${storeSlug}`)} />
             </div>
 
             {/* Modal de pedido */}
@@ -951,21 +951,19 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />
             )}
 
-            {/* Diálogo Online agora */}
+            {/* Diálogos */}
             {dialogOpen === 'online' && (
                 <DialogContainer title="Visitantes olhando a loja atualmente" count={onlineNow} onClose={() => setDialogOpen(null)}>
                     {fullOnlineVisitors.map(renderVisitorItem)}
                 </DialogContainer>
             )}
 
-            {/* Diálogo Visitantes hoje */}
             {dialogOpen === 'today' && (
                 <DialogContainer title="Visitantes hoje" count={todayVisitsCount} onClose={() => setDialogOpen(null)}>
                     {fullTodayVisitors.map(renderVisitorItem)}
                 </DialogContainer>
             )}
 
-            {/* Diálogo Visitantes (total) */}
             {dialogOpen === 'all' && (
                 <DialogContainer title="Visitantes" count={totalUniqueVisitors} onClose={() => setDialogOpen(null)}>
                     {allUniqueVisitors.map(renderVisitorItem)}
@@ -975,28 +973,28 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     )
 }
 
-// Componentes auxiliares
-function DashboardCard({ title, value, icon, color, subtext }: any) {
+// Componentes auxiliares com fundo transparente
+function DashboardCard({ title, value, icon, color }: any) {
     const { colors } = useTheme()
     return (
-        <div className="p-4 rounded-2xl backdrop-blur-md flex flex-col"
-            style={{ background: `${color}15`, border: `1px solid ${color}20` }}>
+        <div className="p-4 rounded-2xl flex flex-col"
+            style={{ background: 'transparent', border: `1px solid ${color}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
             <div className="flex items-center gap-2 mb-2">
                 <span style={{ color }}>{icon}</span>
                 <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{title}</span>
             </div>
             <span className="text-2xl font-black" style={{ color }}>{value}</span>
-            {subtext && <span className="text-[10px] mt-1 opacity-60" style={{ color }}>{subtext}</span>}
         </div>
     )
 }
 
-function StatItem({ label, value, highlight = false }: { label: string; value: number; highlight?: boolean }) {
+function StatItem({ label, value, highlight = false, color = '' }: { label: string; value: number; highlight?: boolean; color?: string }) {
     const { colors } = useTheme()
+    const textColor = highlight ? color || colors.accent : colors.textPrimary
     return (
         <div className="text-center">
             <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: colors.textSecondary }}>{label}</p>
-            <p className="text-lg font-black mt-1" style={{ color: highlight ? colors.accent : colors.textPrimary }}>{value}</p>
+            <p className="text-lg font-black mt-1" style={{ color: textColor }}>{value}</p>
         </div>
     )
 }
@@ -1005,15 +1003,14 @@ function QuickActionButton({ icon, label, onClick }: any) {
     const { colors } = useTheme()
     return (
         <button onClick={onClick}
-            className="flex items-center justify-center gap-2 p-3 rounded-2xl backdrop-blur-md transition-colors hover:bg-opacity-80"
-            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}>
+            className="flex items-center justify-center gap-2 p-3 rounded-2xl transition-colors hover:bg-opacity-80"
+            style={{ background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textPrimary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
             {icon}
             <span className="text-xs font-bold">{label}</span>
         </button>
     )
 }
 
-// Componente de diálogo reutilizável (agora com import React)
 function DialogContainer({ title, count, onClose, children }: { title: string; count: number; onClose: () => void; children: React.ReactNode }) {
     const { colors } = useTheme()
     return (

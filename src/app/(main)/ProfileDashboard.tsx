@@ -85,13 +85,12 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
     const [stores, setStores] = useState<any[]>([])
     const [appointments, setAppointments] = useState<any[]>([])
     const [reviews, setReviews] = useState<any[]>([])
-    const [postsCount, setPostsCount] = useState(0) // placeholder para futuras postagens
+    const [postsCount, setPostsCount] = useState(0)
 
     const loadDashboard = useCallback(async () => {
         if (!profileSlug) return
         setLoading(true)
 
-        // 1. Buscar perfil
         const { data: profileData } = await supabase
             .from('profiles')
             .select('*')
@@ -110,7 +109,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
         setProfile({ ...profileData, avatar_url: avatarUrl })
         const profileId = profileData.id
 
-        // 2. Visitas ao perfil por período
         const nowISO = new Date().toISOString()
         const periods: Record<string, { gte?: string; lte?: string }> = {
             today: { gte: startOfDay(), lte: nowISO },
@@ -134,7 +132,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
         }
         setProfileViews(viewsData)
 
-        // 3. Seguidores / seguindo
         const { count: followers } = await supabase
             .from('follows')
             .select('*', { count: 'exact', head: true })
@@ -147,7 +144,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             .eq('follower_id', profileId)
         setFollowingCount(following || 0)
 
-        // 4. Lojas
         const { data: storesData } = await supabase
             .from('stores')
             .select('id, name, storeSlug, logo_url')
@@ -162,7 +158,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             setStores(mapped)
         }
 
-        // 5. Agendamentos (como dono)
         const todayStr = new Date().toISOString().split('T')[0]
         const { data: appts } = await supabase
             .from('appointments')
@@ -174,7 +169,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             .order('time', { ascending: true })
         setAppointments(appts || [])
 
-        // 6. Avaliações / comentários recebidos
         const { data: reviewsData } = await supabase
             .from('product_reviews')
             .select('*, profiles!inner(name, avatar_url, profileSlug), products(name)')
@@ -183,7 +177,6 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             .limit(5)
         setReviews(reviewsData || [])
 
-        // 7. Postagens (placeholder)
         setPostsCount(0)
 
         setLoading(false)
@@ -207,13 +200,14 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
 
     if (!profile) return null
 
-    // Estilos temáticos
+    // Estilos com fundo transparente e efeito de vidro
     const cardStyle = {
-        background: colors.surface,
+        background: 'transparent',
         border: `1px solid ${colors.border}`,
-        backdropFilter: 'blur(10px)',
         borderRadius: '1rem',
         padding: '1.5rem',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
     }
 
     const sectionTitle = {
@@ -235,7 +229,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
                         className="w-12 h-12 rounded-full p-[2px] shadow-md"
                         style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}
                     >
-                        <div className="w-full h-full rounded-full overflow-hidden" style={{ background: colors.surface }}>
+                        <div className="w-full h-full rounded-full overflow-hidden" style={{ background: 'transparent' }}>
                             {profile.avatar_url ? (
                                 <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover" />
                             ) : (
@@ -265,7 +259,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
                     onClick={handleRefresh}
                     disabled={refreshing}
                     className="p-2 rounded-full transition-colors"
-                    style={{ background: `${colors.surface}88`, color: colors.accent }}
+                    style={{ background: 'transparent', color: colors.accent, border: `1px solid ${colors.border}` }}
                 >
                     <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
                 </button>
@@ -301,7 +295,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
 
             {/* Minhas Lojas */}
             {stores.length > 0 && (
-                <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                     <div style={sectionTitle}>
                         <Store size={16} /> Minhas Lojas
                     </div>
@@ -311,7 +305,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
                                 key={store.id}
                                 onClick={() => router.push(`/${profileSlug}/${store.storeSlug}`)}
                                 className="w-full flex items-center justify-between p-3 rounded-xl transition-all"
-                                style={{ background: `${colors.background}88`, border: `1px solid ${colors.border}` }}
+                                style={{ background: 'transparent', border: `1px solid ${colors.border}`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full overflow-hidden bg-black/20 flex items-center justify-center">
@@ -334,7 +328,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
 
             {/* Agendamentos (como dono) */}
             {appointments.length > 0 && (
-                <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                     <div style={sectionTitle}>
                         <Calendar size={16} /> Próximos Agendamentos
                     </div>
@@ -343,7 +337,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
                             <div
                                 key={apt.id}
                                 className="flex items-center gap-3 p-3 rounded-xl"
-                                style={{ background: colors.background }}
+                                style={{ background: 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                             >
                                 <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-xs font-bold overflow-hidden">
                                     {apt.profiles?.avatar_url ? (
@@ -373,7 +367,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
 
             {/* Avaliações / Comentários */}
             {reviews.length > 0 && (
-                <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+                <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                     <div style={sectionTitle}>
                         <MessageSquare size={16} /> Últimas Avaliações
                     </div>
@@ -382,7 +376,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
                             <div
                                 key={review.id}
                                 className="p-3 rounded-xl"
-                                style={{ background: colors.background }}
+                                style={{ background: 'transparent', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <div className="w-5 h-5 rounded-full overflow-hidden bg-black/20">
@@ -425,7 +419,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             )}
 
             {/* Estatísticas de Visitas ao Perfil */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                 <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                     <TrendingUp size={16} /> Visitas ao seu perfil
                 </h3>
@@ -440,7 +434,7 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
             </div>
 
             {/* Postagens (placeholder) */}
-            <div className="mb-6 rounded-2xl p-6 border shadow-sm backdrop-blur-md" style={cardStyle}>
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                 <div style={sectionTitle}>
                     <Image size={16} /> Postagens
                 </div>
@@ -488,13 +482,13 @@ export default function ProfileDashboard({ profileSlug, onBack }: ProfileDashboa
     )
 }
 
-// Componentes auxiliares (idênticos aos do StoreDashboard)
+// Componentes auxiliares com fundo transparente
 function DashboardCard({ title, value, icon, color, subtext }: any) {
     const { colors } = useTheme()
     return (
         <div
-            className="p-4 rounded-2xl backdrop-blur-md flex flex-col"
-            style={{ background: `${color}15`, border: `1px solid ${color}20` }}
+            className="p-4 rounded-2xl flex flex-col"
+            style={{ background: 'transparent', border: `1px solid ${color}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
         >
             <div className="flex items-center gap-2 mb-2">
                 <span style={{ color }}>{icon}</span>
@@ -525,8 +519,8 @@ function QuickActionButton({ icon, label, onClick }: any) {
     return (
         <button
             onClick={onClick}
-            className="flex items-center justify-center gap-2 p-3 rounded-2xl backdrop-blur-md transition-colors hover:bg-opacity-80"
-            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+            className="flex items-center justify-center gap-2 p-3 rounded-2xl transition-colors hover:bg-opacity-80"
+            style={{ background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textPrimary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
         >
             {icon}
             <span className="text-xs font-bold">{label}</span>
