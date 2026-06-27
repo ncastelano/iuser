@@ -15,6 +15,7 @@ import {
     ExternalLink,
     Settings,
     Star,
+    CheckCircle2,
     Trash2,
     Plus,
     Navigation,
@@ -106,7 +107,7 @@ type StoreType = {
     allow_scheduling?: boolean
     business_hours?: Record<string, { open: string; close: string }> | null
     location?: any
-    view_count?: number
+    view_count?: number   // Adicionado
 }
 
 const formatAddress = (fullAddress: string | null | undefined): string => {
@@ -170,38 +171,6 @@ function isOpenNow(schedule: { open: string; close: string } | null | undefined)
 
 type TabType = 'products' | 'reviews'
 
-// ------------------- NOVO: Helpers para visitantes -------------------
-const COOLDOWN_MINUTES = 30
-const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000
-
-function getOrCreateAnonymousId(): string {
-    const key = 'iuser_anon_id'
-    let id = localStorage.getItem(key)
-    if (!id) {
-        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-        localStorage.setItem(key, id)
-    }
-    return id
-}
-
-function getOrCreateSessionId(): string {
-    const key = 'iuser_sid'
-    let id = sessionStorage.getItem(key)
-    if (!id) {
-        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-        sessionStorage.setItem(key, id)
-    }
-    return id
-}
-
-function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
-    const ua = navigator.userAgent
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
-    return 'desktop'
-}
-// ---------------------------------------------------------------------
-
 export default function StorePage() {
     const params = useParams()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
@@ -234,117 +203,95 @@ export default function StorePage() {
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
+    const [recentVisitors, setRecentVisitors] = useState<any[]>([])
     const [onlineNow, setOnlineNow] = useState(0)
     const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
-    const [fallbackAvatars, setFallbackAvatars] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
-    // ---------- NOVO: Captura de visitas (sempre insere em store_visits) ----------
-    const captureVisit = useCallback(
-        async (storeId: string, userId: string | null) => {
-            const anonymousId = userId ? null : getOrCreateAnonymousId()
-            const sessionId = getOrCreateSessionId()
-            const device = getDeviceType()
-            const referrer = document.referrer || null
-            const userAgent = navigator.userAgent || null
+    // Captura de dados
+    const getAnonymousId = useCallback(() => {
+        const key = 'iuser_anonymous_id'
+        let id = localStorage.getItem(key)
+        if (!id) {
+            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+            localStorage.setItem(key, id)
+        }
+        return id
+    }, [])
 
-            const { error } = await supabase.from('store_visits').insert({
-                store_id: storeId,
-                viewer_id: userId || null,
-                anonymous_id: anonymousId,
-                session_id: sessionId,
-                device_type: device,
-                referrer,
-                user_agent: userAgent,
-            })
-            if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
-        },
-        [supabase]
-    )
+    const getSessionId = useCallback(() => {
+        const key = 'iuser_session_id'
+        let id = sessionStorage.getItem(key)
+        if (!id) {
+            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+            sessionStorage.setItem(key, id)
+        }
+        return id
+    }, [])
 
-    const captureProductView = useCallback(
-        async (productId: string, storeId: string, userId: string | null) => {
-            const anonymousId = userId ? null : getOrCreateAnonymousId()
-            const sessionId = getOrCreateSessionId()
-            const device = getDeviceType()
-            const referrer = document.referrer || null
-            const userAgent = navigator.userAgent || null
+    const hasVisitedThisSession = useCallback(() => {
+        // Mantido apenas para uso em store_views (avatares online)
+        // Não bloqueia mais o incremento do contador principal
+        const key = `iuser_visited_store_${storeSlug}`
+        if (sessionStorage.getItem(key)) return true
+        sessionStorage.setItem(key, '1')
+        return false
+    }, [storeSlug])
 
-            const { error } = await supabase.from('product_views').insert({
-                product_id: productId,
-                store_id: storeId,
-                viewer_id: userId || null,
-                anonymous_id: anonymousId,
-                session_id: sessionId,
-                device_type: device,
-                referrer,
-                user_agent: userAgent,
-            })
-            if (error) console.warn('[StorePage] Erro ao registrar view do produto:', error.message)
-        },
-        [supabase]
-    )
+    const getDeviceType = useCallback((): 'mobile' | 'tablet' | 'desktop' => {
+        const ua = navigator.userAgent
+        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
+        if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
+        return 'desktop'
+    }, [])
 
-    // ---------- Buscar visitantes online e fallback ----------
-    const fetchOnlineVisitors = useCallback(
-        async (storeId: string) => {
-            const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+    const captureVisit = useCallback(async (storeId: string, userId: string | null) => {
+        // Ainda registramos no store_views para os avatares online,
+        // mas não usamos isso para a contagem total.
+        if (hasVisitedThisSession()) return
 
-            const { data } = await supabase
-                .from('store_visits')
-                .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
-                .eq('store_id', storeId)
-                .gte('created_at', oneMinuteAgo)
-                .order('created_at', { ascending: false })
+        const anonymousId = userId ? null : getAnonymousId()
+        const sessionId = getSessionId()
+        const deviceType = getDeviceType()
+        const referrer = document.referrer || null
+        const userAgent = navigator.userAgent || null
 
-            const uniqueMap = new Map<string, any>()
-            data?.forEach(v => {
-                const key = v.viewer_id || v.anonymous_id
-                if (key && !uniqueMap.has(key)) {
-                    uniqueMap.set(key, {
-                        ...v,
-                        profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
-                    })
-                }
-            })
+        const { error } = await supabase.from('store_views').insert({
+            store_id: storeId,
+            viewer_id: userId || null,
+            anonymous_id: anonymousId,
+            session_id: sessionId,
+            device_type: deviceType,
+            referrer,
+            user_agent: userAgent,
+            is_anonymous: !userId
+        })
+        if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
+    }, [supabase, getAnonymousId, getSessionId, getDeviceType, hasVisitedThisSession])
 
-            const onlineList = Array.from(uniqueMap.values())
-            setOnlineNow(Math.max(1, onlineList.length))
-            setOnlineVisitors(onlineList.slice(0, 4))
-        },
-        [supabase]
-    )
+    const captureProductView = useCallback(async (productId: string, storeId: string, userId: string | null) => {
+        const anonymousId = userId ? null : getAnonymousId()
+        const sessionId = getSessionId()
+        const deviceType = getDeviceType()
+        const referrer = document.referrer || null
+        const userAgent = navigator.userAgent || null
 
-    const fetchFallbackAvatars = useCallback(
-        async (storeId: string) => {
-            const { data } = await supabase
-                .from('store_visits')
-                .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
-                .eq('store_id', storeId)
-                .order('created_at', { ascending: false })
-                .limit(20)
+        const { error } = await supabase.from('product_views').insert({
+            product_id: productId,
+            store_id: storeId,
+            viewer_id: userId || null,
+            anonymous_id: anonymousId,
+            session_id: sessionId,
+            device_type: deviceType,
+            referrer,
+            user_agent: userAgent
+        })
+        if (error) console.warn('[StorePage] Erro ao registrar view do produto:', error.message)
+    }, [supabase, getAnonymousId, getSessionId, getDeviceType])
 
-            if (data) {
-                const unique = new Map<string, any>()
-                for (const v of data) {
-                    const key = v.viewer_id || v.anonymous_id
-                    if (!unique.has(key)) {
-                        unique.set(key, {
-                            ...v,
-                            profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
-                        })
-                    }
-                }
-                setFallbackAvatars(Array.from(unique.values()).slice(0, 4))
-            }
-        },
-        [supabase]
-    )
-
-    // ---------- Outras funções mantidas ----------
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
         const query = searchQuery.toLowerCase()
@@ -427,7 +374,32 @@ export default function StorePage() {
         [supabase]
     )
 
-    // ---------- Carregar loja e dados ----------
+    // Buscar visitantes online (últimos 60 segundos)
+    const fetchOnlineVisitors = useCallback(async (storeId: string) => {
+        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+        const { data } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', storeId)
+            .gte('created_at', oneMinuteAgo)
+            .order('created_at', { ascending: false })
+
+        const uniqueMap = new Map<string, any>()
+        data?.forEach(v => {
+            const key = v.viewer_id || v.anonymous_id
+            if (key && !uniqueMap.has(key)) {
+                uniqueMap.set(key, {
+                    ...v,
+                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
+                })
+            }
+        })
+        const onlineList = Array.from(uniqueMap.values())
+        // Sempre mostra pelo menos 1 online (o pr\u00f3prio visitante atual)
+        setOnlineNow(Math.max(1, onlineList.length))
+        setOnlineVisitors(onlineList.slice(0, 4))
+    }, [supabase])
+
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
         setLoading(true)
@@ -455,14 +427,35 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        // Contador principal
+        // 1) Apenas lê o view_count atual do Supabase (sem incrementar aqui)
+        //    O incremento acontece após 3s em um useEffect separado.
         setTotalVisitors(foundStore.view_count ?? 0)
 
-        // Carrega avatares de fallback e visitantes online
-        fetchFallbackAvatars(foundStore.id)
+        // 4) Buscar últimos visitantes para fallback de avatares
+        const { data: recentViews } = await supabase
+            .from('store_views')
+            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
+            .eq('store_id', foundStore.id)
+            .order('created_at', { ascending: false })
+            .limit(20)
+
+        if (recentViews) {
+            const uniqueVisitors = new Map<string, any>()
+            for (const view of recentViews) {
+                const key = view.viewer_id ?? view.anonymous_id
+                if (!uniqueVisitors.has(key)) {
+                    uniqueVisitors.set(key, {
+                        ...view,
+                        profiles: Array.isArray(view.profiles) ? view.profiles[0] : view.profiles,
+                    })
+                }
+            }
+            setRecentVisitors(Array.from(uniqueVisitors.values()).slice(0, 4))
+        }
+
+        // Carrega os visitantes online via query real
         fetchOnlineVisitors(foundStore.id)
 
-        // Produtos
         const { data: productsData } = await supabase
             .from('products')
             .select('*')
@@ -475,7 +468,6 @@ export default function StorePage() {
                 : null,
         }))
 
-        // WhatsApp
         let storeWhatsapp = foundStore.whatsapp
         if (!storeWhatsapp && foundStore.owner_id) {
             const { data: profile } = await supabase
@@ -490,7 +482,6 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
-        // Agendamentos de hoje
         const today = new Date()
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
@@ -509,7 +500,6 @@ export default function StorePage() {
             }))
         )
 
-        // Vendas recentes (avaliações)
         const { data: salesData } = await supabase
             .from('product_reviews')
             .select(
@@ -531,13 +521,13 @@ export default function StorePage() {
         )
 
         setLoading(false)
-    }, [storeSlug, supabase, fetchOnlineVisitors, fetchFallbackAvatars, loadRatings])
+    }, [loadRatings, storeSlug, supabase, fetchOnlineVisitors])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
 
-    // ---------- Incremento do contador após 3s (com cooldown) ----------
+    // Após a loja carregar: aguarda 3s, anima o +1 visual e salva no Supabase
     useEffect(() => {
         if (!store) return
 
@@ -547,29 +537,32 @@ export default function StorePage() {
         const timer = setTimeout(async () => {
             if (cancelled) return
 
-            // Cooldown de 30 min por loja no localStorage
-            const cooldownKey = `iuser_vt_${storeId}`
+            // Cooldown de 30 minutos por loja no localStorage
+            // (permite re-contagem se o visitante voltar depois de 30min)
+            const cooldownKey = `iuser_visit_ts_${storeId}`
             const lastVisit = localStorage.getItem(cooldownKey)
+            const COOLDOWN_MS = 30 * 60 * 1000 // 30 minutos
             const now = Date.now()
 
             if (lastVisit && now - Number(lastVisit) < COOLDOWN_MS) {
-                return // ainda em cooldown, não incrementa
+                // Ainda no cooldown — apenas mostra o valor atual sem incrementar
+                return
             }
 
-            // Atualiza timestamp do último incremento
+            // Registra o timestamp desta visita
             localStorage.setItem(cooldownKey, String(now))
 
-            // Anima visualmente o +1
+            // Anima o +1 visualmente antes de salvar
             setTotalVisitors(prev => prev + 1)
 
-            // Registra a visita em store_visits (sempre)
+            // Registra a visita nos avatares online
             const { data: { user } } = await supabase.auth.getUser()
             const userId = user?.id ?? null
             if (!cancelled) {
                 await captureVisit(storeId, userId)
             }
 
-            // Incrementa view_count da loja via RPC
+            // Salva o incremento no Supabase via RPC
             if (!cancelled) {
                 const { data: newCount, error: rpcError } = await supabase
                     .rpc('increment_store_view', { store_id: storeId })
@@ -588,7 +581,7 @@ export default function StorePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [store?.id])
 
-    // ---------- Realtime + polling para visitantes online ----------
+    // Realtime + polling para visitantes online
     useEffect(() => {
         if (!store) return
 
@@ -599,7 +592,7 @@ export default function StorePage() {
                 {
                     event: 'INSERT',
                     schema: 'public',
-                    table: 'store_visits',
+                    table: 'store_views',
                     filter: `store_id=eq.${store.id}`,
                 },
                 () => {
@@ -618,7 +611,6 @@ export default function StorePage() {
         }
     }, [store, fetchOnlineVisitors])
 
-    // ---------- Admin panel (também usando store_visits) ----------
     useEffect(() => {
         if (!adminPanelOpen || !store) return
         const loadAdminData = async () => {
@@ -630,16 +622,14 @@ export default function StorePage() {
                 .limit(50)
             setAdminSales(salesData || [])
 
-            // Views da loja (agora da store_visits)
             const { data: adminViewsData } = await supabase
-                .from('store_visits')
+                .from('store_views')
                 .select('viewer_id, anonymous_id')
                 .eq('store_id', store.id)
-            const uniqueLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
-            const uniqueAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
-            setStoreViews(uniqueLogados.size + uniqueAnonimos.size)
+            const uniqueAdminLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
+            const uniqueAdminAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
+            setStoreViews(uniqueAdminLogados.size + uniqueAdminAnonimos.size)
 
-            // Product views
             const { count: prodViewsCount } = await supabase
                 .from('product_views')
                 .select('*', { count: 'exact', head: true })
@@ -836,7 +826,6 @@ export default function StorePage() {
                                 <span className="font-medium">
                                     {totalVisitors} visitantes{onlineNow > 0 && <span className="text-[10px] ml-0.5 opacity-70"> · {onlineNow} online</span>}
                                 </span>
-                                {/* Avatares online ou fallback */}
                                 {onlineVisitors.length > 0 ? (
                                     <div className="flex items-center -space-x-1 ml-1">
                                         {onlineVisitors.map((visitor, i) => (
@@ -861,9 +850,9 @@ export default function StorePage() {
                                             </div>
                                         ))}
                                     </div>
-                                ) : fallbackAvatars.length > 0 ? (
+                                ) : recentVisitors.length > 0 ? (
                                     <div className="flex items-center -space-x-1 ml-1">
-                                        {fallbackAvatars.map((visitor, i) => (
+                                        {recentVisitors.map((visitor, i) => (
                                             <div
                                                 key={i}
                                                 className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border flex items-center justify-center"
@@ -952,7 +941,6 @@ export default function StorePage() {
                     )}
                 </div>
 
-                {/* Agendamentos de hoje (se houver) */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
                         <h4 className="text-[10px] font-black uppercase" style={{ color: colors.textSecondary }}>Agendados Hoje</h4>
@@ -1314,7 +1302,7 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* Admin panel */}
+            {/* Admin panel (StoreFlow) */}
             {adminPanelOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" onClick={() => setAdminPanelOpen(false)}>
                     <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
