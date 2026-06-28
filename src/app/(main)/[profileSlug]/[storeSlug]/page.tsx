@@ -15,7 +15,6 @@ import {
     ExternalLink,
     Settings,
     Star,
-    CheckCircle2,
     Trash2,
     Plus,
     Navigation,
@@ -27,7 +26,8 @@ import {
     ShoppingCart,
     Home,
     ShoppingBag,
-    UserCircle
+    UserCircle,
+    Store
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
@@ -107,7 +107,7 @@ type StoreType = {
     allow_scheduling?: boolean
     business_hours?: Record<string, { open: string; close: string }> | null
     location?: any
-    view_count?: number   // Adicionado
+    view_count?: number
 }
 
 const formatAddress = (fullAddress: string | null | undefined): string => {
@@ -171,6 +171,38 @@ function isOpenNow(schedule: { open: string; close: string } | null | undefined)
 
 type TabType = 'products' | 'reviews'
 
+// ------------------- Helpers para o novo sistema de visitantes -------------------
+const COOLDOWN_MINUTES = 30
+const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000
+
+function getOrCreateAnonymousId(): string {
+    const key = 'iuser_anon_id'
+    let id = localStorage.getItem(key)
+    if (!id) {
+        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+        localStorage.setItem(key, id)
+    }
+    return id
+}
+
+function getOrCreateSessionId(): string {
+    const key = 'iuser_sid'
+    let id = sessionStorage.getItem(key)
+    if (!id) {
+        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
+        sessionStorage.setItem(key, id)
+    }
+    return id
+}
+
+function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
+    const ua = navigator.userAgent
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
+    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
+    return 'desktop'
+}
+// --------------------------------------------------------------------------------
+
 export default function StorePage() {
     const params = useParams()
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
@@ -203,95 +235,58 @@ export default function StorePage() {
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
-    const [recentVisitors, setRecentVisitors] = useState<any[]>([])
-    const [onlineNow, setOnlineNow] = useState(0)
-    const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<TabType>('products')
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
-    // Captura de dados
-    const getAnonymousId = useCallback(() => {
-        const key = 'iuser_anonymous_id'
-        let id = localStorage.getItem(key)
-        if (!id) {
-            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-            localStorage.setItem(key, id)
-        }
-        return id
-    }, [])
+    // ---------- Captura de visitas (sempre insere em store_visits) ----------
+    const captureVisit = useCallback(
+        async (storeId: string, userId: string | null) => {
+            const anonymousId = userId ? null : getOrCreateAnonymousId()
+            const sessionId = getOrCreateSessionId()
+            const device = getDeviceType()
+            const referrer = document.referrer || null
+            const userAgent = navigator.userAgent || null
 
-    const getSessionId = useCallback(() => {
-        const key = 'iuser_session_id'
-        let id = sessionStorage.getItem(key)
-        if (!id) {
-            id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-            sessionStorage.setItem(key, id)
-        }
-        return id
-    }, [])
+            const { error } = await supabase.from('store_visits').insert({
+                store_id: storeId,
+                viewer_id: userId || null,
+                anonymous_id: anonymousId,
+                session_id: sessionId,
+                device_type: device,
+                referrer,
+                user_agent: userAgent,
+            })
+            if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
+        },
+        [supabase]
+    )
 
-    const hasVisitedThisSession = useCallback(() => {
-        // Mantido apenas para uso em store_views (avatares online)
-        // Não bloqueia mais o incremento do contador principal
-        const key = `iuser_visited_store_${storeSlug}`
-        if (sessionStorage.getItem(key)) return true
-        sessionStorage.setItem(key, '1')
-        return false
-    }, [storeSlug])
+    const captureProductView = useCallback(
+        async (productId: string, storeId: string, userId: string | null) => {
+            const anonymousId = userId ? null : getOrCreateAnonymousId()
+            const sessionId = getOrCreateSessionId()
+            const device = getDeviceType()
+            const referrer = document.referrer || null
+            const userAgent = navigator.userAgent || null
 
-    const getDeviceType = useCallback((): 'mobile' | 'tablet' | 'desktop' => {
-        const ua = navigator.userAgent
-        if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
-        if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
-        return 'desktop'
-    }, [])
+            const { error } = await supabase.from('product_views').insert({
+                product_id: productId,
+                store_id: storeId,
+                viewer_id: userId || null,
+                anonymous_id: anonymousId,
+                session_id: sessionId,
+                device_type: device,
+                referrer,
+                user_agent: userAgent,
+            })
+            if (error) console.warn('[StorePage] Erro ao registrar view do produto:', error.message)
+        },
+        [supabase]
+    )
 
-    const captureVisit = useCallback(async (storeId: string, userId: string | null) => {
-        // Ainda registramos no store_views para os avatares online,
-        // mas não usamos isso para a contagem total.
-        if (hasVisitedThisSession()) return
-
-        const anonymousId = userId ? null : getAnonymousId()
-        const sessionId = getSessionId()
-        const deviceType = getDeviceType()
-        const referrer = document.referrer || null
-        const userAgent = navigator.userAgent || null
-
-        const { error } = await supabase.from('store_views').insert({
-            store_id: storeId,
-            viewer_id: userId || null,
-            anonymous_id: anonymousId,
-            session_id: sessionId,
-            device_type: deviceType,
-            referrer,
-            user_agent: userAgent,
-            is_anonymous: !userId
-        })
-        if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
-    }, [supabase, getAnonymousId, getSessionId, getDeviceType, hasVisitedThisSession])
-
-    const captureProductView = useCallback(async (productId: string, storeId: string, userId: string | null) => {
-        const anonymousId = userId ? null : getAnonymousId()
-        const sessionId = getSessionId()
-        const deviceType = getDeviceType()
-        const referrer = document.referrer || null
-        const userAgent = navigator.userAgent || null
-
-        const { error } = await supabase.from('product_views').insert({
-            product_id: productId,
-            store_id: storeId,
-            viewer_id: userId || null,
-            anonymous_id: anonymousId,
-            session_id: sessionId,
-            device_type: deviceType,
-            referrer,
-            user_agent: userAgent
-        })
-        if (error) console.warn('[StorePage] Erro ao registrar view do produto:', error.message)
-    }, [supabase, getAnonymousId, getSessionId, getDeviceType])
-
+    // ---------- Outras funções ----------
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
         const query = searchQuery.toLowerCase()
@@ -374,32 +369,7 @@ export default function StorePage() {
         [supabase]
     )
 
-    // Buscar visitantes online (últimos 60 segundos)
-    const fetchOnlineVisitors = useCallback(async (storeId: string) => {
-        const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
-        const { data } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
-            .eq('store_id', storeId)
-            .gte('created_at', oneMinuteAgo)
-            .order('created_at', { ascending: false })
-
-        const uniqueMap = new Map<string, any>()
-        data?.forEach(v => {
-            const key = v.viewer_id || v.anonymous_id
-            if (key && !uniqueMap.has(key)) {
-                uniqueMap.set(key, {
-                    ...v,
-                    profiles: Array.isArray(v.profiles) ? v.profiles[0] : v.profiles,
-                })
-            }
-        })
-        const onlineList = Array.from(uniqueMap.values())
-        // Sempre mostra pelo menos 1 online (o pr\u00f3prio visitante atual)
-        setOnlineNow(Math.max(1, onlineList.length))
-        setOnlineVisitors(onlineList.slice(0, 4))
-    }, [supabase])
-
+    // ---------- Carregar loja e dados ----------
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
         setLoading(true)
@@ -427,35 +397,10 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        // 1) Apenas lê o view_count atual do Supabase (sem incrementar aqui)
-        //    O incremento acontece após 3s em um useEffect separado.
+        // Apenas lê o view_count do banco, sem incrementar aqui
         setTotalVisitors(foundStore.view_count ?? 0)
 
-        // 4) Buscar últimos visitantes para fallback de avatares
-        const { data: recentViews } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id, created_at, profiles:viewer_id(avatar_url, name, "profileSlug")')
-            .eq('store_id', foundStore.id)
-            .order('created_at', { ascending: false })
-            .limit(20)
-
-        if (recentViews) {
-            const uniqueVisitors = new Map<string, any>()
-            for (const view of recentViews) {
-                const key = view.viewer_id ?? view.anonymous_id
-                if (!uniqueVisitors.has(key)) {
-                    uniqueVisitors.set(key, {
-                        ...view,
-                        profiles: Array.isArray(view.profiles) ? view.profiles[0] : view.profiles,
-                    })
-                }
-            }
-            setRecentVisitors(Array.from(uniqueVisitors.values()).slice(0, 4))
-        }
-
-        // Carrega os visitantes online via query real
-        fetchOnlineVisitors(foundStore.id)
-
+        // Produtos
         const { data: productsData } = await supabase
             .from('products')
             .select('*')
@@ -468,6 +413,7 @@ export default function StorePage() {
                 : null,
         }))
 
+        // WhatsApp
         let storeWhatsapp = foundStore.whatsapp
         if (!storeWhatsapp && foundStore.owner_id) {
             const { data: profile } = await supabase
@@ -482,6 +428,7 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
+        // Agendamentos de hoje
         const today = new Date()
         const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
         const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
@@ -500,6 +447,7 @@ export default function StorePage() {
             }))
         )
 
+        // Vendas recentes (avaliações)
         const { data: salesData } = await supabase
             .from('product_reviews')
             .select(
@@ -521,13 +469,13 @@ export default function StorePage() {
         )
 
         setLoading(false)
-    }, [loadRatings, storeSlug, supabase, fetchOnlineVisitors])
+    }, [storeSlug, supabase, loadRatings])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
 
-    // Após a loja carregar: aguarda 3s, anima o +1 visual e salva no Supabase
+    // ---------- Incremento do contador após 3s (com cooldown) ----------
     useEffect(() => {
         if (!store) return
 
@@ -537,32 +485,27 @@ export default function StorePage() {
         const timer = setTimeout(async () => {
             if (cancelled) return
 
-            // Cooldown de 30 minutos por loja no localStorage
-            // (permite re-contagem se o visitante voltar depois de 30min)
-            const cooldownKey = `iuser_visit_ts_${storeId}`
+            const cooldownKey = `iuser_vt_${storeId}`
             const lastVisit = localStorage.getItem(cooldownKey)
-            const COOLDOWN_MS = 30 * 60 * 1000 // 30 minutos
             const now = Date.now()
 
             if (lastVisit && now - Number(lastVisit) < COOLDOWN_MS) {
-                // Ainda no cooldown — apenas mostra o valor atual sem incrementar
-                return
+                return // ainda em cooldown
             }
 
-            // Registra o timestamp desta visita
             localStorage.setItem(cooldownKey, String(now))
 
-            // Anima o +1 visualmente antes de salvar
+            // Anima +1 visualmente
             setTotalVisitors(prev => prev + 1)
 
-            // Registra a visita nos avatares online
+            // Registra a visita em store_visits
             const { data: { user } } = await supabase.auth.getUser()
             const userId = user?.id ?? null
             if (!cancelled) {
                 await captureVisit(storeId, userId)
             }
 
-            // Salva o incremento no Supabase via RPC
+            // Incrementa view_count via RPC
             if (!cancelled) {
                 const { data: newCount, error: rpcError } = await supabase
                     .rpc('increment_store_view', { store_id: storeId })
@@ -581,36 +524,35 @@ export default function StorePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [store?.id])
 
-    // Realtime + polling para visitantes online
+    // ---------- 🔴 Atualização em tempo real do contador de visitantes ----------
     useEffect(() => {
         if (!store) return
 
         const channel = supabase
-            .channel(`store-online-${store.id}`)
+            .channel(`store-${store.id}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'INSERT',
+                    event: 'UPDATE',
                     schema: 'public',
-                    table: 'store_views',
-                    filter: `store_id=eq.${store.id}`,
+                    table: 'stores',
+                    filter: `id=eq.${store.id}`,
                 },
-                () => {
-                    fetchOnlineVisitors(store.id)
+                (payload) => {
+                    const newCount = payload.new.view_count as number
+                    if (typeof newCount === 'number') {
+                        setTotalVisitors(newCount)
+                    }
                 }
             )
             .subscribe()
 
-        const interval = setInterval(() => {
-            fetchOnlineVisitors(store.id)
-        }, 10000)
-
         return () => {
             supabase.removeChannel(channel)
-            clearInterval(interval)
         }
-    }, [store, fetchOnlineVisitors])
+    }, [store?.id])
 
+    // ---------- Admin panel (usando store_visits) ----------
     useEffect(() => {
         if (!adminPanelOpen || !store) return
         const loadAdminData = async () => {
@@ -623,12 +565,12 @@ export default function StorePage() {
             setAdminSales(salesData || [])
 
             const { data: adminViewsData } = await supabase
-                .from('store_views')
+                .from('store_visits')
                 .select('viewer_id, anonymous_id')
                 .eq('store_id', store.id)
-            const uniqueAdminLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
-            const uniqueAdminAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
-            setStoreViews(uniqueAdminLogados.size + uniqueAdminAnonimos.size)
+            const uniqueLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
+            const uniqueAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
+            setStoreViews(uniqueLogados.size + uniqueAnonimos.size)
 
             const { count: prodViewsCount } = await supabase
                 .from('product_views')
@@ -746,6 +688,25 @@ export default function StorePage() {
             </div>
         )
 
+    // Estilo do botão "Adicionar Produto/Serviço" (igual ao "Criar Loja" da HomePage)
+    const addProductButtonStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        width: '100%',
+        padding: '0.75rem 1rem',
+        borderRadius: '1rem',
+        fontSize: '0.875rem',
+        fontWeight: 700,
+        transition: 'all 0.2s',
+        background: colors.accent,
+        color: colors.accentText,
+        border: `1px solid ${colors.accent}`,
+        boxShadow: `0 4px 12px ${colors.accent}40`,
+        cursor: 'pointer',
+    }
+
     return (
         <div className="relative flex flex-col min-h-screen pb-28">
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
@@ -824,57 +785,8 @@ export default function StorePage() {
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
                                 <span className="font-medium">
-                                    {totalVisitors} visitantes{onlineNow > 0 && <span className="text-[10px] ml-0.5 opacity-70"> · {onlineNow} online</span>}
+                                    {totalVisitors} visitantes
                                 </span>
-                                {onlineVisitors.length > 0 ? (
-                                    <div className="flex items-center -space-x-1 ml-1">
-                                        {onlineVisitors.map((visitor, i) => (
-                                            <div
-                                                key={i}
-                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border flex items-center justify-center"
-                                                style={{ background: colors.surface, borderColor: colors.border }}
-                                            >
-                                                {visitor.profiles?.avatar_url ? (
-                                                    <img
-                                                        src={getAvatarUrl(supabase, visitor.profiles.avatar_url)!}
-                                                        className="w-full h-full object-cover"
-                                                        alt=""
-                                                    />
-                                                ) : visitor.viewer_id ? (
-                                                    <span className="text-[6px] font-bold" style={{ color: colors.textSecondary }}>
-                                                        {visitor.profiles?.name?.charAt(0) || '?'}
-                                                    </span>
-                                                ) : (
-                                                    <UserCircle className="w-3 h-3" style={{ color: colors.accent }} />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : recentVisitors.length > 0 ? (
-                                    <div className="flex items-center -space-x-1 ml-1">
-                                        {recentVisitors.map((visitor, i) => (
-                                            <div
-                                                key={i}
-                                                className="w-4 h-4 rounded-full ring-1 ring-white overflow-hidden border flex items-center justify-center"
-                                                style={{ background: colors.surface, borderColor: colors.border }}
-                                            >
-                                                {visitor.profiles?.avatar_url ? (
-                                                    <img
-                                                        src={getAvatarUrl(supabase, visitor.profiles.avatar_url)!}
-                                                        className="w-full h-full object-cover"
-                                                        alt=""
-                                                    />
-                                                ) : visitor.viewer_id ? (
-                                                    <span className="text-[6px] font-bold" style={{ color: colors.textSecondary }}>
-                                                        {visitor.profiles?.name?.charAt(0) || '?'}
-                                                    </span>
-                                                ) : (
-                                                    <UserCircle className="w-3 h-3" style={{ color: colors.accent }} />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : null}
                             </div>
                             <span className="text-gray-300">·</span>
                             <div className="flex items-center gap-1">
@@ -1039,9 +951,24 @@ export default function StorePage() {
                         </div>
 
                         {filteredProducts.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl border border-dashed" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <Search className="w-6 h-6 mx-auto mb-1" style={{ color: colors.textSecondary }} />
-                                <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>Nenhum produto</p>
+                            <div className="py-8 text-center rounded-xl border border-dashed flex flex-col items-center gap-4"
+                                style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
+                                <Search className="w-6 h-6" style={{ color: colors.textSecondary }} />
+                                <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>
+                                    Nenhum produto
+                                </p>
+                                {isOwner && (
+                                    <button
+                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                        style={addProductButtonStyle}
+                                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.95)' }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
+                                        className="group"
+                                    >
+                                        <Store size={18} />
+                                        Adicionar Produto ou Serviço
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             Object.entries(groupedProducts).map(([category, products]) => (
@@ -1302,7 +1229,7 @@ export default function StorePage() {
                 </div>
             )}
 
-            {/* Admin panel (StoreFlow) */}
+            {/* Admin panel */}
             {adminPanelOpen && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" onClick={() => setAdminPanelOpen(false)}>
                     <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
