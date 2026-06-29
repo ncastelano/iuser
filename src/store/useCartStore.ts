@@ -1,12 +1,20 @@
+// src/store/useCartStore.ts
+'use client'
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { supabase } from '@/lib/supabase/client'
 
 export interface CartProduct {
     id: string
     name: string
     price: number
     image_url: string | null
-    [key: string]: any
+    price_type?: string
+    type?: string
+    slug?: string
+    description?: string
+    category?: string
 }
 
 export interface CartItem {
@@ -14,135 +22,158 @@ export interface CartItem {
     quantity: number
 }
 
-// Map from storeSlug to array of CartItems
-export interface CartState {
-    itemsByStore: Record<string, CartItem[]>
-    storeDetails: Record<string, { name: string, logo_url: string | null }>
-    addItem: (storeSlug: string, storeInfo: { name: string, logo_url: string | null }, product: CartProduct) => void
-    removeItem: (storeSlug: string, productId: string) => void
-    clearStoreCart: (storeSlug: string) => void
-    updateQuantity: (storeSlug: string, productId: string, delta: number) => void
-    syncToDatabase: () => Promise<void>
-    loadFromDatabase: () => Promise<void>
+export interface StoreDetails {
+    name: string
+    logo_url: string | null
 }
 
-// Inicializamos o client do supabase fora para as funcoes
-import { supabase } from '@/lib/supabase/client'
+interface CartState {
+    itemsByStore: Record<string, CartItem[]>
+    storeDetails: Record<string, StoreDetails>
 
-export const useCartStore = create<CartState>()(
+    addItem: (storeSlug: string, store: StoreDetails, product: CartProduct) => void
+    removeItem: (storeSlug: string, productId: string) => void
+    updateQuantity: (storeSlug: string, productId: string, delta: number) => void
+    clearStoreCart: (storeSlug: string) => void
+    clearAll: () => void
+
+    loadFromSupabase: (userId: string) => Promise<void>
+    syncToSupabase: (userId: string) => Promise<void>
+}
+
+const useCartStore = create<CartState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             itemsByStore: {},
             storeDetails: {},
-            addItem: (storeSlug, storeInfo, product) => set((state) => {
-                const storeItems = state.itemsByStore[storeSlug] || []
-                const existingItem = storeItems.find(item => item.product.id === product.id)
 
-                let newStoreItems;
-                if (existingItem) {
-                    newStoreItems = storeItems.map(item =>
-                        item.product.id === product.id
-                            ? { ...item, quantity: item.quantity + 1 }
-                            : item
+            addItem: (storeSlug, store, product) =>
+                set((state) => {
+                    const storeItems = state.itemsByStore[storeSlug] || []
+                    const existing = storeItems.find((item) => item.product.id === product.id)
+                    let newItems: CartItem[]
+                    if (existing) {
+                        newItems = storeItems.map((item) =>
+                            item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                        )
+                    } else {
+                        newItems = [...storeItems, { product, quantity: 1 }]
+                    }
+                    return {
+                        itemsByStore: { ...state.itemsByStore, [storeSlug]: newItems },
+                        storeDetails: { ...state.storeDetails, [storeSlug]: store },
+                    }
+                }),
+
+            removeItem: (storeSlug, productId) =>
+                set((state) => {
+                    const storeItems = (state.itemsByStore[storeSlug] || []).filter(
+                        (item) => item.product.id !== productId
                     )
-                } else {
-                    newStoreItems = [...storeItems, { product, quantity: 1 }]
-                }
-
-                return {
-                    itemsByStore: {
-                        ...state.itemsByStore,
-                        [storeSlug]: newStoreItems
-                    },
-                    storeDetails: {
-                        ...state.storeDetails,
-                        [storeSlug]: { name: storeInfo.name, logo_url: storeInfo.logo_url }
+                    const newItemsByStore = { ...state.itemsByStore }
+                    const newStoreDetails = { ...state.storeDetails }
+                    if (storeItems.length > 0) {
+                        newItemsByStore[storeSlug] = storeItems
+                    } else {
+                        delete newItemsByStore[storeSlug]
+                        delete newStoreDetails[storeSlug]
                     }
-                }
-            }),
-            removeItem: (storeSlug, productId) => set((state) => {
-                const storeItems = state.itemsByStore[storeSlug] || []
-                const newStoreItems = storeItems.filter(item => item.product.id !== productId)
+                    return { itemsByStore: newItemsByStore, storeDetails: newStoreDetails }
+                }),
 
-                const newItemsByStore = { ...state.itemsByStore }
-                if (newStoreItems.length === 0) {
-                    delete newItemsByStore[storeSlug]
-                } else {
-                    newItemsByStore[storeSlug] = newStoreItems
-                }
-
-                return { itemsByStore: newItemsByStore }
-            }),
-            updateQuantity: (storeSlug, productId, delta) => set((state) => {
-                const storeItems = state.itemsByStore[storeSlug] || []
-                const newStoreItems = storeItems.map(item => {
-                    if (item.product.id === productId) {
-                        return { ...item, quantity: Math.max(0, item.quantity + delta) }
+            updateQuantity: (storeSlug, productId, delta) =>
+                set((state) => {
+                    const storeItems = (state.itemsByStore[storeSlug] || [])
+                        .map((item) =>
+                            item.product.id === productId
+                                ? { ...item, quantity: Math.max(0, item.quantity + delta) }
+                                : item
+                        )
+                        .filter((item) => item.quantity > 0)
+                    const newItemsByStore = { ...state.itemsByStore }
+                    const newStoreDetails = { ...state.storeDetails }
+                    if (storeItems.length > 0) {
+                        newItemsByStore[storeSlug] = storeItems
+                    } else {
+                        delete newItemsByStore[storeSlug]
+                        delete newStoreDetails[storeSlug]
                     }
-                    return item
-                }).filter(item => item.quantity > 0)
+                    return { itemsByStore: newItemsByStore, storeDetails: newStoreDetails }
+                }),
 
-                const newItemsByStore = { ...state.itemsByStore }
-                if (newStoreItems.length === 0) {
+            clearStoreCart: (storeSlug) =>
+                set((state) => {
+                    const newItemsByStore = { ...state.itemsByStore }
+                    const newStoreDetails = { ...state.storeDetails }
                     delete newItemsByStore[storeSlug]
-                } else {
-                    newItemsByStore[storeSlug] = newStoreItems
+                    delete newStoreDetails[storeSlug]
+                    return { itemsByStore: newItemsByStore, storeDetails: newStoreDetails }
+                }),
+
+            clearAll: () => set({ itemsByStore: {}, storeDetails: {} }),
+
+            loadFromSupabase: async (userId: string) => {
+                if (!userId) return
+                const { data, error } = await supabase
+                    .from('carts')
+                    .select('*')
+                    .eq('user_id', userId)
+                if (error) {
+                    console.error('Erro ao carregar carrinho do Supabase:', error)
+                    return
                 }
+                if (!data || data.length === 0) return
 
-                return { itemsByStore: newItemsByStore }
-            }),
-            clearStoreCart: (storeSlug) => set((state) => {
-                const newItemsByStore = { ...state.itemsByStore }
-                delete newItemsByStore[storeSlug]
-                return { itemsByStore: newItemsByStore }
-            }),
-            syncToDatabase: async () => {
-                const { data: { session } } = await supabase.auth.getSession()
-                if (!session?.user?.id) return
+                const itemsByStore: Record<string, CartItem[]> = {}
+                const storeDetails: Record<string, StoreDetails> = {}
 
-                const state = set((state) => state) // get current state
-                const { itemsByStore, storeDetails } = useCartStore.getState()
+                data.forEach((row: any) => {
+                    const slug = row.store_slug
+                    if (!itemsByStore[slug]) itemsByStore[slug] = []
+                    itemsByStore[slug].push({
+                        product: row.product_data as CartProduct,
+                        quantity: row.quantity,
+                    })
+                    if (!storeDetails[slug]) {
+                        storeDetails[slug] = row.store_data as StoreDetails
+                    }
+                })
 
-                try {
-                    // Tenta atualizar no supabase uma coluna cart_data (assumindo que o usuario vai criar)
-                    await supabase.from('profiles').update({
-                        cart_data: { itemsByStore, storeDetails }
-                    }).eq('id', session.user.id)
-                } catch (e) {
-                    console.error("Erro ao sincronizar carrinho com banco", e)
-                }
+                set({ itemsByStore, storeDetails })
             },
-            loadFromDatabase: async () => {
-                const { data: { session } } = await supabase.auth.getSession()
-                if (!session?.user?.id) return
 
-                try {
-                    const { data } = await supabase.from('profiles').select('cart_data').eq('id', session.user.id).single()
-                    if (data?.cart_data) {
-                        set({
-                            itemsByStore: data.cart_data.itemsByStore || {},
-                            storeDetails: data.cart_data.storeDetails || {}
+            syncToSupabase: async (userId: string) => {
+                if (!userId) return
+                const { itemsByStore, storeDetails } = get()
+
+                await supabase.from('carts').delete().eq('user_id', userId)
+
+                const rows: any[] = []
+                for (const slug of Object.keys(itemsByStore)) {
+                    const items = itemsByStore[slug]
+                    const store = storeDetails[slug]
+                    for (const item of items) {
+                        rows.push({
+                            user_id: userId,
+                            store_slug: slug,
+                            product_id: item.product.id,
+                            product_data: item.product,
+                            quantity: item.quantity,
+                            store_data: store || { name: '', logo_url: null },
                         })
                     }
-                } catch (e) {
-                    console.error("Erro ao carregar carrinho do banco", e)
                 }
-            }
+
+                if (rows.length > 0) {
+                    const { error } = await supabase.from('carts').insert(rows)
+                    if (error) console.error('Erro ao sincronizar carrinho:', error)
+                }
+            },
         }),
         {
             name: 'iuser-cart-storage',
-            onRehydrateStorage: () => (state) => {
-                // Quando o localStorage for reidratado (na carga da aba), dispara carregar do BD para parear
-                state?.loadFromDatabase().catch(console.error)
-            }
         }
     )
 )
 
-// Opcional: ouvir cada mudança local e disparar o sync (debounced opcionalmente)
-useCartStore.subscribe((state, prevState) => {
-    // se o carrinho mudou, envia
-    if (state.itemsByStore !== prevState.itemsByStore) {
-        state.syncToDatabase().catch(() => { })
-    }
-})
+export { useCartStore }

@@ -30,11 +30,19 @@ import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
 
 export default function SacolaPage() {
-    const { itemsByStore, storeDetails, updateQuantity, removeItem, clearStoreCart } = useCartStore()
+    const {
+        itemsByStore,
+        storeDetails,
+        updateQuantity,
+        removeItem,
+        clearStoreCart,
+        loadFromSupabase,
+        syncToSupabase,
+    } = useCartStore()
+
     const router = useRouter()
     const { colors } = useTheme()
 
-    // ───── TODOS OS HOOKS AQUI ─────
     const [mounted, setMounted] = useState(false)
     const [viewOrder, setViewOrder] = useState<'carrinho' | 'pedidos' | 'avaliar'>('carrinho')
     const [globalLoading, setGlobalLoading] = useState(true)
@@ -74,7 +82,6 @@ export default function SacolaPage() {
         storeId: '',
     })
 
-    // Itens pendentes de avaliação
     const [pendingReviews, setPendingReviews] = useState<any[]>([])
     const [loadingPendingReviews, setLoadingPendingReviews] = useState(false)
 
@@ -142,56 +149,51 @@ export default function SacolaPage() {
             }
 
             const uniquePurchases = Array.from(
-                new Map(allPurchases.map(item => [item.id, item])).values()
+                new Map(allPurchases.map((item) => [item.id, item])).values()
             )
             setMyPurchases([...uniquePurchases])
 
-            setFinishedOrders(prev => {
+            setFinishedOrders((prev) => {
                 if (prev.length === 0) return prev
-                const hasChanges = prev.some(order => {
+                const hasChanges = prev.some((order) => {
                     const updated = uniquePurchases.find(
-                        p => p.checkout_id === order.checkout_id || p.id === order.id
+                        (p) => p.checkout_id === order.checkout_id || p.id === order.id
                     )
                     return updated && updated.status !== order.status
                 })
                 if (!hasChanges) return prev
 
-                return prev.map(order => {
+                return prev.map((order) => {
                     const updated = uniquePurchases.find(
-                        p => p.checkout_id === order.checkout_id || p.id === order.id
+                        (p) => p.checkout_id === order.checkout_id || p.id === order.id
                     )
                     if (updated) return { ...order, status: updated.status }
                     return order
                 })
             })
 
-            // Buscar avaliações pendentes
             await fetchPendingReviews(userId)
         },
         [supabase]
     )
 
-    // Buscar itens pendentes de avaliação
     const fetchPendingReviews = async (userId: string) => {
         setLoadingPendingReviews(true)
         try {
-            // Buscar todos os itens finalizados (paid) do usuário
             const { data: salesItems } = await supabase
                 .from('store_sales')
                 .select('id, product_id, product_name, store_id, checkout_id, price, created_at')
                 .eq('buyer_id', userId)
                 .eq('status', 'paid')
 
-            // Agora incluímos 'created_at' na seleção
             const { data: orderItemsRaw } = await supabase
                 .from('orders')
                 .select('id, checkout_id, store_id, created_at, order_items(product_id, product_name, total_price)')
                 .eq('buyer_id', userId)
                 .eq('status', 'paid')
 
-            // Achatar order_items
             const orderItemsFlat: any[] = []
-            orderItemsRaw?.forEach(order => {
+            orderItemsRaw?.forEach((order) => {
                 if (order.order_items) {
                     order.order_items.forEach((item: any) => {
                         orderItemsFlat.push({
@@ -201,27 +203,23 @@ export default function SacolaPage() {
                             store_id: order.store_id,
                             checkout_id: order.checkout_id,
                             price: item.total_price,
-                            created_at: order.created_at,   // agora disponível
+                            created_at: order.created_at,
                         })
                     })
                 }
             })
-            // Unificar todos os itens finalizados
+
             const allPaidItems = [...(salesItems || []), ...orderItemsFlat]
 
-            // Buscar reviews já feitas
             const { data: reviews } = await supabase
                 .from('product_reviews')
                 .select('product_id')
                 .eq('profile_id', userId)
 
-            const reviewedProductIds = new Set(reviews?.map(r => r.product_id) || [])
+            const reviewedProductIds = new Set(reviews?.map((r) => r.product_id) || [])
 
-            // Filtrar pendentes
-            const pending = allPaidItems.filter(item => !reviewedProductIds.has(item.product_id))
-
-            // Remover duplicatas (mesmo product_id)
-            const uniquePending = Array.from(new Map(pending.map(item => [item.product_id, item])).values())
+            const pending = allPaidItems.filter((item) => !reviewedProductIds.has(item.product_id))
+            const uniquePending = Array.from(new Map(pending.map((item) => [item.product_id, item])).values())
 
             setPendingReviews(uniquePending)
         } catch (err) {
@@ -234,7 +232,9 @@ export default function SacolaPage() {
     useEffect(() => {
         setMounted(true)
         const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
+            const {
+                data: { user },
+            } = await supabase.auth.getUser()
             if (user) {
                 await loadUserData(user.id)
             }
@@ -242,6 +242,44 @@ export default function SacolaPage() {
         }
         checkUser()
     }, [supabase, loadUserData])
+
+    // Carrega carrinho do Supabase ao logar, mesclando com itens locais
+    useEffect(() => {
+        if (!currentUserId) return
+        const localItems = useCartStore.getState().itemsByStore
+        const localDetails = useCartStore.getState().storeDetails
+
+        loadFromSupabase(currentUserId).then(() => {
+            const state = useCartStore.getState()
+            let changed = false
+            for (const slug of Object.keys(localItems)) {
+                const localStoreItems = localItems[slug]
+                const currentStoreItems = state.itemsByStore[slug] || []
+                for (const localItem of localStoreItems) {
+                    const exists = currentStoreItems.some(
+                        (item) => item.product.id === localItem.product.id
+                    )
+                    if (!exists) {
+                        state.addItem(slug, localDetails[slug] || { name: '', logo_url: null }, localItem.product)
+                        state.updateQuantity(slug, localItem.product.id, localItem.quantity - 1)
+                        changed = true
+                    }
+                }
+            }
+            if (changed) {
+                syncToSupabase(currentUserId)
+            }
+        })
+    }, [currentUserId, loadFromSupabase, syncToSupabase])
+
+    // Sincroniza mudanças com Supabase (debounce)
+    useEffect(() => {
+        if (!currentUserId) return
+        const timer = setTimeout(() => {
+            syncToSupabase(currentUserId)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [itemsByStore, currentUserId, syncToSupabase])
 
     useEffect(() => {
         if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
@@ -272,8 +310,8 @@ export default function SacolaPage() {
                 (payload) => {
                     const newStatus = payload.new.status
                     const checkoutId = payload.new.checkout_id
-                    setMyPurchases(prev => {
-                        const existing = prev.find(p => p.checkout_id === checkoutId)
+                    setMyPurchases((prev) => {
+                        const existing = prev.find((p) => p.checkout_id === checkoutId)
                         if (!existing) return prev
                         if (existing.status !== newStatus) {
                             if (newStatus === 'preparing') toast.info('👨‍🍳 O lojista começou a preparar seu pedido!')
@@ -281,12 +319,20 @@ export default function SacolaPage() {
                             if (newStatus === 'paid') toast.success('🎉 Pedido finalizado com sucesso!')
                             if (newStatus === 'rejected') toast.error('❌ Seu pedido foi recusado pelo lojista.')
                         }
-                        return prev.map(p => p.checkout_id === checkoutId ? { ...p, status: newStatus } : p)
+                        return prev.map((p) =>
+                            p.checkout_id === checkoutId ? { ...p, status: newStatus } : p
+                        )
                     })
-                    setFinishedOrders(prev => {
-                        const hasMatch = prev.some(o => o.checkout_id === checkoutId || o.id === payload.new.id)
+                    setFinishedOrders((prev) => {
+                        const hasMatch = prev.some(
+                            (o) => o.checkout_id === checkoutId || o.id === payload.new.id
+                        )
                         if (!hasMatch) return prev
-                        return prev.map(o => (o.checkout_id === checkoutId || o.id === payload.new.id) ? { ...o, status: newStatus } : o)
+                        return prev.map((o) =>
+                            o.checkout_id === checkoutId || o.id === payload.new.id
+                                ? { ...o, status: newStatus }
+                                : o
+                        )
                     })
                 }
             )
@@ -297,8 +343,16 @@ export default function SacolaPage() {
                     const newStatus = payload.new.status
                     const saleId = payload.new.id
                     const checkoutId = payload.new.checkout_id
-                    setMyPurchases(prev => prev.map(p => p.id === saleId ? { ...p, status: newStatus } : p))
-                    setFinishedOrders(prev => prev.map(o => (o.checkout_id === checkoutId || o.id === saleId) ? { ...o, status: newStatus } : o))
+                    setMyPurchases((prev) =>
+                        prev.map((p) => (p.id === saleId ? { ...p, status: newStatus } : p))
+                    )
+                    setFinishedOrders((prev) =>
+                        prev.map((o) =>
+                            o.checkout_id === checkoutId || o.id === saleId
+                                ? { ...o, status: newStatus }
+                                : o
+                        )
+                    )
                 }
             )
             .subscribe()
@@ -318,18 +372,26 @@ export default function SacolaPage() {
                 const items = itemsByStore[slug]
                 const details = storeDetails[slug]
                 const totalPrice = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
-                const { data: storeData } = await supabase.from('stores').select('id, owner_id, whatsapp').eq('storeSlug', slug).single()
+                const { data: storeData } = await supabase
+                    .from('stores')
+                    .select('id, owner_id, whatsapp')
+                    .eq('storeSlug', slug)
+                    .single()
                 if (storeData) {
                     const checkout_id = crypto.randomUUID()
-                    const { data: orderData, error: orderError } = await supabase.from('orders').insert({
-                        store_id: storeData.id,
-                        buyer_id: currentUserId,
-                        buyer_name: currentUserName || authName || 'Cliente iUser',
-                        buyer_profile_slug: currentUserSlug || 'anonimo',
-                        total_amount: totalPrice,
-                        status: 'pending',
-                        checkout_id,
-                    }).select().single()
+                    const { data: orderData, error: orderError } = await supabase
+                        .from('orders')
+                        .insert({
+                            store_id: storeData.id,
+                            buyer_id: currentUserId,
+                            buyer_name: currentUserName || authName || 'Cliente iUser',
+                            buyer_profile_slug: currentUserSlug || 'anonimo',
+                            total_amount: totalPrice,
+                            status: 'pending',
+                            checkout_id,
+                        })
+                        .select()
+                        .single()
                     if (orderError) console.warn('Fallback to legacy store_sales: ', orderError.message)
                     finalOrders.push({
                         id: orderData?.id || checkout_id,
@@ -344,16 +406,18 @@ export default function SacolaPage() {
                         storeName: details?.name || slug,
                     })
                     if (orderData) {
-                        await supabase.from('order_items').insert(items.map(item => ({
-                            order_id: orderData.id,
-                            product_id: item.product.id,
-                            product_name: item.product.name,
-                            quantity: item.quantity,
-                            unit_price: item.product.price,
-                            total_price: item.product.price * item.quantity,
-                        })))
+                        await supabase.from('order_items').insert(
+                            items.map((item) => ({
+                                order_id: orderData.id,
+                                product_id: item.product.id,
+                                product_name: item.product.name,
+                                quantity: item.quantity,
+                                unit_price: item.product.price,
+                                total_price: item.product.price * item.quantity,
+                            }))
+                        )
                     }
-                    const salesToInsert = items.map(item => ({
+                    const salesToInsert = items.map((item) => ({
                         store_id: storeData.id,
                         checkout_id: checkout_id,
                         buyer_id: currentUserId,
@@ -371,25 +435,39 @@ export default function SacolaPage() {
                 }
             }
             setFinishedOrders(finalOrders)
-            storeSlugs.forEach(s => clearStoreCart(s))
-            if (currentUserId) await loadUserData(currentUserId)
+            storeSlugs.forEach((s) => clearStoreCart(s))
+            if (currentUserId) {
+                await loadUserData(currentUserId)
+                await syncToSupabase(currentUserId) // sincroniza carrinho vazio
+            }
             if (storeSlugs.length === 1 && finalOrders.length > 0) {
                 const slug = storeSlugs[0]
-                const { data: storeData } = await supabase.from('stores').select('whatsapp, owner_id').eq('storeSlug', slug).single()
+                const { data: storeData } = await supabase
+                    .from('stores')
+                    .select('whatsapp, owner_id')
+                    .eq('storeSlug', slug)
+                    .single()
                 let whatsapp = storeData?.whatsapp
                 if (!whatsapp) {
-                    const { data: owner } = await supabase.from('profiles').select('whatsapp').eq('id', storeData?.owner_id).single()
+                    const { data: owner } = await supabase
+                        .from('profiles')
+                        .select('whatsapp')
+                        .eq('id', storeData?.owner_id)
+                        .single()
                     whatsapp = owner?.whatsapp
                 }
                 if (whatsapp) {
                     const paymentLabel = paymentMethod === 'pix' ? 'PIX' : 'Cartão'
-                    const deliveryLabel = deliveryOption === 'entrega' ? `Entrega (${addressInput})` : 'Retirada no Balcão'
+                    const deliveryLabel =
+                        deliveryOption === 'entrega' ? `Entrega (${addressInput})` : 'Retirada no Balcão'
                     const message = encodeURIComponent(
                         `*Novo Pedido - iUser*\n\n` +
                         `*Cliente:* @${currentUserSlug}\n` +
                         `*Pagamento:* ${paymentLabel}\n` +
                         `*Entrega:* ${deliveryLabel}\n` +
-                        `*Itens:*\n${finalOrders[0].items.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${i.product.price.toFixed(2)})`).join('\n')}\n\n` +
+                        `*Itens:*\n${finalOrders[0].items
+                            .map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${i.product.price.toFixed(2)})`)
+                            .join('\n')}\n\n` +
                         `*Total: R$ ${finalOrders[0].total_amount.toFixed(2)}*`
                     )
                     window.open(`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${message}`, '_blank')
@@ -407,8 +485,15 @@ export default function SacolaPage() {
         e.preventDefault()
         setAuthLoading(true)
         setAuthError(null)
-        const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
-        if (error) { setAuthError('Email ou senha inválidos'); setAuthLoading(false); return }
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: authPassword,
+        })
+        if (error) {
+            setAuthError('Email ou senha inválidos')
+            setAuthLoading(false)
+            return
+        }
         if (data.user) await loadUserData(data.user.id)
         setAuthLoading(false)
     }
@@ -417,14 +502,42 @@ export default function SacolaPage() {
         e.preventDefault()
         setAuthLoading(true)
         setAuthError(null)
-        if (authPassword !== authConfirmPassword) { setAuthError('As senhas não coincidem'); setAuthLoading(false); return }
-        if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) { setAuthError('O link do perfil deve conter apenas letras, números e hifens'); setAuthLoading(false); return }
-        const { data: slugCheck } = await supabase.from('profiles').select('profileSlug').eq('profileSlug', authProfileSlug).single()
-        if (slugCheck) { setAuthError('Este link de perfil já está em uso'); setAuthLoading(false); return }
-        const { data, error } = await supabase.auth.signUp({ email: authEmail, password: authPassword, options: { data: { full_name: authName, slug: authProfileSlug } } })
-        if (error) { setAuthError(error.message); setAuthLoading(false); return }
+        if (authPassword !== authConfirmPassword) {
+            setAuthError('As senhas não coincidem')
+            setAuthLoading(false)
+            return
+        }
+        if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
+            setAuthError('O link do perfil deve conter apenas letras, números e hifens')
+            setAuthLoading(false)
+            return
+        }
+        const { data: slugCheck } = await supabase
+            .from('profiles')
+            .select('profileSlug')
+            .eq('profileSlug', authProfileSlug)
+            .single()
+        if (slugCheck) {
+            setAuthError('Este link de perfil já está em uso')
+            setAuthLoading(false)
+            return
+        }
+        const { data, error } = await supabase.auth.signUp({
+            email: authEmail,
+            password: authPassword,
+            options: { data: { full_name: authName, slug: authProfileSlug } },
+        })
+        if (error) {
+            setAuthError(error.message)
+            setAuthLoading(false)
+            return
+        }
         if (data.user) {
-            await supabase.from('profiles').upsert({ id: data.user.id, name: authName, profileSlug: authProfileSlug })
+            await supabase.from('profiles').upsert({
+                id: data.user.id,
+                name: authName,
+                profileSlug: authProfileSlug,
+            })
             await loadUserData(data.user.id)
         }
         setAuthLoading(false)
@@ -440,14 +553,13 @@ export default function SacolaPage() {
         setAuthMode('login')
     }
 
-    // Cores de fundo por status
     const getStatusColor = (status: string) => {
         const colorMap: Record<string, string> = {
-            pending: '#DBEAFE',   // azul claro
-            preparing: '#FEF3C7', // amarelo claro
-            ready: '#EDE9FE',     // roxo claro
-            paid: '#D1FAE5',      // verde claro
-            rejected: '#FEE2E2',  // vermelho claro
+            pending: '#DBEAFE',
+            preparing: '#FEF3C7',
+            ready: '#EDE9FE',
+            paid: '#D1FAE5',
+            rejected: '#FEE2E2',
         }
         return colorMap[status] || '#F3F4F6'
     }
@@ -472,21 +584,22 @@ export default function SacolaPage() {
     const filteredCartSlugs = useMemo(() => {
         if (!searchQuery.trim()) return storeSlugs
         const q = searchQuery.toLowerCase()
-        return storeSlugs.filter(slug => {
+        return storeSlugs.filter((slug) => {
             const details = storeDetails[slug]
             const storeName = (details?.name || slug).toLowerCase()
             if (storeName.includes(q)) return true
             const items = itemsByStore[slug]
-            return items.some(item => item.product.name.toLowerCase().includes(q))
+            return items.some((item) => item.product.name.toLowerCase().includes(q))
         })
     }, [storeSlugs, searchQuery, itemsByStore, storeDetails])
 
     const filteredPurchases = useMemo(() => {
         if (!searchQuery.trim()) return myPurchases
         const q = searchQuery.toLowerCase()
-        return myPurchases.filter(p =>
-            (p.store_name || '').toLowerCase().includes(q) ||
-            (p.product_name || '').toLowerCase().includes(q)
+        return myPurchases.filter(
+            (p) =>
+                (p.store_name || '').toLowerCase().includes(q) ||
+                (p.product_name || '').toLowerCase().includes(q)
         )
     }, [myPurchases, searchQuery])
 
@@ -508,7 +621,6 @@ export default function SacolaPage() {
             groups[p.checkout_id].items.push(p)
         })
         let grouped = Object.values(groups)
-        // Ordenação: ready primeiro, depois preparing, depois o resto por data decrescente
         const statusOrder: Record<string, number> = {
             ready: 1,
             preparing: 2,
@@ -525,7 +637,6 @@ export default function SacolaPage() {
         return grouped
     }, [myPurchases, filteredPurchases, searchQuery])
 
-    // ───── ESTILOS ─────
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -542,7 +653,6 @@ export default function SacolaPage() {
         padding: '1.5rem',
     }
 
-    // ───── TABS ─────
     const tabs = useMemo(() => {
         if (!currentUserId) return []
         const tabList = [
@@ -561,8 +671,6 @@ export default function SacolaPage() {
                 isActive: viewOrder === 'pedidos',
             },
         ]
-
-        // Adiciona aba "Avaliar" se houver pendências
         if (pendingReviews.length > 0) {
             tabList.push({
                 id: 'avaliar',
@@ -572,11 +680,9 @@ export default function SacolaPage() {
                 isActive: viewOrder === 'avaliar',
             })
         }
-
         return tabList
     }, [currentUserId, viewOrder, pendingReviews])
 
-    // ───── COMPONENTE DE CARD DE PEDIDO UNIFICADO ─────
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
         const bgColor = getStatusColor(order.status)
@@ -626,13 +732,15 @@ export default function SacolaPage() {
                                 </span>
                                 {order.status === 'paid' && (
                                     <button
-                                        onClick={() => setReviewOrder({
-                                            isOpen: true,
-                                            orderId: order.id,
-                                            productId: item.product_id || item.product?.id,
-                                            productName: item.product_name || item.product?.name,
-                                            storeId: order.store_id,
-                                        })}
+                                        onClick={() =>
+                                            setReviewOrder({
+                                                isOpen: true,
+                                                orderId: order.id,
+                                                productId: item.product_id || item.product?.id,
+                                                productName: item.product_name || item.product?.name,
+                                                storeId: order.store_id,
+                                            })
+                                        }
                                         className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase transition-all"
                                         style={{ background: colors.accentLight, color: colors.accent }}
                                     >
@@ -676,7 +784,6 @@ export default function SacolaPage() {
                 />
 
                 <div className="px-4 pt-4 pb-24 space-y-6">
-                    {/* PEDIDOS FINALIZADOS (tela de sucesso) */}
                     {finishedOrders.length > 0 && (
                         <div className="space-y-4 animate-slide-in">
                             <div className="rounded-2xl p-5 text-center" style={cardStyle}>
@@ -686,11 +793,9 @@ export default function SacolaPage() {
                                 <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Pedido Realizado!</h2>
                                 <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>Acompanhe o status abaixo em tempo real</p>
                             </div>
-
                             {finishedOrders.map((order, index) => (
                                 <OrderCard key={index} order={order} />
                             ))}
-
                             <button
                                 onClick={async () => {
                                     if (currentUserId) await loadUserData(currentUserId)
@@ -705,10 +810,8 @@ export default function SacolaPage() {
                         </div>
                     )}
 
-                    {/* CONTEÚDO PRINCIPAL (SACOLA + PEDIDOS + AVALIAR) */}
                     {finishedOrders.length === 0 && (
                         <div className={`flex flex-col ${viewOrder === 'pedidos' ? 'flex-col-reverse' : viewOrder === 'avaliar' ? 'flex-col-reverse' : ''} space-y-6`}>
-                            {/* Seção Sacola */}
                             <div>
                                 <div className="flex items-center gap-2 mb-4">
                                     <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
@@ -724,7 +827,6 @@ export default function SacolaPage() {
                                     )}
                                 </div>
 
-                                {/* ... (todo o conteúdo da sacola permanece igual) ... */}
                                 {filteredCartSlugs.length === 0 ? (
                                     <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
                                         <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${colors.accent}20` }}>
@@ -740,7 +842,7 @@ export default function SacolaPage() {
                                     </div>
                                 ) : (
                                     <>
-                                        {filteredCartSlugs.map(slug => {
+                                        {filteredCartSlugs.map((slug) => {
                                             const details = storeDetails[slug]
                                             const items = itemsByStore[slug]
                                             const storeTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
@@ -754,7 +856,7 @@ export default function SacolaPage() {
                                                         <span className="text-sm font-black" style={{ color: colors.accent }}>R$ {storeTotal.toFixed(2)}</span>
                                                     </div>
                                                     <div className="space-y-3">
-                                                        {items.map(item => (
+                                                        {items.map((item) => (
                                                             <div key={item.product.id} className="flex gap-3">
                                                                 <div className="w-14 h-14 rounded-xl border-2 overflow-hidden flex-shrink-0" style={{ background: `${colors.accent}20`, borderColor: colors.accent }}>
                                                                     {item.product.image_url ? (
@@ -785,7 +887,6 @@ export default function SacolaPage() {
                                             )
                                         })}
 
-                                        {/* Total e Finalização */}
                                         {storeSlugs.length > 0 && (
                                             <div className="rounded-2xl p-5" style={cardStyle}>
                                                 <div className="flex items-center justify-between mb-6">
@@ -818,7 +919,7 @@ export default function SacolaPage() {
                                                                     ) : (
                                                                         <div className="relative">
                                                                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.accent }} />
-                                                                            <input type="text" placeholder="Rua, número, bairro, cidade..." className="w-full border-2 rounded-xl pl-10 pr-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.accent, color: colors.textPrimary }} value={addressInput} onChange={e => setAddressInput(e.target.value)} autoComplete="street-address" />
+                                                                            <input type="text" placeholder="Rua, número, bairro, cidade..." className="w-full border-2 rounded-xl pl-10 pr-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.accent, color: colors.textPrimary }} value={addressInput} onChange={(e) => setAddressInput(e.target.value)} autoComplete="street-address" />
                                                                         </div>
                                                                     )}
                                                                 </div>
@@ -869,24 +970,24 @@ export default function SacolaPage() {
                                                         {authError && <div className="p-3 border rounded-xl text-[8px] font-black uppercase text-center" style={{ background: `${colors.accent}20`, borderColor: colors.accent, color: colors.accent }}>⚠️ {authError}</div>}
                                                         {authMode === 'login' ? (
                                                             <form onSubmit={handleLogin} className="space-y-3">
-                                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={e => setAuthEmail(e.target.value)} required autoComplete="email" />
+                                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
                                                                 <div className="relative">
-                                                                    <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm pr-10" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={e => setAuthPassword(e.target.value)} required autoComplete="current-password" />
+                                                                    <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm pr-10" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="current-password" />
                                                                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                                                                 </div>
                                                                 <button type="submit" disabled={authLoading} className="w-full py-2.5 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: colors.accent, color: colors.accentText }}>{authLoading ? 'Entrando...' : 'Entrar'}</button>
                                                             </form>
                                                         ) : (
                                                             <form onSubmit={handleRegister} className="space-y-3">
-                                                                <input type="text" placeholder="Nome Completo" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authName} onChange={e => setAuthName(e.target.value)} required autoComplete="name" />
+                                                                <input type="text" placeholder="Nome Completo" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authName} onChange={(e) => setAuthName(e.target.value)} required autoComplete="name" />
                                                                 <div className="flex items-center gap-1 border-2 rounded-xl px-3" style={{ background: colors.surface, borderColor: colors.border }}>
                                                                     <span className="text-[9px] font-black" style={{ color: colors.textSecondary }}>iuser.com.br/</span>
-                                                                    <input type="text" placeholder="seu-perfil" className="flex-1 py-2.5 bg-transparent text-sm outline-none" style={{ color: colors.textPrimary }} value={authProfileSlug} onChange={e => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required autoComplete="off" />
+                                                                    <input type="text" placeholder="seu-perfil" className="flex-1 py-2.5 bg-transparent text-sm outline-none" style={{ color: colors.textPrimary }} value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required autoComplete="off" />
                                                                     {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓' : '✗'}</span>}
                                                                 </div>
-                                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={e => setAuthEmail(e.target.value)} required autoComplete="email" />
-                                                                <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={e => setAuthPassword(e.target.value)} required autoComplete="new-password" />
-                                                                <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authConfirmPassword} onChange={e => setAuthConfirmPassword(e.target.value)} required autoComplete="new-password" />
+                                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
+                                                                <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="new-password" />
+                                                                <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required autoComplete="new-password" />
                                                                 <button type="submit" disabled={authLoading || isSlugAvailable === false} className="w-full py-2.5 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: colors.accent, color: colors.accentText }}>{authLoading ? 'Criando...' : 'Criar Conta'}</button>
                                                             </form>
                                                         )}
@@ -898,7 +999,6 @@ export default function SacolaPage() {
                                 )}
                             </div>
 
-                            {/* Seção Meus Pedidos */}
                             {currentUserId && (
                                 <div>
                                     <div className="flex items-center gap-2 mb-4">
@@ -933,7 +1033,6 @@ export default function SacolaPage() {
                                 </div>
                             )}
 
-                            {/* Seção Avaliações Pendentes */}
                             {pendingReviews.length > 0 && (
                                 <div>
                                     <div className="flex items-center gap-2 mb-4">
@@ -958,13 +1057,15 @@ export default function SacolaPage() {
                                                     </p>
                                                 </div>
                                                 <button
-                                                    onClick={() => setReviewOrder({
-                                                        isOpen: true,
-                                                        orderId: item.checkout_id || item.id,
-                                                        productId: item.product_id,
-                                                        productName: item.product_name,
-                                                        storeId: item.store_id,
-                                                    })}
+                                                    onClick={() =>
+                                                        setReviewOrder({
+                                                            isOpen: true,
+                                                            orderId: item.checkout_id || item.id,
+                                                            productId: item.product_id,
+                                                            productName: item.product_name,
+                                                            storeId: item.store_id,
+                                                        })
+                                                    }
                                                     className="px-4 py-2 rounded-full text-[10px] font-black uppercase transition-all"
                                                     style={{ background: colors.accent, color: colors.accentText }}
                                                 >
@@ -979,7 +1080,6 @@ export default function SacolaPage() {
                     )}
                 </div>
 
-                {/* Botões flutuantes: Voltar + Início */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                     <button
                         onClick={() => router.back()}
@@ -1012,7 +1112,7 @@ export default function SacolaPage() {
 
             <ReviewModal
                 isOpen={reviewOrder.isOpen}
-                onClose={() => setReviewOrder(prev => ({ ...prev, isOpen: false }))}
+                onClose={() => setReviewOrder((prev) => ({ ...prev, isOpen: false }))}
                 orderId={reviewOrder.orderId}
                 productId={reviewOrder.productId}
                 productName={reviewOrder.productName}
