@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
   Eye, EyeOff, Mail, Lock, ArrowRight,
-  Store, ShoppingCart, Star, TrendingUp, Shield, Users
+  Store, Star, TrendingUp, Shield, Users,
+  ShoppingBag
 } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/theme'
@@ -58,7 +59,7 @@ function LoginContent() {
       descricao: 'Crie sua loja em minutos e mostre seus produtos para milhares de clientes.',
     },
     {
-      icon: ShoppingCart,
+      icon: ShoppingBag,
       titulo: 'Vendas simplificadas',
       descricao: 'Gerencie pedidos, receba pagamentos e acompanhe tudo em tempo real.',
     },

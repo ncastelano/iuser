@@ -15,7 +15,7 @@ import {
     ExternalLink,
     Settings,
     Star,
-    Trash2,
+    X,
     Plus,
     Navigation,
     Shield,
@@ -26,7 +26,6 @@ import {
     ShoppingCart,
     Home,
     ShoppingBag,
-    UserCircle,
     Store
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -524,7 +523,7 @@ export default function StorePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [store?.id])
 
-    // ---------- 🔴 Atualização em tempo real do contador de visitantes ----------
+    // ---------- Atualização em tempo real do contador de visitantes ----------
     useEffect(() => {
         if (!store) return
 
@@ -660,6 +659,39 @@ export default function StorePage() {
         }
     }
 
+    // ---------- Estilos baseados no tema ----------
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+    }
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardStyle = {
+        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        border: `1px solid ${colors.border}`,
+        boxShadow: `0 4px 12px rgba(0,0,0,0.05)`,
+    }
+
+    const primaryButtonStyle = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        width: '100%',
+        padding: '0.75rem 1.25rem',
+        borderRadius: '1rem',
+        fontSize: '0.875rem',
+        fontWeight: 700,
+        transition: 'all 0.2s ease',
+        background: colors.accent,
+        color: colors.accentText,
+        border: 'none',
+        boxShadow: `0 4px 14px ${colors.accent}60`,
+        cursor: 'pointer',
+    }
+
     if (loading) return <LoadingSpinner />
 
     if (error || !store)
@@ -688,25 +720,6 @@ export default function StorePage() {
             </div>
         )
 
-    // Estilo do botão "Adicionar Produto/Serviço" (igual ao "Criar Loja" da HomePage)
-    const addProductButtonStyle = {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '1rem',
-        fontSize: '0.875rem',
-        fontWeight: 700,
-        transition: 'all 0.2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 12px ${colors.accent}40`,
-        cursor: 'pointer',
-    }
-
     return (
         <div className="relative flex flex-col min-h-screen pb-28">
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
@@ -721,156 +734,177 @@ export default function StorePage() {
             )}
 
             {/* Header */}
-            <header className="sticky top-0 z-50 px-3 py-2.5 border-b backdrop-blur-xl" style={{ background: colors.surface, borderColor: colors.border }}>
-                <div className="flex items-center justify-between gap-2">
+            <header className="sticky top-0 z-50 px-3 py-3 backdrop-blur-xl border-b" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.8)`, borderColor: colors.border }}>
+                <div className="flex items-center justify-between">
                     <button
                         onClick={() => router.push('/')}
-                        className="flex w-9 h-9 items-center justify-center border rounded-xl transition-all shadow-sm"
+                        className="flex w-10 h-10 items-center justify-center rounded-2xl border transition-all hover:scale-105 active:scale-95 shadow-sm"
                         style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
                     >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
-                            style={{ background: colors.surface, borderColor: colors.border }}>
-                            <MessageCircle className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
-                        </button>
-                        <button className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
-                            style={{ background: colors.surface, borderColor: colors.border }}>
-                            <QrCode className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
-                        </button>
-                        <button
-                            onClick={openGoogleMaps}
-                            className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
-                            style={{ background: colors.surface, borderColor: colors.border }}>
-                            <Navigation className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
-                        </button>
-                        <button
-                            onClick={() => navigator.share?.({ title: store.name, url: storeUrl }).catch(() => { })}
-                            className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
-                            style={{ background: colors.surface, borderColor: colors.border }}>
-                            <Share2 className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
-                        </button>
-                        {isOwner && (
+                    <div className="flex items-center gap-1">
+                        {[
+                            { icon: MessageCircle, action: undefined },
+                            { icon: QrCode, action: undefined },
+                            { icon: Navigation, action: openGoogleMaps },
+                            { icon: Share2, action: () => navigator.share?.({ title: store.name, url: storeUrl }).catch(() => { }) },
+                            ...(isOwner ? [{ icon: Settings, action: () => setAdminPanelOpen(true) }] : []),
+                        ].map(({ icon: Icon, action }, idx) => (
                             <button
-                                onClick={() => setAdminPanelOpen(true)}
-                                className="flex w-8 h-8 items-center justify-center border rounded-xl transition-all shadow-sm"
-                                style={{ background: colors.surface, borderColor: colors.border }}>
-                                <Settings className="w-3.5 h-3.5" style={{ color: colors.textSecondary }} />
+                                key={idx}
+                                onClick={action}
+                                className="flex w-9 h-9 items-center justify-center rounded-2xl border transition-all hover:scale-105 active:scale-95 shadow-sm"
+                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textSecondary }}
+                            >
+                                <Icon className="w-4 h-4" />
                             </button>
-                        )}
+                        ))}
                     </div>
                 </div>
             </header>
 
-            <main className="relative z-10 px-3 py-4 flex flex-col gap-4">
-                {/* Perfil da loja */}
-                <div className="flex gap-4 p-3 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+            <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
+                {/* Cabeçalho simplificado da loja (sem card) */}
+                <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
-                        <div className="w-16 h-16 rounded-full p-[2px] shadow-md" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                        <div
+                            className="w-16 h-16 rounded-2xl p-[3px] shadow-xl"
+                            style={{
+                                background: isStoreOpen
+                                    ? 'linear-gradient(135deg, #10b981, #059669)'
+                                    : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                            }}
+                        >
+                            <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                                 {store.logo_url ? (
                                     <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.accent }}>
+                                    <span className="text-xl font-black" style={{ color: colors.accent }}>
                                         {store.name?.charAt(0) || '?'}
-                                    </div>
+                                    </span>
                                 )}
                             </div>
                         </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-base font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h2>
+                        <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{store.name}</h2>
                         <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
-                                <span className="font-medium">
-                                    {totalVisitors} visitantes
-                                </span>
+                                <span className="font-bold">{totalVisitors} visitantes</span>
                             </div>
-                            <span className="text-gray-300">·</span>
-                            <div className="flex items-center gap-1">
-                                <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
-                                <span className="font-medium">{Number(store.ratings_avg || 0).toFixed(1)}</span>
-                                <span>({store.ratings_count ?? 0})</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-1 mt-1">
-                            <span className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-                            <span className="text-[10px] font-black uppercase" style={{ color: colors.textSecondary }}>
-                                {isStoreOpen ? 'Aberto' : 'Fechado'}
-                            </span>
+                            {/* Avaliações foram movidas para a aba de avaliações */}
                         </div>
                     </div>
                 </div>
 
-                {/* Descrição */}
+                {/* Descrição (sem card) */}
                 {store.description && (
-                    <div className="text-sm leading-relaxed p-3 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: colors.textSecondary }}>
-                        {expandedDesc || (store.description.length <= DESC_LIMIT) ? (
-                            <>
-                                {store.description}
-                                {store.description.length > DESC_LIMIT && (
-                                    <button onClick={() => setExpandedDesc(false)} className="font-bold ml-1" style={{ color: colors.accent }}>ver menos</button>
-                                )}
-                            </>
-                        ) : (
-                            <>
-                                {store.description.slice(0, DESC_LIMIT)}...
-                                <button onClick={() => setExpandedDesc(true)} className="font-bold ml-1" style={{ color: colors.accent }}>ver mais</button>
-                            </>
+                    <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                        {expandedDesc || store.description.length <= DESC_LIMIT
+                            ? store.description
+                            : `${store.description.slice(0, DESC_LIMIT)}...`}
+                        {store.description.length > DESC_LIMIT && (
+                            <button
+                                onClick={() => setExpandedDesc(!expandedDesc)}
+                                className="ml-1 font-bold text-xs uppercase hover:underline"
+                                style={{ color: colors.accent }}
+                            >
+                                {expandedDesc ? 'ver menos' : 'ver mais'}
+                            </button>
                         )}
                     </div>
                 )}
 
-                {/* Botões de ação */}
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* Pills de ação */}
+                <div className="flex flex-wrap items-center gap-2">
                     {store.address && (
                         <button
                             onClick={openGoogleMaps}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border transition-all shadow-sm"
-                            style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-black uppercase">{formatAddress(store.address).substring(0, 15)}...</span>
+                            className="group flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                            style={{
+                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                                borderColor: 'transparent',
+                                color: '#ffffff',
+                            }}
+                        >
+
+                            <span className="truncate max-w-[100px]">{formatAddress(store.address)}</span>
+                            <span className="flex items-center gap-0.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                                <span className="hidden sm:inline">Ir</span>
+                                <Navigation className="w-3 h-3" />
+                            </span>
                         </button>
                     )}
                     {store.allow_scheduling && (
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full font-black text-[10px] uppercase shadow-md"
-                            style={{ background: colors.accent, color: colors.accentText }}>
-                            <Calendar className="w-3.5 h-3.5" /> Agendar
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold shadow-md hover:scale-105 transition-transform"
+                            style={{ background: colors.accent, color: colors.accentText }}
+                        >
+                            <Calendar className="w-3.5 h-3.5" />
+                            Agendar horário
                         </button>
                     )}
-                    {store.business_hours && Object.keys(store.business_hours).length > 0 && (
+                    {isOwner ? (
                         <button
-                            onClick={() => setShowAllHours(true)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-full border font-black text-[10px] uppercase shadow-sm"
-                            style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
+                            onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                            style={{
+                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                                borderColor: 'transparent',
+                                color: '#ffffff',
+                            }}
+                        >
+
+                            <span>Editar Horários</span>
                             <Clock className="w-3.5 h-3.5" />
-                            {getTodaySchedule(store.business_hours) && isOpenNow(getTodaySchedule(store.business_hours)) ? 'Aberto' : 'Horários'}
                         </button>
+                    ) : (
+                        store.business_hours && Object.keys(store.business_hours).length > 0 && (
+                            <button
+                                onClick={() => setShowAllHours(true)}
+                                className="group flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                                style={{
+                                    background: isStoreOpen ? '#10b981' : '#ef4444',
+                                    borderColor: isStoreOpen ? '#10b981' : '#ef4444',
+                                    color: '#ffffff',
+                                }}
+                            >
+                                <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#ffffff' }} />
+                                <span>
+                                    {getTodaySchedule(store.business_hours) && isOpenNow(getTodaySchedule(store.business_hours)) ? 'Aberto' : 'Fechado'}
+                                </span>
+                                <span className="flex items-center gap-0.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                                    <span className="hidden sm:inline">Ver</span>
+                                    <span>›</span>
+                                </span>
+                            </button>
+                        )
                     )}
                 </div>
 
+                {/* Agendados hoje (mantidos sem card) */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-black uppercase" style={{ color: colors.textSecondary }}>Agendados Hoje</h4>
-                        <div className="grid grid-cols-2 gap-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest" style={{ color: colors.textSecondary }}>Hoje</h4>
+                        <div className="grid grid-cols-2 gap-3">
                             {appointmentsToday.slice(0, 4).map((appt, i) => (
                                 <div
                                     key={appt.id || i}
                                     onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                    className="group border rounded-2xl p-3 transition-all duration-300 cursor-pointer"
-                                    style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+                                    className="rounded-2xl p-3 border cursor-pointer hover:shadow-md transition-all"
+                                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: colors.border }}
+                                >
                                     <div className="flex items-center gap-2.5 mb-2">
                                         <div className="relative">
                                             <div
                                                 className="w-9 h-9 rounded-full flex items-center justify-center shadow-md ring-2"
                                                 style={{
                                                     background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                                    '--tw-ring-color': colors.accentLight,
-                                                } as React.CSSProperties}>
+                                                }}
+                                            >
                                                 {appt.profiles?.avatar_url ? (
                                                     <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover rounded-full" alt="" />
                                                 ) : (
@@ -891,7 +925,7 @@ export default function StorePage() {
                                             <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Agendado</p>
                                         </div>
                                     </div>
-                                    <div className="rounded-xl p-2 border" style={{ background: 'transparent', borderColor: colors.accentLight, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
+                                    <div className="rounded-xl p-2 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.accentLight }}>
                                         <div className="flex items-center gap-2">
                                             <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: 'transparent' }}>
                                                 <Calendar className="w-3.5 h-3.5" style={{ color: colors.accent }} />
@@ -905,79 +939,125 @@ export default function StorePage() {
                     </div>
                 )}
 
+                {/* Botão Agendar grande (mantido) */}
                 {store.allow_scheduling && (
                     <button
                         onClick={() => setIsScheduleModalOpen(true)}
-                        className="w-full py-2.5 rounded-xl font-black uppercase text-xs tracking-wider transition-all shadow-md"
-                        style={{ background: colors.accent, color: colors.accentText }}>
-                        <Calendar className="w-4 h-4 inline mr-1" /> Agendar
+                        className="w-full py-3.5 rounded-2xl font-black uppercase text-sm tracking-wider shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                        style={{ background: colors.accent, color: colors.accentText, boxShadow: `0 8px 24px ${colors.accent}50` }}
+                    >
+                        <Calendar className="w-5 h-5 inline mr-2" />
+                        Agendar horário
                     </button>
                 )}
 
                 {/* Abas */}
-                <div className="flex gap-1 rounded-xl p-1 border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
-                    {[
-                        { key: 'products', label: 'Produtos', icon: Grid3X3 },
-                        { key: 'reviews', label: 'Avaliações', icon: Star },
-                    ].map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === tab.key ? 'shadow-md' : ''}`}
-                            style={
-                                activeTab === tab.key
-                                    ? { background: colors.accent, color: colors.accentText }
-                                    : { background: 'transparent', color: colors.textSecondary }
-                            }>
-                            <tab.icon className="w-3.5 h-3.5" />
-                            {tab.label}
-                        </button>
-                    ))}
+                <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>
+                    <button
+                        onClick={() => setActiveTab('products')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${activeTab === 'products' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                        style={
+                            activeTab === 'products'
+                                ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
+                                : { background: 'transparent', color: colors.textSecondary }
+                        }
+                    >
+                        <Grid3X3 className="w-4 h-4" />
+                        Produtos
+                    </button>
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setActiveTab('reviews')}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveTab('reviews'); } }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 cursor-pointer ${activeTab === 'reviews' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                        style={
+                            activeTab === 'reviews'
+                                ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
+                                : { background: 'transparent', color: colors.textSecondary }
+                        }
+                    >
+
+                        Avaliações
+                        {store.ratings_count ? (
+                            <span className="ml-1 flex items-center gap-1">
+                                <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
+                                <span className="text-[10px] font-bold">{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                                <span className="text-[9px] opacity-75">({store.ratings_count})</span>
+                            </span>
+                        ) : null}
+                    </div>
                 </div>
 
                 {/* Produtos */}
                 {activeTab === 'products' && (
                     <>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: colors.accent }} />
-                            <input
-                                type="text"
-                                placeholder="procurar..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full border rounded-xl py-2 pl-8 pr-3 text-xs focus:outline-none transition-all"
-                                style={{ background: 'transparent', borderColor: colors.border, color: colors.textPrimary, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-                            />
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar produtos..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="w-full border rounded-2xl py-3 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 transition-all"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.05)',
+                                        borderColor: colors.border,
+                                        color: colors.textPrimary,
+                                        backdropFilter: 'blur(8px)',
+                                        WebkitBackdropFilter: 'blur(8px)',
+                                    }}
+                                />
+                            </div>
+                            {isOwner && (
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                    className="flex items-center justify-center w-10 h-10 rounded-xl border shadow-md hover:scale-110 transition-transform"
+                                    style={{ background: colors.accent, color: colors.accentText, borderColor: colors.accent }}
+                                    title="Adicionar produto"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </button>
+                            )}
                         </div>
 
                         {filteredProducts.length === 0 ? (
-                            <div className="py-8 text-center rounded-xl border border-dashed flex flex-col items-center gap-4"
-                                style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <Search className="w-6 h-6" style={{ color: colors.textSecondary }} />
-                                <p className="font-bold text-[10px] uppercase" style={{ color: colors.textSecondary }}>
-                                    Nenhum produto
-                                </p>
-                                {isOwner && (
+                            isOwner ? (
+                                <div className="rounded-2xl p-6 flex flex-col items-center text-center gap-4" style={cardStyle}>
+                                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                        <Store size={28} style={{ color: colors.accent }} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Sua loja está vazia</h3>
+                                        <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                            Adicione produtos ou serviços para começar a vender.
+                                        </p>
+                                    </div>
                                     <button
                                         onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                                        style={addProductButtonStyle}
-                                        onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(0.95)' }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)' }}
-                                        className="group"
+                                        className="w-full"
+                                        style={primaryButtonStyle}
                                     >
                                         <Store size={18} />
                                         Adicionar Produto ou Serviço
                                     </button>
-                                )}
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="py-16 text-center rounded-2xl border border-dashed flex flex-col items-center gap-3" style={cardStyle}>
+                                    <Search className="w-12 h-12" style={{ color: colors.textSecondary }} />
+                                    <p className="font-bold text-base" style={{ color: colors.textPrimary }}>Nenhum produto disponível</p>
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>Esta loja ainda não publicou nada.</p>
+                                </div>
+                            )
                         ) : (
                             Object.entries(groupedProducts).map(([category, products]) => (
-                                <div key={category} className="space-y-2">
-                                    <h4 className="text-[8px] font-black uppercase tracking-[0.3em] bg-clip-text text-transparent"
-                                        style={{ backgroundImage: `linear-gradient(to right, ${colors.accent}, ${colors.accentLight})`, WebkitBackgroundClip: 'text' }}>
+                                <div key={category} className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.25em] pl-1"
+                                        style={{ color: colors.accent }}>
                                         {category}
                                     </h4>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-3">
                                         {products.map(product => {
                                             const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                             const isHourly = product.price_type === 'hourly'
@@ -985,80 +1065,84 @@ export default function StorePage() {
                                                 <div
                                                     key={product.id}
                                                     onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-xl overflow-hidden shadow-sm border transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 ${isSelected ? 'ring-2' : ''}`}
+                                                    className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                     style={{
-                                                        background: 'transparent',
+                                                        background: 'rgba(255,255,255,0.04)',
                                                         borderColor: isSelected ? '#22c55e' : colors.border,
                                                         backdropFilter: 'blur(8px)',
                                                         WebkitBackdropFilter: 'blur(8px)',
-                                                        ...(isSelected && { ringColor: '#22c55e' })
-                                                    }}>
-                                                    <div className="aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
+                                                    }}
+                                                >
+                                                    <div className="aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.accent }}>
+                                                            <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: colors.accent }}>
                                                                 {product.name?.charAt(0) || '?'}
                                                             </div>
                                                         )}
+                                                        {product.type && (
+                                                            <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase backdrop-blur-md"
+                                                                style={{ background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
+                                                                {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
+                                                            </span>
+                                                        )}
+                                                        {/* Badge de produto selecionado (apenas para não-dono) */}
+                                                        {!isOwner && mounted && isSelected && (
+                                                            <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        removeItem(storeSlug as string, product.id);
+                                                                    }}
+                                                                    className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                >
+                                                                    <X className="w-4 h-4 text-white" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        router.push('/sacola');
+                                                                    }}
+                                                                    className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                >
+                                                                    <ShoppingBag className="w-4 h-4 text-white" />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="p-2.5">
-                                                        <h4 className="text-xs font-black line-clamp-1" style={{ color: colors.textPrimary }}>{product.name}</h4>
-                                                        <p className="text-[10px] line-clamp-1 mt-0.5" style={{ color: colors.textSecondary }}>{product.description || 'Sem descrição'}</p>
-                                                        <div className="flex items-center justify-between mt-2">
+                                                    <div className="p-3">
+                                                        <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>{product.name}</h4>
+                                                        <p className="text-[11px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>{product.description || 'Sem descrição'}</p>
+                                                        <div className="flex items-center justify-between mt-3">
                                                             <div>
-                                                                <span className="text-sm font-black" style={{ color: colors.accent }}>
+                                                                <span className="text-base font-extrabold" style={{ color: colors.accent }}>
                                                                     R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                 </span>
-                                                                {isHourly && <span className="text-[9px] font-bold ml-1" style={{ color: colors.textSecondary }}>/h</span>}
+                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
                                                             </div>
                                                             {isOwner ? (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
-                                                                    className="w-7 h-7 rounded-full border transition-all flex items-center justify-center"
-                                                                    style={{ background: 'transparent', borderColor: colors.border, color: colors.accent }}>
-                                                                    <ExternalLink className="w-3 h-3" />
+                                                                    className="w-8 h-8 rounded-full border flex items-center justify-center"
+                                                                    style={{ borderColor: colors.border, color: colors.accent }}
+                                                                >
+                                                                    <ExternalLink className="w-4 h-4" />
                                                                 </button>
                                                             ) : mounted && isSelected ? (
-                                                                <div className="flex items-center gap-1">
-                                                                    <button
-                                                                        onClick={e => { e.stopPropagation(); router.push('/sacola') }}
-                                                                        className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
-                                                                        style={{ background: colors.accent }}>
-                                                                        <ShoppingBag className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={e => { e.stopPropagation(); removeItem(storeSlug as string, product.id) }}
-                                                                        className="w-7 h-7 rounded-full border flex items-center justify-center"
-                                                                        style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent }}>
-                                                                        <Trash2 className="w-3 h-3" />
-                                                                    </button>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {/* Botões de ação removidos, substituídos pelo badge superior */}
                                                                 </div>
                                                             ) : (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); toggleProduct(product) }}
-                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md"
-                                                                    style={{ background: colors.accent }}>
-                                                                    <Plus className="w-3.5 h-3.5" />
+                                                                    className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    style={{ background: colors.accent }}
+                                                                >
+                                                                    <Plus className="w-4 h-4" />
                                                                 </button>
                                                             )}
                                                         </div>
-                                                        {product.type && (
-                                                            <span className="absolute top-2 left-2 text-[7px] font-black uppercase backdrop-blur-sm px-1.5 py-0.5 rounded-full" style={{ background: 'transparent', color: colors.accent }}>
-                                                                {product.type === 'physical' ? 'Produto' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                            </span>
-                                                        )}
-                                                        <button
-                                                            onClick={e => { e.stopPropagation(); shareProduct(product) }}
-                                                            className="absolute top-2 right-2 p-1.5 rounded-full border transition-colors hover:bg-opacity-20"
-                                                            style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary }}>
-                                                            <Share2 className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        {isSelected && (
-                                                            <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1 shadow-lg">
-                                                                <ShoppingBag className="w-4 h-4" />
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             )
@@ -1073,69 +1157,52 @@ export default function StorePage() {
                 {/* Avaliações */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
-                        {ratings.length > 0 && (
-                            <div className="flex items-center justify-between rounded-xl p-3 border" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
-                                <div className="flex items-center gap-2">
-                                    <RatingStars value={Number(store.ratings_avg || 0)} size={12} />
-                                    <span className="text-xs font-black" style={{ color: colors.textPrimary }}>{Number(store.ratings_avg || 0).toFixed(1)}</span>
-                                    <span className="text-[9px] font-bold" style={{ color: colors.accent }}>({store.ratings_count ?? 0})</span>
-                                    {myRating > 0 && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>✓</span>}
-                                </div>
-                                <div className="flex -space-x-1.5">
-                                    {ratings.slice(0, 3).map((r, i) => (
-                                        <div key={i} className="w-6 h-6 rounded-full ring-1 ring-white border overflow-hidden" style={{ background: 'transparent', borderColor: colors.border }}>
-                                            {r.profiles?.avatar_url ? (
-                                                <img src={getAvatarUrl(supabase, r.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-bold" style={{ color: colors.textSecondary }}>{r.profiles?.name?.charAt(0) || '?'}</div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                         {ratings.length === 0 ? (
-                            <div className="py-12 text-center rounded-2xl border border-dashed" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
-                                <Star className="w-10 h-10 mx-auto mb-2" style={{ color: colors.textSecondary }} />
-                                <p className="font-bold text-sm" style={{ color: colors.textSecondary }}>Nenhuma avaliação ainda</p>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
+                            <div className="py-16 text-center rounded-2xl border border-dashed" style={cardStyle}>
+                                <Star className="w-12 h-12 mx-auto mb-3" style={{ color: colors.textSecondary }} />
+                                <p className="font-bold text-base" style={{ color: colors.textPrimary }}>Nenhuma avaliação ainda</p>
+                                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>Seja o primeiro a avaliar!</p>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {ratings.map((rating: any) => {
                                     const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
                                     return (
-                                        <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border transition-all" style={{ background: 'transparent', borderColor: colors.border, backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
-                                            <div className="w-10 h-10 rounded-full overflow-hidden p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                                <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                        <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border" style={cardStyle}>
+                                            <div className="w-10 h-10 rounded-2xl p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                                                <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.accentLight }}>
-                                                            <span className="font-bold text-xs" style={{ color: colors.accent }}>{(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}</span>
-                                                        </div>
+                                                        <span className="font-bold text-sm" style={{ color: colors.accent }}>
+                                                            {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-1">
+                                                <div className="flex items-center justify-between">
                                                     <div>
                                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
-                                                        <p className="text-[10px] font-medium" style={{ color: colors.accent }}>{new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                                        <p className="text-[10px] font-medium" style={{ color: colors.accent }}>
+                                                            {new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                                        </p>
                                                     </div>
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border" style={{ background: 'transparent', borderColor: colors.accent }}>
-                                                        <Shield className="w-3 h-3" style={{ color: colors.accent }} />
-                                                        <span className="text-[8px] font-black uppercase" style={{ color: colors.accent }}>Verificada</span>
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                                        <Shield className="w-3 h-3" />
+                                                        <span className="text-[9px] font-black uppercase">Verificada</span>
                                                     </div>
                                                 </div>
-                                                <div className="mb-1">
-                                                    <RatingStars value={rating.rating} size={12} />
+                                                <div className="mt-1.5">
+                                                    <RatingStars value={rating.rating} size={14} />
                                                     {!rating.is_anonymous && rating.products?.name && (
-                                                        <span className="ml-2 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>{rating.products.name}</span>
+                                                        <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase" style={{ background: colors.accentLight, color: colors.accent }}>
+                                                            {rating.products.name}
+                                                        </span>
                                                     )}
                                                 </div>
                                                 {rating.comment && (
-                                                    <p className="text-xs italic leading-relaxed mt-1" style={{ color: colors.textSecondary }}>"{rating.comment}"</p>
+                                                    <p className="mt-2 text-sm italic leading-relaxed" style={{ color: colors.textSecondary }}>"{rating.comment}"</p>
                                                 )}
                                             </div>
                                         </div>
@@ -1176,9 +1243,9 @@ export default function StorePage() {
                         <span
                             className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
                             style={{
-                                background: colors.accentText,
-                                color: colors.accent,
-                                border: `2px solid ${colors.accent}`,
+                                background: '#10b981',
+                                color: '#ffffff',
+                                border: '2px solid #ffffff',
                                 transform: cartAnimating ? 'scale(1.3)' : 'scale(1)',
                                 transition: 'transform 0.2s ease',
                             }}

@@ -440,13 +440,25 @@ export default function SacolaPage() {
         setAuthMode('login')
     }
 
+    // Cores de fundo por status
+    const getStatusColor = (status: string) => {
+        const colorMap: Record<string, string> = {
+            pending: '#DBEAFE',   // azul claro
+            preparing: '#FEF3C7', // amarelo claro
+            ready: '#EDE9FE',     // roxo claro
+            paid: '#D1FAE5',      // verde claro
+            rejected: '#FEE2E2',  // vermelho claro
+        }
+        return colorMap[status] || '#F3F4F6'
+    }
+
     const getStatusStyles = (status: string) => {
         const styles: any = {
-            pending: { border: 'border-l-4 border-l-blue-500', badge: 'bg-blue-50 text-blue-700 border border-blue-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
-            preparing: { border: 'border-l-4 border-l-yellow-500', badge: 'bg-yellow-50 text-yellow-700 border border-yellow-200', label: 'Preparando', icon: '👨‍🍳', message: 'O lojista está preparando seu pedido' },
-            ready: { border: 'border-l-4 border-l-purple-500', badge: 'bg-purple-50 text-purple-700 border border-purple-200', label: 'Pronto', icon: '✅', message: 'Seu pedido está pronto para retirada!' },
-            paid: { border: 'border-l-4 border-l-green-500', badge: 'bg-green-50 text-green-700 border border-green-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
-            rejected: { border: 'border-l-4 border-l-red-500', badge: 'bg-red-50 text-red-700 border border-red-200', label: 'Recusado', icon: '❌', message: 'O pedido foi recusado pelo vendedor' },
+            pending: { badge: 'bg-blue-100 text-blue-800 border border-blue-200', label: 'Pendente', icon: '⏳', message: 'Aguardando confirmação do vendedor' },
+            preparing: { badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200', label: 'Preparando', icon: '👨‍🍳', message: 'O lojista está preparando seu pedido' },
+            ready: { badge: 'bg-purple-100 text-purple-800 border border-purple-200', label: 'Pronto', icon: '✅', message: 'Seu pedido está pronto para retirada!' },
+            paid: { badge: 'bg-green-100 text-green-800 border border-green-200', label: 'Finalizado', icon: '🎉', message: 'Pedido finalizado com sucesso' },
+            rejected: { badge: 'bg-red-100 text-red-800 border border-red-200', label: 'Recusado', icon: '❌', message: 'O pedido foi recusado pelo vendedor' },
         }
         return styles[status] || styles.pending
     }
@@ -479,27 +491,9 @@ export default function SacolaPage() {
     }, [myPurchases, searchQuery])
 
     const filteredGroupedOrders = useMemo(() => {
-        if (!searchQuery.trim()) {
-            const groups: Record<string, any> = {}
-            myPurchases.forEach((p: any) => {
-                if (!groups[p.checkout_id]) {
-                    groups[p.checkout_id] = {
-                        checkout_id: p.checkout_id,
-                        store_name: p.store_name,
-                        created_at: p.created_at,
-                        status: p.status,
-                        total: 0,
-                        items: [],
-                    }
-                }
-                groups[p.checkout_id].total += p.price
-                groups[p.checkout_id].items.push(p)
-            })
-            return Object.values(groups).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        }
-        const q = searchQuery.toLowerCase()
+        const source = searchQuery.trim() ? filteredPurchases : myPurchases
         const groups: Record<string, any> = {}
-        filteredPurchases.forEach((p: any) => {
+        source.forEach((p: any) => {
             if (!groups[p.checkout_id]) {
                 groups[p.checkout_id] = {
                     checkout_id: p.checkout_id,
@@ -513,7 +507,22 @@ export default function SacolaPage() {
             groups[p.checkout_id].total += p.price
             groups[p.checkout_id].items.push(p)
         })
-        return Object.values(groups).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        let grouped = Object.values(groups)
+        // Ordenação: ready primeiro, depois preparing, depois o resto por data decrescente
+        const statusOrder: Record<string, number> = {
+            ready: 1,
+            preparing: 2,
+            pending: 3,
+            paid: 4,
+            rejected: 5,
+        }
+        grouped.sort((a: any, b: any) => {
+            const orderA = statusOrder[a.status] || 99
+            const orderB = statusOrder[b.status] || 99
+            if (orderA !== orderB) return orderA - orderB
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        })
+        return grouped
     }, [myPurchases, filteredPurchases, searchQuery])
 
     // ───── ESTILOS ─────
@@ -570,32 +579,49 @@ export default function SacolaPage() {
     // ───── COMPONENTE DE CARD DE PEDIDO UNIFICADO ─────
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
+        const bgColor = getStatusColor(order.status)
         return (
-            <div className={`rounded-2xl p-4 ${statusStyle.border} shadow-sm`} style={cardStyle}>
+            <div
+                className="rounded-2xl p-4 shadow-sm"
+                style={{
+                    background: bgColor,
+                    border: `1px solid ${colors.border}`,
+                    color: '#000',
+                }}
+            >
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-black italic" style={{ color: colors.textPrimary }}>
+                    <h3 className="text-lg font-black italic" style={{ color: '#000' }}>
                         {order.storeName || order.store_name}
                     </h3>
                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-full ${statusStyle.badge}`}>
                         {statusStyle.icon} {statusStyle.label}
                     </span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2 mb-3 overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-700 ${order.status === 'pending' ? 'w-1/4 bg-blue-400' :
-                        order.status === 'preparing' ? 'w-2/4 bg-yellow-400' :
-                            order.status === 'ready' ? 'w-3/4 bg-purple-400' :
-                                order.status === 'paid' ? 'w-full bg-green-400' :
-                                    'w-full bg-red-400'
-                        }`}></div>
+                <div className="w-full bg-white/50 rounded-full h-2 mb-3 overflow-hidden">
+                    <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                            width:
+                                order.status === 'pending' ? '25%' :
+                                    order.status === 'preparing' ? '50%' :
+                                        order.status === 'ready' ? '75%' :
+                                            order.status === 'paid' ? '100%' : '100%',
+                            background:
+                                order.status === 'pending' ? '#3b82f6' :
+                                    order.status === 'preparing' ? '#eab308' :
+                                        order.status === 'ready' ? '#a855f7' :
+                                            order.status === 'paid' ? '#10b981' : '#ef4444',
+                        }}
+                    ></div>
                 </div>
                 <div className="space-y-2">
                     {order.items.map((item: any, idx: number) => (
                         <div key={idx} className="flex justify-between items-center text-sm">
-                            <span className="font-bold" style={{ color: colors.textPrimary }}>
+                            <span className="font-bold" style={{ color: '#000' }}>
                                 {item.quantity}x {item.product_name || item.product?.name}
                             </span>
                             <div className="flex items-center gap-3">
-                                <span className="font-black" style={{ color: colors.textPrimary }}>
+                                <span className="font-black" style={{ color: '#000' }}>
                                     R$ {(item.price || (item.product?.price * item.quantity)).toFixed(2)}
                                 </span>
                                 {order.status === 'paid' && (
@@ -617,9 +643,9 @@ export default function SacolaPage() {
                         </div>
                     ))}
                 </div>
-                <div className="flex justify-between items-center mt-3 pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <span className="text-[8px] font-black uppercase" style={{ color: colors.textSecondary }}>Total</span>
-                    <span className="text-xl font-black" style={{ color: colors.accent }}>
+                <div className="flex justify-between items-center mt-3 pt-2 border-t border-black/20">
+                    <span className="text-[8px] font-black uppercase" style={{ color: '#000' }}>Total</span>
+                    <span className="text-xl font-black" style={{ color: '#000' }}>
                         R$ {order.total_amount?.toFixed(2) || order.total.toFixed(2)}
                     </span>
                 </div>
