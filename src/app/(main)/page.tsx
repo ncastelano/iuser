@@ -193,56 +193,88 @@ export default function HomePage() {
     // Busca lojas públicas (com distância)
     useEffect(() => {
         async function fetchPublicStores() {
-            const { data } = await supabase
+            // 1. Busca lojas ativas
+            const { data: storesData, error: storesError } = await supabase
                 .from('stores')
-                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, is_open, category, location')
+                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, is_open, category, location, id')
                 .eq('is_active', true)
                 .order('ratings_avg', { ascending: false })
                 .limit(20)
 
-            if (data) {
-                const formatted = data.map(s => {
-                    let distanceStr: string | undefined = undefined
-                    if (userLocation && s.location) {
-                        let lat: number | null = null
-                        let lng: number | null = null
-                        if (typeof s.location === 'string') {
-                            const match = s.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
-                            if (match) {
-                                lng = parseFloat(match[1])
-                                lat = parseFloat(match[2])
-                            }
-                        } else if (s.location?.type === 'Point' && Array.isArray(s.location.coordinates)) {
-                            lng = s.location.coordinates[0]
-                            lat = s.location.coordinates[1]
-                        }
-                        if (lat !== null && lng !== null) {
-                            const dist = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, lat, lng)
-                            distanceStr = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
-                        }
-                    }
+            if (storesError || !storesData) return
 
-                    return {
-                        slug: s.storeSlug,
-                        name: s.name,
-                        logoUrl: s.logo_url
-                            ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
-                            : null,
-                        coverUrl: s.banner_url
-                            ? supabase.storage.from('store-covers').getPublicUrl(s.banner_url).data.publicUrl
-                            : null,
-                        description: s.description?.length > 100 ? s.description.slice(0, 100) + '...' : s.description,
-                        rating: s.ratings_avg || 0,
-                        isOpen: s.is_open ?? true,
-                        category: s.category,
-                        distance: distanceStr,
-                        featuredProducts: s.category || 'Produtos variados',
-                    }
-                })
-                setAllPublicStores(formatted)
+            const storeIds = storesData.map(s => s.id)
+
+            // 2. Busca top 3 produtos mais vendidos por loja (entre vendas pagas)
+            const { data: topProductsData } = await supabase
+                .from('store_sales')
+                .select('store_id, product_name')
+                .in('store_id', storeIds)
+                .eq('status', 'paid')
+
+            // Agrupa e conta
+            const productCountMap: Record<string, Record<string, number>> = {}
+            if (topProductsData) {
+                for (const sale of topProductsData) {
+                    const sid = sale.store_id
+                    const pname = sale.product_name
+                    if (!productCountMap[sid]) productCountMap[sid] = {}
+                    productCountMap[sid][pname] = (productCountMap[sid][pname] || 0) + 1
+                }
             }
+
+            const formatted = storesData.map(s => {
+                // Calcula distância
+                let distanceStr: string | undefined = undefined
+                if (userLocation && s.location) {
+                    let lat: number | null = null
+                    let lng: number | null = null
+                    if (typeof s.location === 'string') {
+                        const match = s.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+                        if (match) {
+                            lng = parseFloat(match[1])
+                            lat = parseFloat(match[2])
+                        }
+                    } else if (s.location?.type === 'Point' && Array.isArray(s.location.coordinates)) {
+                        lng = s.location.coordinates[0]
+                        lat = s.location.coordinates[1]
+                    }
+                    if (lat !== null && lng !== null) {
+                        const dist = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, lat, lng)
+                        distanceStr = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
+                    }
+                }
+
+                // Top 3 produtos mais vendidos
+                const storeSalesCount = productCountMap[s.id] || {}
+                const sortedProducts = Object.entries(storeSalesCount)
+                    .sort(([, a], [, b]) => b - a)
+                    .slice(0, 3)
+                    .map(([name]) => name)
+                const featured = sortedProducts.length > 0
+                    ? sortedProducts.join(', ')
+                    : s.category || 'Produtos variados'
+
+                return {
+                    slug: s.storeSlug,
+                    name: s.name,
+                    logoUrl: s.logo_url
+                        ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                        : null,
+                    coverUrl: s.banner_url
+                        ? supabase.storage.from('store-covers').getPublicUrl(s.banner_url).data.publicUrl
+                        : null,
+                    description: s.description?.length > 100 ? s.description.slice(0, 100) + '...' : s.description,
+                    rating: s.ratings_avg || 0,
+                    isOpen: s.is_open ?? true,
+                    distance: distanceStr,
+                    featuredProducts: featured,
+                }
+            })
+            setAllPublicStores(formatted)
         }
-        // Só busca se a localização já tiver sido definida (mesmo que null)
+
+        // Só busca se a localização já foi definida (mesmo que null)
         if (userLocation !== undefined) {
             fetchPublicStores()
         }

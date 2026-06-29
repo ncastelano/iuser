@@ -44,6 +44,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides)
     }, [totalSlides])
 
+    // Auto play
     useEffect(() => {
         if (isHovered || isDragging || totalSlides <= 1) return
         autoPlayRef.current = setInterval(nextSlide, 5000)
@@ -52,6 +53,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         }
     }, [isHovered, isDragging, nextSlide, totalSlides])
 
+    // Sincroniza scroll com índice
     useEffect(() => {
         if (carouselRef.current) {
             const scrollAmount = carouselRef.current.clientWidth * currentIndex
@@ -59,11 +61,13 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         }
     }, [currentIndex])
 
+    // ---------- Mouse drag ----------
     const handleMouseDown = (e: React.MouseEvent) => {
         setIsDragging(true)
         setStartX(e.pageX - (carouselRef.current?.offsetLeft || 0))
         setScrollLeft(carouselRef.current?.scrollLeft || 0)
     }
+
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!isDragging) return
         e.preventDefault()
@@ -71,7 +75,24 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         const walk = (x - startX) * 1.5
         if (carouselRef.current) carouselRef.current.scrollLeft = scrollLeft - walk
     }
+
     const handleMouseUp = () => setIsDragging(false)
+
+    // ---------- Touch drag ----------
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setIsDragging(true)
+        setStartX(e.touches[0].pageX - (carouselRef.current?.offsetLeft || 0))
+        setScrollLeft(carouselRef.current?.scrollLeft || 0)
+    }
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isDragging) return
+        const x = e.touches[0].pageX - (carouselRef.current?.offsetLeft || 0)
+        const walk = (x - startX) * 1.5
+        if (carouselRef.current) carouselRef.current.scrollLeft = scrollLeft - walk
+    }
+
+    const handleTouchEnd = () => setIsDragging(false)
 
     if (!stores.length) return null
 
@@ -81,6 +102,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
+            {/* Título da seção */}
             <div className="flex items-center gap-2 mb-4 px-1">
                 <ShoppingBag size={18} style={{ color: colors.accent }} />
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
@@ -88,6 +110,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                 </h2>
             </div>
 
+            {/* Carrossel */}
             <div
                 ref={carouselRef}
                 className="flex overflow-x-hidden scroll-smooth snap-x snap-mandatory"
@@ -96,6 +119,9 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
             >
                 {stores.map((store, index) => {
                     const isActive = index === currentIndex
@@ -171,9 +197,9 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                             </div>
                                         )}
                                         {store.featuredProducts && (
-                                            <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1">
+                                            <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1 max-w-[200px] truncate">
                                                 <ShoppingBag size={14} className="text-white/70" />
-                                                <span className="text-xs font-bold text-white/90">{store.featuredProducts}</span>
+                                                <span className="text-xs font-bold text-white/90 truncate">{store.featuredProducts}</span>
                                             </div>
                                         )}
                                     </div>
@@ -202,38 +228,47 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                 })}
             </div>
 
+            {/* Controles inferiores: botão anterior + dots + botão próximo */}
             {totalSlides > 1 && (
-                <>
+                <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                         onClick={prevSlide}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md bg-black/30 hover:bg-black/50 transition-all"
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        style={{
+                            background: colors.accent,
+                            color: colors.accentText,
+                        }}
                     >
-                        <ChevronLeft size={24} className="text-white" />
+                        <ChevronLeft size={16} />
                     </button>
+
+                    <div className="flex gap-2">
+                        {stores.map((_, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setCurrentIndex(idx)}
+                                className="h-2 rounded-full transition-all duration-300"
+                                style={{
+                                    width: idx === currentIndex ? '1.5rem' : '0.5rem',
+                                    background: idx === currentIndex ? colors.accent : colors.border,
+                                }}
+                            />
+                        ))}
+                    </div>
+
                     <button
                         onClick={nextSlide}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md bg-black/30 hover:bg-black/50 transition-all"
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        style={{
+                            background: colors.accent,
+                            color: colors.accentText,
+                        }}
                     >
-                        <ChevronRight size={24} className="text-white" />
+                        <ChevronRight size={16} />
                     </button>
-                </>
-            )}
-
-            {totalSlides > 1 && (
-                <div className="flex justify-center gap-2 mt-4">
-                    {stores.map((_, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => setCurrentIndex(idx)}
-                            className="h-1.5 rounded-full transition-all duration-300"
-                            style={{
-                                width: idx === currentIndex ? '2rem' : '0.5rem',
-                                background: idx === currentIndex ? colors.accent : colors.border,
-                            }}
-                        />
-                    ))}
                 </div>
             )}
+
         </div>
     )
 }
