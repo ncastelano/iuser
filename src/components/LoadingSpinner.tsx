@@ -1,4 +1,3 @@
-// components/LoadingSpinner.tsx
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -7,9 +6,9 @@ import { useTheme } from '@/app/theme'
 type LoadingSpinnerProps = {
     message?: string
     showDots?: boolean
+    background?: string   // opcional: força uma cor de fundo (ex: "black")
 }
 
-// Helper para ajustar brilho de uma cor hex
 const adjustBrightness = (hex: string, percent: number): string => {
     const num = parseInt(hex.replace('#', ''), 16)
     const r = Math.min(255, Math.max(0, (num >> 16) + percent))
@@ -18,23 +17,22 @@ const adjustBrightness = (hex: string, percent: number): string => {
     return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
 }
 
-// Tema claro padrão para fallback
 const fallbackColors = {
     surface: '#f9fafb',
     textSecondary: '#4b5563',
     accent: '#f97316',
     accentLight: '#fdba74',
+    background: '#ffffff',
 }
 
-export function LoadingSpinner({ message = 'Carregando...', showDots = true }: LoadingSpinnerProps) {
+export function LoadingSpinner({ message = 'Carregando...', showDots = true, background }: LoadingSpinnerProps) {
     const { colors: themeColors } = useTheme()
     const [mounted, setMounted] = useState(false)
 
     // Garante cores válidas mesmo antes da hidratação
     const colors = themeColors ?? fallbackColors
-    const { surface, textSecondary, accent, accentLight } = colors
+    const { textSecondary, accent, accentLight, background: themeBackground } = colors
 
-    // Estados para as bolinhas orbitais
     const [scaleStates, setScaleStates] = useState({
         orbit1: [false, false, false],
         orbit2: [false, false, false],
@@ -111,32 +109,23 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
     if (!mounted) return null
 
-    // Converte cor hex para rgb
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return {
-            r: (bigint >> 16) & 255,
-            g: (bigint >> 8) & 255,
-            b: bigint & 255,
-        }
-    }
-
-    const surfaceRgb = hexToRgb(surface)
-    const transparentBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`
+    // Define o fundo: se 'background' for passado, usa-o; senão, usa o fundo do tema
+    const bgStyle = background
+        ? { background }
+        : { background: themeBackground }
 
     // Cores derivadas do tema
     const primaryParticle = accent
     const secondaryParticle = accentLight
-    const darkerAccent = adjustBrightness(accent, -30)  // para variação
-    const lighterAccent = adjustBrightness(accent, 40)   // mais clara
+    const darkerAccent = adjustBrightness(accent, -30)
+    const lighterAccent = adjustBrightness(accent, 40)
 
     return (
-        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={bgStyle}>
             <div className="relative z-10 flex flex-col items-center gap-8">
                 {/* Animação orbital + logo */}
                 <div className="relative animate-[float_3s_ease-in-out_infinite]">
-                    {/* Órbitas – agora usando cores do tema */}
+                    {/* Órbitas */}
                     <div className="absolute inset-0 w-32 h-32 -m-6 animate-[spin_4s_linear_infinite]">
                         <div
                             className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full transition-all duration-700 ${scaleStates.orbit1[0] ? 'scale-[2.5]' : 'scale-100'}`}
@@ -174,7 +163,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         />
                     </div>
 
-                    {/* Ícone central com gradiente baseado no tema */}
+                    {/* Ícone central */}
                     <div className="relative z-10">
                         <div
                             className="absolute inset-0 w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
@@ -197,7 +186,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         </div>
                     </div>
 
-                    {/* Bolinhas que atravessam – também com cores do tema */}
+                    {/* Bolinhas que atravessam */}
                     {crossStates.vertical.active && (
                         <div
                             className="absolute inset-0 flex items-center justify-center overflow-hidden z-30 pointer-events-none"

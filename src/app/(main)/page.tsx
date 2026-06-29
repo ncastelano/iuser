@@ -58,7 +58,7 @@ export interface StoreInfo {
     name: string
 }
 
-// Funções de distância
+// ---------- Utilitários de distância ----------
 function deg2rad(deg: number) {
     return deg * (Math.PI / 180)
 }
@@ -73,6 +73,36 @@ function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon
         Math.sin(dLon / 2) * Math.sin(dLon / 2)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
     return R * c
+}
+
+// ---------- Utilitários de horário ----------
+function getTodayKey(): string {
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+    return days[new Date().getDay()]
+}
+
+function formatTodayHours(businessHours: any): string | undefined {
+    if (!businessHours) return undefined
+    const todayKey = getTodayKey()
+    const today = businessHours[todayKey]
+    if (today && today.open && today.close) {
+        return `${today.open.slice(0, 5)} - ${today.close.slice(0, 5)}`
+    }
+    return undefined
+}
+
+function isOpenNowFromHours(businessHours: any): boolean {
+    const todayKey = getTodayKey()
+    const today = businessHours?.[todayKey]
+    if (!today || !today.open || !today.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = today.open.split(':').map(Number)
+    let [closeH, closeM] = today.close.split(':').map(Number)
+    if (closeH === 0 && closeM === 0) { closeH = 24 }
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
 }
 
 export default function HomePage() {
@@ -190,13 +220,13 @@ export default function HomePage() {
         }
     }, [])
 
-    // Busca lojas públicas (com distância)
+    // Busca lojas públicas (com distância, imagens dos produtos mais vendidos, etc.)
     useEffect(() => {
         async function fetchPublicStores() {
             // 1. Busca lojas ativas
             const { data: storesData, error: storesError } = await supabase
                 .from('stores')
-                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, is_open, category, location, id')
+                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, ratings_count, is_open, category, location, address, business_hours, view_count, id')
                 .eq('is_active', true)
                 .order('ratings_avg', { ascending: false })
                 .limit(20)
@@ -205,39 +235,75 @@ export default function HomePage() {
 
             const storeIds = storesData.map(s => s.id)
 
-            // 2. Busca top 3 produtos mais vendidos por loja (entre vendas pagas)
-            const { data: topProductsData } = await supabase
+            // 2. Busca vendas com product_id para identificar os mais vendidos
+            const { data: salesWithProductId } = await supabase
                 .from('store_sales')
-                .select('store_id, product_name')
+                .select('store_id, product_id, product_name')
                 .in('store_id', storeIds)
-                .eq('status', 'paid')
 
-            // Agrupa e conta
-            const productCountMap: Record<string, Record<string, number>> = {}
-            if (topProductsData) {
-                for (const sale of topProductsData) {
+            // Contagem por product_id
+            const productCountById: Record<string, Record<string, { count: number; name: string }>> = {}
+            if (salesWithProductId) {
+                for (const sale of salesWithProductId) {
                     const sid = sale.store_id
+                    const pid = sale.product_id
                     const pname = sale.product_name
-                    if (!productCountMap[sid]) productCountMap[sid] = {}
-                    productCountMap[sid][pname] = (productCountMap[sid][pname] || 0) + 1
+                    if (!pid) continue
+                    if (!productCountById[sid]) productCountById[sid] = {}
+                    if (!productCountById[sid][pid]) {
+                        productCountById[sid][pid] = { count: 0, name: pname }
+                    }
+                    productCountById[sid][pid].count++
                 }
             }
 
+            // Top 3 product_id por loja
+            const storeTopProductIds: Record<string, string[]> = {}
+            const allTopProductIds: string[] = []
+            for (const s of storesData) {
+                const counts = productCountById[s.id] || {}
+                const sorted = Object.entries(counts)
+                    .sort(([, a], [, b]) => b.count - a.count)
+                    .slice(0, 3)
+                const ids = sorted.map(([pid]) => pid)
+                storeTopProductIds[s.id] = ids
+                allTopProductIds.push(...ids)
+            }
+
+            // 3. Busca as imagens dos produtos identificados
+            let imageUrlMap: Record<string, string | null> = {}
+            if (allTopProductIds.length > 0) {
+                const { data: productsImages } = await supabase
+                    .from('products')
+                    .select('id, image_url')
+                    .in('id', allTopProductIds)
+
+                if (productsImages) {
+                    for (const prod of productsImages) {
+                        const url = prod.image_url
+                            ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl
+                            : null
+                        imageUrlMap[prod.id] = url
+                    }
+                }
+            }
+
+            // 4. Monta o array final com imagens
             const formatted = storesData.map(s => {
-                // Calcula distância
+                // Distância
                 let distanceStr: string | undefined = undefined
                 if (userLocation && s.location) {
                     let lat: number | null = null
                     let lng: number | null = null
-                    if (typeof s.location === 'string') {
+                    if (typeof s.location === 'object' && s.location !== null && 'type' in s.location && s.location.type === 'Point' && Array.isArray(s.location.coordinates)) {
+                        lng = s.location.coordinates[0]
+                        lat = s.location.coordinates[1]
+                    } else if (typeof s.location === 'string') {
                         const match = s.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
                         if (match) {
                             lng = parseFloat(match[1])
                             lat = parseFloat(match[2])
                         }
-                    } else if (s.location?.type === 'Point' && Array.isArray(s.location.coordinates)) {
-                        lng = s.location.coordinates[0]
-                        lat = s.location.coordinates[1]
                     }
                     if (lat !== null && lng !== null) {
                         const dist = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, lat, lng)
@@ -245,15 +311,22 @@ export default function HomePage() {
                     }
                 }
 
-                // Top 3 produtos mais vendidos
-                const storeSalesCount = productCountMap[s.id] || {}
-                const sortedProducts = Object.entries(storeSalesCount)
-                    .sort(([, a], [, b]) => b - a)
-                    .slice(0, 3)
-                    .map(([name]) => name)
-                const featured = sortedProducts.length > 0
-                    ? sortedProducts.join(', ')
-                    : s.category || 'Produtos variados'
+                const topIds = storeTopProductIds[s.id] || []
+                const featuredImages = topIds
+                    .map(id => imageUrlMap[id])
+                    .filter(Boolean) as string[]
+
+                // Se não houver imagens de vendas, usar os primeiros produtos da loja como fallback (opcional)
+                // Vamos deixar vazio e o banner não exibirá nada
+
+                const shortAddress = s.address
+                    ? s.address.length > 50 ? s.address.slice(0, 47) + '...' : s.address
+                    : undefined
+
+                const todayHours = formatTodayHours(s.business_hours)
+                const openNow = s.business_hours
+                    ? isOpenNowFromHours(s.business_hours)
+                    : s.is_open ?? true
 
                 return {
                     slug: s.storeSlug,
@@ -266,15 +339,18 @@ export default function HomePage() {
                         : null,
                     description: s.description?.length > 100 ? s.description.slice(0, 100) + '...' : s.description,
                     rating: s.ratings_avg || 0,
-                    isOpen: s.is_open ?? true,
+                    ratingCount: s.ratings_count || 0,
+                    isOpen: openNow,
                     distance: distanceStr,
-                    featuredProducts: featured,
+                    address: shortAddress,
+                    todayHours,
+                    featuredImages,
+                    viewCount: s.view_count || 0,
                 }
             })
             setAllPublicStores(formatted)
         }
 
-        // Só busca se a localização já foi definida (mesmo que null)
         if (userLocation !== undefined) {
             fetchPublicStores()
         }
@@ -351,11 +427,7 @@ export default function HomePage() {
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                return (
-
-                    <BannerPago stores={allPublicStores} />
-
-                )
+                return <BannerPago stores={allPublicStores} />
             case 'orderSection':
                 return (
                     <OrderSection

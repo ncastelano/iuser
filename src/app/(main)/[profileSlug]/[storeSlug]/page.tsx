@@ -32,10 +32,13 @@ import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { getAvatarUrl } from '@/lib/avatar'
 import { RatingStars } from '@/components/ratings/RatingStars'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StoreFlow } from '../../eu/components/StoreFlow'
 import { useCartStore } from '@/store/useCartStore'
 import { useTheme } from '@/app/theme'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import SacolaButton from '@/app/SacolaButton'   // ← importa o mesmo botão da HomePage
 
 type RatingRow = {
     id: string
@@ -209,6 +212,7 @@ export default function StorePage() {
     const router = useRouter()
 
     const { colors } = useTheme()
+    const { bgMode, customBgUrl } = useProfile()
 
     const [store, setStore] = useState<StoreType | null>(null)
     const [products, setProducts] = useState<any[]>([])
@@ -238,6 +242,12 @@ export default function StorePage() {
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
+
+    // ---------- Estados para o SacolaButton (mesmo da HomePage) ----------
+    const [pendingCount, setPendingCount] = useState(0)
+    const [preparingCount, setPreparingCount] = useState(0)
+    const [readyCount, setReadyCount] = useState(0)
+    const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
     // ---------- Captura de visitas (sempre insere em store_visits) ----------
     const captureVisit = useCallback(
@@ -659,6 +669,52 @@ export default function StorePage() {
         }
     }
 
+    // ---------- Busca status dos pedidos (para o SacolaButton) ----------
+    useEffect(() => {
+        const fetchOrderStatuses = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data: orders } = await supabase
+                .from('orders')
+                .select('status')
+                .eq('buyer_id', user.id)
+
+            if (orders) {
+                setPendingCount(orders.filter(o => o.status === 'pending').length)
+                setPreparingCount(orders.filter(o => o.status === 'preparing').length)
+                setReadyCount(orders.filter(o => o.status === 'ready').length)
+            }
+
+            const { data: purchases } = await supabase
+                .from('store_sales')
+                .select('id')
+                .eq('buyer_id', user.id)
+                .eq('status', 'paid')
+
+            if (purchases) {
+                const { data: reviews } = await supabase
+                    .from('product_reviews')
+                    .select('id')
+                    .eq('profile_id', user.id)
+
+                const reviewedIds = new Set(reviews?.map(r => r.id) || [])
+                const pending = purchases.filter(p => !reviewedIds.has(p.id)).length
+                setPendingReviewsCount(pending)
+            }
+        }
+        fetchOrderStatuses()
+    }, [])
+
+    // ---------- Animação do carrinho (mesma lógica da HomePage) ----------
+    useEffect(() => {
+        if (cartItems.length > 0) {
+            setCartAnimating(true)
+            const timer = setTimeout(() => setCartAnimating(false), 3000)
+            return () => clearTimeout(timer)
+        }
+    }, [cartItems.length])
+
     // ---------- Estilos baseados no tema ----------
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
@@ -667,11 +723,11 @@ export default function StorePage() {
     }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardStyle = {
-        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
+        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         border: `1px solid ${colors.border}`,
-        boxShadow: `0 4px 12px rgba(0,0,0,0.05)`,
+        boxShadow: colors.shadow,
     }
 
     const primaryButtonStyle = {
@@ -692,11 +748,12 @@ export default function StorePage() {
         cursor: 'pointer',
     }
 
-    if (loading) return <LoadingSpinner />
+    // ---------- Loading transparente ----------
+    if (loading) return <LoadingSpinner message="Carregando loja..." />
 
     if (error || !store)
         return (
-            <div className="min-h-screen flex items-center justify-center px-4 text-center">
+            <div className="min-h-screen flex items-center justify-center px-4 text-center" style={{ background: colors.background }}>
                 <div className="flex flex-col gap-4 max-w-sm items-center">
                     {error ? (
                         <AlertTriangle className="w-12 h-12" style={{ color: colors.accent }} />
@@ -721,7 +778,12 @@ export default function StorePage() {
         )
 
     return (
-        <div className="relative flex flex-col min-h-screen pb-28">
+        <div className="relative flex flex-col min-h-screen pb-28" style={{ background: colors.background }}>
+            {/* Fundo animado */}
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
+
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
 
             {store && (
@@ -765,7 +827,7 @@ export default function StorePage() {
             </header>
 
             <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
-                {/* Cabeçalho simplificado da loja (sem card) */}
+                {/* Cabeçalho da loja */}
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
                         <div
@@ -794,12 +856,11 @@ export default function StorePage() {
                                 <Eye size={12} />
                                 <span className="font-bold">{totalVisitors} visitantes</span>
                             </div>
-                            {/* Avaliações foram movidas para a aba de avaliações */}
                         </div>
                     </div>
                 </div>
 
-                {/* Descrição (sem card) */}
+                {/* Descrição */}
                 {store.description && (
                     <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || store.description.length <= DESC_LIMIT
@@ -824,12 +885,11 @@ export default function StorePage() {
                             onClick={openGoogleMaps}
                             className="group flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
                             style={{
-                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                                borderColor: 'transparent',
-                                color: '#ffffff',
+                                background: colors.accent,
+                                borderColor: colors.accent,
+                                color: colors.accentText,
                             }}
                         >
-
                             <span className="truncate max-w-[100px]">{formatAddress(store.address)}</span>
                             <span className="flex items-center gap-0.5 opacity-90 group-hover:opacity-100 transition-opacity">
                                 <span className="hidden sm:inline">Ir</span>
@@ -852,12 +912,11 @@ export default function StorePage() {
                             onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
                             className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
                             style={{
-                                background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                                borderColor: 'transparent',
-                                color: '#ffffff',
+                                background: colors.accent,
+                                borderColor: colors.accent,
+                                color: colors.accentText,
                             }}
                         >
-
                             <span>Editar Horários</span>
                             <Clock className="w-3.5 h-3.5" />
                         </button>
@@ -865,7 +924,7 @@ export default function StorePage() {
                         store.business_hours && Object.keys(store.business_hours).length > 0 && (
                             <button
                                 onClick={() => setShowAllHours(true)}
-                                className="group flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                                className="group flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold shadow-sm hover:scale-105 transition-all"
                                 style={{
                                     background: isStoreOpen ? '#10b981' : '#ef4444',
                                     borderColor: isStoreOpen ? '#10b981' : '#ef4444',
@@ -885,7 +944,7 @@ export default function StorePage() {
                     )}
                 </div>
 
-                {/* Agendados hoje (mantidos sem card) */}
+                {/* Agendados hoje */}
                 {appointmentsToday.length > 0 && (
                     <div className="space-y-2">
                         <h4 className="text-[10px] font-black uppercase tracking-widest" style={{ color: colors.textSecondary }}>Hoje</h4>
@@ -895,7 +954,7 @@ export default function StorePage() {
                                     key={appt.id || i}
                                     onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
                                     className="rounded-2xl p-3 border cursor-pointer hover:shadow-md transition-all"
-                                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: colors.border }}
+                                    style={cardStyle}
                                 >
                                     <div className="flex items-center gap-2.5 mb-2">
                                         <div className="relative">
@@ -939,7 +998,7 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Botão Agendar grande (mantido) */}
+                {/* Botão Agendar grande */}
                 {store.allow_scheduling && (
                     <button
                         onClick={() => setIsScheduleModalOpen(true)}
@@ -955,7 +1014,7 @@ export default function StorePage() {
                 <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>
                     <button
                         onClick={() => setActiveTab('products')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${activeTab === 'products' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${activeTab === 'products' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                         style={
                             activeTab === 'products'
                                 ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
@@ -963,24 +1022,23 @@ export default function StorePage() {
                         }
                     >
                         <Grid3X3 className="w-4 h-4" />
-                        Produtos
+                        <span>Produtos ou Serviços</span>
                     </button>
                     <div
                         role="button"
                         tabIndex={0}
                         onClick={() => setActiveTab('reviews')}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveTab('reviews'); } }}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 cursor-pointer ${activeTab === 'reviews' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 cursor-pointer ${activeTab === 'reviews' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                         style={
                             activeTab === 'reviews'
                                 ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
                                 : { background: 'transparent', color: colors.textSecondary }
                         }
                     >
-
-                        Avaliações
+                        <span>Avaliações</span>
                         {store.ratings_count ? (
-                            <span className="ml-1 flex items-center gap-1">
+                            <span className="flex items-center gap-1">
                                 <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
                                 <span className="text-[10px] font-bold">{Number(store.ratings_avg || 0).toFixed(1)}</span>
                                 <span className="text-[9px] opacity-75">({store.ratings_count})</span>
@@ -1002,7 +1060,7 @@ export default function StorePage() {
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="w-full border rounded-2xl py-3 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 transition-all"
                                     style={{
-                                        background: 'rgba(255,255,255,0.05)',
+                                        background: `${colors.surface}88`,
                                         borderColor: colors.border,
                                         color: colors.textPrimary,
                                         backdropFilter: 'blur(8px)',
@@ -1067,7 +1125,7 @@ export default function StorePage() {
                                                     onClick={() => handleProductClick(product)}
                                                     className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                     style={{
-                                                        background: 'rgba(255,255,255,0.04)',
+                                                        background: `${colors.surface}88`,
                                                         borderColor: isSelected ? '#22c55e' : colors.border,
                                                         backdropFilter: 'blur(8px)',
                                                         WebkitBackdropFilter: 'blur(8px)',
@@ -1087,7 +1145,6 @@ export default function StorePage() {
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
-                                                        {/* Badge de produto selecionado (apenas para não-dono) */}
                                                         {!isOwner && mounted && isSelected && (
                                                             <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
                                                                 <button
@@ -1131,7 +1188,7 @@ export default function StorePage() {
                                                                 </button>
                                                             ) : mounted && isSelected ? (
                                                                 <div className="flex items-center gap-1.5">
-                                                                    {/* Botões de ação removidos, substituídos pelo badge superior */}
+                                                                    {/* espaço reservado */}
                                                                 </div>
                                                             ) : (
                                                                 <button
@@ -1214,46 +1271,18 @@ export default function StorePage() {
                 )}
             </main>
 
-            {/* Botões flutuantes */}
+            {/* Botões flutuantes – agora com SacolaButton igual ao da HomePage */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                <button
-                    onClick={() => router.push('/sacola')}
-                    style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                        color: colors.accentText,
-                        border: 'none',
-                        borderRadius: 32,
-                        padding: '16px 28px',
-                        fontWeight: 800,
-                        fontSize: 18,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        boxShadow: `0 12px 40px ${colors.accent}80`,
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s',
-                        position: 'relative',
+                <SacolaButton
+                    totalItems={cartItems.length}
+                    statusCounts={{
+                        pending: pendingCount,
+                        preparing: preparingCount,
+                        ready: readyCount,
+                        reviews: pendingReviewsCount,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                >
-                    <ShoppingCart size={24} />
-                    Sacola
-                    {cartItems.length > 0 && (
-                        <span
-                            className="absolute -top-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black"
-                            style={{
-                                background: '#10b981',
-                                color: '#ffffff',
-                                border: '2px solid #ffffff',
-                                transform: cartAnimating ? 'scale(1.3)' : 'scale(1)',
-                                transition: 'transform 0.2s ease',
-                            }}
-                        >
-                            {cartItems.length}
-                        </span>
-                    )}
-                </button>
+                    animate={cartAnimating}
+                />
                 <button
                     onClick={() => router.push('/')}
                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
