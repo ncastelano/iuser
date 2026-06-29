@@ -23,22 +23,20 @@ import {
     MessageCircle,
     QrCode,
     Eye,
-    ShoppingCart,
-    Home,
     ShoppingBag,
+    Home,
     Store
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ScheduleModal } from '@/components/ScheduleModal'
 import { getAvatarUrl } from '@/lib/avatar'
 import { RatingStars } from '@/components/ratings/RatingStars'
-import { StoreFlow } from '../../eu/components/StoreFlow'
 import { useCartStore } from '@/store/useCartStore'
 import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import SacolaButton from '@/app/SacolaButton'   // ← importa o mesmo botão da HomePage
+import SacolaButton from '@/app/SacolaButton'
 
 type RatingRow = {
     id: string
@@ -231,11 +229,6 @@ export default function StorePage() {
     const { itemsByStore, addItem, removeItem } = useCartStore()
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
 
-    const [adminPanelOpen, setAdminPanelOpen] = useState(false)
-    const [adminSales, setAdminSales] = useState<any[]>([])
-    const [storeViews, setStoreViews] = useState(0)
-    const [productViews, setProductViews] = useState(0)
-
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [activeTab, setActiveTab] = useState<TabType>('products')
@@ -243,13 +236,13 @@ export default function StorePage() {
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
-    // ---------- Estados para o SacolaButton (mesmo da HomePage) ----------
+    // ---------- Estados para o SacolaButton ----------
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- Captura de visitas (sempre insere em store_visits) ----------
+    // ---------- Captura de visitas ----------
     const captureVisit = useCallback(
         async (storeId: string, userId: string | null) => {
             const anonymousId = userId ? null : getOrCreateAnonymousId()
@@ -406,7 +399,6 @@ export default function StorePage() {
         setCurrentUserId(userId)
         setIsOwner(userId === foundStore.owner_id)
 
-        // Apenas lê o view_count do banco, sem incrementar aqui
         setTotalVisitors(foundStore.view_count ?? 0)
 
         // Produtos
@@ -499,22 +491,19 @@ export default function StorePage() {
             const now = Date.now()
 
             if (lastVisit && now - Number(lastVisit) < COOLDOWN_MS) {
-                return // ainda em cooldown
+                return
             }
 
             localStorage.setItem(cooldownKey, String(now))
 
-            // Anima +1 visualmente
             setTotalVisitors(prev => prev + 1)
 
-            // Registra a visita em store_visits
             const { data: { user } } = await supabase.auth.getUser()
             const userId = user?.id ?? null
             if (!cancelled) {
                 await captureVisit(storeId, userId)
             }
 
-            // Incrementa view_count via RPC
             if (!cancelled) {
                 const { data: newCount, error: rpcError } = await supabase
                     .rpc('increment_store_view', { store_id: storeId })
@@ -530,7 +519,6 @@ export default function StorePage() {
             cancelled = true
             clearTimeout(timer)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [store?.id])
 
     // ---------- Atualização em tempo real do contador de visitantes ----------
@@ -560,35 +548,6 @@ export default function StorePage() {
             supabase.removeChannel(channel)
         }
     }, [store?.id])
-
-    // ---------- Admin panel (usando store_visits) ----------
-    useEffect(() => {
-        if (!adminPanelOpen || !store) return
-        const loadAdminData = async () => {
-            const { data: salesData } = await supabase
-                .from('store_sales')
-                .select('*')
-                .eq('store_id', store.id)
-                .order('created_at', { ascending: false })
-                .limit(50)
-            setAdminSales(salesData || [])
-
-            const { data: adminViewsData } = await supabase
-                .from('store_visits')
-                .select('viewer_id, anonymous_id')
-                .eq('store_id', store.id)
-            const uniqueLogados = new Set(adminViewsData?.filter(v => v.viewer_id).map(v => v.viewer_id))
-            const uniqueAnonimos = new Set(adminViewsData?.filter(v => v.anonymous_id).map(v => v.anonymous_id))
-            setStoreViews(uniqueLogados.size + uniqueAnonimos.size)
-
-            const { count: prodViewsCount } = await supabase
-                .from('product_views')
-                .select('*', { count: 'exact', head: true })
-                .eq('store_id', store.id)
-            setProductViews(prodViewsCount || 0)
-        }
-        loadAdminData()
-    }, [adminPanelOpen, store, supabase])
 
     const openGoogleMaps = () => {
         if (!store) return
@@ -646,29 +605,6 @@ export default function StorePage() {
         toggleProduct(product)
     }
 
-    const shareProduct = (product: any) => {
-        const url = `${window.location.origin}/${profileSlug}/${storeSlug}/${product.slug || product.id}`
-        if (navigator.share) {
-            navigator.share({
-                title: product.name,
-                text: `${product.name} - ${store?.name}`,
-                url: url,
-            }).catch(() => { })
-        } else {
-            navigator.clipboard?.writeText(url).then(() => {
-                toast.success('Link copiado!')
-            }).catch(() => {
-                const textarea = document.createElement('textarea')
-                textarea.value = url
-                document.body.appendChild(textarea)
-                textarea.select()
-                document.execCommand('copy')
-                document.body.removeChild(textarea)
-                toast.success('Link copiado!')
-            })
-        }
-    }
-
     // ---------- Busca status dos pedidos (para o SacolaButton) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
@@ -706,7 +642,6 @@ export default function StorePage() {
         fetchOrderStatuses()
     }, [])
 
-    // ---------- Animação do carrinho (mesma lógica da HomePage) ----------
     useEffect(() => {
         if (cartItems.length > 0) {
             setCartAnimating(true)
@@ -748,7 +683,6 @@ export default function StorePage() {
         cursor: 'pointer',
     }
 
-    // ---------- Loading transparente ----------
     if (loading) return <LoadingSpinner message="Carregando loja..." />
 
     if (error || !store)
@@ -811,7 +745,7 @@ export default function StorePage() {
                             { icon: QrCode, action: undefined },
                             { icon: Navigation, action: openGoogleMaps },
                             { icon: Share2, action: () => navigator.share?.({ title: store.name, url: storeUrl }).catch(() => { }) },
-                            ...(isOwner ? [{ icon: Settings, action: () => setAdminPanelOpen(true) }] : []),
+                            ...(isOwner ? [{ icon: Settings, action: () => router.push(`/${profileSlug}/${storeSlug}/editar-loja`) }] : []),
                         ].map(({ icon: Icon, action }, idx) => (
                             <button
                                 key={idx}
@@ -1021,7 +955,6 @@ export default function StorePage() {
                                 : { background: 'transparent', color: colors.textSecondary }
                         }
                     >
-                        <Grid3X3 className="w-4 h-4" />
                         <span>Produtos ou Serviços</span>
                     </button>
                     <div
@@ -1271,7 +1204,7 @@ export default function StorePage() {
                 )}
             </main>
 
-            {/* Botões flutuantes – agora com SacolaButton igual ao da HomePage */}
+            {/* Botões flutuantes */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <SacolaButton
                     totalItems={cartItems.length}
@@ -1321,34 +1254,6 @@ export default function StorePage() {
                                 )
                             })}
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Admin panel */}
-            {adminPanelOpen && (
-                <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" onClick={() => setAdminPanelOpen(false)}>
-                    <div className="absolute bottom-0 left-0 right-0 rounded-t-3xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Gerenciar Loja</h3>
-                            <button onClick={() => setAdminPanelOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl text-2xl" style={{ color: colors.textSecondary }}>×</button>
-                        </div>
-                        <StoreFlow
-                            store={store}
-                            sales={adminSales}
-                            supabase={supabase}
-                            onToggleStatus={() => toast.success('Status da loja alterado')}
-                            profile={{ profileSlug }}
-                            onUpdateOrder={() => {
-                                supabase.from('store_sales').select('*').eq('store_id', store.id).order('created_at', { ascending: false }).limit(50).then(({ data }) => setAdminSales(data || []))
-                            }}
-                            onAddProduct={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                            onEditStore={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
-                            onToggleScheduling={toggleScheduling}
-                            storeViews={storeViews}
-                            productViews={productViews}
-                            onUpdateStore={(updatedFields) => setStore(prev => prev ? { ...prev, ...updatedFields } : null)}
-                        />
                     </div>
                 </div>
             )}

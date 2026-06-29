@@ -1,3 +1,5 @@
+//app/(main)/[profileSlug]/[storeSlug]/editar-loja/page.tsx
+
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
