@@ -1,4 +1,3 @@
-//src/app/theme.ts
 import { create } from 'zustand'
 
 export type ThemeName = 'claro' | 'escuro-laranja' | 'escuro-cinza'
@@ -22,11 +21,11 @@ const themes: Record<ThemeName, ThemeColors> = {
         background: '#ffffff',
         surface: '#f9fafb',
         textPrimary: '#111827',
-        textSecondary: '#4b5563',   // estava #6b7280
+        textSecondary: '#4b5563',
         accent: '#f97316',
-        accentLight: '#fdba74',     // estava #fed7aa
+        accentLight: '#fdba74',
         accentText: '#ffffff',
-        border: '#d1d5db',          // estava #e5e7eb
+        border: '#d1d5db',
         shadow: '0 8px 32px rgba(0,0,0,0.08)',
     },
     'escuro-laranja': {
@@ -64,5 +63,11 @@ interface Theme {
 export const useTheme = create<Theme>((set) => ({
     current: 'claro',
     colors: themes['claro'],
-    setTheme: (theme) => set({ current: theme, colors: themes[theme] }),
+    setTheme: (theme: ThemeName) => {
+        if (themes[theme]) {
+            set({ current: theme, colors: themes[theme] })
+        } else {
+            console.warn(`[useTheme] Tema inválido recebido: "${theme}". Mantendo o atual.`)
+        }
+    },
 }))

@@ -37,8 +37,10 @@ import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../SacolaButton'
+import BannerPago from './inicio/sections/BannerPago'
 
 const DEFAULT_SECTIONS = [
+    'bannerPago',
     'categorias',
     'transporte',
     'motorista',
@@ -54,6 +56,23 @@ export interface StoreInfo {
     slug: string
     logoUrl: string | null
     name: string
+}
+
+// Funções de distância
+function deg2rad(deg: number) {
+    return deg * (Math.PI / 180)
+}
+
+function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371
+    const dLat = deg2rad(lat2 - lat1)
+    const dLon = deg2rad(lon2 - lon1)
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
 }
 
 export default function HomePage() {
@@ -91,12 +110,13 @@ export default function HomePage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
-
+    const [allPublicStores, setAllPublicStores] = useState<any[]>([])
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
@@ -104,7 +124,6 @@ export default function HomePage() {
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
     }, [itemsByStore])
 
-    // Estados dos pedidos
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
@@ -118,7 +137,6 @@ export default function HomePage() {
         }
     }, [totalCartItems])
 
-    // Busca status dos pedidos
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -155,6 +173,82 @@ export default function HomePage() {
         fetchOrderStatuses()
     }, [])
 
+    // Geolocalização
+    useEffect(() => {
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    setUserLocation({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                    })
+                },
+                () => {
+                    // Se negado, manter null
+                }
+            )
+        }
+    }, [])
+
+    // Busca lojas públicas (com distância)
+    useEffect(() => {
+        async function fetchPublicStores() {
+            const { data } = await supabase
+                .from('stores')
+                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, is_open, category, location')
+                .eq('is_active', true)
+                .order('ratings_avg', { ascending: false })
+                .limit(20)
+
+            if (data) {
+                const formatted = data.map(s => {
+                    let distanceStr: string | undefined = undefined
+                    if (userLocation && s.location) {
+                        let lat: number | null = null
+                        let lng: number | null = null
+                        if (typeof s.location === 'string') {
+                            const match = s.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+                            if (match) {
+                                lng = parseFloat(match[1])
+                                lat = parseFloat(match[2])
+                            }
+                        } else if (s.location?.type === 'Point' && Array.isArray(s.location.coordinates)) {
+                            lng = s.location.coordinates[0]
+                            lat = s.location.coordinates[1]
+                        }
+                        if (lat !== null && lng !== null) {
+                            const dist = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, lat, lng)
+                            distanceStr = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
+                        }
+                    }
+
+                    return {
+                        slug: s.storeSlug,
+                        name: s.name,
+                        logoUrl: s.logo_url
+                            ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                            : null,
+                        coverUrl: s.banner_url
+                            ? supabase.storage.from('store-covers').getPublicUrl(s.banner_url).data.publicUrl
+                            : null,
+                        description: s.description?.length > 100 ? s.description.slice(0, 100) + '...' : s.description,
+                        rating: s.ratings_avg || 0,
+                        isOpen: s.is_open ?? true,
+                        category: s.category,
+                        distance: distanceStr,
+                        featuredProducts: s.category || 'Produtos variados',
+                    }
+                })
+                setAllPublicStores(formatted)
+            }
+        }
+        // Só busca se a localização já tiver sido definida (mesmo que null)
+        if (userLocation !== undefined) {
+            fetchPublicStores()
+        }
+    }, [userLocation, supabase])
+
+    // Lojas do usuário logado
     useEffect(() => {
         async function loadStores() {
             const { data: { session } } = await supabase.auth.getSession()
@@ -185,7 +279,7 @@ export default function HomePage() {
             }
         }
         loadStores()
-    }, [profileSlug])
+    }, [profileSlug, supabase])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -224,6 +318,8 @@ export default function HomePage() {
 
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
+            case 'bannerPago':
+                return <BannerPago stores={allPublicStores} />
             case 'orderSection':
                 return (
                     <OrderSection
@@ -236,7 +332,6 @@ export default function HomePage() {
                 )
             case 'categorias':
                 if (!isSearchVisible) return <CategoriasSection />
-
                 if (searchFocused && !searchQuery.trim()) {
                     const recentItems = getRecentClicks()
                     if (recentItems.length > 0) {
@@ -248,7 +343,6 @@ export default function HomePage() {
                     }
                     return <CategoriasSection />
                 }
-
                 if (searchQuery.trim()) {
                     return (
                         <SearchResultsSection
@@ -257,9 +351,7 @@ export default function HomePage() {
                         />
                     )
                 }
-
                 return <CategoriasSection />
-
             case 'transporte':
                 return <TransporteSection />
             case 'motorista':
@@ -318,7 +410,6 @@ export default function HomePage() {
 
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
-
         const allTabs: any[] = [
             {
                 id: 'perfil',
@@ -483,7 +574,6 @@ export default function HomePage() {
                             </div>
                         )}
 
-                        {/* Seção Criar Loja */}
                         <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
                             <div className="flex items-center gap-2 mb-1">
                                 <Store size={20} style={{ color: colors.accent }} />
@@ -516,7 +606,6 @@ export default function HomePage() {
                             </button>
                         </div>
 
-                        {/* Seção Configurações */}
                         <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
                             <div className="flex items-center gap-2 mb-1">
                                 <Settings size={20} style={{ color: colors.accent }} />
@@ -545,7 +634,6 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* Botão Sacola (tela principal) */}
                 {showHomeFab && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         <SacolaButton
@@ -561,7 +649,6 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* Botão flutuante "Voltar ao início" (subpáginas) */}
                 {showFab && (
                     <button
                         onClick={showHomeSections}

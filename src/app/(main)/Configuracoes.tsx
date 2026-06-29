@@ -1,4 +1,3 @@
-// src/app/(main)/Configuracoes.tsx
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -34,7 +33,9 @@ export default function ConfiguracoesContent({
 }: ConfiguracoesProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const { colors } = useTheme()
+
+    // 👇 Agora também pegamos current (tema ativo) e setTheme
+    const { colors, current, setTheme } = useTheme()
     const { fontSize, setFontSize } = useFontStore()
 
     const [bgMode, _setBgMode] = useState<BgMode>(propBgMode)
@@ -44,7 +45,7 @@ export default function ConfiguracoesContent({
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [uploadingBg, setUploadingBg] = useState(false)
-    const [authChecked, setAuthChecked] = useState(false) // evita piscar
+    const [authChecked, setAuthChecked] = useState(false)
 
     // Redireciona para login se não houver sessão
     useEffect(() => {
@@ -68,7 +69,7 @@ export default function ConfiguracoesContent({
         _setCustomBgUrl(propCustomBgUrl)
     }, [propCustomBgUrl])
 
-    // Carrega perfil (whatsapp) apenas se autenticado
+    // Carrega perfil (whatsapp, tema e fonte) apenas se autenticado
     useEffect(() => {
         if (!authChecked) return
 
@@ -77,20 +78,34 @@ export default function ConfiguracoesContent({
             if (user) {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('whatsapp')
+                    .select('whatsapp, app_theme, font_size')   // 👈 campos adicionais
                     .eq('id', user.id)
                     .single()
-                if (data?.whatsapp) {
-                    setWhatsapp(data.whatsapp)
-                    setUseWhatsapp(true)
-                } else {
-                    setUseWhatsapp(false)
+
+                if (data) {
+                    // WhatsApp
+                    if (data.whatsapp) {
+                        setWhatsapp(data.whatsapp)
+                        setUseWhatsapp(true)
+                    } else {
+                        setUseWhatsapp(false)
+                    }
+
+                    // Tema salvo
+                    if (data.app_theme) {
+                        setTheme(data.app_theme)     // 👈 aplica o tema
+                    }
+
+                    // Fonte salva
+                    if (data.font_size) {
+                        setFontSize(data.font_size)  // 👈 aplica o tamanho da fonte
+                    }
                 }
             }
             setLoading(false)
         }
         loadProfile()
-    }, [authChecked])
+    }, [authChecked, setTheme, setFontSize])   // dependências
 
     const handleSave = async () => {
         setSaving(true)
@@ -103,6 +118,8 @@ export default function ConfiguracoesContent({
                     whatsapp: normalizedWhatsapp || null,
                     background_mode: bgMode,
                     background_image_url: bgMode === 'custom' ? customBgUrl : null,
+                    app_theme: current,        // 👈 salva o tema atual
+                    font_size: fontSize,       // 👈 salva o tamanho da fonte
                 })
                 .eq('id', user.id)
 
@@ -114,7 +131,6 @@ export default function ConfiguracoesContent({
                 setCustomBgUrl(customBgUrl)
             }
         } else {
-            // Se por algum motivo a sessão expirou
             router.push('/login')
         }
         setSaving(false)
@@ -157,7 +173,6 @@ export default function ConfiguracoesContent({
         setBgMode(mode)
     }
 
-    // Enquanto verifica autenticação, mostra spinner
     if (!authChecked || loading) {
         return <LoadingSpinner message="Carregando configurações..." />
     }

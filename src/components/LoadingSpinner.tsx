@@ -9,9 +9,30 @@ type LoadingSpinnerProps = {
     showDots?: boolean
 }
 
+// Helper para ajustar brilho de uma cor hex
+const adjustBrightness = (hex: string, percent: number): string => {
+    const num = parseInt(hex.replace('#', ''), 16)
+    const r = Math.min(255, Math.max(0, (num >> 16) + percent))
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + percent))
+    const b = Math.min(255, Math.max(0, (num & 0x0000ff) + percent))
+    return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
+}
+
+// Tema claro padrão para fallback
+const fallbackColors = {
+    surface: '#f9fafb',
+    textSecondary: '#4b5563',
+    accent: '#f97316',
+    accentLight: '#fdba74',
+}
+
 export function LoadingSpinner({ message = 'Carregando...', showDots = true }: LoadingSpinnerProps) {
-    const { colors } = useTheme()
+    const { colors: themeColors } = useTheme()
     const [mounted, setMounted] = useState(false)
+
+    // Garante cores válidas mesmo antes da hidratação
+    const colors = themeColors ?? fallbackColors
+    const { surface, textSecondary, accent, accentLight } = colors
 
     // Estados para as bolinhas orbitais
     const [scaleStates, setScaleStates] = useState({
@@ -90,7 +111,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
     if (!mounted) return null
 
-    // Converte cor hex para rgb e gera fundo transparente
+    // Converte cor hex para rgb
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -101,41 +122,73 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
         }
     }
 
-    const surfaceRgb = hexToRgb(colors.surface)
+    const surfaceRgb = hexToRgb(surface)
     const transparentBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`
 
+    // Cores derivadas do tema
+    const primaryParticle = accent
+    const secondaryParticle = accentLight
+    const darkerAccent = adjustBrightness(accent, -30)  // para variação
+    const lighterAccent = adjustBrightness(accent, 40)   // mais clara
+
     return (
-        <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
-            style={{
-                background: transparentBg,
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-            }}
-        >
+        <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
             <div className="relative z-10 flex flex-col items-center gap-8">
                 {/* Animação orbital + logo */}
                 <div className="relative animate-[float_3s_ease-in-out_infinite]">
-                    {/* Órbitas e bolinhas – cores originais do iUser (laranja/vermelho/amarelo) */}
+                    {/* Órbitas – agora usando cores do tema */}
                     <div className="absolute inset-0 w-32 h-32 -m-6 animate-[spin_4s_linear_infinite]">
-                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-orange-500 rounded-full shadow-lg shadow-orange-500/50 transition-all duration-700 ${scaleStates.orbit1[0] ? 'scale-[2.5]' : 'scale-100'}`} />
-                        <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-red-500 rounded-full shadow-lg shadow-red-500/50 transition-all duration-700 ${scaleStates.orbit1[1] ? 'scale-[3]' : 'scale-100'}`} />
-                        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-amber-500 rounded-full shadow-lg shadow-amber-500/50 transition-all duration-700 ${scaleStates.orbit1[2] ? 'scale-[2]' : 'scale-100'}`} />
+                        <div
+                            className={`absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full transition-all duration-700 ${scaleStates.orbit1[0] ? 'scale-[2.5]' : 'scale-100'}`}
+                            style={{ background: primaryParticle, boxShadow: `0 0 10px ${primaryParticle}80` }}
+                        />
+                        <div
+                            className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-all duration-700 ${scaleStates.orbit1[1] ? 'scale-[3]' : 'scale-100'}`}
+                            style={{ background: darkerAccent, boxShadow: `0 0 10px ${darkerAccent}80` }}
+                        />
+                        <div
+                            className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-all duration-700 ${scaleStates.orbit1[2] ? 'scale-[2]' : 'scale-100'}`}
+                            style={{ background: secondaryParticle, boxShadow: `0 0 10px ${secondaryParticle}80` }}
+                        />
                     </div>
 
                     <div className="absolute inset-0 w-28 h-28 -m-4 animate-[spin_5s_linear_infinite_reverse]">
-                        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-yellow-500 rounded-full shadow-lg shadow-yellow-500/50 transition-all duration-700 ${scaleStates.orbit2[0] ? 'scale-[2.5]' : 'scale-100'}`} />
-                        <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-orange-600 rounded-full shadow-lg shadow-orange-600/50 transition-all duration-700 ${scaleStates.orbit2[1] ? 'scale-[0.3]' : 'scale-100'}`} />
-                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-rose-400 rounded-full shadow-lg shadow-rose-400/50 transition-all duration-700 ${scaleStates.orbit2[2] ? 'scale-[3]' : 'scale-100'}`} />
+                        <div
+                            className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-all duration-700 ${scaleStates.orbit2[0] ? 'scale-[2.5]' : 'scale-100'}`}
+                            style={{ background: lighterAccent, boxShadow: `0 0 10px ${lighterAccent}80` }}
+                        />
+                        <div
+                            className={`absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-all duration-700 ${scaleStates.orbit2[1] ? 'scale-[0.3]' : 'scale-100'}`}
+                            style={{ background: primaryParticle, boxShadow: `0 0 10px ${primaryParticle}80` }}
+                        />
+                        <div
+                            className={`absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-all duration-700 ${scaleStates.orbit2[2] ? 'scale-[3]' : 'scale-100'}`}
+                            style={{ background: darkerAccent, boxShadow: `0 0 10px ${darkerAccent}80` }}
+                        />
                     </div>
 
                     <div className="absolute inset-0 w-24 h-24 -m-2 animate-[spin_3.5s_linear_infinite]">
-                        <div className={`absolute top-0 right-0 w-1.5 h-1.5 bg-orange-400 rounded-full shadow-lg shadow-orange-400/50 transition-all duration-700 ${scaleStates.orbit3[0] ? 'scale-[2.5]' : 'scale-100'}`} />
+                        <div
+                            className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full transition-all duration-700 ${scaleStates.orbit3[0] ? 'scale-[2.5]' : 'scale-100'}`}
+                            style={{ background: secondaryParticle, boxShadow: `0 0 10px ${secondaryParticle}80` }}
+                        />
                     </div>
 
-                    {/* Ícone central */}
+                    {/* Ícone central com gradiente baseado no tema */}
                     <div className="relative z-10">
-                        <div className="absolute inset-0 w-20 h-20 bg-gradient-to-r from-orange-500 to-red-500 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]" />
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-400 via-orange-500 to-red-600 flex items-center justify-center relative shadow-[0_0_30px_rgba(251,146,60,0.4),0_0_60px_rgba(239,68,68,0.2)] ring-2 ring-white/80 ring-offset-2 ring-offset-orange-50">
+                        <div
+                            className="absolute inset-0 w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
+                            style={{
+                                background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                            }}
+                        />
+                        <div
+                            className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-orange-50"
+                            style={{
+                                background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                            }}
+                        >
                             <img
                                 src="/logotransparente.png"
                                 alt="iUser"
@@ -144,15 +197,17 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                         </div>
                     </div>
 
-                    {/* Bolinhas que atravessam */}
+                    {/* Bolinhas que atravessam – também com cores do tema */}
                     {crossStates.vertical.active && (
                         <div
                             className="absolute inset-0 flex items-center justify-center overflow-hidden z-30 pointer-events-none"
                             style={{ transform: `translateX(${crossStates.vertical.offset}px)` }}
                         >
                             <div
-                                className="w-1.5 h-1.5 bg-gradient-to-b from-orange-400 to-red-500 rounded-full shadow-lg shadow-orange-500/50 transition-all duration-700"
+                                className="w-1.5 h-1.5 rounded-full transition-all duration-700"
                                 style={{
+                                    background: primaryParticle,
+                                    boxShadow: `0 0 10px ${primaryParticle}80`,
                                     animationName: 'crossVertical',
                                     animationDuration: `${crossStates.vertical.duration}s`,
                                     animationTimingFunction: 'ease-in-out',
@@ -169,8 +224,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                             style={{ transform: `translateY(${crossStates.horizontal.offset}px)` }}
                         >
                             <div
-                                className="w-1.5 h-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full shadow-lg shadow-yellow-500/50 transition-all duration-700"
+                                className="w-1.5 h-1.5 rounded-full transition-all duration-700"
                                 style={{
+                                    background: secondaryParticle,
+                                    boxShadow: `0 0 10px ${secondaryParticle}80`,
                                     animationName: 'crossHorizontal',
                                     animationDuration: `${crossStates.horizontal.duration}s`,
                                     animationTimingFunction: 'ease-in-out',
@@ -187,8 +244,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
                             style={{ transform: `translate(${crossStates.diagonal.offset}px, ${-crossStates.diagonal.offset}px)` }}
                         >
                             <div
-                                className="w-1.5 h-1.5 bg-gradient-to-br from-rose-400 to-red-500 rounded-full shadow-lg shadow-rose-500/50 transition-all duration-700"
+                                className="w-1.5 h-1.5 rounded-full transition-all duration-700"
                                 style={{
+                                    background: darkerAccent,
+                                    boxShadow: `0 0 10px ${darkerAccent}80`,
                                     animationName: 'crossDiagonal',
                                     animationDuration: `${crossStates.diagonal.duration}s`,
                                     animationTimingFunction: 'ease-in-out',
@@ -203,7 +262,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true }: L
 
                 {/* Mensagem de texto */}
                 {message && (
-                    <p className="text-sm font-bold animate-pulse" style={{ color: colors.textSecondary }}>
+                    <p className="text-sm font-bold animate-pulse" style={{ color: textSecondary }}>
                         {message}
                     </p>
                 )}
