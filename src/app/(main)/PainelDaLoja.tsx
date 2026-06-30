@@ -1,7 +1,7 @@
 // components/PainelDaLoja.tsx
 'use client'
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
@@ -11,9 +11,7 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { toast } from 'sonner'
 import {
     Eye,
-    ShoppingBag,
     Clock,
-    TrendingUp,
     Calendar,
     Settings,
     Plus,
@@ -21,40 +19,24 @@ import {
     PackageOpen,
     RefreshCw,
     ChevronRight,
-    Package,
     CheckCircle2,
-    Save,
     Clock3,
     X,
-    StoreIcon,
     Truck,
-    MapPin,
     CheckSquare,
     Square,
-    Map as MapIcon,
-    UserCheck,
     Send,
     BarChart3,
     DollarSign,
     ShoppingCart,
-    Star,
-    Layers
 } from 'lucide-react'
 import { OrderModal } from './eu/components/OrderModal'
 
 // Helpers de data
-function daysAgo(n: number): string {
-    const d = new Date()
-    d.setDate(d.getDate() - n)
-    d.setHours(0, 0, 0, 0)
-    return d.toISOString()
-}
-
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
     return date.toISOString()
 }
-
 function startOfWeek(): string {
     const d = new Date()
     const day = d.getDay()
@@ -63,17 +45,9 @@ function startOfWeek(): string {
     d.setHours(0, 0, 0, 0)
     return d.toISOString()
 }
-
 function startOfMonth(): string {
     const d = new Date()
     d.setDate(1)
-    d.setHours(0, 0, 0, 0)
-    return d.toISOString()
-}
-
-function startOfYear(): string {
-    const d = new Date()
-    d.setMonth(0, 1)
     d.setHours(0, 0, 0, 0)
     return d.toISOString()
 }
@@ -88,385 +62,225 @@ const DAYS_OF_WEEK = [
     { key: 'sun', label: 'Domingo' },
 ]
 
-const COMMON_HOURS = [
-    '06:00', '07:00', '08:00', '09:00', '10:00',
-    '11:00', '12:00', '13:00', '14:00', '15:00',
-    '16:00', '17:00', '18:00', '19:00', '20:00',
-    '21:00', '22:00', '23:00', '00:00'
-]
-
-// Cores para rotas de entregadores
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
-// Haversine
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371
     const dLat = ((lat2 - lat1) * Math.PI) / 180
     const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// Otimizador de rota
 function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; lat: number; lng: number }[]) {
     if (stops.length === 0) return []
     const remaining = [...stops]
     const sequence: { id: string; sequence: number }[] = []
-    let currentLat = storeLat, currentLng = storeLng, seq = 1
+    let curLat = storeLat, curLng = storeLng, seq = 1
     while (remaining.length > 0) {
         let nearestIdx = 0, nearestDist = Infinity
-        remaining.forEach((stop, idx) => {
-            const d = haversineDistance(currentLat, currentLng, stop.lat, stop.lng)
-            if (d < nearestDist) { nearestDist = d; nearestIdx = idx }
+        remaining.forEach((s, i) => {
+            const d = haversineDistance(curLat, curLng, s.lat, s.lng)
+            if (d < nearestDist) { nearestDist = d; nearestIdx = i }
         })
         const next = remaining.splice(nearestIdx, 1)[0]
         sequence.push({ id: next.id, sequence: seq++ })
-        currentLat = next.lat; currentLng = next.lng
+        curLat = next.lat; curLng = next.lng
     }
     return sequence
 }
 
-// Componente principal
 export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profileSlug: string; storeSlug: string; onBack?: () => void }) {
     const router = useRouter()
     const { colors } = useTheme()
 
-    // Estados principais
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    // Visitantes
     const [onlineNow, setOnlineNow] = useState(0)
     const [todayVisitsCount, setTodayVisitsCount] = useState(0)
     const [totalUniqueVisitors, setTotalUniqueVisitors] = useState(0)
 
-    // Vendas e pedidos
     const [sales, setSales] = useState<any[]>([])
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({ daily: { revenue: 0, orders: 0 } })
 
-    // Produtos mais vistos
     const [productViews, setProductViews] = useState<Record<string, number>>({})
     const [productsViewedNow, setProductsViewedNow] = useState<any[]>([])
-
-    // Produtos mais vendidos (derivado dos pedidos)
     const [topProducts, setTopProducts] = useState<{ name: string; count: number }[]>([])
+    const [myProducts, setMyProducts] = useState<any[]>([])  // lista rápida de produtos
 
-    // Entregadores e rotas
     const [employees, setEmployees] = useState<any[]>([])
-    const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([]) // resumo para o mapa rápido
+    const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([])
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
     const [assigning, setAssigning] = useState(false)
-
-    // Pedido selecionado para modal de detalhes
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
-    // Horários
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
     const [showScheduleEditor, setShowScheduleEditor] = useState(false)
     const [savingSchedule, setSavingSchedule] = useState(false)
-
-    // Diálogos de visitantes
     const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
 
-    // Refs para realtime
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
-    // Funções de busca de dados
     const fetchVisitorData = useCallback(async (storeId: string) => {
-        const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString()
-        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0); const todayISO = todayStart.toISOString()
+        const oneMinAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString()
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+        const todayISO = todayStart.toISOString()
 
-        const { data: online } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id')
-            .eq('store_id', storeId)
-            .gte('created_at', oneMinuteAgo)
+        const { data: online } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId).gte('created_at', oneMinAgo)
+        setOnlineNow(new Set(online?.map(v => v.viewer_id || v.anonymous_id)).size)
 
-        const uniqueOnline = new Set(online?.map(v => v.viewer_id || v.anonymous_id))
-        setOnlineNow(uniqueOnline.size)
+        const { data: today } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId).gte('created_at', todayISO)
+        setTodayVisitsCount(new Set(today?.map(v => v.viewer_id || v.anonymous_id)).size)
 
-        const { data: todayViews } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id')
-            .eq('store_id', storeId)
-            .gte('created_at', todayISO)
-
-        const uniqueToday = new Set(todayViews?.map(v => v.viewer_id || v.anonymous_id))
-        setTodayVisitsCount(uniqueToday.size)
-
-        const { data: allViews } = await supabase
-            .from('store_views')
-            .select('viewer_id, anonymous_id')
-            .eq('store_id', storeId)
-
-        const uniqueAll = new Set(allViews?.map(v => v.viewer_id || v.anonymous_id))
-        setTotalUniqueVisitors(uniqueAll.size)
+        const { data: all } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId)
+        setTotalUniqueVisitors(new Set(all?.map(v => v.viewer_id || v.anonymous_id)).size)
     }, [])
 
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
 
-        // Loja
-        const { data: storeData, error: storeError } = await supabase
-            .from('stores')
-            .select('*')
-            .ilike('storeSlug', storeSlug)
-            .maybeSingle()
-        if (storeError || !storeData) {
-            setLoading(false)
-            toast.error('Loja não encontrada')
-            return
-        }
-        const logoUrl = storeData.logo_url
-            ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
-            : null
+        const { data: storeData } = await supabase.from('stores').select('*').ilike('storeSlug', storeSlug).maybeSingle()
+        if (!storeData) { toast.error('Loja não encontrada'); setLoading(false); return }
+
+        const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null
         setStore({ ...storeData, logo_url: logoUrl })
         setBusinessHours(storeData.business_hours || {})
         const storeId = storeData.id
 
-        // Funcionários
-        const { data: employeesData } = await supabase
-            .from('employees')
-            .select('*')
-            .eq('store_id', storeId)
-            .eq('is_active', true)
-        setEmployees(employeesData || [])
+        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
+        setEmployees(empData || [])
 
-        // Vendas (últimos 100)
-        const { data: salesData } = await supabase
-            .from('store_sales')
-            .select('*')
-            .eq('store_id', storeId)
-            .order('created_at', { ascending: false })
-            .limit(100)
+        const { data: salesData } = await supabase.from('store_sales').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
         setSales(salesData || [])
 
-        // Produtos mais vistos (últimos 5 min)
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-        const { data: recentProductViews } = await supabase
-            .from('product_views')
-            .select('product_id, products(name)')
-            .eq('store_id', storeId)
-            .gte('created_at', fiveMinAgo)
-            .limit(10)
-        const uniqueProducts = Array.from(
-            new Map(recentProductViews?.map((pv: any) => [pv.product_id, pv.products?.name || 'Produto'])).entries()
-        ).map(([id, name]) => ({ id, name }))
-        setProductsViewedNow(uniqueProducts)
+        // Últimos 5 produtos cadastrados
+        const { data: prodData } = await supabase.from('products').select('id, name, price, image_url').eq('store_id', storeId).order('created_at', { ascending: false }).limit(5)
+        setMyProducts(prodData || [])
 
-        // Contagens de visualizações por período
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+        const { data: recentViews } = await supabase.from('product_views').select('product_id, products(name)').eq('store_id', storeId).gte('created_at', fiveMinAgo).limit(10)
+        const unique = Array.from(new Map(recentViews?.map((pv: any) => [pv.product_id, pv.products?.name || 'Produto'])).entries()).map(([id, name]) => ({ id, name }))
+        setProductsViewedNow(unique)
+
         const periods: Record<string, { gte?: string; lte?: string }> = {
             today: { gte: startOfDay(), lte: new Date().toISOString() },
-            yesterday: { gte: daysAgo(1), lte: daysAgo(1).replace('T00:00:00.000Z', 'T23:59:59.999Z') },
             week: { gte: startOfWeek(), lte: new Date().toISOString() },
             month: { gte: startOfMonth(), lte: new Date().toISOString() },
-            year: { gte: startOfYear(), lte: new Date().toISOString() },
             all: {}
         }
-        const productViewsData: Record<string, number> = {}
+        const pv: Record<string, number> = {}
         for (const [key, range] of Object.entries(periods)) {
-            let query = supabase.from('product_views').select('*', { count: 'exact', head: true }).eq('store_id', storeId)
-            if (range.gte) query = query.gte('created_at', range.gte)
-            if (range.lte) query = query.lte('created_at', range.lte)
-            const { count } = await query
-            productViewsData[key] = count || 0
+            let q = supabase.from('product_views').select('*', { count: 'exact', head: true }).eq('store_id', storeId)
+            if (range.gte) q = q.gte('created_at', range.gte)
+            if (range.lte) q = q.lte('created_at', range.lte)
+            const { count } = await q
+            pv[key] = count || 0
         }
-        setProductViews(productViewsData)
+        setProductViews(pv)
 
-        // Visitantes
         await fetchVisitorData(storeId)
-
         setLoading(false)
     }, [storeSlug, profileSlug, fetchVisitorData])
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
-    // Agrupar pedidos e calcular métricas
     useEffect(() => {
         const groups: Record<string, any> = {}
-        sales.forEach((s: any) => {
-            if (!groups[s.checkout_id]) {
-                groups[s.checkout_id] = {
-                    checkout_id: s.checkout_id,
-                    buyer_name: s.buyer_name,
-                    buyer_profile_slug: s.buyer_profile_slug,
-                    created_at: s.created_at,
-                    status: s.status,
-                    items: [],
-                    totalPrice: 0,
-                    delivery_address: s.delivery_address,
-                    delivery_lat: s.delivery_lat,
-                    delivery_lng: s.delivery_lng,
-                    employee_id: s.employee_id,
-                }
-            }
+        sales.forEach(s => {
+            if (!groups[s.checkout_id]) groups[s.checkout_id] = { checkout_id: s.checkout_id, buyer_name: s.buyer_name, buyer_profile_slug: s.buyer_profile_slug, created_at: s.created_at, status: s.status, items: [], totalPrice: 0, delivery_address: s.delivery_address, delivery_lat: s.delivery_lat, delivery_lng: s.delivery_lng, employee_id: s.employee_id }
             groups[s.checkout_id].items.push(s)
             groups[s.checkout_id].totalPrice += s.price
         })
-        const orders = Object.values(groups).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        setGroupedOrders(orders)
+        setGroupedOrders(Object.values(groups).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
 
-        // Métricas do dia
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        const dailySales = sales.filter(s => new Date(s.created_at).getTime() >= today)
-        const dailyRevenue = dailySales.reduce((acc, s) => acc + s.price, 0)
-        const dailyOrders = new Set(dailySales.map(s => s.checkout_id)).size
-        setMetrics({ daily: { revenue: dailyRevenue, orders: dailyOrders } })
+        const daily = sales.filter(s => new Date(s.created_at).getTime() >= today)
+        setMetrics({ daily: { revenue: daily.reduce((a, s) => a + s.price, 0), orders: new Set(daily.map(s => s.checkout_id)).size } })
 
-        // Produtos mais vendidos (últimos 100 pedidos)
-        const productCount: Record<string, number> = {}
-        sales.forEach(s => {
-            const name = s.product_name || s.description?.split('\n')[0] || 'Item'
-            productCount[name] = (productCount[name] || 0) + 1
-        })
-        const sorted = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
-        setTopProducts(sorted.map(([name, count]) => ({ name, count })))
+        const prodCount: Record<string, number> = {}
+        sales.forEach(s => { const n = s.product_name || s.description?.split('\n')[0] || 'Item'; prodCount[n] = (prodCount[n] || 0) + 1 })
+        setTopProducts(Object.entries(prodCount).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count })))
     }, [sales])
 
-    // Buscar rotas dos entregadores (assignments ativas)
     const fetchEmployeeRoutes = useCallback(async () => {
         if (!store?.id) return
-        const { data } = await supabase
-            .from('delivery_assignments')
-            .select('employee_id, checkout_id, sequence_order, status, store_sales(delivery_lat, delivery_lng, delivery_address, buyer_name)')
-            .eq('store_id', store.id)
-            .order('sequence_order')
+        const { data } = await supabase.from('delivery_assignments').select('employee_id, checkout_id, sequence_order, status, store_sales(delivery_lat, delivery_lng, delivery_address, buyer_name)').eq('store_id', store.id).order('sequence_order')
         if (!data) return
-        // Agrupar por entregador
         const map = new Map<string, any[]>()
         data.forEach((d: any) => {
-            const eId = d.employee_id
-            if (!map.has(eId)) map.set(eId, [])
-            map.get(eId)!.push({
-                checkout_id: d.checkout_id,
-                sequence: d.sequence_order,
-                status: d.status,
-                lat: d.store_sales?.delivery_lat,
-                lng: d.store_sales?.delivery_lng,
-                address: d.store_sales?.delivery_address,
-                buyer: d.store_sales?.buyer_name,
-            })
+            if (!map.has(d.employee_id)) map.set(d.employee_id, [])
+            map.get(d.employee_id)!.push({ checkout_id: d.checkout_id, sequence: d.sequence_order, status: d.status, lat: d.store_sales?.delivery_lat, lng: d.store_sales?.delivery_lng, address: d.store_sales?.delivery_address, buyer: d.store_sales?.buyer_name })
         })
-        const routes = Array.from(map.entries()).map(([employeeId, stops], idx) => {
-            const emp = employees.find(e => e.id === employeeId)
-            return {
-                employeeId,
-                employeeName: emp?.name || 'Entregador',
-                color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
-                stops: stops.filter(s => s.lat && s.lng).map(s => ({
-                    lat: s.lat,
-                    lng: s.lng,
-                    label: s.sequence.toString(),
-                    address: s.address || '',
-                    status: s.status,
-                })),
-            }
-        })
-        setEmployeeRoutes(routes)
+        setEmployeeRoutes(Array.from(map.entries()).map(([eid, stops], idx) => {
+            const emp = employees.find(e => e.id === eid)
+            return { employeeId: eid, employeeName: emp?.name || 'Entregador', color: ROUTE_COLORS[idx % ROUTE_COLORS.length], stops: stops.filter(s => s.lat && s.lng).map(s => ({ lat: s.lat, lng: s.lng, label: s.sequence.toString(), address: s.address || '', status: s.status })) }
+        }))
     }, [store?.id, employees])
 
     useEffect(() => { if (store?.id) fetchEmployeeRoutes() }, [store?.id, employees, fetchEmployeeRoutes])
 
-    // Realtime
     useEffect(() => {
         if (!store?.id) return
-        const channel = supabase
-            .channel(`painel-${store.id}`)
+        const ch = supabase.channel(`painel-${store.id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales', filter: `store_id=eq.${store.id}` }, () => loadDashboard())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${store.id}` }, () => fetchEmployeeRoutes())
             .subscribe()
-        realtimeChannel.current = channel
+        realtimeChannel.current = ch
         intervalRef.current = setInterval(() => fetchVisitorData(store.id), 10000)
-        return () => {
-            supabase.removeChannel(channel)
-            clearInterval(intervalRef.current)
-        }
+        return () => { supabase.removeChannel(ch); clearInterval(intervalRef.current) }
     }, [store?.id, loadDashboard, fetchVisitorData, fetchEmployeeRoutes])
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
-    // Seleção de pedidos para atribuir
-    const toggleOrderSelection = (checkoutId: string) => {
-        const newSet = new Set(selectedOrderIds)
-        newSet.has(checkoutId) ? newSet.delete(checkoutId) : newSet.add(checkoutId)
-        setSelectedOrderIds(newSet)
+    const toggleOrderSelection = (id: string) => {
+        const next = new Set(selectedOrderIds)
+        next.has(id) ? next.delete(id) : next.add(id)
+        setSelectedOrderIds(next)
     }
 
     const handleAssignDelivery = async () => {
         if (!selectedEmployeeId || selectedOrderIds.size === 0 || !store) return
         setAssigning(true)
-        const storeLat = store.store_lat, storeLng = store.store_lng
-        if (!storeLat || !storeLng) { toast.error('Configure as coordenadas da loja.'); setAssigning(false); return }
-
+        const { store_lat, store_lng } = store
+        if (!store_lat || !store_lng) { toast.error('Configure as coordenadas da loja.'); setAssigning(false); return }
         const ordersToAssign = groupedOrders.filter(o => selectedOrderIds.has(o.checkout_id))
-        const invalid = ordersToAssign.filter(o => !o.delivery_lat || !o.delivery_lng)
-        if (invalid.length > 0) { toast.error('Alguns pedidos não possuem coordenadas.'); setAssigning(false); return }
-
+        if (ordersToAssign.some(o => !o.delivery_lat || !o.delivery_lng)) { toast.error('Alguns pedidos não têm coordenadas.'); setAssigning(false); return }
         const stops = ordersToAssign.map(o => ({ id: o.checkout_id, lat: o.delivery_lat, lng: o.delivery_lng }))
-        const optimized = optimizeRoute(storeLat, storeLng, stops)
-        const inserts = optimized.map(stop => ({
-            store_id: store.id,
-            employee_id: selectedEmployeeId,
-            checkout_id: stop.id,
-            sequence_order: stop.sequence,
-            status: 'pending'
-        }))
+        const optimized = optimizeRoute(store_lat, store_lng, stops)
+        const inserts = optimized.map(stop => ({ store_id: store.id, employee_id: selectedEmployeeId, checkout_id: stop.id, sequence_order: stop.sequence, status: 'pending' }))
         const { error } = await supabase.from('delivery_assignments').insert(inserts)
         if (error) { toast.error('Erro ao atribuir entregas.'); setAssigning(false); return }
-
-        for (const checkoutId of selectedOrderIds) {
-            await supabase.from('store_sales').update({ employee_id: selectedEmployeeId }).eq('checkout_id', checkoutId)
-        }
+        for (const id of selectedOrderIds) await supabase.from('store_sales').update({ employee_id: selectedEmployeeId }).eq('checkout_id', id)
         toast.success('Entregas atribuídas!')
-        setSelectedOrderIds(new Set())
-        setShowAssignModal(false)
-        setSelectedEmployeeId(null)
-        loadDashboard()
-        fetchEmployeeRoutes()
-        setAssigning(false)
+        setSelectedOrderIds(new Set()); setShowAssignModal(false); setSelectedEmployeeId(null); loadDashboard(); fetchEmployeeRoutes(); setAssigning(false)
     }
 
     const handleOrderAction = async (status: string) => {
         if (!selectedOrder) return
-        const { error } = await supabase.from('store_sales').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
-        if (!error) {
-            setSelectedOrder(null)
-            loadDashboard()
-            toast.success('Status atualizado.')
-        } else toast.error('Erro ao atualizar.')
+        await supabase.from('store_sales').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
+        setSelectedOrder(null); loadDashboard(); toast.success('Status atualizado.')
     }
 
-    // Horários
-    const setTimeForDay = (day: string, type: 'open' | 'close', value: string) => {
-        setBusinessHours(prev => ({ ...prev, [day]: { ...(prev[day] || { open: '', close: '' }), [type]: value } }))
-    }
-    const clearDay = (day: string) => {
-        setBusinessHours(prev => { const n = { ...prev }; delete n[day]; return n })
-    }
+    const setTimeForDay = (day: string, type: 'open' | 'close', value: string) => setBusinessHours(prev => ({ ...prev, [day]: { ...(prev[day] || { open: '', close: '' }), [type]: value } }))
+    const clearDay = (day: string) => { const n = { ...businessHours }; delete n[day]; setBusinessHours(n) }
     const handleSaveSchedule = async () => {
         setSavingSchedule(true)
-        const { error } = await supabase.from('stores').update({ business_hours: businessHours }).eq('id', store.id)
-        if (!error) { toast.success('Horários salvos!'); setShowScheduleEditor(false) }
-        else toast.error('Erro ao salvar.')
-        setSavingSchedule(false)
+        await supabase.from('stores').update({ business_hours: businessHours }).eq('id', store.id)
+        toast.success('Horários salvos!'); setShowScheduleEditor(false); setSavingSchedule(false)
     }
 
     if (loading) return <LoadingSpinner message="Carregando painel..." />
     if (!store) return null
 
-    const storeOpen = store.is_open // simplificado
-
-    // Classes de status de pedidos
+    const storeOpen = store.is_open
     const newOrders = groupedOrders.filter(o => o.status === 'pending')
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
@@ -495,25 +309,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </button>
             </div>
 
-            {/* Cards de visitantes */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('online')}>
-                    <Users size={16} style={{ color: colors.accent }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{onlineNow}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>online</p>
-                </div>
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('today')}>
-                    <Eye size={16} style={{ color: colors.accentLight }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>hoje</p>
-                </div>
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('all')}>
-                    <Users size={16} style={{ color: colors.accent }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{totalUniqueVisitors}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>total</p>
-                </div>
-            </div>
-
             {/* Vendas do dia */}
             <div className="mb-6 p-4 rounded-2xl border" style={{ background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}20)`, borderColor: colors.border }}>
                 <div className="flex justify-between items-center">
@@ -536,7 +331,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </button>
                 )}
 
-                {/* Novos */}
                 {newOrders.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accent }}>Novos ({newOrders.length})</h4>
@@ -549,7 +343,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </div>
                 )}
 
-                {/* Em preparo */}
                 {preparing.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accentLight }}>Em Preparo ({preparing.length})</h4>
@@ -567,7 +360,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </div>
                 )}
 
-                {/* Prontos */}
                 {ready.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>Prontos ({ready.length})</h4>
@@ -585,7 +377,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </div>
                 )}
 
-                {/* Finalizados */}
                 {finished.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>Finalizados ({finished.length})</h4>
@@ -601,9 +392,41 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 {groupedOrders.length === 0 && <p className="text-center text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>}
             </div>
 
+            {/* Meus Produtos */}
+            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><PackageOpen size={16} /> Meus Produtos</h3>
+                    <div className="flex gap-2">
+                        <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: colors.accent, color: 'white' }}>+ Adicionar</button>
+                        <button onClick={() => router.push(`/${profileSlug}/${storeSlug}`)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ border: `1px solid ${colors.border}`, color: colors.textSecondary }}>Ver todos</button>
+                    </div>
+                </div>
+                {myProducts.length === 0 ? (
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum produto cadastrado.</p>
+                ) : (
+                    <div className="space-y-2">
+                        {myProducts.map(prod => {
+                            const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
+                            return (
+                                <div key={prod.id} className="flex items-center gap-3 p-2 rounded-xl cursor-pointer" style={{ background: 'transparent' }} onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}>
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100">
+                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: colors.textSecondary }}>📦</div>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{prod.name}</p>
+                                        <p className="text-xs" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                    </div>
+                                    <ChevronRight size={16} style={{ color: colors.textSecondary }} />
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+
             {/* Produtos mais vistos */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}><Eye size={16} /> Produtos mais vistos hoje</h3>
+                <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}><Eye size={16} /> Produtos mais vistos</h3>
                 <div className="grid grid-cols-2 gap-2">
                     <div><span style={{ color: colors.textSecondary }}>Hoje</span><p className="text-xl font-black" style={{ color: colors.accent }}>{productViews.today || 0}</p></div>
                     <div><span style={{ color: colors.textSecondary }}>Semana</span><p className="text-xl font-black" style={{ color: colors.accentLight }}>{productViews.week || 0}</p></div>
@@ -662,6 +485,25 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 )}
             </div>
 
+            {/* Cards de visitantes */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('online')}>
+                    <Users size={16} style={{ color: colors.accent }} />
+                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{onlineNow}</p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>online</p>
+                </div>
+                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('today')}>
+                    <Eye size={16} style={{ color: colors.accentLight }} />
+                    <p className="text-2xl font-black mt-1" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>hoje</p>
+                </div>
+                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('all')}>
+                    <Users size={16} style={{ color: colors.accent }} />
+                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{totalUniqueVisitors}</p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>total</p>
+                </div>
+            </div>
+
             {/* Horários */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                 <button onClick={() => setShowScheduleEditor(!showScheduleEditor)} className="flex items-center gap-2 text-xs font-bold w-full" style={{ color: colors.textSecondary }}>
@@ -700,7 +542,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </button>
             </div>
 
-            {/* Modal de atribuição de entregador */}
+            {/* Modal de atribuição */}
             {showAssignModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
                     <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -723,12 +565,8 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             )}
 
-            {/* Modal de detalhes do pedido */}
-            {selectedOrder && (
-                <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />
-            )}
+            {selectedOrder && <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />}
 
-            {/* Diálogos de visitantes (simples) */}
             {dialogOpen && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
                     <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
