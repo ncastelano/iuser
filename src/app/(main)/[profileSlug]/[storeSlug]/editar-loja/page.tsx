@@ -1,11 +1,10 @@
-//app/(main)/[profileSlug]/[storeSlug]/editar-loja/page.tsx
-
+// src/app/(main)/[profileSlug]/[storeSlug]/editar-loja/page.tsx
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Globe, Store, Sparkles, Zap } from 'lucide-react'
+import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -27,11 +26,17 @@ export default function EditarLoja() {
     const [name, setName] = useState('')
     const [storeSlug, setStoreSlug] = useState('')
     const [description, setDescription] = useState('')
-    const [location, setLocation] = useState<{ lat: number, lng: number } | null>(null)
+    const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [address, setAddress] = useState('')
     const [whatsapp, setWhatsapp] = useState('')
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
+
+    // Novos estados para opções de venda
+    const [acceptsDelivery, setAcceptsDelivery] = useState(true)
+    const [acceptsPickup, setAcceptsPickup] = useState(true)
+    const [acceptsPix, setAcceptsPix] = useState(true)
+    const [acceptsCard, setAcceptsCard] = useState(true)
 
     // INITIAL LOAD
     useEffect(() => {
@@ -62,12 +67,11 @@ export default function EditarLoja() {
                 return
             }
 
-            // Debug - para verificar o formato dos dados
             console.log('Dados brutos da loja:', {
                 location: store.location,
                 locationType: typeof store.location,
                 address: store.address
-            });
+            })
 
             setStoreId(store.id)
             setName(store.name || '')
@@ -76,6 +80,12 @@ export default function EditarLoja() {
             setAddress(store.address || '')
             setWhatsapp(store.whatsapp || '')
 
+            // Opções de venda (com fallback para true se não existirem ainda)
+            setAcceptsDelivery(store.accepts_delivery ?? true)
+            setAcceptsPickup(store.accepts_pickup ?? true)
+            setAcceptsPix(store.accepts_pix ?? true)
+            setAcceptsCard(store.accepts_card ?? true)
+
             if (store.logo_url) {
                 const url = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                 setPreview(url)
@@ -83,19 +93,15 @@ export default function EditarLoja() {
 
             // Processar localização
             if (store.location) {
-                let coords: { lat: number, lng: number } | null = null;
+                let coords: { lat: number; lng: number } | null = null
 
-                // Tentar extrair coordenadas de diferentes formatos
                 if (typeof store.location === 'string') {
-                    // 1. Formato POINT(lng lat)
                     if (store.location.toUpperCase().includes('POINT')) {
-                        const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
+                        const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
                         if (match) {
-                            coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+                            coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) }
                         }
-                    }
-                    // 2. Formato Hex EWKB (comum no Supabase select *)
-                    else if (store.location.length >= 42 && /^[0-9A-F]+$/i.test(store.location)) {
+                    } else if (store.location.length >= 42 && /^[0-9A-F]+$/i.test(store.location)) {
                         try {
                             const hexToDouble = (hex: string) => {
                                 const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
@@ -117,30 +123,25 @@ export default function EditarLoja() {
                         }
                     }
                 } else if (typeof store.location === 'object' && store.location !== null) {
-                    // Formato GeoJSON: { type: 'Point', coordinates: [lng, lat] }
                     if (store.location.type === 'Point' && Array.isArray(store.location.coordinates)) {
-                        coords = { lng: store.location.coordinates[0], lat: store.location.coordinates[1] };
-                    }
-                    // Formato: { lat, lng }
-                    else if (store.location.lat && store.location.lng) {
-                        coords = { lat: store.location.lat, lng: store.location.lng };
+                        coords = { lng: store.location.coordinates[0], lat: store.location.coordinates[1] }
+                    } else if (store.location.lat && store.location.lng) {
+                        coords = { lat: store.location.lat, lng: store.location.lng }
                     }
                 }
 
                 if (coords && isFinite(coords.lat) && isFinite(coords.lng)) {
-                    console.log('Coordenadas extraídas:', coords);
-                    setLocation(coords);
-                    // Se já tem endereço, mantém o que está salvo
-                    // Se não tem endereço, busca pelo coordenadas
+                    console.log('Coordenadas extraídas:', coords)
+                    setLocation(coords)
                     if (!store.address) {
-                        fetchAddressFromCoords(coords.lat, coords.lng);
+                        fetchAddressFromCoords(coords.lat, coords.lng)
                     }
                 } else {
-                    console.log('Não foi possível extrair coordenadas');
-                    setLocation(null);
+                    console.log('Não foi possível extrair coordenadas')
+                    setLocation(null)
                 }
             } else {
-                setLocation(null);
+                setLocation(null)
             }
 
             setPageLoading(false)
@@ -235,7 +236,11 @@ export default function EditarLoja() {
             description,
             location: locationString,
             address: address,
-            whatsapp: whatsapp.replace(/[^\d+]/g, '').trim() || null
+            whatsapp: whatsapp.replace(/[^\d+]/g, '').trim() || null,
+            accepts_delivery: acceptsDelivery,
+            accepts_pickup: acceptsPickup,
+            accepts_pix: acceptsPix,
+            accepts_card: acceptsCard,
         }
 
         if (logoPath) updateData.logo_url = logoPath
@@ -497,6 +502,73 @@ export default function EditarLoja() {
                             <p className="text-[9px] text-gray-400 ml-1 font-medium">
                                 Se vazio, usaremos o WhatsApp das suas configurações.
                             </p>
+                        </div>
+
+                        {/* Configurações de Venda */}
+                        <div className="space-y-4">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">
+                                Configurações de Venda
+                            </label>
+
+                            {/* Entrega / Retirada */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
+                                    <span className="text-xs font-bold text-gray-700">📍 Faz entrega</span>
+                                    <button
+                                        onClick={() => setAcceptsDelivery(!acceptsDelivery)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${acceptsDelivery ? 'bg-orange-500' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <div
+                                            className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
+                                    <span className="text-xs font-bold text-gray-700">🏪 Retirada no local</span>
+                                    <button
+                                        onClick={() => setAcceptsPickup(!acceptsPickup)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPickup ? 'bg-orange-500' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <div
+                                            className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPickup ? 'right-1' : 'left-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* PIX / Cartão */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
+                                    <span className="text-xs font-bold text-gray-700">💳 Aceita Cartão</span>
+                                    <button
+                                        onClick={() => setAcceptsCard(!acceptsCard)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${acceptsCard ? 'bg-orange-500' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <div
+                                            className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsCard ? 'right-1' : 'left-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
+                                    <span className="text-xs font-bold text-gray-700">⚡ Aceita PIX</span>
+                                    <button
+                                        onClick={() => setAcceptsPix(!acceptsPix)}
+                                        className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPix ? 'bg-orange-500' : 'bg-gray-300'
+                                            }`}
+                                    >
+                                        <div
+                                            className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPix ? 'right-1' : 'left-1'
+                                                }`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Botões */}
