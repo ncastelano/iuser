@@ -26,7 +26,17 @@ import {
     Save,
     Clock3,
     X,
-    StoreIcon
+    StoreIcon,
+    Truck,
+    MapPin,
+    Navigation,
+    UserPlus,
+    CheckSquare,
+    Square,
+    Map as MapIcon,   // <--- renomeado
+    Route,
+    UserCheck,
+    Send
 } from 'lucide-react'
 import { OrderModal } from './eu/components/OrderModal'
 
@@ -89,6 +99,49 @@ const COMMON_HOURS = [
     '21:00', '22:00', '23:00', '00:00'
 ]
 
+// Fórmula de Haversine para calcular distância entre duas coordenadas
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371 // km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLng = ((lng2 - lng1) * Math.PI) / 180
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+}
+
+// Otimizador de rota: vizinho mais próximo a partir da loja
+function optimizeRoute(
+    storeLat: number,
+    storeLng: number,
+    stops: { id: string; lat: number; lng: number }[]
+): { id: string; sequence: number }[] {
+    if (stops.length === 0) return []
+    const remaining = [...stops]
+    const sequence: { id: string; sequence: number }[] = []
+    let currentLat = storeLat
+    let currentLng = storeLng
+    let seq = 1
+    while (remaining.length > 0) {
+        let nearestIdx = 0
+        let nearestDist = Infinity
+        remaining.forEach((stop, idx) => {
+            const d = haversineDistance(currentLat, currentLng, stop.lat, stop.lng)
+            if (d < nearestDist) {
+                nearestDist = d
+                nearestIdx = idx
+            }
+        })
+        const next = remaining.splice(nearestIdx, 1)[0]
+        sequence.push({ id: next.id, sequence: seq++ })
+        currentLat = next.lat
+        currentLng = next.lng
+    }
+    return sequence
+}
+
 export default function StoreDashboard({ profileSlug, storeSlug, onBack }: StoreDashboardProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -125,6 +178,15 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const [customClose, setCustomClose] = useState<Record<string, boolean>>({})
 
     const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
+
+    // NOVOS ESTADOS - ENTREGAS
+    const [employees, setEmployees] = useState<any[]>([])
+    const [showEmployeeManager, setShowEmployeeManager] = useState(false)
+    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
+    const [showAssignModal, setShowAssignModal] = useState(false)
+    const [assigning, setAssigning] = useState(false)
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+    const [showRoutesMap, setShowRoutesMap] = useState(false)
 
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
@@ -206,6 +268,16 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setTotalUniqueVisitors(allUniqueList.length)
     }, [store?.id])
 
+    const loadEmployees = useCallback(async (storeId: string) => {
+        const { data } = await supabase
+            .from('employees')
+            .select('*')
+            .eq('store_id', storeId)
+            .eq('is_active', true)
+            .order('name')
+        setEmployees(data || [])
+    }, [])
+
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
@@ -228,6 +300,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setStore({ ...storeData, logo_url: logoUrl })
         setBusinessHours(storeData.business_hours || {})
         const storeId = storeData.id
+
+        loadEmployees(storeId)
 
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
         const { data: recentProductViews } = await supabase
@@ -291,7 +365,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
         setLoading(false)
         setRefreshing(false)
-    }, [storeSlug, profileSlug, fetchVisitorData])
+    }, [storeSlug, profileSlug, fetchVisitorData, loadEmployees])
 
     useEffect(() => {
         loadDashboard()
@@ -344,6 +418,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     status: s.status,
                     items: [],
                     totalPrice: 0,
+                    delivery_address: s.delivery_address,
+                    delivery_lat: s.delivery_lat,
+                    delivery_lng: s.delivery_lng,
+                    employee_id: s.employee_id,
                 }
             }
             groups[s.checkout_id].items.push(s)
@@ -436,6 +514,79 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setSavingSchedule(false)
     }
 
+    // NOVAS FUNÇÕES DE ENTREGA
+    const toggleOrderSelection = (checkoutId: string) => {
+        const newSet = new Set(selectedOrderIds)
+        if (newSet.has(checkoutId)) {
+            newSet.delete(checkoutId)
+        } else {
+            newSet.add(checkoutId)
+        }
+        setSelectedOrderIds(newSet)
+    }
+
+    const handleAssignDelivery = async () => {
+        if (!selectedEmployeeId || selectedOrderIds.size === 0 || !store) return
+        setAssigning(true)
+        try {
+            // Obter coordenadas da loja
+            const storeLat = store.store_lat
+            const storeLng = store.store_lng
+            if (!storeLat || !storeLng) {
+                toast.error('Configure o endereço da loja primeiro (coordenadas).')
+                setAssigning(false)
+                return
+            }
+
+            // Obter pedidos selecionados com coordenadas
+            const selectedOrders = groupedOrders.filter(o => selectedOrderIds.has(o.checkout_id))
+            const invalidOrders = selectedOrders.filter(o => !o.delivery_lat || !o.delivery_lng)
+            if (invalidOrders.length > 0) {
+                toast.error(`Os pedidos de ${invalidOrders.map(o => o.buyer_name || o.buyer_profile_slug).join(', ')} não possuem coordenadas de entrega.`)
+                setAssigning(false)
+                return
+            }
+
+            const stops = selectedOrders.map(o => ({
+                id: o.checkout_id,
+                lat: o.delivery_lat,
+                lng: o.delivery_lng,
+            }))
+
+            const optimized = optimizeRoute(storeLat, storeLng, stops)
+
+            // Inserir assignments no banco
+            const inserts = optimized.map(stop => ({
+                store_id: store.id,
+                employee_id: selectedEmployeeId,
+                checkout_id: stop.id,
+                sequence_order: stop.sequence,
+                status: 'pending',
+            }))
+
+            const { error } = await supabase.from('delivery_assignments').insert(inserts)
+            if (error) throw error
+
+            // Atualizar store_sales com employee_id
+            for (const checkoutId of selectedOrderIds) {
+                await supabase
+                    .from('store_sales')
+                    .update({ employee_id: selectedEmployeeId })
+                    .eq('checkout_id', checkoutId)
+            }
+
+            toast.success('Entregas atribuídas e rota otimizada!')
+            setShowAssignModal(false)
+            setSelectedOrderIds(new Set())
+            setSelectedEmployeeId(null)
+            loadDashboard() // recarregar para refletir mudanças
+        } catch (err: any) {
+            toast.error('Erro ao atribuir entregas: ' + err.message)
+        } finally {
+            setAssigning(false)
+        }
+    }
+
     if (loading && !store) {
         return <LoadingSpinner message="Carregando estatísticas da sua loja..." />
     }
@@ -505,6 +656,33 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </p>
             </div>
         </Link>
+    )
+
+    // Componente para seleção de entregador no modal
+    const EmployeeSelectItem = ({ employee }: { employee: any }) => (
+        <div
+            onClick={() => setSelectedEmployeeId(employee.id)}
+            className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${selectedEmployeeId === employee.id
+                ? 'border-opacity-100'
+                : 'border-opacity-30 hover:border-opacity-60'
+                }`}
+            style={{
+                background: selectedEmployeeId === employee.id ? `${colors.accent}20` : 'transparent',
+                borderColor: selectedEmployeeId === employee.id ? colors.accent : colors.border,
+                backdropFilter: 'blur(4px)',
+            }}
+        >
+            <div className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-sm font-black" style={{ color: colors.textPrimary }}>
+                {employee.name?.charAt(0) || 'E'}
+            </div>
+            <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{employee.name}</p>
+                {employee.phone && <p className="text-[10px]" style={{ color: colors.textSecondary }}>{employee.phone}</p>}
+            </div>
+            {selectedEmployeeId === employee.id && (
+                <UserCheck size={18} style={{ color: colors.accent }} />
+            )}
+        </div>
     )
 
     return (
@@ -676,6 +854,59 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </Link>
             </div>
 
+            {/* SEÇÃO DE ENTREGADORES E ROTAS */}
+            <div className="mb-6 rounded-2xl p-6 border shadow-sm" style={cardStyle}>
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                        <Truck size={16} style={{ color: colors.accent }} /> Entregadores
+                    </h3>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)}
+                            className="text-[10px] font-black uppercase px-3 py-1 rounded-full transition-colors"
+                            style={{
+                                background: 'transparent',
+                                border: `1px solid ${colors.border}`,
+                                color: colors.textSecondary,
+                            }}
+                        >
+                            Gerenciar
+                        </button>
+                        <button
+                            onClick={() => router.push(`/${profileSlug}/${storeSlug}/rotas`)}
+                            className="text-[10px] font-black uppercase px-3 py-1 rounded-full transition-colors flex items-center gap-1"
+                            style={{
+                                background: colors.accent,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <MapIcon size={12} /> Rotas do dia
+                        </button>
+                    </div>
+                </div>
+                {employees.length === 0 ? (
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        Nenhum entregador cadastrado. Clique em "Gerenciar" para adicionar.
+                    </p>
+                ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                        {employees.slice(0, 4).map((emp: any) => (
+                            <div key={emp.id} className="flex items-center gap-2 p-2 rounded-xl"
+                                style={{ background: 'transparent', border: `1px solid ${colors.border}30` }}>
+                                <div className="w-8 h-8 rounded-full bg-black/20 flex items-center justify-center text-xs font-black"
+                                    style={{ color: colors.accent }}>
+                                    {emp.name?.charAt(0) || 'E'}
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
+                                    <p className="text-[9px]" style={{ color: colors.textSecondary }}>Ativo</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             {/* Produtos vistos agora e Agendamentos pendentes */}
             <div className="grid grid-cols-2 gap-3 mb-6">
                 <DashboardCard
@@ -737,8 +968,25 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 </div>
             )}
 
-            {/* Pedidos */}
+            {/* Pedidos com seleção para entrega */}
             <div className="mb-6 space-y-5">
+                {/* Botão de atribuir em massa (aparece se houver selecionados) */}
+                {selectedOrderIds.size > 0 && (
+                    <div className="sticky top-4 z-30 flex justify-center">
+                        <button
+                            onClick={() => setShowAssignModal(true)}
+                            className="px-6 py-2 rounded-full font-black text-xs flex items-center gap-2 shadow-lg"
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <Send size={14} />
+                            Atribuir {selectedOrderIds.size} pedido(s) a um entregador
+                        </button>
+                    </div>
+                )}
+
                 {invites.length > 0 && (
                     <div className="rounded-2xl p-6 border shadow-sm" style={cardStyle}>
                         <h4 className="text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-2" style={{ color: colors.accent }}>
@@ -767,11 +1015,29 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <Package size={12} /> Em Preparo ({inPreparo.length})
                         </h4>
                         {inPreparo.map((order: any) => (
-                            <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
+                            <div key={order.checkout_id}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
                                 style={{ background: `${colors.accentLight}10`, border: `1px solid ${colors.accentLight}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 <div className="flex items-center gap-2">
+                                    {/* Checkbox para seleção */}
+                                    <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(order.checkout_id) }}
+                                        className="cursor-pointer">
+                                        {selectedOrderIds.has(order.checkout_id) ? (
+                                            <CheckSquare size={18} style={{ color: colors.accent }} />
+                                        ) : (
+                                            <Square size={18} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <div onClick={() => setSelectedOrder(order)}>
+                                        <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                        {order.delivery_address && (
+                                            <p className="text-[9px] flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={10} /> {order.delivery_address}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2" onClick={() => setSelectedOrder(order)}>
                                     <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                     <ChevronRight size={16} style={{ color: colors.accentLight }} />
                                 </div>
@@ -786,11 +1052,28 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <CheckCircle2 size={12} /> Prontos ({forReady.length})
                         </h4>
                         {forReady.map((order: any) => (
-                            <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
+                            <div key={order.checkout_id}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
                                 style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 <div className="flex items-center gap-2">
+                                    <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(order.checkout_id) }}
+                                        className="cursor-pointer">
+                                        {selectedOrderIds.has(order.checkout_id) ? (
+                                            <CheckSquare size={18} style={{ color: colors.accent }} />
+                                        ) : (
+                                            <Square size={18} style={{ color: colors.textSecondary }} />
+                                        )}
+                                    </div>
+                                    <div onClick={() => setSelectedOrder(order)}>
+                                        <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                        {order.delivery_address && (
+                                            <p className="text-[9px] flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                                                <MapPin size={10} /> {order.delivery_address}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2" onClick={() => setSelectedOrder(order)}>
                                     <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                     <ChevronRight size={16} style={{ color: '#8b5cf6' }} />
                                 </div>
@@ -944,6 +1227,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} />
                 <QuickActionButton icon={<Calendar size={18} />} label="Agendamentos"
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/agendamentos`)} />
+                <QuickActionButton icon={<Truck size={18} />} label="Entregadores"
+                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)} />
             </div>
 
             {/* Modal de pedido */}
@@ -951,7 +1236,59 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                 <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />
             )}
 
-            {/* Diálogos */}
+            {/* Modal de atribuição de entregador */}
+            {showAssignModal && (
+                <div className="fixed inset-0 z-[120] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
+                    <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Selecionar Entregador
+                            </h3>
+                            <button onClick={() => setShowAssignModal(false)}>
+                                <X size={20} style={{ color: colors.textSecondary }} />
+                            </button>
+                        </div>
+                        <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                            {selectedOrderIds.size} pedido(s) selecionado(s). Escolha o entregador que fará a rota.
+                        </p>
+                        {employees.length === 0 ? (
+                            <div className="text-center py-4">
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>Nenhum entregador disponível.</p>
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)}
+                                    className="mt-2 text-xs font-bold underline" style={{ color: colors.accent }}>
+                                    Cadastrar entregador
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2 mb-4">
+                                {employees.map((emp: any) => (
+                                    <EmployeeSelectItem key={emp.id} employee={emp} />
+                                ))}
+                            </div>
+                        )}
+                        <button
+                            onClick={handleAssignDelivery}
+                            disabled={!selectedEmployeeId || assigning}
+                            className="w-full py-2 rounded-full font-black text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+                            style={{
+                                background: selectedEmployeeId
+                                    ? `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`
+                                    : `${colors.border}`,
+                                color: selectedEmployeeId ? colors.accentText : colors.textSecondary,
+                            }}
+                        >
+                            {assigning ? (
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <><Send size={14} /> Confirmar Atribuição</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Diálogos de visitantes */}
             {dialogOpen === 'online' && (
                 <DialogContainer title="Visitantes olhando a loja atualmente" count={onlineNow} onClose={() => setDialogOpen(null)}>
                     {fullOnlineVisitors.map(renderVisitorItem)}

@@ -351,11 +351,11 @@ export default function CreateStoreAndRegisterProfile({
                     <div className="space-y-2">
                         <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                             <Zap className="w-3 h-3 text-orange-500" />
-                            Endereço (Link)
+                            Nome único da loja
                         </label>
                         <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
                             <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
-                                iuser.com.br/
+                                @
                             </span>
                             <input
                                 placeholder="minha-loja"
@@ -551,11 +551,11 @@ export default function CreateStoreAndRegisterProfile({
                     <div className="space-y-2">
                         <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
                             <LinkIcon className="w-4 h-4 text-orange-500" />
-                            SEU LINK DE PERFIL
+                            Seu @iusername único
                         </label>
                         <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
                             <span className="pl-4 pr-1 text-xs font-mono text-gray-400 bg-white py-3">
-                                iuser.com.br/
+                                @
                             </span>
                             <input
                                 type="text"

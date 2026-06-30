@@ -31,13 +31,14 @@ import SearchResultsSection from '@/app/SearchResultsSection'
 import LastSearched, { getRecentClicks } from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
-import StoreDashboard from './StoreDashboard'
+import StoreDashboard from './StoreDashboard'  // <-- NOVO COMPONENTE
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../SacolaButton'
 import BannerPago from './inicio/sections/BannerPago'
+import PainelDaLoja from './PainelDaLoja'
 
 const DEFAULT_SECTIONS = [
     'bannerPago',
@@ -143,6 +144,7 @@ export default function HomePage() {
     const [allPublicStores, setAllPublicStores] = useState<any[]>([])
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
+    const [storeViewMode, setStoreViewMode] = useState<'dashboard' | 'painel'>('dashboard') // <-- NOVO ESTADO
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
@@ -478,14 +480,17 @@ export default function HomePage() {
     const showHomeSections = () => {
         setShowConfig(false)
         setActiveStoreSlug(null)
+        setStoreViewMode('dashboard')  // <-- RESET AO VOLTAR
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
     }
 
-    const handleStoreTabClick = (storeSlug: string) => {
+    // Função para tratar clique em abas de loja (dashboard ou painel)
+    const handleStoreTabClick = (storeSlug: string, mode: 'dashboard' | 'painel') => {
         setShowConfig(false)
         setActiveStoreSlug(storeSlug)
+        setStoreViewMode(mode)
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
@@ -516,6 +521,7 @@ export default function HomePage() {
         }
     }
 
+    // Construção das abas com sub-abas para cada loja
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -531,13 +537,23 @@ export default function HomePage() {
 
         if (stores.length > 0) {
             stores.forEach((s) => {
+                // Aba do dashboard
                 allTabs.push({
-                    id: `loja-${s.slug}`,
-                    label: s.name,
+                    id: `loja-${s.slug}-dashboard`,
+                    label: `${s.name} · Dashboard`,
                     icon: Store,
                     imageUrl: s.logoUrl,
-                    onClick: () => handleStoreTabClick(s.slug),
-                    isActive: activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin,
+                    onClick: () => handleStoreTabClick(s.slug, 'dashboard'),
+                    isActive: activeStoreSlug === s.slug && storeViewMode === 'dashboard' && !showConfig && !showProfile && !showLogin,
+                })
+                // Aba do novo painel
+                allTabs.push({
+                    id: `loja-${s.slug}-painel`,
+                    label: `${s.name} · Painel`,
+                    icon: Store,
+                    imageUrl: s.logoUrl,
+                    onClick: () => handleStoreTabClick(s.slug, 'painel'),
+                    isActive: activeStoreSlug === s.slug && storeViewMode === 'painel' && !showConfig && !showProfile && !showLogin,
                 })
             })
         } else {
@@ -554,7 +570,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, storeViewMode, showCreateStore, showLogin, showProfile, stores, router])
 
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
@@ -643,12 +659,21 @@ export default function HomePage() {
                         onBack={() => setShowProfile(false)}
                     />
                 ) : activeStoreSlug ? (
-                    <StoreDashboard
-                        profileSlug={profileSlug}
-                        storeSlug={activeStoreSlug}
-                        onBack={showHomeSections}
-                    />
+                    // SELEÇÃO DO COMPONENTE BASEADO NO storeViewMode
+                    storeViewMode === 'painel' ? (
+                        <PainelDaLoja
+                            profileSlug={profileSlug!}
+                            storeSlug={activeStoreSlug}
+                        />
+                    ) : (
+                        <StoreDashboard
+                            profileSlug={profileSlug!}
+                            storeSlug={activeStoreSlug}
+                            onBack={showHomeSections}
+                        />
+                    )
                 ) : (
+                    // SEÇÕES NORMAIS
                     <div className="mt-2 px-4 md:px-6">
                         {editMode ? (
                             <DndContext

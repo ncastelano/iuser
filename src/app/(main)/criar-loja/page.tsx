@@ -1,5 +1,4 @@
-//app/(main)/criar-loja/page.tsx
-
+// src/app/(main)/criar-loja/page.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -10,19 +9,25 @@ import {
   MapPinned,
   Edit3,
   X,
-  ArrowLeft,
   Store,
   Sparkles,
   Zap,
   CheckCircle2,
   AlertCircle,
+  ArrowLeft,
+  Home,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import { createSquareImage } from "@/lib/image";
+import { useTheme } from "@/app/theme";
+import { useProfile } from "@/app/contexts/ProfileContext";
+import Header from "@/app/Header";
 
 export default function CriarLoja() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const { bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -36,9 +41,7 @@ export default function CriarLoja() {
   const [storeSlug, setStoreSlug] = useState("");
   const [description, setDescription] = useState("");
 
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null
-  );
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
 
   const [manualAddress, setManualAddress] = useState("");
@@ -48,6 +51,39 @@ export default function CriarLoja() {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+
+  // Dados do usuário para o Header
+  const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null);
+  const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
+
+  // Carrega perfil para o Header
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("profileSlug, avatar_url")
+          .eq("id", user.id)
+          .single();
+        if (profile) {
+          setCurrentUserSlug(profile.profileSlug);
+          if (profile.avatar_url) {
+            const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url);
+            setCurrentUserAvatar(data.publicUrl);
+          }
+        }
+      }
+    };
+    loadUser();
+  }, []);
+
+  // Atualiza o avatar quando o contexto carregar
+  useEffect(() => {
+    if (contextAvatarUrl && !currentUserAvatar) {
+      setCurrentUserAvatar(contextAvatarUrl);
+    }
+  }, [contextAvatarUrl, currentUserAvatar]);
 
   // SLUG AUTOMÁTICO
   useEffect(() => {
@@ -195,7 +231,6 @@ export default function CriarLoja() {
       return;
     }
 
-    // Buscar o profileSlug do usuário
     const { data: profileData } = await supabase
       .from("profiles")
       .select("profileSlug")
@@ -205,275 +240,549 @@ export default function CriarLoja() {
     const profileSlug = profileData?.profileSlug || "perfil";
 
     setLoading(false);
-
-    // Redirecionar para a URL com profileSlug e storeSlug
     router.push(`/${profileSlug}/${storeSlug}`);
   };
 
-  // Função que processa a imagem para quadrado antes de salvar no estado
   const handleImageChange = async (file: File) => {
     try {
-      const squareFile = await createSquareImage(file, 400); // 400x400px
-      setImageFile(squareFile); // useEffect cuida do preview
+      const squareFile = await createSquareImage(file, 400);
+      setImageFile(squareFile);
     } catch (err) {
       toast.error("Erro ao processar imagem");
     }
   };
 
+  // -- Estilos do SacolaPage --
+  const hexToRgb = (hex: string) => {
+    const clean = hex.replace("#", "");
+    const bigint = parseInt(clean, 16);
+    return {
+      r: (bigint >> 16) & 255,
+      g: (bigint >> 8) & 255,
+      b: bigint & 255,
+    };
+  };
+  const surfaceRgb = hexToRgb(colors.surface);
+
+  const cardStyle: React.CSSProperties = {
+    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    border: `1px solid ${colors.border}`,
+    boxShadow: colors.shadow,
+    borderRadius: "1rem",
+    padding: "1.5rem",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    background: `${colors.surface}88`,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "0.75rem",
+    padding: "0.75rem 1rem",
+    color: colors.textPrimary,
+    fontSize: "0.875rem",
+    outline: "none",
+    width: "100%",
+  };
+
+  const primaryButtonStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.5rem",
+    width: "100%",
+    padding: "0.875rem",
+    borderRadius: "0.75rem",
+    fontSize: "0.75rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    transition: "all 0.2s",
+    background: colors.accent,
+    color: colors.accentText,
+    border: "none",
+    boxShadow: `0 4px 14px ${colors.accent}60`,
+    cursor: "pointer",
+  };
+
+  // Aba única para o Header (igual SacolaPage)
+  const tabs = [
+    {
+      id: "criando",
+      label: "Criando loja",
+      icon: Sparkles as React.ComponentType<{ size?: number; color?: string }>,
+      onClick: () => { },
+      isActive: true,
+    },
+  ];
+
   return (
-    <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-      <AnimatedBackground />
+    <div
+      className="relative flex flex-col min-h-screen pb-32"
+      style={{ background: colors.background }}
+    >
+      <div className="fixed inset-0 z-0">
+        <AnimatedBackground bgMode={bgMode} customBgUrl={customBgUrl} />
+      </div>
 
-      <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-        {/* Header */}
-        <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
-          <button
-            onClick={() => router.back()}
-            className="w-10 h-10 flex items-center justify-center bg-white/90 border-2 border-orange-200 rounded-xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-red-500 hover:text-white transition-all"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
-              Criar Loja
-            </h1>
-            <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-              Comece seu negócio digital
-            </p>
-          </div>
-        </header>
+      <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: "none" }}>
+        {/* Header igual ao da SacolaPage */}
+        <Header
+          title="iUser"
+          showBack={false}
+          greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : "Visitante"}`}
+          avatarUrl={currentUserAvatar}
+          loading={profileLoading}
+          tabs={tabs}
+          showSearch={false}
+          profileSlug={currentUserSlug}
+          onHomeClick={() => router.push("/")}
+        />
 
-        {/* Form Card */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
-          {/* LOGO */}
-          <div className="space-y-3">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 text-center">
-              Logo da Loja
-            </label>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-28 h-28 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
-            >
-              {preview ? (
-                <img src={preview} className="w-full h-full object-cover" />
-              ) : (
-                <Camera
-                  className="text-orange-500 group-hover:scale-110 transition-transform"
-                  size={32}
-                />
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageChange(file);
-              }}
-            />
-          </div>
-
-          {/* NOME */}
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-              <Store className="w-3 h-3 text-orange-500" />
-              Nome da Loja
-            </label>
-            <input
-              placeholder="Minha Super Loja"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
-            />
-          </div>
-
-          {/* SLUG */}
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-              <Zap className="w-3 h-3 text-orange-500" />
-              Endereço (Link)
-            </label>
-            <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
-              <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
-                iuser.com.br/
-              </span>
+        <div className="px-4 pt-4 pb-24 space-y-6">
+          {/* Card do formulário */}
+          <div style={cardStyle} className="space-y-6">
+            {/* LOGO */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                  }}
+                >
+                  <Camera size={14} style={{ color: colors.accentText }} />
+                </div>
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Logo da Loja
+                </span>
+              </div>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-28 h-28 mx-auto rounded-xl flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
+                style={{
+                  background: `linear-gradient(135deg, ${colors.accentLight}, ${colors.accentLight})`,
+                  border: `2px solid ${colors.border}`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = colors.accent;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = colors.border;
+                }}
+              >
+                {preview ? (
+                  <img src={preview} className="w-full h-full object-cover" />
+                ) : (
+                  <Camera
+                    style={{ color: colors.accent }}
+                    className="group-hover:scale-110 transition-transform"
+                    size={32}
+                  />
+                )}
+              </div>
               <input
-                placeholder="minha-loja"
-                value={storeSlug}
-                onChange={(e) =>
-                  setStoreSlug(
-                    e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")
-                  )
-                }
-                className="flex-1 px-3 py-3 bg-white text-gray-900 text-sm outline-none"
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageChange(file);
+                }}
               />
             </div>
-            {storeSlug && slugStatus === "checking" && (
-              <div className="flex items-center gap-2 text-[9px] font-bold text-gray-500 mt-1">
-                <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                Verificando...
-              </div>
-            )}
-            {storeSlug && slugStatus === "available" && (
-              <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
-                <CheckCircle2 className="w-3 h-3" />
-                Link disponível
-              </div>
-            )}
-            {storeSlug && slugStatus === "taken" && (
-              <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
-                <AlertCircle className="w-3 h-3" />
-                Indisponível, adaptado
-              </div>
-            )}
-          </div>
 
-          {/* DESCRIÇÃO */}
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-              Descrição
-            </label>
-            <textarea
-              placeholder="O que você vende?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all min-h-[100px]"
-            />
-          </div>
-
-          {/* LOCALIZAÇÃO */}
-          <div className="space-y-3">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-              <MapPinned className="w-3 h-3 text-orange-500" />
-              Localização
-            </label>
-
-            {!location && !editingAddress && (
-              <div className="space-y-3">
-                <button
-                  disabled={loadingLocation}
-                  onClick={() => {
-                    setLoadingLocation(true);
-                    navigator.geolocation.getCurrentPosition(
-                      (pos) => {
-                        setLocation({
-                          lat: pos.coords.latitude,
-                          lng: pos.coords.longitude,
-                        });
-                        fetchAddressFromCoords(
-                          pos.coords.latitude,
-                          pos.coords.longitude
-                        );
-                        setLoadingLocation(false);
-                      },
-                      () => {
-                        toast.error("Erro ao obter localização");
-                        setLoadingLocation(false);
-                      }
-                    );
+            {/* NOME */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-700 border-2 border-orange-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-orange-100 transition-all"
                 >
-                  <MapPinned size={14} />
-                  {loadingLocation
-                    ? "Buscando..."
-                    : "Usar minha localização atual"}
-                </button>
+                  <Store size={14} style={{ color: colors.accentText }} />
+                </div>
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Nome da Loja
+                </span>
+              </div>
+              <input
+                placeholder="Minha Super Loja"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={inputStyle}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = colors.accent;
+                  e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.accent}20`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
 
-                <div className="relative">
-                  <input
-                    placeholder="Ou digite o endereço..."
-                    value={manualAddress}
-                    onChange={(e) => {
-                      setManualAddress(e.target.value);
-                      setEditingAddress(true);
+            {/* SLUG */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                  }}
+                >
+                  <Zap size={14} style={{ color: colors.accentText }} />
+                </div>
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Nome único
+                </span>
+              </div>
+              <div
+                className="flex items-center rounded-xl overflow-hidden transition-all"
+                style={{
+                  border: `1px solid ${colors.border}`,
+                  background: `${colors.surface}88`,
+                }}
+              >
+                <span
+                  className="px-3 border-r text-xs font-bold py-3 whitespace-nowrap"
+                  style={{
+                    background: colors.accentLight,
+                    color: colors.accent,
+                    borderColor: colors.border,
+                  }}
+                >
+                  @
+                </span>
+                <input
+                  placeholder="minha-loja"
+                  value={storeSlug}
+                  onChange={(e) =>
+                    setStoreSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")
+                    )
+                  }
+                  className="flex-1 px-3 py-3 text-sm outline-none"
+                  style={{
+                    background: "transparent",
+                    color: colors.textPrimary,
+                  }}
+                />
+              </div>
+              {storeSlug && slugStatus === "checking" && (
+                <div
+                  className="flex items-center gap-2 text-[9px] font-bold mt-1"
+                  style={{ color: colors.textSecondary }}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full animate-pulse"
+                    style={{ background: colors.accent }}
+                  />
+                  Verificando...
+                </div>
+              )}
+              {storeSlug && slugStatus === "available" && (
+                <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Link disponível
+                </div>
+              )}
+              {storeSlug && slugStatus === "taken" && (
+                <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Indisponível, adaptado
+                </div>
+              )}
+            </div>
+
+            {/* DESCRIÇÃO */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                  }}
+                >
+                  <Edit3 size={14} style={{ color: colors.accentText }} />
+                </div>
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Descrição
+                </span>
+              </div>
+              <textarea
+                placeholder="O que você vende?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none transition-all min-h-[100px]"
+                style={{
+                  background: `${colors.surface}88`,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.textPrimary,
+                  borderRadius: "0.75rem",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = colors.accent;
+                  e.currentTarget.style.boxShadow = `0 0 0 2px ${colors.accent}20`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              />
+            </div>
+
+            {/* LOCALIZAÇÃO */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                  }}
+                >
+                  <MapPinned size={14} style={{ color: colors.accentText }} />
+                </div>
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Localização
+                </span>
+              </div>
+
+              {!location && !editingAddress && (
+                <div className="space-y-3">
+                  <button
+                    disabled={loadingLocation}
+                    onClick={() => {
+                      setLoadingLocation(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setLocation({
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                          });
+                          fetchAddressFromCoords(
+                            pos.coords.latitude,
+                            pos.coords.longitude
+                          );
+                          setLoadingLocation(false);
+                        },
+                        () => {
+                          toast.error("Erro ao obter localização");
+                          setLoadingLocation(false);
+                        }
+                      );
                     }}
-                    className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all"
+                    style={{
+                      background: colors.accentLight,
+                      color: colors.accent,
+                      border: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    <MapPinned size={14} />
+                    {loadingLocation ? "Buscando..." : "Usar minha localização atual"}
+                  </button>
+
+                  <div className="relative">
+                    <input
+                      placeholder="Ou digite o endereço..."
+                      value={manualAddress}
+                      onChange={(e) => {
+                        setManualAddress(e.target.value);
+                        setEditingAddress(true);
+                      }}
+                      style={inputStyle}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = colors.accent;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = colors.border;
+                      }}
+                    />
+                    {suggestions.length > 0 && (
+                      <div
+                        className="absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden shadow-lg z-50"
+                        style={{
+                          background: colors.surface,
+                          border: `1px solid ${colors.border}`,
+                        }}
+                      >
+                        {suggestions.map((s, i) => (
+                          <div
+                            key={i}
+                            onClick={() => selectSuggestion(s)}
+                            className="p-3 cursor-pointer border-b text-sm"
+                            style={{
+                              borderColor: colors.border,
+                              color: colors.textPrimary,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = colors.accentLight;
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "transparent";
+                            }}
+                          >
+                            {s.place_name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {location && !editingAddress && (
+                <div
+                  className="p-4 rounded-xl space-y-2"
+                  style={{
+                    background: colors.accentLight,
+                    border: `1px solid ${colors.border}`,
+                  }}
+                >
+                  <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                    {address}
+                  </p>
+                  <button
+                    onClick={() => setEditingAddress(true)}
+                    className="flex items-center gap-2 text-[9px] uppercase font-black tracking-wider"
+                    style={{ color: colors.accent }}
+                  >
+                    <Edit3 size={12} />
+                    Editar Local
+                  </button>
+                </div>
+              )}
+
+              {editingAddress && (
+                <div className="relative space-y-3">
+                  <input
+                    placeholder="Digite um novo endereço"
+                    value={manualAddress}
+                    onChange={(e) => setManualAddress(e.target.value)}
+                    style={inputStyle}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.accent;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = colors.border;
+                    }}
                   />
                   {suggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-orange-200 rounded-xl overflow-hidden shadow-lg z-50">
+                    <div
+                      className="absolute top-full left-0 right-0 mt-2 rounded-xl overflow-hidden shadow-lg z-50"
+                      style={{
+                        background: colors.surface,
+                        border: `1px solid ${colors.border}`,
+                      }}
+                    >
                       {suggestions.map((s, i) => (
                         <div
                           key={i}
                           onClick={() => selectSuggestion(s)}
-                          className="p-3 hover:bg-orange-50 cursor-pointer border-b border-orange-100 last:border-0 text-sm text-gray-700"
+                          className="p-3 cursor-pointer border-b text-sm"
+                          style={{
+                            borderColor: colors.border,
+                            color: colors.textPrimary,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = colors.accentLight;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
                         >
                           {s.place_name}
                         </div>
                       ))}
                     </div>
                   )}
+                  <button
+                    onClick={() => {
+                      setEditingAddress(false);
+                      setSuggestions([]);
+                    }}
+                    className="flex items-center gap-2 text-[9px] uppercase font-black tracking-wider"
+                    style={{ color: colors.textSecondary }}
+                  >
+                    <X size={12} />
+                    Cancelar
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {location && !editingAddress && (
-              <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-200 space-y-2">
-                <p className="text-sm font-medium text-gray-800">{address}</p>
-                <button
-                  onClick={() => setEditingAddress(true)}
-                  className="flex items-center gap-2 text-orange-600 hover:text-orange-700 text-[9px] uppercase font-black tracking-wider"
-                >
-                  <Edit3 size={12} />
-                  Editar Local
-                </button>
-              </div>
-            )}
-
-            {editingAddress && (
-              <div className="relative space-y-3">
-                <input
-                  placeholder="Digite um novo endereço"
-                  value={manualAddress}
-                  onChange={(e) => setManualAddress(e.target.value)}
-                  className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
-                />
-                {suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-orange-200 rounded-xl overflow-hidden shadow-lg z-50">
-                    {suggestions.map((s, i) => (
-                      <div
-                        key={i}
-                        onClick={() => selectSuggestion(s)}
-                        className="p-3 hover:bg-orange-50 cursor-pointer border-b border-orange-100 last:border-0 text-sm text-gray-700"
-                      >
-                        {s.place_name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <button
-                  onClick={() => {
-                    setEditingAddress(false);
-                    setSuggestions([]);
-                  }}
-                  className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-[9px] uppercase font-black tracking-wider"
-                >
-                  <X size={12} />
-                  Cancelar
-                </button>
-              </div>
-            )}
+            {/* BOTÃO CRIAR */}
+            <button
+              onClick={handleCreate}
+              disabled={loading}
+              style={primaryButtonStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = "brightness(0.95)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = "brightness(1)";
+              }}
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Criar Loja
+                </>
+              )}
+            </button>
           </div>
+        </div>
 
-          {/* BOTÃO CRIAR */}
+        {/* Botões flutuantes */}
+        <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
           <button
-            onClick={handleCreate}
-            disabled={loading}
-            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            onClick={() => router.back()}
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+            style={{
+              background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+              color: colors.accentText,
+              border: `2px solid ${colors.border}`,
+              boxShadow: `0 8px 24px ${colors.accent}60`,
+            }}
+            aria-label="Voltar para a página anterior"
           >
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Criar Loja
-              </>
-            )}
+            <ArrowLeft size={24} />
+          </button>
+          <button
+            onClick={() => router.push('/')}
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+            style={{
+              background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+              color: colors.accentText,
+              border: `2px solid ${colors.border}`,
+              boxShadow: `0 8px 24px ${colors.accent}60`,
+            }}
+            aria-label="Ir para o início"
+          >
+            <Home size={24} />
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
