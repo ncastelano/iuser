@@ -16,7 +16,6 @@ import {
     Settings,
     Plus,
     Users,
-    PackageOpen,
     RefreshCw,
     ChevronRight,
     CheckCircle2,
@@ -26,9 +25,18 @@ import {
     CheckSquare,
     Square,
     Send,
-    BarChart3,
     DollarSign,
     ShoppingCart,
+    CreditCard,
+    Banknote,
+    QrCode,
+    Save,
+    Package,
+    ArrowUpDown,
+    Pencil,
+    MapPin,
+    Phone,
+    Store,
 } from 'lucide-react'
 import { OrderModal } from './eu/components/OrderModal'
 
@@ -106,10 +114,8 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({ daily: { revenue: 0, orders: 0 } })
 
-    const [productViews, setProductViews] = useState<Record<string, number>>({})
-    const [productsViewedNow, setProductsViewedNow] = useState<any[]>([])
-    const [topProducts, setTopProducts] = useState<{ name: string; count: number }[]>([])
-    const [myProducts, setMyProducts] = useState<any[]>([])  // lista rápida de produtos
+    const [products, setProducts] = useState<any[]>([])
+    const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
 
     const [employees, setEmployees] = useState<any[]>([])
     const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([])
@@ -123,6 +129,21 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [showScheduleEditor, setShowScheduleEditor] = useState(false)
     const [savingSchedule, setSavingSchedule] = useState(false)
     const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
+
+    // Configurações de venda – alinhadas com a página de edição
+    const [acceptsPix, setAcceptsPix] = useState(false)
+    const [acceptsCard, setAcceptsCard] = useState(false)
+    const [acceptsDelivery, setAcceptsDelivery] = useState(false)   // faz entrega
+    const [acceptsPickup, setAcceptsPickup] = useState(false)       // retirada no local
+
+    // Configurações detalhadas de entrega (complementares)
+    const [pixKey, setPixKey] = useState('')
+    const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
+    const [deliveryMode, setDeliveryMode] = useState<'fixed' | 'distance'>('fixed')
+    const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
+    const [distanceRules, setDistanceRules] = useState<{ max_km: string; fee: string }[]>([])
+
+    const [savingConfig, setSavingConfig] = useState(false)
 
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
@@ -152,6 +173,29 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null
         setStore({ ...storeData, logo_url: logoUrl })
         setBusinessHours(storeData.business_hours || {})
+
+        // Inicializar estados de configuração conforme dados da loja
+        setAcceptsPix(storeData.accepts_pix ?? true)
+        setAcceptsCard(storeData.accepts_card ?? true)
+        setAcceptsDelivery(storeData.accepts_delivery ?? false)
+        setAcceptsPickup(storeData.accepts_pickup ?? false)
+
+        setPixKey(storeData.pix_key || '')
+        setPixKeyType(storeData.pix_key_type || 'cpf')
+
+        // Se a loja tem delivery ativo, carregar detalhes de entrega
+        if (storeData.delivery_type === 'fixed') {
+            setDeliveryMode('fixed')
+            setFixedDeliveryFee(storeData.delivery_fee ? String(storeData.delivery_fee) : '')
+        } else if (storeData.delivery_type === 'distance') {
+            setDeliveryMode('distance')
+            setDistanceRules(storeData.delivery_distance_rules || [])
+        } else {
+            // padrão
+            setDeliveryMode('fixed')
+            setFixedDeliveryFee('')
+        }
+
         const storeId = storeData.id
 
         const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
@@ -160,30 +204,60 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         const { data: salesData } = await supabase.from('store_sales').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
         setSales(salesData || [])
 
-        // Últimos 5 produtos cadastrados
-        const { data: prodData } = await supabase.from('products').select('id, name, price, image_url').eq('store_id', storeId).order('created_at', { ascending: false }).limit(5)
-        setMyProducts(prodData || [])
+        // Produtos
+        const { data: productsData } = await supabase
+            .from('products')
+            .select('id, name, price, image_url, slug')
+            .eq('store_id', storeId)
+            .order('created_at', { ascending: false })
+            .limit(12)
 
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-        const { data: recentViews } = await supabase.from('product_views').select('product_id, products(name)').eq('store_id', storeId).gte('created_at', fiveMinAgo).limit(10)
-        const unique = Array.from(new Map(recentViews?.map((pv: any) => [pv.product_id, pv.products?.name || 'Produto'])).entries()).map(([id, name]) => ({ id, name }))
-        setProductsViewedNow(unique)
+        if (productsData && productsData.length > 0) {
+            const productIds = productsData.map(p => p.id)
+            const todayStart = startOfDay()
 
-        const periods: Record<string, { gte?: string; lte?: string }> = {
-            today: { gte: startOfDay(), lte: new Date().toISOString() },
-            week: { gte: startOfWeek(), lte: new Date().toISOString() },
-            month: { gte: startOfMonth(), lte: new Date().toISOString() },
-            all: {}
+            const { data: viewsToday } = await supabase.from('product_views')
+                .select('product_id')
+                .in('product_id', productIds)
+                .gte('created_at', todayStart)
+            const viewsTodayMap = new Map()
+            viewsToday?.forEach(v => viewsTodayMap.set(v.product_id, (viewsTodayMap.get(v.product_id) || 0) + 1))
+
+            const { data: viewsTotal } = await supabase.from('product_views')
+                .select('product_id')
+                .in('product_id', productIds)
+            const viewsTotalMap = new Map()
+            viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
+
+            const { data: cartItems } = await supabase.from('store_sales')
+                .select('product_id')
+                .in('product_id', productIds)
+                .eq('status', 'pending')
+            const cartCountMap = new Map()
+            cartItems?.forEach(c => cartCountMap.set(c.product_id, (cartCountMap.get(c.product_id) || 0) + 1))
+
+            const { data: allSalesForProducts } = await supabase.from('store_sales')
+                .select('product_id')
+                .in('product_id', productIds)
+                .eq('store_id', storeId)
+            const salesCountMap = new Map()
+            allSalesForProducts?.forEach(s => salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + 1))
+
+            const combinedProducts = productsData.map(p => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                image_url: p.image_url,
+                slug: p.slug,
+                viewsToday: viewsTodayMap.get(p.id) || 0,
+                viewsTotal: viewsTotalMap.get(p.id) || 0,
+                inCart: cartCountMap.get(p.id) || 0,
+                salesCount: salesCountMap.get(p.id) || 0,
+            }))
+            setProducts(combinedProducts)
+        } else {
+            setProducts([])
         }
-        const pv: Record<string, number> = {}
-        for (const [key, range] of Object.entries(periods)) {
-            let q = supabase.from('product_views').select('*', { count: 'exact', head: true }).eq('store_id', storeId)
-            if (range.gte) q = q.gte('created_at', range.gte)
-            if (range.lte) q = q.lte('created_at', range.lte)
-            const { count } = await q
-            pv[key] = count || 0
-        }
-        setProductViews(pv)
 
         await fetchVisitorData(storeId)
         setLoading(false)
@@ -204,10 +278,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
         const daily = sales.filter(s => new Date(s.created_at).getTime() >= today)
         setMetrics({ daily: { revenue: daily.reduce((a, s) => a + s.price, 0), orders: new Set(daily.map(s => s.checkout_id)).size } })
-
-        const prodCount: Record<string, number> = {}
-        sales.forEach(s => { const n = s.product_name || s.description?.split('\n')[0] || 'Item'; prodCount[n] = (prodCount[n] || 0) + 1 })
-        setTopProducts(Object.entries(prodCount).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count })))
     }, [sales])
 
     const fetchEmployeeRoutes = useCallback(async () => {
@@ -276,6 +346,58 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         await supabase.from('stores').update({ business_hours: businessHours }).eq('id', store.id)
         toast.success('Horários salvos!'); setShowScheduleEditor(false); setSavingSchedule(false)
     }
+
+    const handleSaveConfig = async () => {
+        if (!store) return
+        setSavingConfig(true)
+
+        let deliveryType = 'none'
+        let deliveryFee = null
+        let deliveryDistanceRules = null
+        if (acceptsDelivery) {
+            if (deliveryMode === 'fixed') {
+                deliveryType = 'fixed'
+                deliveryFee = fixedDeliveryFee ? parseFloat(fixedDeliveryFee) : 0
+            } else {
+                deliveryType = 'distance'
+                deliveryDistanceRules = distanceRules.map(r => ({ max_km: parseFloat(r.max_km), fee: parseFloat(r.fee) }))
+            }
+        }
+
+        const { error } = await supabase.from('stores').update({
+            accepts_pix: acceptsPix,
+            accepts_card: acceptsCard,
+            accepts_delivery: acceptsDelivery,
+            accepts_pickup: acceptsPickup,
+            pix_key: acceptsPix ? pixKey : null,
+            pix_key_type: acceptsPix ? pixKeyType : null,
+            delivery_type: deliveryType,
+            delivery_fee: deliveryFee,
+            delivery_distance_rules: deliveryDistanceRules,
+        }).eq('id', store.id)
+
+        if (error) { toast.error('Erro ao salvar configurações.'); }
+        else { toast.success('Configurações salvas!'); }
+        setSavingConfig(false)
+    }
+
+    const addDistanceRule = () => setDistanceRules([...distanceRules, { max_km: '', fee: '' }])
+    const removeDistanceRule = (index: number) => setDistanceRules(distanceRules.filter((_, i) => i !== index))
+    const updateDistanceRule = (index: number, field: 'max_km' | 'fee', value: string) => {
+        const updated = [...distanceRules]
+        updated[index] = { ...updated[index], [field]: value }
+        setDistanceRules(updated)
+    }
+
+    const sortedProducts = [...products].sort((a, b) => {
+        switch (sortBy) {
+            case 'mostSold': return b.salesCount - a.salesCount
+            case 'leastSold': return a.salesCount - b.salesCount
+            case 'mostExpensive': return b.price - a.price
+            case 'cheapest': return a.price - b.price
+            default: return 0
+        }
+    })
 
     if (loading) return <LoadingSpinner message="Carregando painel..." />
     if (!store) return null
@@ -392,65 +514,68 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 {groupedOrders.length === 0 && <p className="text-center text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>}
             </div>
 
-            {/* Meus Produtos */}
+            {/* Produtos com scroll horizontal e filtro de ordenação */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><PackageOpen size={16} /> Meus Produtos</h3>
-                    <div className="flex gap-2">
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><Package size={16} /> Produtos</h3>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
+                            <ArrowUpDown size={14} />
+                            <select
+                                value={sortBy}
+                                onChange={e => setSortBy(e.target.value as any)}
+                                className="bg-transparent border rounded px-2 py-1 text-xs"
+                                style={{ borderColor: colors.border, color: colors.textPrimary }}
+                            >
+                                <option value="mostSold">Mais vendidos</option>
+                                <option value="leastSold">Menos vendidos</option>
+                                <option value="mostExpensive">Mais caro</option>
+                                <option value="cheapest">Mais barato</option>
+                            </select>
+                        </div>
                         <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: colors.accent, color: 'white' }}>+ Adicionar</button>
-                        <button onClick={() => router.push(`/${profileSlug}/${storeSlug}`)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ border: `1px solid ${colors.border}`, color: colors.textSecondary }}>Ver todos</button>
                     </div>
                 </div>
-                {myProducts.length === 0 ? (
+                {products.length === 0 ? (
                     <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum produto cadastrado.</p>
                 ) : (
-                    <div className="space-y-2">
-                        {myProducts.map(prod => {
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                        {sortedProducts.map(prod => {
                             const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
                             return (
-                                <div key={prod.id} className="flex items-center gap-3 p-2 rounded-xl cursor-pointer" style={{ background: 'transparent' }} onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}>
-                                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100">
-                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: colors.textSecondary }}>📦</div>}
+                                <div
+                                    key={prod.id}
+                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
+                                    style={{ background: 'transparent', borderColor: colors.border }}
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
+                                >
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`);
+                                        }}
+                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+                                        title="Editar produto"
+                                    >
+                                        <Pencil size={14} color="white" />
+                                    </button>
+
+                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
+                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                        <p className="text-xs" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
+                                        <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                        <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
+                                            <span>👁 {prod.viewsToday} hoje</span>
+                                            <span>🛒 {prod.inCart} na sacola</span>
+                                            <span>📊 {prod.viewsTotal} views</span>
+                                            <span>💰 {prod.salesCount} vendas</span>
+                                        </div>
                                     </div>
-                                    <ChevronRight size={16} style={{ color: colors.textSecondary }} />
                                 </div>
                             )
                         })}
-                    </div>
-                )}
-            </div>
-
-            {/* Produtos mais vistos */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}><Eye size={16} /> Produtos mais vistos</h3>
-                <div className="grid grid-cols-2 gap-2">
-                    <div><span style={{ color: colors.textSecondary }}>Hoje</span><p className="text-xl font-black" style={{ color: colors.accent }}>{productViews.today || 0}</p></div>
-                    <div><span style={{ color: colors.textSecondary }}>Semana</span><p className="text-xl font-black" style={{ color: colors.accentLight }}>{productViews.week || 0}</p></div>
-                    <div><span style={{ color: colors.textSecondary }}>Mês</span><p className="text-xl font-black" style={{ color: colors.accent }}>{productViews.month || 0}</p></div>
-                    <div><span style={{ color: colors.textSecondary }}>Total</span><p className="text-xl font-black" style={{ color: colors.accentLight }}>{productViews.all || 0}</p></div>
-                </div>
-                {productsViewedNow.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                        {productsViewedNow.map(p => <span key={p.id} className="px-2 py-1 rounded-full text-xs" style={{ background: `${colors.accent}20`, color: colors.accent }}>{p.name}</span>)}
-                    </div>
-                )}
-            </div>
-
-            {/* Produtos mais vendidos */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}><BarChart3 size={16} /> Mais vendidos</h3>
-                {topProducts.length === 0 ? <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhuma venda registrada.</p> : (
-                    <div className="space-y-1">
-                        {topProducts.map((prod, i) => (
-                            <div key={i} className="flex justify-between text-xs" style={{ color: colors.textPrimary }}>
-                                <span>{prod.name}</span>
-                                <span style={{ color: colors.accent }}>{prod.count} vendas</span>
-                            </div>
-                        ))}
                     </div>
                 )}
             </div>
@@ -483,6 +608,117 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                         })}
                     </div>
                 )}
+            </div>
+
+            {/* Informações da Loja (endereço, whatsapp) */}
+            {store.address || store.whatsapp ? (
+                <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
+                    <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                        <Store size={16} /> Informações da Loja
+                    </h3>
+                    {store.address && (
+                        <div className="flex items-center gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
+                            <MapPin size={14} />
+                            <span>{store.address}</span>
+                        </div>
+                    )}
+                    {store.whatsapp && (
+                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                            <Phone size={14} />
+                            <span>{store.whatsapp}</span>
+                        </div>
+                    )}
+                </div>
+            ) : null}
+
+            {/* Configurações de Venda e Entrega (agora alinhadas com a edição) */}
+            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
+                <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                    <Settings size={16} /> Configurações da Loja
+                </h3>
+
+                {/* Faz entrega */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Truck size={18} style={{ color: acceptsDelivery ? colors.accent : colors.textSecondary }} />
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Faz entrega</span>
+                    </div>
+                    <button onClick={() => setAcceptsDelivery(!acceptsDelivery)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsDelivery ? 'bg-green-500' : 'bg-gray-600'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsDelivery ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                </div>
+                {acceptsDelivery && (
+                    <div className="ml-7 mb-3 space-y-2">
+                        <div className="flex gap-2">
+                            <button onClick={() => setDeliveryMode('fixed')} className={`px-3 py-1 rounded-full text-xs font-bold ${deliveryMode === 'fixed' ? 'text-white' : ''}`} style={{ background: deliveryMode === 'fixed' ? colors.accent : 'transparent', border: `1px solid ${colors.border}`, color: deliveryMode === 'fixed' ? 'white' : colors.textSecondary }}>Valor Fixo</button>
+                            <button onClick={() => setDeliveryMode('distance')} className={`px-3 py-1 rounded-full text-xs font-bold ${deliveryMode === 'distance' ? 'text-white' : ''}`} style={{ background: deliveryMode === 'distance' ? colors.accent : 'transparent', border: `1px solid ${colors.border}`, color: deliveryMode === 'distance' ? 'white' : colors.textSecondary }}>Por Distância</button>
+                        </div>
+
+                        {deliveryMode === 'fixed' && (
+                            <input type="number" value={fixedDeliveryFee} onChange={e => setFixedDeliveryFee(e.target.value)} placeholder="Valor da entrega" className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
+                        )}
+                        {deliveryMode === 'distance' && (
+                            <div>
+                                {distanceRules.map((rule, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 mb-1">
+                                        <input type="number" value={rule.max_km} onChange={e => updateDistanceRule(idx, 'max_km', e.target.value)} placeholder="Distância (km)" className="w-1/2 bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
+                                        <input type="number" value={rule.fee} onChange={e => updateDistanceRule(idx, 'fee', e.target.value)} placeholder="Valor" className="w-1/2 bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
+                                        <button onClick={() => removeDistanceRule(idx)} className="text-red-400"><X size={16} /></button>
+                                    </div>
+                                ))}
+                                <button onClick={addDistanceRule} className="text-xs text-blue-400 mt-1">+ Adicionar faixa</button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Retirada no local */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Store size={18} style={{ color: acceptsPickup ? colors.accent : colors.textSecondary }} />
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Retirada no local</span>
+                    </div>
+                    <button onClick={() => setAcceptsPickup(!acceptsPickup)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsPickup ? 'bg-green-500' : 'bg-gray-600'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsPickup ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                </div>
+
+                {/* Aceita Cartão */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <CreditCard size={18} style={{ color: acceptsCard ? '#0984e3' : colors.textSecondary }} />
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Aceitar Cartão</span>
+                    </div>
+                    <button onClick={() => setAcceptsCard(!acceptsCard)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsCard ? 'bg-green-500' : 'bg-gray-600'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsCard ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                </div>
+
+                {/* Aceita PIX */}
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <QrCode size={18} style={{ color: acceptsPix ? '#00b894' : colors.textSecondary }} />
+                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Aceitar PIX</span>
+                    </div>
+                    <button onClick={() => setAcceptsPix(!acceptsPix)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsPix ? 'bg-green-500' : 'bg-gray-600'}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsPix ? 'left-6' : 'left-0.5'}`} />
+                    </button>
+                </div>
+                {acceptsPix && (
+                    <div className="ml-7 mb-3 space-y-2">
+                        <select value={pixKeyType} onChange={e => setPixKeyType(e.target.value as any)} className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }}>
+                            <option value="cpf">CPF</option>
+                            <option value="email">E-mail</option>
+                            <option value="phone">Telefone</option>
+                            <option value="random">Chave aleatória</option>
+                        </select>
+                        <input type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Chave Pix" className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
+                    </div>
+                )}
+
+                <button onClick={handleSaveConfig} disabled={savingConfig} className="w-full mt-3 py-2 rounded-full text-xs font-bold flex items-center justify-center gap-2" style={{ background: colors.accent, color: 'white' }}>
+                    {savingConfig ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={14} /> Salvar Configurações</>}
+                </button>
             </div>
 
             {/* Cards de visitantes */}
