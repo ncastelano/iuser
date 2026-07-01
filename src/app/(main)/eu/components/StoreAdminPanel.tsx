@@ -2,7 +2,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { StoreFlow } from './StoreFlow'
 import { X } from 'lucide-react'
 
 interface StoreAdminPanelProps {
@@ -60,19 +59,7 @@ export function StoreAdminPanel({ store, profileSlug, supabase, isOpen, onClose,
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl"><X size={20} /></button>
                 </div>
 
-                <StoreFlow
-                    store={store}
-                    sales={sales}
-                    supabase={supabase}
-                    onToggleStatus={onToggleStatus}
-                    profile={{ profileSlug }}
-                    onUpdateOrder={() => { }} // opcional
-                    onAddProduct={() => router.push(`/${profileSlug}/${store.storeSlug}/criar-produto`)}
-                    onEditStore={() => router.push(`/${profileSlug}/${store.storeSlug}/editar-loja`)}
-                    onToggleScheduling={onToggleScheduling}
-                    storeViews={storeViews}
-                    productViews={productViews}
-                />
+
             </div>
         </div>
     )

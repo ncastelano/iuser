@@ -28,7 +28,7 @@ import {
     X,
     StoreIcon
 } from 'lucide-react'
-import { OrderModal } from './eu/components/OrderModal'
+import { OrderModal } from '@/components/OrderModal'
 
 interface StoreDashboardProps {
     profileSlug: string | null
@@ -36,7 +36,6 @@ interface StoreDashboardProps {
     onBack?: () => void
 }
 
-// Helpers de data (mantidos)
 function daysAgo(n: number): string {
     const d = new Date()
     d.setDate(d.getDate() - n)
@@ -95,12 +94,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
     if (!profileSlug) return null
 
-    // Estados gerais (mantidos)
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    // Visitantes
     const [onlineNow, setOnlineNow] = useState(0)
     const [onlineVisitors, setOnlineVisitors] = useState<any[]>([])
     const [fullOnlineVisitors, setFullOnlineVisitors] = useState<any[]>([])
@@ -129,7 +126,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
-    // Funções (mantidas)
     const fetchVisitorData = useCallback(async (storeId?: string) => {
         const id = storeId || store?.id
         if (!id) return
@@ -293,9 +289,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         setRefreshing(false)
     }, [storeSlug, profileSlug, fetchVisitorData])
 
-    useEffect(() => {
-        loadDashboard()
-    }, [loadDashboard])
+    useEffect(() => { loadDashboard() }, [loadDashboard])
 
     useEffect(() => {
         if (!store?.id) return
@@ -343,11 +337,20 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                     created_at: s.created_at,
                     status: s.status,
                     items: [],
+                    subtotal: 0,
                     totalPrice: 0,
+                    delivery_address: s.delivery_address,
+                    delivery_lat: s.delivery_lat,
+                    delivery_lng: s.delivery_lng,
+                    deliveryFee: Number(s.delivery_fee || 0),   // ← TAXA DE ENTREGA
                 }
             }
             groups[s.checkout_id].items.push(s)
-            groups[s.checkout_id].totalPrice += s.price
+            groups[s.checkout_id].subtotal += Number(s.price || 0)
+        })
+        // Adiciona a taxa de entrega ao total de cada pedido
+        Object.values(groups).forEach((group: any) => {
+            group.totalPrice = Number(group.subtotal) + Number(group.deliveryFee || 0)
         })
         return Object.values(groups).sort(
             (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -363,14 +366,25 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         const now = new Date()
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
         const daily = sales.filter((s: any) => new Date(s.created_at).getTime() >= today)
-        const dailyRev = daily.reduce((acc: number, s: any) => acc + s.price, 0)
-        const dailyOrd = new Set(daily.map((d: any) => d.checkout_id)).size
-        return {
-            daily: {
-                revenue: dailyRev,
-                orders: dailyOrd,
-            },
-        }
+
+        // Agrupa as vendas diárias por checkout_id para somar subtotal e adicionar taxa de entrega apenas uma vez por pedido
+        const dailyGroups: Record<string, { subtotal: number; deliveryFee: number }> = {}
+        daily.forEach((s: any) => {
+            if (!dailyGroups[s.checkout_id]) {
+                dailyGroups[s.checkout_id] = {
+                    subtotal: 0,
+                    deliveryFee: Number(s.delivery_fee || 0),
+                }
+            }
+            dailyGroups[s.checkout_id].subtotal += Number(s.price || 0)
+        })
+
+        const dailyRev = Object.values(dailyGroups).reduce(
+            (acc, group) => acc + group.subtotal + group.deliveryFee,
+            0
+        )
+        const dailyOrd = Object.keys(dailyGroups).length
+        return { daily: { revenue: dailyRev, orders: dailyOrd } }
     }, [sales])
 
     const handleOrderAction = async (status: string) => {
@@ -427,9 +441,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
             .from('stores')
             .update({ business_hours: businessHours })
             .eq('id', store.id)
-        if (error) {
-            toast.error('Erro ao salvar horários.')
-        } else {
+        if (error) toast.error('Erro ao salvar horários.')
+        else {
             toast.success('Horários salvos!')
             setShowScheduleEditor(false)
         }
@@ -456,7 +469,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
         })()
         : store.is_open
 
-    // Estilos padronizados com fundo transparente
     const cardStyle = {
         background: 'transparent',
         border: `1px solid ${colors.border}`,
@@ -750,10 +762,17 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                                 style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                                 <div>
                                     <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
-                                    <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} itens</p>
+                                    <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} {order.items.length === 1 ? 'item' : 'itens'}</p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black block" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] font-bold block -mt-1" style={{ color: colors.textSecondary }}>
+                                                R$ {order.subtotal.toFixed(2)} + R$ {order.deliveryFee.toFixed(2)} entrega
+                                            </span>
+                                        )}
+                                    </div>
                                     <ChevronRight size={16} style={{ color: colors.accent }} />
                                 </div>
                             </div>
@@ -770,9 +789,19 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
                                 style={{ background: `${colors.accentLight}10`, border: `1px solid ${colors.accentLight}30`, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                <div>
+                                    <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} {order.items.length === 1 ? 'item' : 'itens'}</p>
+                                </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black block" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] font-bold block -mt-1" style={{ color: colors.textSecondary }}>
+                                                R$ {order.subtotal.toFixed(2)} + R$ {order.deliveryFee.toFixed(2)} entrega
+                                            </span>
+                                        )}
+                                    </div>
                                     <ChevronRight size={16} style={{ color: colors.accentLight }} />
                                 </div>
                             </div>
@@ -789,9 +818,19 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
                                 style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                <div>
+                                    <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} {order.items.length === 1 ? 'item' : 'itens'}</p>
+                                </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black block" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] font-bold block -mt-1" style={{ color: colors.textSecondary }}>
+                                                R$ {order.subtotal.toFixed(2)} + R$ {order.deliveryFee.toFixed(2)} entrega
+                                            </span>
+                                        )}
+                                    </div>
                                     <ChevronRight size={16} style={{ color: '#8b5cf6' }} />
                                 </div>
                             </div>
@@ -808,9 +847,19 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)}
                                 className="flex items-center justify-between p-3 rounded-xl mb-2 cursor-pointer"
                                 style={{ background: '#22c55e10', border: '1px solid #22c55e30', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
-                                <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                <div>
+                                    <span className="text-base font-black" style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>{order.items.length} {order.items.length === 1 ? 'item' : 'itens'}</p>
+                                </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-black" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black block" style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] font-bold block -mt-1" style={{ color: colors.textSecondary }}>
+                                                R$ {order.subtotal.toFixed(2)} + R$ {order.deliveryFee.toFixed(2)} entrega
+                                            </span>
+                                        )}
+                                    </div>
                                     <ChevronRight size={16} style={{ color: '#22c55e' }} />
                                 </div>
                             </div>
@@ -948,7 +997,13 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
 
             {/* Modal de pedido */}
             {selectedOrder && (
-                <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />
+                <OrderModal
+                    order={selectedOrder}
+                    onClose={() => setSelectedOrder(null)}
+                    onAction={handleOrderAction}
+                    storeLat={store.store_lat ?? null}
+                    storeLng={store.store_lng ?? null}
+                />
             )}
 
             {/* Diálogos */}
@@ -973,7 +1028,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: Store
     )
 }
 
-// Componentes auxiliares com fundo transparente
 function DashboardCard({ title, value, icon, color }: any) {
     const { colors } = useTheme()
     return (

@@ -18,23 +18,14 @@ const DAYS_OF_WEEK = [
     { key: 'sun', label: 'Domingo' },
 ]
 
-/**
- * Extrai coordenadas {lat, lng} de qualquer formato comum do campo `location` (geography).
- * Suporta:
- * - GeoJSON: { type: "Point", coordinates: [lng, lat] }
- * - WKT: "POINT(lng lat)" ou "SRID=4326;POINT(lng lat)"
- * - EWKB hexadecimal (ex.: "0101000020E6100000...") – comum no Supabase
- */
 function parseLocation(loc: any): { lat: number; lng: number } | null {
     if (!loc) return null
 
-    // GeoJSON
     if (typeof loc === 'object' && loc.type === 'Point' && Array.isArray(loc.coordinates)) {
         const [lng, lat] = loc.coordinates
         if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
     }
 
-    // WKT (com ou sem SRID)
     if (typeof loc === 'string') {
         const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
         if (match) {
@@ -43,16 +34,13 @@ function parseLocation(loc: any): { lat: number; lng: number } | null {
             if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
         }
 
-        // EWKB hexadecimal (PostGIS geography)
         if (loc.startsWith('01') && loc.length >= 42) {
             try {
-                // Decodifica float64 little‑endian a partir da posição correta
                 const hexToDouble = (hex: string) => {
                     const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(b => parseInt(b, 16)))
                     const view = new DataView(bytes.buffer)
-                    return view.getFloat64(0, true) // true = little‑endian
+                    return view.getFloat64(0, true)
                 }
-                // Pula cabeçalho de 10 bytes (20 caracteres hex)
                 const lngHex = loc.substring(20, 36)
                 const latHex = loc.substring(36, 52)
                 const lng = hexToDouble(lngHex)
@@ -91,26 +79,21 @@ export default function EditarLoja() {
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
 
-    // Configurações de venda
     const [acceptsDelivery, setAcceptsDelivery] = useState(true)
     const [acceptsPickup, setAcceptsPickup] = useState(true)
     const [acceptsPix, setAcceptsPix] = useState(true)
     const [acceptsCard, setAcceptsCard] = useState(true)
     const [acceptsCash, setAcceptsCash] = useState(true)
 
-    // Chave Pix
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
 
-    // Entrega simplificada
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
-    const [deliveryFeePerKm, setDeliveryFeePerKm] = useState('')  // valor por km
+    const [deliveryFeePerKm, setDeliveryFeePerKm] = useState('')
 
-    // Horários de funcionamento
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
-    // INITIAL LOAD
     useEffect(() => {
         const fetchStoreData = async () => {
             if (!storeSlugParam) return
@@ -155,7 +138,6 @@ export default function EditarLoja() {
             setPixKey(store.pix_key || '')
             setPixKeyType(store.pix_key_type || 'cpf')
 
-            // Delivery
             if (store.delivery_type === 'fixed') {
                 setDeliveryMode('fixed')
                 setFixedDeliveryFee(store.delivery_fee ? String(store.delivery_fee) : '')
@@ -169,7 +151,6 @@ export default function EditarLoja() {
                 setFixedDeliveryFee('')
             }
 
-            // Horários
             setBusinessHours(store.business_hours || {})
 
             if (store.logo_url) {
@@ -177,15 +158,11 @@ export default function EditarLoja() {
                 setPreview(url)
             }
 
-            // Localização: tenta extrair do campo geography
             const coords = parseLocation(store.location)
             if (coords) {
                 setLocation(coords)
-                if (!store.address) {
-                    fetchAddressFromCoords(coords.lat, coords.lng)
-                }
+                if (!store.address) fetchAddressFromCoords(coords.lat, coords.lng)
             } else {
-                // Fallback: se houver store_lat/store_lng (campos separados)
                 const lat = store.store_lat
                 const lng = store.store_lng
                 if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
@@ -202,7 +179,6 @@ export default function EditarLoja() {
         fetchStoreData()
     }, [storeSlugParam])
 
-    // SLUG CHECK
     useEffect(() => {
         if (!storeSlug || storeSlug === storeSlugParam) {
             setSlugStatus('idle')
@@ -273,25 +249,25 @@ export default function EditarLoja() {
             if (!error && data) logoPath = data.path
         }
 
-        // Salvar também as coordenadas nos campos store_lat/store_lng (para facilitar consultas)
         const latValue = location?.lat ?? null
         const lngValue = location?.lng ?? null
         const locationString = location ? `POINT(${lngValue} ${latValue})` : null
 
-        // Montar entrega
+        // Montar entrega (variáveis locais com nomes diferentes dos estados)
         let deliveryType = 'none'
-        let deliveryFee = null
-        let deliveryFeePerKm = null
+        let savedDeliveryFee: number | null = null
+        let savedFeePerKm: number | null = null
+
         if (acceptsDelivery) {
             if (deliveryMode === 'free') {
                 deliveryType = 'free'
-                deliveryFee = 0
+                savedDeliveryFee = 0
             } else if (deliveryMode === 'fixed') {
                 deliveryType = 'fixed'
-                deliveryFee = fixedDeliveryFee ? parseFloat(fixedDeliveryFee) : 0
-            } else {
+                savedDeliveryFee = fixedDeliveryFee ? parseFloat(fixedDeliveryFee) : 0
+            } else if (deliveryMode === 'distance') {
                 deliveryType = 'distance'
-                deliveryFeePerKm = deliveryFeePerKm ? parseFloat(deliveryFeePerKm) : 0
+                savedFeePerKm = deliveryFeePerKm ? parseFloat(deliveryFeePerKm) : 0  // <- CORRIGIDO
             }
         }
 
@@ -312,8 +288,8 @@ export default function EditarLoja() {
             pix_key: acceptsPix ? pixKey : null,
             pix_key_type: acceptsPix ? pixKeyType : null,
             delivery_type: deliveryType,
-            delivery_fee: deliveryFee,
-            delivery_fee_per_km: deliveryFeePerKm,
+            delivery_fee: savedDeliveryFee,
+            delivery_fee_per_km: savedFeePerKm,
             business_hours: businessHours,
         }
 

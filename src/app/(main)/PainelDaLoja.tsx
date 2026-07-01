@@ -11,14 +11,12 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { toast } from 'sonner'
 import {
     Eye,
-    Clock,
     Calendar,
     Settings,
     Plus,
     Users,
     RefreshCw,
     ChevronRight,
-    CheckCircle2,
     Clock3,
     X,
     Truck,
@@ -28,7 +26,6 @@ import {
     DollarSign,
     ShoppingCart,
     CreditCard,
-    Banknote,
     QrCode,
     Save,
     Package,
@@ -38,26 +35,12 @@ import {
     Phone,
     Store,
 } from 'lucide-react'
-import { OrderModal } from './eu/components/OrderModal'
+import { OrderModal } from '../../components/OrderModal'
 
 // Helpers de data
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
     return date.toISOString()
-}
-function startOfWeek(): string {
-    const d = new Date()
-    const day = d.getDay()
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-    d.setDate(diff)
-    d.setHours(0, 0, 0, 0)
-    return d.toISOString()
-}
-function startOfMonth(): string {
-    const d = new Date()
-    d.setDate(1)
-    d.setHours(0, 0, 0, 0)
-    return d.toISOString()
 }
 
 const DAYS_OF_WEEK = [
@@ -71,6 +54,25 @@ const DAYS_OF_WEEK = [
 ]
 
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
+
+interface DeliveryStop {
+    lat: number | null
+    lng: number | null
+    label: string
+    address: string
+    status: string
+    payment_method: string
+    total_amount: number
+    delivery_fee: number
+    items: { product_name: string; quantity: number }[]
+}
+
+interface EmployeeRoute {
+    employeeId: string
+    employeeName: string
+    color: string
+    stops: DeliveryStop[]
+}
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371
@@ -110,7 +112,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [todayVisitsCount, setTodayVisitsCount] = useState(0)
     const [totalUniqueVisitors, setTotalUniqueVisitors] = useState(0)
 
-    const [sales, setSales] = useState<any[]>([])
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({ daily: { revenue: 0, orders: 0 } })
 
@@ -118,34 +119,32 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
 
     const [employees, setEmployees] = useState<any[]>([])
-    const [employeeRoutes, setEmployeeRoutes] = useState<any[]>([])
+    const [employeeRoutes, setEmployeeRoutes] = useState<EmployeeRoute[]>([])
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
     const [showAssignModal, setShowAssignModal] = useState(false)
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
     const [assigning, setAssigning] = useState(false)
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
 
+    const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
+    const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
+
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
     const [showScheduleEditor, setShowScheduleEditor] = useState(false)
     const [savingSchedule, setSavingSchedule] = useState(false)
     const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
 
-    // Configurações de venda – alinhadas com a página de edição
     const [acceptsPix, setAcceptsPix] = useState(false)
     const [acceptsCard, setAcceptsCard] = useState(false)
-    const [acceptsDelivery, setAcceptsDelivery] = useState(false)   // faz entrega
-    const [acceptsPickup, setAcceptsPickup] = useState(false)       // retirada no local
-
-    // Configurações detalhadas de entrega (complementares)
+    const [acceptsDelivery, setAcceptsDelivery] = useState(false)
+    const [acceptsPickup, setAcceptsPickup] = useState(false)
     const [pixKey, setPixKey] = useState('')
     const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
     const [deliveryMode, setDeliveryMode] = useState<'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
     const [distanceRules, setDistanceRules] = useState<{ max_km: string; fee: string }[]>([])
-
     const [savingConfig, setSavingConfig] = useState(false)
 
-    const realtimeChannel = useRef<any>(null)
     const intervalRef = useRef<any>(null)
 
     const fetchVisitorData = useCallback(async (storeId: string) => {
@@ -174,16 +173,13 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         setStore({ ...storeData, logo_url: logoUrl })
         setBusinessHours(storeData.business_hours || {})
 
-        // Inicializar estados de configuração conforme dados da loja
         setAcceptsPix(storeData.accepts_pix ?? true)
         setAcceptsCard(storeData.accepts_card ?? true)
         setAcceptsDelivery(storeData.accepts_delivery ?? false)
         setAcceptsPickup(storeData.accepts_pickup ?? false)
-
         setPixKey(storeData.pix_key || '')
         setPixKeyType(storeData.pix_key_type || 'cpf')
 
-        // Se a loja tem delivery ativo, carregar detalhes de entrega
         if (storeData.delivery_type === 'fixed') {
             setDeliveryMode('fixed')
             setFixedDeliveryFee(storeData.delivery_fee ? String(storeData.delivery_fee) : '')
@@ -191,20 +187,80 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
             setDeliveryMode('distance')
             setDistanceRules(storeData.delivery_distance_rules || [])
         } else {
-            // padrão
             setDeliveryMode('fixed')
             setFixedDeliveryFee('')
         }
 
         const storeId = storeData.id
 
-        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
-        setEmployees(empData || [])
+        const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select(`
+                id,
+                checkout_id,
+                buyer_id,
+                buyer_name,
+                buyer_profile_slug,
+                total_amount,
+                delivery_fee,
+                delivery_option,
+                payment_method,
+                delivery_address,
+                delivery_lat,
+                delivery_lng,
+                status,
+                created_at,
+                order_items (
+                    id,
+                    product_id,
+                    product_name,
+                    quantity,
+                    unit_price,
+                    total_price
+                )
+            `)
+            .eq('store_id', storeId)
+            .order('created_at', { ascending: false })
+            .limit(100)
 
-        const { data: salesData } = await supabase.from('store_sales').select('*').eq('store_id', storeId).order('created_at', { ascending: false }).limit(100)
-        setSales(salesData || [])
+        if (ordersError) {
+            console.error('[Painel] Erro ao buscar pedidos:', ordersError)
+            toast.error('Erro ao carregar pedidos')
+            setLoading(false)
+            return
+        }
 
-        // Produtos
+        const grouped = (ordersData || []).map(order => {
+            const items = order.order_items || []
+            const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
+            const deliveryFee = Number(order.delivery_fee || 0)
+            return {
+                id: order.id,
+                checkout_id: order.checkout_id,
+                buyer_name: order.buyer_name,
+                buyer_profile_slug: order.buyer_profile_slug,
+                created_at: order.created_at,
+                status: order.status,
+                delivery_address: order.delivery_address,
+                delivery_lat: order.delivery_lat,
+                delivery_lng: order.delivery_lng,
+                items,
+                subtotal,
+                deliveryFee,
+                totalPrice: Number(order.total_amount || subtotal + deliveryFee),
+            }
+        }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+        setGroupedOrders(grouped)
+
+        const todayStart = startOfDay()
+        const dailyOrders = (ordersData || []).filter(o =>
+            new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
+            o.status === 'paid'
+        )
+        const dailyRev = dailyOrders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0)
+        setMetrics({ daily: { revenue: dailyRev, orders: dailyOrders.length } })
+
         const { data: productsData } = await supabase
             .from('products')
             .select('id, name, price, image_url, slug')
@@ -214,50 +270,49 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
 
         if (productsData && productsData.length > 0) {
             const productIds = productsData.map(p => p.id)
-            const todayStart = startOfDay()
+            const todayStartISO = startOfDay()
 
             const { data: viewsToday } = await supabase.from('product_views')
-                .select('product_id')
-                .in('product_id', productIds)
-                .gte('created_at', todayStart)
+                .select('product_id').in('product_id', productIds).gte('created_at', todayStartISO)
             const viewsTodayMap = new Map()
             viewsToday?.forEach(v => viewsTodayMap.set(v.product_id, (viewsTodayMap.get(v.product_id) || 0) + 1))
 
             const { data: viewsTotal } = await supabase.from('product_views')
-                .select('product_id')
-                .in('product_id', productIds)
+                .select('product_id').in('product_id', productIds)
             const viewsTotalMap = new Map()
             viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
 
-            const { data: cartItems } = await supabase.from('store_sales')
-                .select('product_id')
-                .in('product_id', productIds)
-                .eq('status', 'pending')
-            const cartCountMap = new Map()
-            cartItems?.forEach(c => cartCountMap.set(c.product_id, (cartCountMap.get(c.product_id) || 0) + 1))
-
-            const { data: allSalesForProducts } = await supabase.from('store_sales')
-                .select('product_id')
-                .in('product_id', productIds)
+            const { data: orderIdsData } = await supabase
+                .from('orders')
+                .select('id')
                 .eq('store_id', storeId)
+            const orderIds = orderIdsData?.map(o => o.id) || []
             const salesCountMap = new Map()
-            allSalesForProducts?.forEach(s => salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + 1))
+            if (orderIds.length > 0) {
+                const { data: orderItemsSales } = await supabase
+                    .from('order_items')
+                    .select('product_id, quantity')
+                    .in('order_id', orderIds)
+                    .in('product_id', productIds)
+                orderItemsSales?.forEach(s => {
+                    salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
+                })
+            }
 
-            const combinedProducts = productsData.map(p => ({
-                id: p.id,
-                name: p.name,
-                price: p.price,
-                image_url: p.image_url,
-                slug: p.slug,
+            const combined = productsData.map(p => ({
+                ...p,
                 viewsToday: viewsTodayMap.get(p.id) || 0,
                 viewsTotal: viewsTotalMap.get(p.id) || 0,
-                inCart: cartCountMap.get(p.id) || 0,
+                inCart: 0,
                 salesCount: salesCountMap.get(p.id) || 0,
             }))
-            setProducts(combinedProducts)
+            setProducts(combined)
         } else {
             setProducts([])
         }
+
+        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
+        setEmployees(empData || [])
 
         await fetchVisitorData(storeId)
         setLoading(false)
@@ -265,47 +320,136 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
-    useEffect(() => {
-        const groups: Record<string, any> = {}
-        sales.forEach(s => {
-            if (!groups[s.checkout_id]) groups[s.checkout_id] = { checkout_id: s.checkout_id, buyer_name: s.buyer_name, buyer_profile_slug: s.buyer_profile_slug, created_at: s.created_at, status: s.status, items: [], totalPrice: 0, delivery_address: s.delivery_address, delivery_lat: s.delivery_lat, delivery_lng: s.delivery_lng, employee_id: s.employee_id }
-            groups[s.checkout_id].items.push(s)
-            groups[s.checkout_id].totalPrice += s.price
-        })
-        setGroupedOrders(Object.values(groups).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
-
-        const now = new Date()
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-        const daily = sales.filter(s => new Date(s.created_at).getTime() >= today)
-        setMetrics({ daily: { revenue: daily.reduce((a, s) => a + s.price, 0), orders: new Set(daily.map(s => s.checkout_id)).size } })
-    }, [sales])
-
     const fetchEmployeeRoutes = useCallback(async () => {
         if (!store?.id) return
-        const { data } = await supabase.from('delivery_assignments').select('employee_id, checkout_id, sequence_order, status, store_sales(delivery_lat, delivery_lng, delivery_address, buyer_name)').eq('store_id', store.id).order('sequence_order')
-        if (!data) return
-        const map = new Map<string, any[]>()
-        data.forEach((d: any) => {
-            if (!map.has(d.employee_id)) map.set(d.employee_id, [])
-            map.get(d.employee_id)!.push({ checkout_id: d.checkout_id, sequence: d.sequence_order, status: d.status, lat: d.store_sales?.delivery_lat, lng: d.store_sales?.delivery_lng, address: d.store_sales?.delivery_address, buyer: d.store_sales?.buyer_name })
+
+        // 1. Busca as atribuições
+        const { data: assignments, error: assignError } = await supabase
+            .from('delivery_assignments')
+            .select('employee_id, checkout_id, sequence_order, status')
+            .eq('store_id', store.id)
+            .order('sequence_order')
+
+        if (assignError) {
+            console.error('[Painel] Erro ao buscar atribuições:', assignError)
+            return
+        }
+        if (!assignments || assignments.length === 0) {
+            setEmployeeRoutes([])
+            return
+        }
+
+        // 2. Extrai os checkout_ids únicos
+        const checkoutIds = [...new Set(assignments.map(a => a.checkout_id))]
+
+        // 3. Busca os pedidos correspondentes com seus itens
+        const { data: orders, error: ordersError } = await supabase
+            .from('orders')
+            .select(`
+                checkout_id,
+                delivery_lat,
+                delivery_lng,
+                delivery_address,
+                buyer_name,
+                payment_method,
+                total_amount,
+                delivery_fee,
+                order_items (
+                    product_name,
+                    quantity
+                )
+            `)
+            .in('checkout_id', checkoutIds)
+
+        if (ordersError) {
+            console.error('[Painel] Erro ao buscar pedidos das rotas:', ordersError)
+            return
+        }
+
+        // 4. Cria um mapa de pedidos por checkout_id
+        const ordersMap = new Map<string, any>()
+        orders?.forEach(order => {
+            ordersMap.set(order.checkout_id, order)
         })
-        setEmployeeRoutes(Array.from(map.entries()).map(([eid, stops], idx) => {
+
+        // 5. Monta as rotas por entregador
+        const map = new Map<string, any[]>()
+        assignments.forEach(assignment => {
+            const order = ordersMap.get(assignment.checkout_id)
+            if (!map.has(assignment.employee_id)) map.set(assignment.employee_id, [])
+
+            const items = order ? (order.order_items || []).map((item: any) => ({
+                product_name: item.product_name,
+                quantity: item.quantity,
+            })) : []
+
+            map.get(assignment.employee_id)!.push({
+                checkout_id: assignment.checkout_id,
+                sequence: assignment.sequence_order,
+                status: assignment.status,
+                lat: order?.delivery_lat || null,
+                lng: order?.delivery_lng || null,
+                address: order?.delivery_address || '',
+                buyer: order?.buyer_name || '',
+                payment_method: order?.payment_method || '',
+                total_amount: order?.total_amount || 0,
+                delivery_fee: order?.delivery_fee || 0,
+                items,
+            })
+        })
+
+        const routes: EmployeeRoute[] = Array.from(map.entries()).map(([eid, stops], idx) => {
             const emp = employees.find(e => e.id === eid)
-            return { employeeId: eid, employeeName: emp?.name || 'Entregador', color: ROUTE_COLORS[idx % ROUTE_COLORS.length], stops: stops.filter(s => s.lat && s.lng).map(s => ({ lat: s.lat, lng: s.lng, label: s.sequence.toString(), address: s.address || '', status: s.status })) }
-        }))
+            return {
+                employeeId: eid,
+                employeeName: emp?.name || 'Entregador',
+                color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
+                stops: stops.map(s => ({
+                    lat: s.lat,
+                    lng: s.lng,
+                    label: s.sequence.toString(),
+                    address: s.address || '',
+                    status: s.status,
+                    payment_method: s.payment_method,
+                    total_amount: s.total_amount,
+                    delivery_fee: s.delivery_fee,
+                    items: s.items,
+                })),
+            }
+        })
+
+        setEmployeeRoutes(routes)
     }, [store?.id, employees])
 
     useEffect(() => { if (store?.id) fetchEmployeeRoutes() }, [store?.id, employees, fetchEmployeeRoutes])
 
     useEffect(() => {
         if (!store?.id) return
-        const ch = supabase.channel(`painel-${store.id}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales', filter: `store_id=eq.${store.id}` }, () => loadDashboard())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${store.id}` }, () => fetchEmployeeRoutes())
+        const ordersChannel = supabase
+            .channel(`painel-orders-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${store.id}` },
+                () => loadDashboard()
+            )
             .subscribe()
-        realtimeChannel.current = ch
+
+        const assignmentsChannel = supabase
+            .channel(`painel-assignments-${store.id}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${store.id}` },
+                () => fetchEmployeeRoutes()
+            )
+            .subscribe()
+
         intervalRef.current = setInterval(() => fetchVisitorData(store.id), 10000)
-        return () => { supabase.removeChannel(ch); clearInterval(intervalRef.current) }
+
+        return () => {
+            supabase.removeChannel(ordersChannel)
+            supabase.removeChannel(assignmentsChannel)
+            clearInterval(intervalRef.current)
+        }
     }, [store?.id, loadDashboard, fetchVisitorData, fetchEmployeeRoutes])
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
@@ -319,23 +463,96 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const handleAssignDelivery = async () => {
         if (!selectedEmployeeId || selectedOrderIds.size === 0 || !store) return
         setAssigning(true)
-        const { store_lat, store_lng } = store
-        if (!store_lat || !store_lng) { toast.error('Configure as coordenadas da loja.'); setAssigning(false); return }
-        const ordersToAssign = groupedOrders.filter(o => selectedOrderIds.has(o.checkout_id))
-        if (ordersToAssign.some(o => !o.delivery_lat || !o.delivery_lng)) { toast.error('Alguns pedidos não têm coordenadas.'); setAssigning(false); return }
-        const stops = ordersToAssign.map(o => ({ id: o.checkout_id, lat: o.delivery_lat, lng: o.delivery_lng }))
-        const optimized = optimizeRoute(store_lat, store_lng, stops)
-        const inserts = optimized.map(stop => ({ store_id: store.id, employee_id: selectedEmployeeId, checkout_id: stop.id, sequence_order: stop.sequence, status: 'pending' }))
-        const { error } = await supabase.from('delivery_assignments').insert(inserts)
-        if (error) { toast.error('Erro ao atribuir entregas.'); setAssigning(false); return }
-        for (const id of selectedOrderIds) await supabase.from('store_sales').update({ employee_id: selectedEmployeeId }).eq('checkout_id', id)
-        toast.success('Entregas atribuídas!')
-        setSelectedOrderIds(new Set()); setShowAssignModal(false); setSelectedEmployeeId(null); loadDashboard(); fetchEmployeeRoutes(); setAssigning(false)
+
+        try {
+            const { store_lat, store_lng } = store
+            if (!store_lat || !store_lng) {
+                toast.error('Configure as coordenadas da loja.')
+                setAssigning(false)
+                return
+            }
+
+            const ordersToAssign = groupedOrders.filter(o => selectedOrderIds.has(o.checkout_id))
+            if (ordersToAssign.some(o => !o.delivery_lat || !o.delivery_lng)) {
+                toast.error('Alguns pedidos não têm coordenadas de entrega.')
+                setAssigning(false)
+                return
+            }
+
+            const { error: deleteError } = await supabase
+                .from('delivery_assignments')
+                .delete()
+                .in('checkout_id', Array.from(selectedOrderIds))
+
+            if (deleteError) {
+                console.error('[Painel] Erro ao limpar atribuições anteriores:', deleteError)
+                toast.error('Erro ao limpar atribuições anteriores.')
+                setAssigning(false)
+                return
+            }
+
+            const stops = ordersToAssign.map(o => ({ id: o.checkout_id, lat: o.delivery_lat, lng: o.delivery_lng }))
+            const optimized = optimizeRoute(store_lat, store_lng, stops)
+            const inserts = optimized.map(stop => ({
+                store_id: store.id,
+                employee_id: selectedEmployeeId,
+                checkout_id: stop.id,
+                sequence_order: stop.sequence,
+                status: 'pending'
+            }))
+
+            const { error: insertError } = await supabase.from('delivery_assignments').insert(inserts)
+            if (insertError) {
+                console.error('[Painel] Erro ao atribuir entregas:', insertError)
+                toast.error(`Erro ao atribuir: ${insertError.message}`)
+                setAssigning(false)
+                return
+            }
+
+            toast.success('Entregas atribuídas com sucesso!')
+            setSelectedOrderIds(new Set())
+            setShowAssignModal(false)
+            setSelectedEmployeeId(null)
+            loadDashboard()
+            fetchEmployeeRoutes()
+        } catch (err: any) {
+            console.error('[Painel] Erro inesperado:', err)
+            toast.error('Erro inesperado ao atribuir entregas.')
+        } finally {
+            setAssigning(false)
+        }
+    }
+
+    const handleSingleAssign = async (employeeId: string, order: any) => {
+        if (!store || !employeeId) return
+        setAssigning(true)
+        try {
+            await supabase.from('delivery_assignments').delete().eq('checkout_id', order.checkout_id)
+
+            const { error } = await supabase.from('delivery_assignments').insert({
+                store_id: store.id,
+                employee_id: employeeId,
+                checkout_id: order.checkout_id,
+                sequence_order: 1,
+                status: 'pending'
+            })
+
+            if (error) throw error
+
+            toast.success(`Pedido atribuído ao entregador!`)
+            setSingleAssignOpen(null)
+            loadDashboard()
+            fetchEmployeeRoutes()
+        } catch (err: any) {
+            toast.error(`Erro: ${err.message}`)
+        } finally {
+            setAssigning(false)
+        }
     }
 
     const handleOrderAction = async (status: string) => {
         if (!selectedOrder) return
-        await supabase.from('store_sales').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
+        await supabase.from('orders').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
         setSelectedOrder(null); loadDashboard(); toast.success('Status atualizado.')
     }
 
@@ -437,7 +654,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     <div>
                         <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Vendas Hoje</p>
                         <p className="text-2xl font-black" style={{ color: colors.accent }}>R$ {metrics.daily.revenue.toFixed(2)}</p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>{metrics.daily.orders} pedidos</p>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>{metrics.daily.orders} pedidos finalizados</p>
                     </div>
                     <DollarSign size={40} style={{ color: colors.accent, opacity: 0.6 }} />
                 </div>
@@ -457,9 +674,26 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accent }}>Novos ({newOrders.length})</h4>
                         {newOrders.map(order => (
-                            <div key={order.checkout_id} onClick={() => setSelectedOrder(order)} className="flex items-center justify-between p-2 rounded-lg mb-1 cursor-pointer" style={{ background: `${colors.accent}10` }}>
-                                <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
-                                <span style={{ color: colors.textSecondary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                            <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: `${colors.accent}10` }}>
+                                <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    <div className="text-right">
+                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSingleAssignOpen({ order })
+                                    }}
+                                    className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors"
+                                    title="Atribuir entregador"
+                                >
+                                    <Send size={14} style={{ color: colors.accent }} />
+                                </button>
                             </div>
                         ))}
                     </div>
@@ -476,7 +710,24 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                                     </div>
                                     <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 </div>
-                                <span style={{ color: colors.textSecondary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="text-right">
+                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSingleAssignOpen({ order })
+                                        }}
+                                        className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                                        title="Atribuir entregador"
+                                    >
+                                        <Send size={14} style={{ color: colors.accent }} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -493,7 +744,24 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                                     </div>
                                     <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
                                 </div>
-                                <span style={{ color: colors.textSecondary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                <div className="flex items-center gap-2">
+                                    <div className="text-right">
+                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                        {order.deliveryFee > 0 && (
+                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSingleAssignOpen({ order })
+                                        }}
+                                        className="p-1 rounded-full hover:bg-white/10 transition-colors"
+                                        title="Atribuir entregador"
+                                    >
+                                        <Send size={14} style={{ color: colors.accent }} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -505,7 +773,12 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                         {finished.slice(0, 3).map(order => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)} className="flex items-center justify-between p-2 rounded-lg mb-1 cursor-pointer" style={{ background: '#22c55e10' }}>
                                 <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
-                                <span style={{ color: colors.textSecondary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                <div className="text-right">
+                                    <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                    {order.deliveryFee > 0 && (
+                                        <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -514,7 +787,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 {groupedOrders.length === 0 && <p className="text-center text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>}
             </div>
 
-            {/* Produtos com scroll horizontal e filtro de ordenação */}
+            {/* Produtos */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                 <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><Package size={16} /> Produtos</h3>
@@ -583,26 +856,173 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
             {/* Entregadores e rotas */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                 <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><Truck size={16} /> Entregadores</h3>
-                    <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)} className="text-xs font-bold" style={{ color: colors.accent }}>Gerenciar</button>
+                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                        <Truck size={16} /> Entregadores ({employees.length})
+                    </h3>
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)}
+                        className="text-xs font-bold"
+                        style={{ color: colors.accent }}
+                    >
+                        Gerenciar
+                    </button>
                 </div>
+
                 {employees.length === 0 ? (
                     <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum entregador cadastrado.</p>
                 ) : (
-                    <div className="space-y-2">
-                        {employees.slice(0, 3).map(emp => {
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                        {employees.map(emp => {
                             const route = employeeRoutes.find(r => r.employeeId === emp.id)
+                            const isExpanded = expandedEmployee === emp.id
+
                             return (
-                                <div key={emp.id} className="flex items-center justify-between p-2 rounded-lg" style={{ background: `${colors.accent}10` }}>
-                                    <div>
-                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
-                                        <p className="text-xs" style={{ color: colors.textSecondary }}>{route ? `${route.stops.length} paradas` : 'Sem entregas'}</p>
+                                <div
+                                    key={emp.id}
+                                    className="rounded-xl border"
+                                    style={{ background: 'transparent', borderColor: colors.border }}
+                                >
+                                    <div
+                                        onClick={() => setExpandedEmployee(isExpanded ? null : emp.id)}
+                                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                                                style={{ background: route?.color || '#6b7280' }}
+                                            >
+                                                {emp.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
+                                                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                                    {route ? `${route.stops.length} paradas` : 'Sem entregas'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {route && route.stops.length > 0 && (
+                                                <div className="flex -space-x-1">
+                                                    {route.stops.slice(0, 3).map((stop, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white border border-black/20"
+                                                            style={{ background: route.color }}
+                                                        >
+                                                            {stop.label}
+                                                        </div>
+                                                    ))}
+                                                    {route.stops.length > 3 && (
+                                                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white bg-gray-600 border border-black/20">
+                                                            +{route.stops.length - 3}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <ChevronRight
+                                                size={16}
+                                                className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                                style={{ color: colors.textSecondary }}
+                                            />
+                                        </div>
                                     </div>
-                                    {route && <div className="flex gap-1">
-                                        {route.stops.slice(0, 3).map((stop: { label: string }, i: number) => (
-                                            <div key={i} className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] text-white" style={{ background: route.color }}>{stop.label}</div>
-                                        ))}
-                                    </div>}
+
+                                    {isExpanded && route && (
+                                        <div className="px-3 pb-3 pt-0">
+                                            <div className="space-y-2 mt-2">
+                                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
+                                                    Entregas atribuídas:
+                                                </p>
+                                                {route.stops.map((stop: DeliveryStop, idx: number) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="p-3 rounded-lg text-xs"
+                                                        style={{ background: `${route.color}10`, border: `1px solid ${route.color}30` }}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span
+                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold"
+                                                                    style={{ background: route.color }}
+                                                                >
+                                                                    {stop.label}
+                                                                </span>
+                                                                <span className="font-medium" style={{ color: colors.textPrimary }}>
+                                                                    {stop.address
+                                                                        ? stop.address.substring(0, 40) + (stop.address.length > 40 ? '...' : '')
+                                                                        : 'Sem endereço'}
+                                                                </span>
+                                                            </div>
+                                                            <span
+                                                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                                                style={{
+                                                                    background:
+                                                                        stop.status === 'delivered' ? '#22c55e' :
+                                                                            stop.status === 'in_transit' ? '#f59e0b' : '#94a3b8',
+                                                                    color: 'white',
+                                                                }}
+                                                            >
+                                                                {stop.status === 'pending' ? 'Pendente' :
+                                                                    stop.status === 'in_transit' ? 'A caminho' : 'Entregue'}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="ml-7 space-y-2">
+                                                            {stop.items && stop.items.length > 0 && (
+                                                                <div>
+                                                                    <p className="text-[10px] font-bold mb-1" style={{ color: colors.textSecondary }}>
+                                                                        Produtos:
+                                                                    </p>
+                                                                    <ul className="list-disc list-inside text-[10px]" style={{ color: colors.textPrimary }}>
+                                                                        {stop.items.map((item, i) => (
+                                                                            <li key={i}>
+                                                                                {item.product_name} x{item.quantity}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="flex flex-col gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="font-bold">Pagamento:</span>
+                                                                    <span className="capitalize" style={{ color: colors.textPrimary }}>
+                                                                        {stop.payment_method === 'credit_card' ? '💳 Cartão' :
+                                                                            stop.payment_method === 'pix' ? '🔷 Pix' :
+                                                                                stop.payment_method === 'money' ? '💵 Dinheiro' :
+                                                                                    stop.payment_method || '—'}
+                                                                    </span>
+                                                                    {stop.payment_method === 'credit_card' && (
+                                                                        <span className="text-red-400 font-bold">(Levar máquina)</span>
+                                                                    )}
+                                                                    {stop.payment_method === 'money' && (
+                                                                        <span className="text-yellow-400 font-bold">(Levar troco)</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="font-bold">Total:</span>
+                                                                    <span style={{ color: colors.textPrimary }}>
+                                                                        R$ {Number(stop.total_amount || 0).toFixed(2)}
+                                                                    </span>
+                                                                    {stop.delivery_fee > 0 && (
+                                                                        <span style={{ color: colors.textSecondary }}>
+                                                                            (frete R$ {Number(stop.delivery_fee).toFixed(2)})
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                {route.stops.length === 0 && (
+                                                    <p className="text-xs text-center py-2" style={{ color: colors.textSecondary }}>
+                                                        Nenhuma entrega mapeada.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}
@@ -610,7 +1030,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 )}
             </div>
 
-            {/* Informações da Loja (endereço, whatsapp) */}
+            {/* Informações da Loja */}
             {store.address || store.whatsapp ? (
                 <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                     <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}>
@@ -631,13 +1051,12 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             ) : null}
 
-            {/* Configurações de Venda e Entrega (agora alinhadas com a edição) */}
+            {/* Configurações */}
             <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                 <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
                     <Settings size={16} /> Configurações da Loja
                 </h3>
 
-                {/* Faz entrega */}
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <Truck size={18} style={{ color: acceptsDelivery ? colors.accent : colors.textSecondary }} />
@@ -672,7 +1091,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </div>
                 )}
 
-                {/* Retirada no local */}
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <Store size={18} style={{ color: acceptsPickup ? colors.accent : colors.textSecondary }} />
@@ -683,7 +1101,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </button>
                 </div>
 
-                {/* Aceita Cartão */}
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <CreditCard size={18} style={{ color: acceptsCard ? '#0984e3' : colors.textSecondary }} />
@@ -694,7 +1111,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </button>
                 </div>
 
-                {/* Aceita PIX */}
                 <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                         <QrCode size={18} style={{ color: acceptsPix ? '#00b894' : colors.textSecondary }} />
@@ -778,7 +1194,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </button>
             </div>
 
-            {/* Modal de atribuição */}
+            {/* Modal de atribuição múltipla */}
             {showAssignModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
                     <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -797,6 +1213,43 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                         <button onClick={handleAssignDelivery} disabled={!selectedEmployeeId || assigning} className="w-full mt-4 py-2 rounded-full font-bold" style={{ background: selectedEmployeeId ? colors.accent : colors.border, color: selectedEmployeeId ? 'white' : colors.textSecondary }}>
                             {assigning ? 'Atribuindo...' : 'Confirmar'}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de atribuição rápida */}
+            {singleAssignOpen && (
+                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSingleAssignOpen(null)}>
+                    <div className="w-full max-w-xs rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atribuir pedido</h3>
+                            <button onClick={() => setSingleAssignOpen(null)}><X size={20} /></button>
+                        </div>
+                        <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
+                            Pedido de @{singleAssignOpen.order.buyer_profile_slug} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}
+                        </p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {employees.length === 0 ? (
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum entregador cadastrado.</p>
+                            ) : (
+                                employees.map(emp => (
+                                    <div
+                                        key={emp.id}
+                                        onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)}
+                                        className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                        style={{ borderColor: colors.border }}
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white font-bold">
+                                            {emp.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{emp.name}</p>
+                                            {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
