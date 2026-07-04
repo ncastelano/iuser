@@ -28,7 +28,6 @@ import {
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
-import BusinessHour from './BusinessHour'
 import StoreCalendar from './StoreCalendar'
 
 function startOfDay(date: Date = new Date()): string {
@@ -969,11 +968,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             </div>
 
-            {/* Horários de Funcionamento */}
-            <BusinessHour
-                storeId={store.id}
-                initialBusinessHours={initialBusinessHours}
-            />
+
 
             {/* Agendamentos */}
             <StoreCalendar storeId={store.id} />
