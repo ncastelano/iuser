@@ -146,7 +146,17 @@ const useCartStore = create<CartState>()(
                 if (!userId) return
                 const { itemsByStore, storeDetails } = get()
 
-                await supabase.from('carts').delete().eq('user_id', userId)
+                // 1. Deletar registros existentes
+                const { error: deleteError } = await supabase
+                    .from('carts')
+                    .delete()
+                    .eq('user_id', userId)
+
+                if (deleteError) {
+                    console.error('Erro ao deletar carrinho existente:', JSON.stringify(deleteError, null, 2))
+                    // Se o delete falhar (ex.: RLS), podemos tentar usar upsert em vez de delete+insert
+                    // Mas por enquanto apenas logamos; você pode implementar upsert depois
+                }
 
                 const rows: any[] = []
                 for (const slug of Object.keys(itemsByStore)) {
@@ -165,8 +175,11 @@ const useCartStore = create<CartState>()(
                 }
 
                 if (rows.length > 0) {
-                    const { error } = await supabase.from('carts').insert(rows)
-                    if (error) console.error('Erro ao sincronizar carrinho:', error)
+                    const { error: insertError } = await supabase.from('carts').insert(rows)
+                    if (insertError) {
+                        // Log detalhado do erro
+                        console.error('Erro ao sincronizar carrinho:', JSON.stringify(insertError, null, 2))
+                    }
                 }
             },
         }),

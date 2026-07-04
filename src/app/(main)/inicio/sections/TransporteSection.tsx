@@ -24,7 +24,7 @@ export default function TransporteSection({ dragHandle }: TransporteSectionProps
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
-    // Estilo do botão primário (destaque) – igual às demais seções
+    // Estilo do botão primário (agora com opacidade reduzida e sem cursor)
     const primaryButtonStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -40,13 +40,14 @@ export default function TransporteSection({ dragHandle }: TransporteSectionProps
         color: colors.accentText,
         border: `1px solid ${colors.accent}`,
         boxShadow: `0 4px 12px ${colors.accent}40`,
-        cursor: 'pointer',
+        opacity: 0.5,
+        cursor: 'not-allowed',
     }
 
     return (
         <section>
             <div
-                className="rounded-2xl p-5 flex flex-col gap-1"
+                className="rounded-2xl p-5 flex flex-col gap-1 relative"
                 style={{
                     background: cardBg,
                     backdropFilter: 'blur(12px)',
@@ -55,6 +56,18 @@ export default function TransporteSection({ dragHandle }: TransporteSectionProps
                     boxShadow: colors.shadow,
                 }}
             >
+                {/* Badge "Em breve" posicionado no canto superior direito */}
+                <span
+                    className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide"
+                    style={{
+                        background: `${colors.accent}20`,
+                        color: colors.accent,
+                        border: `1px solid ${colors.accent}40`,
+                    }}
+                >
+                    Em breve
+                </span>
+
                 <div className="flex items-center gap-2 mb-1">
                     {dragHandle}
                     <MapPin size={20} style={{ color: colors.accent }} />
@@ -66,16 +79,12 @@ export default function TransporteSection({ dragHandle }: TransporteSectionProps
                     Escolha seu trajeto e como você quer ir
                 </p>
 
-                {/* Botão colorido com destaque */}
+                {/* Botão desabilitado visualmente */}
                 <button
                     className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
                     style={primaryButtonStyle}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.filter = 'brightness(0.95)'
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.filter = 'brightness(1)'
-                    }}
+                    disabled
+                    aria-disabled="true"
                 >
                     <MapPin size={18} />
                     Escolher trajeto

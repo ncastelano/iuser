@@ -11,15 +11,13 @@ import {
     Search,
     Share2,
     Clock,
-    MapPin,
+    Navigation,
     ExternalLink,
     Settings,
     Star,
     X,
     Plus,
-    Navigation,
     Shield,
-    Grid3X3,
     MessageCircle,
     QrCode,
     Eye,
@@ -28,7 +26,6 @@ import {
     Store
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { ScheduleModal } from '@/components/ScheduleModal'
 import { getAvatarUrl } from '@/lib/avatar'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
@@ -37,6 +34,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import SacolaButton from '@/app/SacolaButton'
+import StoreSchedule from '../../StoreSchedule'
 
 type RatingRow = {
     id: string
@@ -73,20 +71,6 @@ type SaleType = {
     } | null
     products?: {
         name: string
-    } | null
-}
-
-type AppointmentType = {
-    id: string
-    start_time: string
-    service_name: string
-    status: string
-    client_id: string
-    store_id: string
-    profiles?: {
-        avatar_url: string | null
-        name: string | null
-        profileSlug: string | null
     } | null
 }
 
@@ -221,9 +205,7 @@ export default function StorePage() {
     const [mounted, setMounted] = useState(false)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [myRating, setMyRating] = useState(0)
-    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
     const [recentSales, setRecentSales] = useState<SaleType[]>([])
-    const [appointmentsToday, setAppointmentsToday] = useState<AppointmentType[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cartAnimating, setCartAnimating] = useState(false)
     const { itemsByStore, addItem, removeItem } = useCartStore()
@@ -232,6 +214,7 @@ export default function StorePage() {
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
     const [activeTab, setActiveTab] = useState<TabType>('products')
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
 
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
@@ -317,21 +300,6 @@ export default function StorePage() {
         }
         return store.is_open
     }, [store])
-
-    const toggleScheduling = async () => {
-        if (!store) return
-        const newStatus = !store.allow_scheduling
-        const { error } = await supabase
-            .from('stores')
-            .update({ allow_scheduling: newStatus })
-            .eq('id', store.id)
-        if (error) {
-            toast.error('Erro ao atualizar permissão de agendamentos.')
-            return
-        }
-        setStore(prev => (prev ? { ...prev, allow_scheduling: newStatus } : null))
-        toast.success(newStatus ? 'Agendamentos permitidos!' : 'Agendamentos cancelados.')
-    }
 
     useEffect(() => {
         setMounted(true)
@@ -428,25 +396,6 @@ export default function StorePage() {
         setStore({ ...foundStore, logo_url: logoUrl, final_whatsapp: storeWhatsapp })
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
-
-        // Agendamentos de hoje
-        const today = new Date()
-        const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString()
-        const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString()
-        const { data: todayData } = await supabase
-            .from('appointments')
-            .select('*, profiles:client_id(avatar_url, name, "profileSlug")')
-            .eq('store_id', foundStore.id)
-            .gte('start_time', startOfDay)
-            .lte('start_time', endOfDay)
-            .neq('status', 'declined')
-            .order('start_time', { ascending: true })
-        setAppointmentsToday(
-            (todayData || []).map((item: any) => ({
-                ...item,
-                profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles,
-            }))
-        )
 
         // Vendas recentes (avaliações)
         const { data: salesData } = await supabase
@@ -720,12 +669,15 @@ export default function StorePage() {
 
             <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
 
-            {store && (
-                <ScheduleModal
-                    isOpen={isScheduleModalOpen}
-                    onClose={() => setIsScheduleModalOpen(false)}
+            {/* Modal de agendamento */}
+            {showScheduleModal && store && (
+                <StoreSchedule
+                    storeId={store.id}
+                    storeName={store.name}
+                    storeSlug={store.storeSlug}
+                    businessHours={store.business_hours}
+                    onClose={() => setShowScheduleModal(false)}
                     onSuccess={loadStore}
-                    store={{ id: store.id, name: store.name, storeSlug: store.storeSlug }}
                 />
             )}
 
@@ -831,16 +783,20 @@ export default function StorePage() {
                             </span>
                         </button>
                     )}
-                    {store.allow_scheduling && (
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold shadow-md hover:scale-105 transition-transform"
-                            style={{ background: colors.accent, color: colors.accentText }}
-                        >
-                            <Calendar className="w-3.5 h-3.5" />
-                            Agendar horário
-                        </button>
-                    )}
+                    {/* NOVO BOTÃO MARCAR COMPROMISSO */}
+                    <button
+                        onClick={() => setShowScheduleModal(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                        style={{
+                            background: colors.accent,
+                            borderColor: colors.accent,
+                            color: colors.accentText,
+                        }}
+                    >
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Agendar um compromisso</span>
+                    </button>
+                    {/* Horários de funcionamento */}
                     {isOwner ? (
                         <button
                             onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
@@ -877,72 +833,6 @@ export default function StorePage() {
                         )
                     )}
                 </div>
-
-                {/* Agendados hoje */}
-                {appointmentsToday.length > 0 && (
-                    <div className="space-y-2">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest" style={{ color: colors.textSecondary }}>Hoje</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                            {appointmentsToday.slice(0, 4).map((appt, i) => (
-                                <div
-                                    key={appt.id || i}
-                                    onClick={() => appt.profiles?.profileSlug && router.push(`/${appt.profiles.profileSlug}`)}
-                                    className="rounded-2xl p-3 border cursor-pointer hover:shadow-md transition-all"
-                                    style={cardStyle}
-                                >
-                                    <div className="flex items-center gap-2.5 mb-2">
-                                        <div className="relative">
-                                            <div
-                                                className="w-9 h-9 rounded-full flex items-center justify-center shadow-md ring-2"
-                                                style={{
-                                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                                }}
-                                            >
-                                                {appt.profiles?.avatar_url ? (
-                                                    <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover rounded-full" alt="" />
-                                                ) : (
-                                                    <span className="text-xs font-black" style={{ color: colors.accentText }}>
-                                                        {appt.profiles?.name?.charAt(0) || '?'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="absolute -bottom-0.5 -right-0.5 rounded-full px-1.5 py-0.5 ring-2 ring-white flex items-center" style={{ background: colors.accent }}>
-                                                <Clock className="w-2 h-2 mr-0.5" style={{ color: colors.accentText }} />
-                                                <span className="text-[6px] font-black" style={{ color: colors.accentText }}>
-                                                    {new Date(appt.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[11px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.profiles?.name || 'Cliente'}</p>
-                                            <p className="text-[8px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>Agendado</p>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-xl p-2 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.accentLight }}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0" style={{ background: 'transparent' }}>
-                                                <Calendar className="w-3.5 h-3.5" style={{ color: colors.accent }} />
-                                            </div>
-                                            <p className="text-[9px] font-bold truncate leading-tight" style={{ color: colors.textPrimary }}>{appt.service_name || 'Agendamento'}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Botão Agendar grande */}
-                {store.allow_scheduling && (
-                    <button
-                        onClick={() => setIsScheduleModalOpen(true)}
-                        className="w-full py-3.5 rounded-2xl font-black uppercase text-sm tracking-wider shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
-                        style={{ background: colors.accent, color: colors.accentText, boxShadow: `0 8px 24px ${colors.accent}50` }}
-                    >
-                        <Calendar className="w-5 h-5 inline mr-2" />
-                        Agendar horário
-                    </button>
-                )}
 
                 {/* Abas */}
                 <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>

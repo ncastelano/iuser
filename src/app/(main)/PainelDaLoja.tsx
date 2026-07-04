@@ -1,4 +1,3 @@
-// components/PainelDaLoja.tsx
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
@@ -11,23 +10,15 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { toast } from 'sonner'
 import {
     Eye,
-    Calendar,
     Settings,
     Plus,
     Users,
     RefreshCw,
-    ChevronRight,
-    Clock3,
     X,
     Truck,
-    CheckSquare,
-    Square,
     Send,
     DollarSign,
     ShoppingCart,
-    CreditCard,
-    QrCode,
-    Save,
     Package,
     ArrowUpDown,
     Pencil,
@@ -36,22 +27,14 @@ import {
     Store,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
+import Employee from './Employee'
+import BusinessHour from './BusinessHour'
+import StoreCalendar from './StoreCalendar'
 
-// Helpers de data
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
     return date.toISOString()
 }
-
-const DAYS_OF_WEEK = [
-    { key: 'mon', label: 'Segunda' },
-    { key: 'tue', label: 'Terça' },
-    { key: 'wed', label: 'Quarta' },
-    { key: 'thu', label: 'Quinta' },
-    { key: 'fri', label: 'Sexta' },
-    { key: 'sat', label: 'Sábado' },
-    { key: 'sun', label: 'Domingo' },
-]
 
 const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
@@ -129,11 +112,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
     const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
 
-    const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
-    const [showScheduleEditor, setShowScheduleEditor] = useState(false)
-    const [savingSchedule, setSavingSchedule] = useState(false)
-    const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
-
     const [acceptsPix, setAcceptsPix] = useState(false)
     const [acceptsCard, setAcceptsCard] = useState(false)
     const [acceptsDelivery, setAcceptsDelivery] = useState(false)
@@ -143,7 +121,13 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const [deliveryMode, setDeliveryMode] = useState<'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
     const [distanceRules, setDistanceRules] = useState<{ max_km: string; fee: string }[]>([])
-    const [savingConfig, setSavingConfig] = useState(false)
+
+    const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
+    const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
+
+    const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
+
+    const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
     const intervalRef = useRef<any>(null)
 
@@ -171,7 +155,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
 
         const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null
         setStore({ ...storeData, logo_url: logoUrl })
-        setBusinessHours(storeData.business_hours || {})
+        setInitialBusinessHours(storeData.business_hours || {})
 
         setAcceptsPix(storeData.accepts_pix ?? true)
         setAcceptsCard(storeData.accepts_card ?? true)
@@ -192,6 +176,15 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         }
 
         const storeId = storeData.id
+
+        if (storeData.owner_id) {
+            const { data: ownerData } = await supabase
+                .from('profiles')
+                .select('name, phone')
+                .eq('id', storeData.owner_id)
+                .single()
+            if (ownerData) setOwnerProfile({ name: ownerData.name, phone: ownerData.phone })
+        }
 
         const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
@@ -323,7 +316,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const fetchEmployeeRoutes = useCallback(async () => {
         if (!store?.id) return
 
-        // 1. Busca as atribuições
         const { data: assignments, error: assignError } = await supabase
             .from('delivery_assignments')
             .select('employee_id, checkout_id, sequence_order, status')
@@ -336,13 +328,12 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         }
         if (!assignments || assignments.length === 0) {
             setEmployeeRoutes([])
+            setAssignmentMap(new Map())
             return
         }
 
-        // 2. Extrai os checkout_ids únicos
         const checkoutIds = [...new Set(assignments.map(a => a.checkout_id))]
 
-        // 3. Busca os pedidos correspondentes com seus itens
         const { data: orders, error: ordersError } = await supabase
             .from('orders')
             .select(`
@@ -366,13 +357,11 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
             return
         }
 
-        // 4. Cria um mapa de pedidos por checkout_id
         const ordersMap = new Map<string, any>()
         orders?.forEach(order => {
             ordersMap.set(order.checkout_id, order)
         })
 
-        // 5. Monta as rotas por entregador
         const map = new Map<string, any[]>()
         assignments.forEach(assignment => {
             const order = ordersMap.get(assignment.checkout_id)
@@ -419,6 +408,18 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         })
 
         setEmployeeRoutes(routes)
+
+        const newMap = new Map<string, { employeeName: string; status: string }>()
+        assignments.forEach(a => {
+            const emp = employees.find(e => e.id === a.employee_id)
+            if (emp) {
+                newMap.set(a.checkout_id, {
+                    employeeName: emp.name,
+                    status: a.status
+                })
+            }
+        })
+        setAssignmentMap(newMap)
     }, [store?.id, employees])
 
     useEffect(() => { if (store?.id) fetchEmployeeRoutes() }, [store?.id, employees, fetchEmployeeRoutes])
@@ -454,14 +455,46 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
-    const toggleOrderSelection = (id: string) => {
-        const next = new Set(selectedOrderIds)
-        next.has(id) ? next.delete(id) : next.add(id)
-        setSelectedOrderIds(next)
+    const ensureOwnerEmployee = async (): Promise<string | null> => {
+        if (!store?.id || !store?.owner_id || !ownerProfile) return null
+
+        const { data: existing } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('store_id', store.id)
+            .eq('profile_id', store.owner_id)
+            .maybeSingle()
+
+        if (existing) return existing.id
+
+        const { data: newEmp, error } = await supabase
+            .from('employees')
+            .insert({
+                store_id: store.id,
+                name: ownerProfile.name || 'Dono',
+                phone: ownerProfile.phone || '',
+                is_active: true,
+                profile_id: store.owner_id,
+            })
+            .select('id')
+            .single()
+
+        if (error) {
+            toast.error('Erro ao criar seu perfil de entregador')
+            console.error(error)
+            return null
+        }
+
+        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', store.id).eq('is_active', true)
+        setEmployees(empData || [])
+        await fetchEmployeeRoutes()
+
+        return newEmp.id
     }
 
-    const handleAssignDelivery = async () => {
-        if (!selectedEmployeeId || selectedOrderIds.size === 0 || !store) return
+    const handleAssignDelivery = async (employeeId?: string) => {
+        const empId = employeeId || selectedEmployeeId
+        if (!empId || selectedOrderIds.size === 0 || !store) return
         setAssigning(true)
 
         try {
@@ -495,7 +528,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
             const optimized = optimizeRoute(store_lat, store_lng, stops)
             const inserts = optimized.map(stop => ({
                 store_id: store.id,
-                employee_id: selectedEmployeeId,
+                employee_id: empId,
                 checkout_id: stop.id,
                 sequence_order: stop.sequence,
                 status: 'pending'
@@ -550,60 +583,25 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         }
     }
 
+    const handleAssignAsOwner = async () => {
+        const ownerId = await ensureOwnerEmployee()
+        if (ownerId) {
+            await handleAssignDelivery(ownerId)
+        }
+    }
+
+    const handleSingleAssignAsOwner = async () => {
+        if (!singleAssignOpen) return
+        const ownerId = await ensureOwnerEmployee()
+        if (ownerId) {
+            await handleSingleAssign(ownerId, singleAssignOpen.order)
+        }
+    }
+
     const handleOrderAction = async (status: string) => {
         if (!selectedOrder) return
         await supabase.from('orders').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
         setSelectedOrder(null); loadDashboard(); toast.success('Status atualizado.')
-    }
-
-    const setTimeForDay = (day: string, type: 'open' | 'close', value: string) => setBusinessHours(prev => ({ ...prev, [day]: { ...(prev[day] || { open: '', close: '' }), [type]: value } }))
-    const clearDay = (day: string) => { const n = { ...businessHours }; delete n[day]; setBusinessHours(n) }
-    const handleSaveSchedule = async () => {
-        setSavingSchedule(true)
-        await supabase.from('stores').update({ business_hours: businessHours }).eq('id', store.id)
-        toast.success('Horários salvos!'); setShowScheduleEditor(false); setSavingSchedule(false)
-    }
-
-    const handleSaveConfig = async () => {
-        if (!store) return
-        setSavingConfig(true)
-
-        let deliveryType = 'none'
-        let deliveryFee = null
-        let deliveryDistanceRules = null
-        if (acceptsDelivery) {
-            if (deliveryMode === 'fixed') {
-                deliveryType = 'fixed'
-                deliveryFee = fixedDeliveryFee ? parseFloat(fixedDeliveryFee) : 0
-            } else {
-                deliveryType = 'distance'
-                deliveryDistanceRules = distanceRules.map(r => ({ max_km: parseFloat(r.max_km), fee: parseFloat(r.fee) }))
-            }
-        }
-
-        const { error } = await supabase.from('stores').update({
-            accepts_pix: acceptsPix,
-            accepts_card: acceptsCard,
-            accepts_delivery: acceptsDelivery,
-            accepts_pickup: acceptsPickup,
-            pix_key: acceptsPix ? pixKey : null,
-            pix_key_type: acceptsPix ? pixKeyType : null,
-            delivery_type: deliveryType,
-            delivery_fee: deliveryFee,
-            delivery_distance_rules: deliveryDistanceRules,
-        }).eq('id', store.id)
-
-        if (error) { toast.error('Erro ao salvar configurações.'); }
-        else { toast.success('Configurações salvas!'); }
-        setSavingConfig(false)
-    }
-
-    const addDistanceRule = () => setDistanceRules([...distanceRules, { max_km: '', fee: '' }])
-    const removeDistanceRule = (index: number) => setDistanceRules(distanceRules.filter((_, i) => i !== index))
-    const updateDistanceRule = (index: number, field: 'max_km' | 'fee', value: string) => {
-        const updated = [...distanceRules]
-        updated[index] = { ...updated[index], [field]: value }
-        setDistanceRules(updated)
     }
 
     const sortedProducts = [...products].sort((a, b) => {
@@ -616,6 +614,15 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
         }
     })
 
+    const formatAssignmentStatus = (status: string) => {
+        switch (status) {
+            case 'pending': return 'Pendente'
+            case 'in_transit': return 'A caminho'
+            case 'delivered': return 'Entregue'
+            default: return status
+        }
+    }
+
     if (loading) return <LoadingSpinner message="Carregando painel..." />
     if (!store) return null
 
@@ -624,6 +631,8 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
     const finished = groupedOrders.filter(o => o.status === 'paid')
+
+    const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
     return (
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
@@ -670,13 +679,16 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </button>
                 )}
 
+                {/* Novos */}
                 {newOrders.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accent }}>Novos ({newOrders.length})</h4>
                         {newOrders.map(order => (
                             <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: `${colors.accent}10` }}>
                                 <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    <div className="flex flex-col min-w-0">
+                                        <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    </div>
                                     <div className="text-right">
                                         <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                         {order.deliveryFee > 0 && (
@@ -699,80 +711,133 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                     </div>
                 )}
 
+                {/* Em Preparo */}
                 {preparing.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accentLight }}>Em Preparo ({preparing.length})</h4>
-                        {preparing.map(order => (
-                            <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: `${colors.accentLight}10` }}>
-                                <div className="flex items-center gap-2">
-                                    <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(order.checkout_id) }}>
-                                        {selectedOrderIds.has(order.checkout_id) ? <CheckSquare size={16} color={colors.accent} /> : <Square size={16} color={colors.textSecondary} />}
+                        {preparing.map(order => {
+                            const isAssigned = assignmentMap.has(order.checkout_id)
+                            return (
+                                <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: `${colors.accentLight}10` }}>
+                                    <div className="flex items-center justify-between">
+                                        <span
+                                            className="text-sm truncate cursor-pointer hover:underline"
+                                            style={{ color: colors.textPrimary }}
+                                            onClick={() => setSelectedOrder(order)}
+                                        >
+                                            @{order.buyer_profile_slug}
+                                        </span>
+                                        <div className="text-right">
+                                            <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                            {order.deliveryFee > 0 && (
+                                                <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    {isAssigned ? (
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setSingleAssignOpen({ order })
+                                                }}
+                                                className="px-3 py-1 rounded-full text-xs font-bold"
+                                                style={{ background: colors.accent, color: 'white' }}
+                                            >
+                                                Trocar entregador
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-1 flex justify-end">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setSingleAssignOpen({ order })
+                                                }}
+                                                className="px-3 py-1 rounded-full text-xs font-bold"
+                                                style={{ background: colors.accent, color: 'white' }}
+                                            >
+                                                Atribuir entregador
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="text-right">
-                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                        {order.deliveryFee > 0 && (
-                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setSingleAssignOpen({ order })
-                                        }}
-                                        className="p-1 rounded-full hover:bg-white/10 transition-colors"
-                                        title="Atribuir entregador"
-                                    >
-                                        <Send size={14} style={{ color: colors.accent }} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
 
+                {/* Prontos */}
                 {ready.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>Prontos ({ready.length})</h4>
-                        {ready.map(order => (
-                            <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: '#8b5cf610' }}>
-                                <div className="flex items-center gap-2">
-                                    <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(order.checkout_id) }}>
-                                        {selectedOrderIds.has(order.checkout_id) ? <CheckSquare size={16} color={colors.accent} /> : <Square size={16} color={colors.textSecondary} />}
+                        {ready.map(order => {
+                            const isAssigned = assignmentMap.has(order.checkout_id)
+                            return (
+                                <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: '#8b5cf610' }}>
+                                    <div className="flex items-center justify-between">
+                                        <span
+                                            className="text-sm truncate cursor-pointer hover:underline"
+                                            style={{ color: colors.textPrimary }}
+                                            onClick={() => setSelectedOrder(order)}
+                                        >
+                                            @{order.buyer_profile_slug}
+                                        </span>
+                                        <div className="text-right">
+                                            <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
+                                            {order.deliveryFee > 0 && (
+                                                <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    {isAssigned ? (
+                                        <div className="flex items-center justify-between mt-1">
+                                            <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setSingleAssignOpen({ order })
+                                                }}
+                                                className="px-3 py-1 rounded-full text-xs font-bold"
+                                                style={{ background: colors.accent, color: 'white' }}
+                                            >
+                                                Trocar entregador
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-1 flex justify-end">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setSingleAssignOpen({ order })
+                                                }}
+                                                className="px-3 py-1 rounded-full text-xs font-bold"
+                                                style={{ background: colors.accent, color: 'white' }}
+                                            >
+                                                Atribuir entregador
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="text-right">
-                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                        {order.deliveryFee > 0 && (
-                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setSingleAssignOpen({ order })
-                                        }}
-                                        className="p-1 rounded-full hover:bg-white/10 transition-colors"
-                                        title="Atribuir entregador"
-                                    >
-                                        <Send size={14} style={{ color: colors.accent }} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 )}
 
+                {/* Finalizados */}
                 {finished.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>Finalizados ({finished.length})</h4>
                         {finished.slice(0, 3).map(order => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)} className="flex items-center justify-between p-2 rounded-lg mb-1 cursor-pointer" style={{ background: '#22c55e10' }}>
-                                <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                <div className="flex flex-col min-w-0">
+                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                </div>
                                 <div className="text-right">
                                     <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                     {order.deliveryFee > 0 && (
@@ -853,182 +918,16 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 )}
             </div>
 
-            {/* Entregadores e rotas */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                        <Truck size={16} /> Entregadores ({employees.length})
-                    </h3>
-                    <button
-                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/entregadores`)}
-                        className="text-xs font-bold"
-                        style={{ color: colors.accent }}
-                    >
-                        Gerenciar
-                    </button>
-                </div>
-
-                {employees.length === 0 ? (
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum entregador cadastrado.</p>
-                ) : (
-                    <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                        {employees.map(emp => {
-                            const route = employeeRoutes.find(r => r.employeeId === emp.id)
-                            const isExpanded = expandedEmployee === emp.id
-
-                            return (
-                                <div
-                                    key={emp.id}
-                                    className="rounded-xl border"
-                                    style={{ background: 'transparent', borderColor: colors.border }}
-                                >
-                                    <div
-                                        onClick={() => setExpandedEmployee(isExpanded ? null : emp.id)}
-                                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                                                style={{ background: route?.color || '#6b7280' }}
-                                            >
-                                                {emp.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
-                                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                                    {route ? `${route.stops.length} paradas` : 'Sem entregas'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {route && route.stops.length > 0 && (
-                                                <div className="flex -space-x-1">
-                                                    {route.stops.slice(0, 3).map((stop, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white border border-black/20"
-                                                            style={{ background: route.color }}
-                                                        >
-                                                            {stop.label}
-                                                        </div>
-                                                    ))}
-                                                    {route.stops.length > 3 && (
-                                                        <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] text-white bg-gray-600 border border-black/20">
-                                                            +{route.stops.length - 3}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                            <ChevronRight
-                                                size={16}
-                                                className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                                style={{ color: colors.textSecondary }}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {isExpanded && route && (
-                                        <div className="px-3 pb-3 pt-0">
-                                            <div className="space-y-2 mt-2">
-                                                <p className="text-xs font-bold" style={{ color: colors.textSecondary }}>
-                                                    Entregas atribuídas:
-                                                </p>
-                                                {route.stops.map((stop: DeliveryStop, idx: number) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="p-3 rounded-lg text-xs"
-                                                        style={{ background: `${route.color}10`, border: `1px solid ${route.color}30` }}
-                                                    >
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <span
-                                                                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] text-white font-bold"
-                                                                    style={{ background: route.color }}
-                                                                >
-                                                                    {stop.label}
-                                                                </span>
-                                                                <span className="font-medium" style={{ color: colors.textPrimary }}>
-                                                                    {stop.address
-                                                                        ? stop.address.substring(0, 40) + (stop.address.length > 40 ? '...' : '')
-                                                                        : 'Sem endereço'}
-                                                                </span>
-                                                            </div>
-                                                            <span
-                                                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                                                style={{
-                                                                    background:
-                                                                        stop.status === 'delivered' ? '#22c55e' :
-                                                                            stop.status === 'in_transit' ? '#f59e0b' : '#94a3b8',
-                                                                    color: 'white',
-                                                                }}
-                                                            >
-                                                                {stop.status === 'pending' ? 'Pendente' :
-                                                                    stop.status === 'in_transit' ? 'A caminho' : 'Entregue'}
-                                                            </span>
-                                                        </div>
-
-                                                        <div className="ml-7 space-y-2">
-                                                            {stop.items && stop.items.length > 0 && (
-                                                                <div>
-                                                                    <p className="text-[10px] font-bold mb-1" style={{ color: colors.textSecondary }}>
-                                                                        Produtos:
-                                                                    </p>
-                                                                    <ul className="list-disc list-inside text-[10px]" style={{ color: colors.textPrimary }}>
-                                                                        {stop.items.map((item, i) => (
-                                                                            <li key={i}>
-                                                                                {item.product_name} x{item.quantity}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            )}
-
-                                                            <div className="flex flex-col gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className="font-bold">Pagamento:</span>
-                                                                    <span className="capitalize" style={{ color: colors.textPrimary }}>
-                                                                        {stop.payment_method === 'credit_card' ? '💳 Cartão' :
-                                                                            stop.payment_method === 'pix' ? '🔷 Pix' :
-                                                                                stop.payment_method === 'money' ? '💵 Dinheiro' :
-                                                                                    stop.payment_method || '—'}
-                                                                    </span>
-                                                                    {stop.payment_method === 'credit_card' && (
-                                                                        <span className="text-red-400 font-bold">(Levar máquina)</span>
-                                                                    )}
-                                                                    {stop.payment_method === 'money' && (
-                                                                        <span className="text-yellow-400 font-bold">(Levar troco)</span>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <span className="font-bold">Total:</span>
-                                                                    <span style={{ color: colors.textPrimary }}>
-                                                                        R$ {Number(stop.total_amount || 0).toFixed(2)}
-                                                                    </span>
-                                                                    {stop.delivery_fee > 0 && (
-                                                                        <span style={{ color: colors.textSecondary }}>
-                                                                            (frete R$ {Number(stop.delivery_fee).toFixed(2)})
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                                {route.stops.length === 0 && (
-                                                    <p className="text-xs text-center py-2" style={{ color: colors.textSecondary }}>
-                                                        Nenhuma entrega mapeada.
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-            </div>
+            {/* Funcionários */}
+            <Employee
+                employees={employees}
+                employeeRoutes={employeeRoutes}
+                assignmentMap={assignmentMap}
+                expandedEmployee={expandedEmployee}
+                onToggleExpand={setExpandedEmployee}
+                storeId={store.id}
+                onRefresh={fetchEmployeeRoutes}
+            />
 
             {/* Informações da Loja */}
             {store.address || store.whatsapp ? (
@@ -1051,92 +950,6 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             ) : null}
 
-            {/* Configurações */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                    <Settings size={16} /> Configurações da Loja
-                </h3>
-
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <Truck size={18} style={{ color: acceptsDelivery ? colors.accent : colors.textSecondary }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Faz entrega</span>
-                    </div>
-                    <button onClick={() => setAcceptsDelivery(!acceptsDelivery)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsDelivery ? 'bg-green-500' : 'bg-gray-600'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsDelivery ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                </div>
-                {acceptsDelivery && (
-                    <div className="ml-7 mb-3 space-y-2">
-                        <div className="flex gap-2">
-                            <button onClick={() => setDeliveryMode('fixed')} className={`px-3 py-1 rounded-full text-xs font-bold ${deliveryMode === 'fixed' ? 'text-white' : ''}`} style={{ background: deliveryMode === 'fixed' ? colors.accent : 'transparent', border: `1px solid ${colors.border}`, color: deliveryMode === 'fixed' ? 'white' : colors.textSecondary }}>Valor Fixo</button>
-                            <button onClick={() => setDeliveryMode('distance')} className={`px-3 py-1 rounded-full text-xs font-bold ${deliveryMode === 'distance' ? 'text-white' : ''}`} style={{ background: deliveryMode === 'distance' ? colors.accent : 'transparent', border: `1px solid ${colors.border}`, color: deliveryMode === 'distance' ? 'white' : colors.textSecondary }}>Por Distância</button>
-                        </div>
-
-                        {deliveryMode === 'fixed' && (
-                            <input type="number" value={fixedDeliveryFee} onChange={e => setFixedDeliveryFee(e.target.value)} placeholder="Valor da entrega" className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                        )}
-                        {deliveryMode === 'distance' && (
-                            <div>
-                                {distanceRules.map((rule, idx) => (
-                                    <div key={idx} className="flex items-center gap-2 mb-1">
-                                        <input type="number" value={rule.max_km} onChange={e => updateDistanceRule(idx, 'max_km', e.target.value)} placeholder="Distância (km)" className="w-1/2 bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                                        <input type="number" value={rule.fee} onChange={e => updateDistanceRule(idx, 'fee', e.target.value)} placeholder="Valor" className="w-1/2 bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                                        <button onClick={() => removeDistanceRule(idx)} className="text-red-400"><X size={16} /></button>
-                                    </div>
-                                ))}
-                                <button onClick={addDistanceRule} className="text-xs text-blue-400 mt-1">+ Adicionar faixa</button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <Store size={18} style={{ color: acceptsPickup ? colors.accent : colors.textSecondary }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Retirada no local</span>
-                    </div>
-                    <button onClick={() => setAcceptsPickup(!acceptsPickup)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsPickup ? 'bg-green-500' : 'bg-gray-600'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsPickup ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                </div>
-
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <CreditCard size={18} style={{ color: acceptsCard ? '#0984e3' : colors.textSecondary }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Aceitar Cartão</span>
-                    </div>
-                    <button onClick={() => setAcceptsCard(!acceptsCard)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsCard ? 'bg-green-500' : 'bg-gray-600'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsCard ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                </div>
-
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                        <QrCode size={18} style={{ color: acceptsPix ? '#00b894' : colors.textSecondary }} />
-                        <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Aceitar PIX</span>
-                    </div>
-                    <button onClick={() => setAcceptsPix(!acceptsPix)} className={`w-12 h-6 rounded-full transition-colors relative ${acceptsPix ? 'bg-green-500' : 'bg-gray-600'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${acceptsPix ? 'left-6' : 'left-0.5'}`} />
-                    </button>
-                </div>
-                {acceptsPix && (
-                    <div className="ml-7 mb-3 space-y-2">
-                        <select value={pixKeyType} onChange={e => setPixKeyType(e.target.value as any)} className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }}>
-                            <option value="cpf">CPF</option>
-                            <option value="email">E-mail</option>
-                            <option value="phone">Telefone</option>
-                            <option value="random">Chave aleatória</option>
-                        </select>
-                        <input type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Chave Pix" className="w-full bg-transparent border rounded-lg px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                    </div>
-                )}
-
-                <button onClick={handleSaveConfig} disabled={savingConfig} className="w-full mt-3 py-2 rounded-full text-xs font-bold flex items-center justify-center gap-2" style={{ background: colors.accent, color: 'white' }}>
-                    {savingConfig ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save size={14} /> Salvar Configurações</>}
-                </button>
-            </div>
-
             {/* Cards de visitantes */}
             <div className="grid grid-cols-3 gap-3 mb-6">
                 <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('online')}>
@@ -1156,41 +969,22 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             </div>
 
-            {/* Horários */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <button onClick={() => setShowScheduleEditor(!showScheduleEditor)} className="flex items-center gap-2 text-xs font-bold w-full" style={{ color: colors.textSecondary }}>
-                    <Clock3 size={14} /> Horários de Funcionamento
-                    <ChevronRight size={14} className={`transform ${showScheduleEditor ? 'rotate-90' : ''}`} />
-                </button>
-                {showScheduleEditor && (
-                    <div className="mt-3 space-y-3">
-                        {DAYS_OF_WEEK.map(day => {
-                            const current = businessHours[day.key] || { open: '', close: '' }
-                            return (
-                                <div key={day.key} className="flex items-center gap-2">
-                                    <span className="w-20 text-xs font-bold" style={{ color: colors.textPrimary }}>{day.label}</span>
-                                    <input type="time" value={current.open} onChange={e => setTimeForDay(day.key, 'open', e.target.value)} className="bg-transparent border rounded px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                                    <span style={{ color: colors.textSecondary }}>-</span>
-                                    <input type="time" value={current.close} onChange={e => setTimeForDay(day.key, 'close', e.target.value)} className="bg-transparent border rounded px-2 py-1 text-xs" style={{ borderColor: colors.border, color: colors.textPrimary }} />
-                                    <button onClick={() => clearDay(day.key)} className="text-xs text-red-400">Fechado</button>
-                                </div>
-                            )
-                        })}
-                        <button onClick={handleSaveSchedule} disabled={savingSchedule} className="w-full py-2 rounded-full text-sm font-bold" style={{ background: colors.accent, color: 'white' }}>Salvar</button>
-                    </div>
-                )}
-            </div>
+            {/* Horários de Funcionamento */}
+            <BusinessHour
+                storeId={store.id}
+                initialBusinessHours={initialBusinessHours}
+            />
 
-            {/* Ações rápidas */}
+            {/* Agendamentos */}
+            <StoreCalendar storeId={store.id} />
+
+            {/* Ações rápidas (agora sem o botão Agendamentos) */}
             <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
                     <Settings size={18} /> Editar loja
                 </button>
                 <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
                     <Plus size={18} /> Adicionar produto
-                </button>
-                <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/agendamentos`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
-                    <Calendar size={18} /> Agendamentos
                 </button>
             </div>
 
@@ -1203,6 +997,21 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                             <button onClick={() => setShowAssignModal(false)}><X size={20} /></button>
                         </div>
                         <div className="space-y-2">
+                            {ownerProfile && (
+                                <div
+                                    onClick={handleAssignAsOwner}
+                                    className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                    style={{ borderColor: colors.border }}
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">
+                                        {ownerProfile.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
+                                        {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
+                                    </div>
+                                </div>
+                            )}
                             {employees.map(emp => (
                                 <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? `${colors.accent}20` : 'transparent', border: `1px solid ${colors.border}` }}>
                                     <p className="font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
@@ -1210,7 +1019,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleAssignDelivery} disabled={!selectedEmployeeId || assigning} className="w-full mt-4 py-2 rounded-full font-bold" style={{ background: selectedEmployeeId ? colors.accent : colors.border, color: selectedEmployeeId ? 'white' : colors.textSecondary }}>
+                        <button onClick={() => handleAssignDelivery()} disabled={!selectedEmployeeId || assigning} className="w-full mt-4 py-2 rounded-full font-bold" style={{ background: selectedEmployeeId ? colors.accent : colors.border, color: selectedEmployeeId ? 'white' : colors.textSecondary }}>
                             {assigning ? 'Atribuindo...' : 'Confirmar'}
                         </button>
                     </div>
@@ -1229,8 +1038,23 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                             Pedido de @{singleAssignOpen.order.buyer_profile_slug} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}
                         </p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {ownerProfile && (
+                                <div
+                                    onClick={handleSingleAssignAsOwner}
+                                    className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
+                                    style={{ borderColor: colors.border }}
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">
+                                        {ownerProfile.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
+                                        {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
+                                    </div>
+                                </div>
+                            )}
                             {employees.length === 0 ? (
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum entregador cadastrado.</p>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum funcionário cadastrado.</p>
                             ) : (
                                 employees.map(emp => (
                                     <div
@@ -1254,7 +1078,16 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
                 </div>
             )}
 
-            {selectedOrder && <OrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onAction={handleOrderAction} />}
+            {selectedOrder && (
+                <OrderModal
+                    order={selectedOrder}
+                    onClose={() => setSelectedOrder(null)}
+                    onAction={handleOrderAction}
+                    assignmentInfo={selectedAssignment || undefined}
+                    storeLat={store.store_lat}
+                    storeLng={store.store_lng}
+                />
+            )}
 
             {dialogOpen && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>

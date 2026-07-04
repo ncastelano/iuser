@@ -1,7 +1,7 @@
-// OrderModal.tsx
+// components/OrderModal.tsx
 'use client'
 
-import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin } from 'lucide-react'
+import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck } from 'lucide-react'
 
 export interface GroupedOrder {
     id?: string
@@ -16,11 +16,10 @@ export interface GroupedOrder {
         quantity: number
         unit_price?: number
         total_price?: number
-        // legado (store_sales)
-        price?: number
+        price?: number // legado
     }[]
     subtotal?: number
-    totalPrice: number       // = total_amount do orders (inclui frete)
+    totalPrice: number
     deliveryFee?: number | null
     delivery_address?: string | null
     delivery_lat?: number | null
@@ -29,7 +28,6 @@ export interface GroupedOrder {
     payment_method?: string | null
 }
 
-// ----- Haversine (distância em km) -----
 function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371
     const dLat = (lat2 - lat1) * Math.PI / 180
@@ -85,34 +83,40 @@ interface OrderModalProps {
     onAction: (status: string) => void
     storeLat?: number | null
     storeLng?: number | null
+    assignmentInfo?: {
+        employeeName: string
+        status: string
+    }
 }
 
-export function OrderModal({ order, onClose, onAction, storeLat, storeLng }: OrderModalProps) {
+const formatAssignmentStatus = (status: string) => {
+    switch (status) {
+        case 'pending': return 'Pendente'
+        case 'in_transit': return 'A caminho'
+        case 'delivered': return 'Entregue'
+        default: return status
+    }
+}
+
+export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assignmentInfo }: OrderModalProps) {
     const currentStatus = statusMap[order.status as keyof typeof statusMap] || statusMap['pending']
     const StatusIcon = currentStatus.icon
 
-    // Informações de entrega
-    const deliveryAddress = (order as any).delivery_address
-    const deliveryLat = (order as any).delivery_lat
-    const deliveryLng = (order as any).delivery_lng
-    // Valor da taxa de entrega (já incluso no totalPrice do order)
-    const deliveryFee = Number((order as any).deliveryFee || 0)
+    const deliveryAddress = order.delivery_address
+    const deliveryLat = order.delivery_lat
+    const deliveryLng = order.delivery_lng
+    const deliveryFee = Number(order.deliveryFee || 0)
 
-    // Cálculo da distância
     let distanceText = ''
     if (storeLat != null && storeLng != null && deliveryLat != null && deliveryLng != null) {
         const dist = getDistanceKm(storeLat, storeLng, deliveryLat, deliveryLng)
         distanceText = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
     }
 
-    // Total dos itens (soma de total_price de cada item)
     const itemsTotal = order.items.reduce((sum, item) => {
-        // suporta tanto total_price (orders) quanto price (legado)
         return sum + Number(item.total_price ?? item.price ?? 0)
     }, 0)
 
-    // Total final: usa total_amount (já inclui frete) vindo direto do orders
-    // Se não existir (pedido legado), recalcula
     const totalPrice = Number(order.totalPrice) || (itemsTotal + deliveryFee)
 
     return (
@@ -141,7 +145,7 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng }: Ord
                     <div className="flex items-center gap-1 mt-6">
                         {['pending', 'preparing', 'ready', 'paid'].map((s, idx) => {
                             const isActive = order.status === s
-                            const isCompleted = ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx || order.status === 'paid' && s === 'paid'
+                            const isCompleted = ['pending', 'preparing', 'ready', 'paid'].indexOf(order.status) > idx || (order.status === 'paid' && s === 'paid')
                             const icons = { pending: Package, preparing: ChefHat, ready: Clock, paid: CheckCircle }
                             const StepIcon = icons[s as keyof typeof icons]
                             return (
@@ -158,9 +162,27 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng }: Ord
                     </div>
                 </div>
 
-                {/* Content - Scrollable */}
+                {/* Content */}
                 <div className="flex-1 overflow-y-auto bg-gradient-to-b from-orange-50/30 to-white">
                     <div className="p-6 space-y-6">
+                        {/* Informação do entregador (se existir) */}
+                        {assignmentInfo && (
+                            <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Truck size={16} className="text-blue-600" />
+                                    <span className="text-xs font-black uppercase tracking-wider text-blue-600">
+                                        Entregador
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-gray-800">{assignmentInfo.employeeName}</p>
+                                    <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                                        {formatAssignmentStatus(assignmentInfo.status)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Items */}
                         <div className="space-y-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-1">

@@ -1,4 +1,3 @@
-// src/app/(main)/[profileSlug]/[storeSlug]/editar-loja/page.tsx
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -90,7 +89,11 @@ export default function EditarLoja() {
 
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
-    const [deliveryFeePerKm, setDeliveryFeePerKm] = useState('')
+
+    // Novos campos para distância com valor base
+    const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5') // km
+    const [deliveryBaseFee, setDeliveryBaseFee] = useState('7')          // R$ até essa distância
+    const [deliveryExtraPerKm, setDeliveryExtraPerKm] = useState('2')   // R$ por km extra
 
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
@@ -143,7 +146,9 @@ export default function EditarLoja() {
                 setFixedDeliveryFee(store.delivery_fee ? String(store.delivery_fee) : '')
             } else if (store.delivery_type === 'distance') {
                 setDeliveryMode('distance')
-                setDeliveryFeePerKm(store.delivery_fee_per_km ? String(store.delivery_fee_per_km) : '')
+                setDeliveryBaseDistance(store.delivery_base_distance != null ? String(store.delivery_base_distance) : '5')
+                setDeliveryBaseFee(store.delivery_base_fee != null ? String(store.delivery_base_fee) : '7')
+                setDeliveryExtraPerKm(store.delivery_fee_per_km != null ? String(store.delivery_fee_per_km) : '2')
             } else if (store.delivery_type === 'free') {
                 setDeliveryMode('free')
             } else {
@@ -253,10 +258,11 @@ export default function EditarLoja() {
         const lngValue = location?.lng ?? null
         const locationString = location ? `POINT(${lngValue} ${latValue})` : null
 
-        // Montar entrega (variáveis locais com nomes diferentes dos estados)
         let deliveryType = 'none'
         let savedDeliveryFee: number | null = null
         let savedFeePerKm: number | null = null
+        let savedBaseDistance: number | null = null
+        let savedBaseFee: number | null = null
 
         if (acceptsDelivery) {
             if (deliveryMode === 'free') {
@@ -267,7 +273,9 @@ export default function EditarLoja() {
                 savedDeliveryFee = fixedDeliveryFee ? parseFloat(fixedDeliveryFee) : 0
             } else if (deliveryMode === 'distance') {
                 deliveryType = 'distance'
-                savedFeePerKm = deliveryFeePerKm ? parseFloat(deliveryFeePerKm) : 0  // <- CORRIGIDO
+                savedBaseDistance = deliveryBaseDistance ? parseFloat(deliveryBaseDistance) : 0
+                savedBaseFee = deliveryBaseFee ? parseFloat(deliveryBaseFee) : 0
+                savedFeePerKm = deliveryExtraPerKm ? parseFloat(deliveryExtraPerKm) : 0
             }
         }
 
@@ -290,6 +298,8 @@ export default function EditarLoja() {
             delivery_type: deliveryType,
             delivery_fee: savedDeliveryFee,
             delivery_fee_per_km: savedFeePerKm,
+            delivery_base_distance: savedBaseDistance,
+            delivery_base_fee: savedBaseFee,
             business_hours: businessHours,
         }
 
@@ -471,8 +481,26 @@ export default function EditarLoja() {
                                     {deliveryMode === 'fixed' && (
                                         <input type="number" value={fixedDeliveryFee} onChange={e => setFixedDeliveryFee(e.target.value)} placeholder="Valor da entrega (R$)" className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm" />
                                     )}
+
                                     {deliveryMode === 'distance' && (
-                                        <input type="number" value={deliveryFeePerKm} onChange={e => setDeliveryFeePerKm(e.target.value)} placeholder="Valor por km (R$)" className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm" />
+                                        <div className="space-y-2 bg-orange-50 p-3 rounded-xl border border-orange-200">
+                                            <p className="text-[10px] font-black text-orange-700">🚀 Tarifa com valor base</p>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <label className="text-[9px] text-gray-500 font-bold">Distância base (km)</label>
+                                                    <input type="number" value={deliveryBaseDistance} onChange={e => setDeliveryBaseDistance(e.target.value)} placeholder="5" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] text-gray-500 font-bold">Valor base (R$)</label>
+                                                    <input type="number" value={deliveryBaseFee} onChange={e => setDeliveryBaseFee(e.target.value)} placeholder="7" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] text-gray-500 font-bold">Valor extra por km (R$)</label>
+                                                    <input type="number" value={deliveryExtraPerKm} onChange={e => setDeliveryExtraPerKm(e.target.value)} placeholder="2" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+                                                </div>
+                                            </div>
+                                            <p className="text-[9px] text-gray-400">Ex: até {deliveryBaseDistance || '5'} km = R$ {deliveryBaseFee || '7'}, acima + R$ {deliveryExtraPerKm || '2'}/km</p>
+                                        </div>
                                     )}
                                 </div>
                             )}

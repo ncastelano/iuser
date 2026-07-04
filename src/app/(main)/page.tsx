@@ -31,7 +31,7 @@ import SearchResultsSection from '@/app/SearchResultsSection'
 import LastSearched, { getRecentClicks } from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
-import StoreDashboard from './StoreDashboard'  // <-- NOVO COMPONENTE
+import StoreDashboard from './StoreDashboard'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
@@ -41,14 +41,14 @@ import BannerPago from './inicio/sections/BannerPago'
 import PainelDaLoja from './PainelDaLoja'
 
 const DEFAULT_SECTIONS = [
-    'bannerPago',
-    'categorias',
-    'transporte',
-    'motorista',
-    'promocoes',
     'compromissosPessoal',
     'compromissosLoja',
+    'bannerPago',
+    'categorias',
+    'promocoes',
     'orderSection',
+    'motorista',
+    'transporte',
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
@@ -144,7 +144,7 @@ export default function HomePage() {
     const [allPublicStores, setAllPublicStores] = useState<any[]>([])
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
-    const [storeViewMode, setStoreViewMode] = useState<'dashboard' | 'painel'>('dashboard') // <-- NOVO ESTADO
+    const [storeViewMode, setStoreViewMode] = useState<'dashboard' | 'painel'>('dashboard')
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
@@ -441,26 +441,7 @@ export default function HomePage() {
                     />
                 )
             case 'categorias':
-                if (!isSearchVisible) return <CategoriasSection />
-                if (searchFocused && !searchQuery.trim()) {
-                    const recentItems = getRecentClicks()
-                    if (recentItems.length > 0) {
-                        return (
-                            <div ref={lastSearchedRef}>
-                                <LastSearched />
-                            </div>
-                        )
-                    }
-                    return <CategoriasSection />
-                }
-                if (searchQuery.trim()) {
-                    return (
-                        <SearchResultsSection
-                            searchQuery={searchQuery}
-                            onSearchSelect={setSearchQuery}
-                        />
-                    )
-                }
+                // Agora sempre renderiza a seção de categorias normal
                 return <CategoriasSection />
             case 'transporte':
                 return <TransporteSection />
@@ -480,13 +461,12 @@ export default function HomePage() {
     const showHomeSections = () => {
         setShowConfig(false)
         setActiveStoreSlug(null)
-        setStoreViewMode('dashboard')  // <-- RESET AO VOLTAR
+        setStoreViewMode('dashboard')
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
     }
 
-    // Função para tratar clique em abas de loja (dashboard ou painel)
     const handleStoreTabClick = (storeSlug: string, mode: 'dashboard' | 'painel') => {
         setShowConfig(false)
         setActiveStoreSlug(storeSlug)
@@ -521,7 +501,6 @@ export default function HomePage() {
         }
     }
 
-    // Construção das abas com sub-abas para cada loja
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -537,7 +516,6 @@ export default function HomePage() {
 
         if (stores.length > 0) {
             stores.forEach((s) => {
-                // Aba do dashboard
                 allTabs.push({
                     id: `loja-${s.slug}-dashboard`,
                     label: `${s.name} · Dashboard`,
@@ -546,7 +524,6 @@ export default function HomePage() {
                     onClick: () => handleStoreTabClick(s.slug, 'dashboard'),
                     isActive: activeStoreSlug === s.slug && storeViewMode === 'dashboard' && !showConfig && !showProfile && !showLogin,
                 })
-                // Aba do novo painel
                 allTabs.push({
                     id: `loja-${s.slug}-painel`,
                     label: `${s.name} · Painel`,
@@ -675,6 +652,22 @@ export default function HomePage() {
                 ) : (
                     // SEÇÕES NORMAIS
                     <div className="mt-2 px-4 md:px-6">
+                        {/* BLOCO DE RESULTADOS DA BUSCA SEMPRE NO TOPO */}
+                        {(searchFocused || searchQuery.trim()) && (
+                            <div className="mb-6">
+                                {searchQuery.trim() ? (
+                                    <SearchResultsSection
+                                        searchQuery={searchQuery}
+                                        onSearchSelect={setSearchQuery}
+                                    />
+                                ) : (
+                                    <div ref={lastSearchedRef}>
+                                        <LastSearched />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {editMode ? (
                             <DndContext
                                 collisionDetection={closestCenter}
