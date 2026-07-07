@@ -55,11 +55,18 @@ export default function AtalhoCompromissosDaLoja({
         return storeAppointments
     }, [storeAppointments, showPending])
 
+    // Ordenação: pendentes primeiro, depois confirmados, depois cancelados.
+    // Dentro de cada status, mais recente primeiro.
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
+            const statusOrder: Record<string, number> = { pending: 0, confirmed: 1, cancelled: 2 }
+            const orderA = statusOrder[a.status] ?? 3
+            const orderB = statusOrder[b.status] ?? 3
+            if (orderA !== orderB) return orderA - orderB
+
             const da = new Date(`${a.date}T${a.time}`)
             const db = new Date(`${b.date}T${b.time}`)
-            return db.getTime() - da.getTime()
+            return db.getTime() - da.getTime() // mais recente primeiro
         })
     }, [filtered])
 
@@ -79,7 +86,10 @@ export default function AtalhoCompromissosDaLoja({
 
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation(); e.preventDefault()
-        const { error } = await supabase.rpc('confirm_appointment', { incoming_id: id })
+        const { error } = await supabase
+            .from('appointments')
+            .update({ status: 'confirmed' })
+            .eq('id', id)
         if (!error) refetch()
         else alert('Erro ao aceitar.')
     }, [refetch])
@@ -189,6 +199,7 @@ export default function AtalhoCompromissosDaLoja({
                                     const customerName = appointment.customer_slug || 'Cliente'
                                     const serviceName = appointment.service_name
                                     const customerSlug = appointment.customer_slug || null
+                                    const duration = appointment.duration_minutes // duração do serviço
 
                                     return (
                                         <div
@@ -199,7 +210,7 @@ export default function AtalhoCompromissosDaLoja({
                                                 borderColor: isPending ? '#fbbf2466' : colors.border,
                                             }}
                                         >
-                                            {/* Badge "Novo" – agora no canto superior direito, sem cortes */}
+                                            {/* Badge "Novo" – no canto superior direito */}
                                             {isPending && (
                                                 <span
                                                     className="absolute -top-2 -right-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shadow-md"
@@ -251,8 +262,15 @@ export default function AtalhoCompromissosDaLoja({
                                                     </span>
                                                 </div>
 
-                                                {/* Linha 2: serviço */}
-                                                <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>{serviceName}</h4>
+                                                {/* Linha 2: serviço + duração (se houver) */}
+                                                <div className="flex items-center gap-1 mb-1">
+                                                    <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>{serviceName}</h4>
+                                                    {duration && (
+                                                        <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: textSecondary }}>
+                                                            · {duration} min
+                                                        </span>
+                                                    )}
+                                                </div>
 
                                                 {/* Linha 3: cliente e visibilidade */}
                                                 <div className="flex items-center gap-2 mt-1">

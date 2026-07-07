@@ -52,6 +52,9 @@ export default function EditarProduto() {
   const [category, setCategory] = useState("");
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
 
+  // NOVO: duração do serviço (em minutos)
+  const [duration, setDuration] = useState<number | undefined>(undefined);
+
   // Localização (estilo consistente)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null
@@ -135,6 +138,9 @@ export default function EditarProduto() {
       setAddress(data.address || "");
       setCity(data.city || "");
       setCategory(data.category || "");
+
+      // NOVO: carregar duração
+      setDuration(data.duration_minutes ?? undefined);
 
       if (data.image_url) {
         const url = supabase.storage
@@ -344,6 +350,7 @@ export default function EditarProduto() {
       address: address || null,
       city: city || null,
       category: category || null,
+      duration_minutes: type === "service" ? (duration ?? null) : null,
     };
 
     if (imagePath) updateData.image_url = imagePath;
@@ -548,6 +555,26 @@ export default function EditarProduto() {
               )}
             </div>
           </div>
+
+          {/* NOVO: DURAÇÃO DO SERVIÇO (apenas quando o tipo é "service") */}
+          {type === "service" && (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                <Clock className="w-3 h-3 text-orange-500" />
+                Duração (minutos)
+              </label>
+              <input
+                type="number"
+                placeholder="Ex: 60"
+                value={duration ?? ""}
+                onChange={(e) =>
+                  setDuration(e.target.value ? Number(e.target.value) : undefined)
+                }
+                min={1}
+                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+              />
+            </div>
+          )}
 
           {/* DESCRIÇÃO */}
           <div className="space-y-2">

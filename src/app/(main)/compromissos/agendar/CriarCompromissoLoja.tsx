@@ -30,7 +30,7 @@ const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julh
 function pad(n: number) { return n.toString().padStart(2, '0') }
 
 interface SearchTarget { id: string; name: string; slug: string; logo_url: string | null; owner_id?: string }
-interface Product { id: string; name: string; description?: string; price?: number }
+interface Product { id: string; name: string; description?: string; price?: number; duration_minutes?: number }
 
 function getPublicUrl(path: string | null | undefined, bucket: 'avatars' | 'store-logos' | 'stores'): string | null {
     if (!path) return null
@@ -55,7 +55,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
     const { colors } = useTheme()
     const { appointments, refetch } = useAppointments()
 
-    // Estados do tema/fundo
     const [bgMode, setBgMode] = useState<'animated' | 'black' | 'custom'>('black')
     const [customBgUrl, setCustomBgUrl] = useState<string | null>(null)
     const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null)
@@ -93,7 +92,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
     const hoje = new Date()
     const todayStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`
 
-    // Carrega dados do perfil e fundo
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             if (session?.user) {
@@ -115,7 +113,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         })
     }, [])
 
-    // Carrega configuração de horários da loja
     useEffect(() => {
         if (target) {
             const idToFetch = (activeFlow === 'convite-loja' && storeId) ? storeId : target.id
@@ -126,7 +123,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         }
     }, [target, activeFlow, storeId])
 
-    // Busca lojas ou perfis
     useEffect(() => {
         if (searchQuery.trim().length < 2) { setResults([]); setShowDropdown(false); return }
         const timer = setTimeout(async () => {
@@ -168,7 +164,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         return () => clearTimeout(timer)
     }, [searchQuery, activeFlow])
 
-    // Carrega produtos da loja
     useEffect(() => {
         if (target) {
             const currentStoreId = (activeFlow === 'convite-loja' && storeId) ? storeId : target.id
@@ -264,14 +259,16 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         setShowDropdown(false)
         setAppointmentNote('')
         setSelectedProduct(null)
+        setSelectedDuration(60)
         setStep('datetime')
     }
 
     const selectProduct = (product: Product) => {
         setSelectedProduct(product)
         setAppointmentNote(product.name)
+        setSelectedDuration(product.duration_minutes || 60)
         setIsEditingNote(false)
-        setSelectedDuration((product as any).duration_minutes || 60)
+        setShowProducts(false)
     }
 
     const goBack = () => {
@@ -289,6 +286,16 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         const dateStr = selectedDate.toISOString().split('T')[0]
         const note = appointmentNote.trim() || 'Agendamento'
 
+        const payloadBase = {
+            date: dateStr,
+            time: selectedTime,
+            duration_minutes: selectedDuration,
+            service_name: note,
+            service_type: 'service',
+            people_count: 1,
+            is_public: isPublic,
+        }
+
         if (activeFlow === 'convite-loja' && storeId) {
             const { data: store } = await supabase
                 .from('stores')
@@ -304,17 +311,12 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             const slug = targetProfile?.profileSlug || ''
             const targetAvatar = targetProfile?.avatar_url || ''
             const storeAppointment = {
+                ...payloadBase,
                 store_id: storeId,
                 store_slug: store.storeSlug,
                 store_name: store.name,
                 store_logo_url: store.logo_url || '',
                 provider_profile_id: store.owner_id,
-                date: dateStr,
-                time: selectedTime,
-                duration_minutes: selectedDuration,
-                service_name: note,
-                service_type: 'service',
-                people_count: 1,
                 customer_id: target.id,
                 customer_slug: slug,
                 customer_avatar_url: targetAvatar,
@@ -322,7 +324,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                 owner_slug: store.storeSlug,
                 status: 'pending',
                 direction: 'incoming',
-                is_public: isPublic,
             }
             const { error } = await supabase.from('appointments').insert(storeAppointment)
             if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
@@ -345,17 +346,12 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         const slug = myProfile?.profileSlug || ''
         const myAvatar = myProfile?.avatar_url || ''
         const clientAppointment = {
+            ...payloadBase,
             store_id: target.id,
             store_slug: target.slug,
             store_name: target.name,
             store_logo_url: store.logo_url || '',
             provider_profile_id: store.owner_id,
-            date: dateStr,
-            time: selectedTime,
-            duration_minutes: selectedDuration,
-            service_name: note,
-            service_type: 'service',
-            people_count: 1,
             customer_id: uid,
             customer_slug: slug,
             customer_avatar_url: myAvatar,
@@ -363,7 +359,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             owner_slug: target.slug,
             status: 'pending',
             direction: 'outgoing',
-            is_public: isPublic,
         }
         const { error } = await supabase.from('appointments').insert(clientAppointment)
         if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
@@ -371,7 +366,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         onBack()
     }
 
-    // Helper para cores do tema
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -386,7 +380,6 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         boxShadow: colors.shadow,
     }
 
-    // Abas do Header
     const tabs = useMemo(() => {
         const personalTab = {
             id: 'pessoal',
@@ -683,8 +676,15 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                                                             cursor: 'pointer', textAlign: 'left', color: colors.textPrimary,
                                                         }}
                                                     >
-                                                        <div>
-                                                            <p style={{ fontWeight: 600, margin: 0 }}>{product.name}</p>
+                                                        <div style={{ flex: 1 }}>
+                                                            <p style={{ fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                {product.name}
+                                                                {product.duration_minutes && (
+                                                                    <span style={{ fontSize: 12, fontWeight: 500, color: colors.textSecondary, background: `${colors.accent}15`, padding: '2px 6px', borderRadius: 8 }}>
+                                                                        {product.duration_minutes} min
+                                                                    </span>
+                                                                )}
+                                                            </p>
                                                             {product.description && <p style={{ fontSize: 13, color: colors.textSecondary, margin: '2px 0 0' }}>{product.description}</p>}
                                                         </div>
                                                         {product.price !== undefined && product.price > 0 && (
@@ -733,10 +733,10 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                                             bgStyle = 'transparent'
                                             textColorStyle = colors.textSecondary
                                         } else if (status === 'available') {
-                                            bgStyle = 'rgba(59, 130, 246, 0.25)' // Azul translúcido premium
+                                            bgStyle = 'rgba(59, 130, 246, 0.25)'
                                             textColorStyle = '#3b82f6'
                                         } else if (status === 'full') {
-                                            bgStyle = 'rgba(239, 68, 68, 0.25)' // Vermelho translúcido premium
+                                            bgStyle = 'rgba(239, 68, 68, 0.25)'
                                             textColorStyle = '#ef4444'
                                         }
 
@@ -874,7 +874,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                                     <Clock size={22} color={colors.accent} />
                                     <div>
                                         <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>Horário</p>
-                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{selectedTime}</p>
+                                        <p style={{ color: colors.textSecondary, fontSize: 14 }}>{selectedTime} · {selectedDuration} min</p>
                                     </div>
                                 </div>
 

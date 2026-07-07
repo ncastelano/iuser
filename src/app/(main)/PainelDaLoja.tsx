@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
-import StoreCalendar from './StoreCalendar'
+import SchedulesAndAvailability from './SchedulesAndAvailability'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -971,7 +971,7 @@ export default function PainelDaLoja({ profileSlug, storeSlug, onBack }: { profi
 
 
             {/* Agendamentos */}
-            <StoreCalendar storeId={store.id} />
+            <SchedulesAndAvailability storeId={store.id} />
 
             {/* Ações rápidas (agora sem o botão Agendamentos) */}
             <div className="grid grid-cols-2 gap-3">
