@@ -675,7 +675,6 @@ export default function StorePage() {
                     storeId={store.id}
                     storeName={store.name}
                     storeSlug={store.storeSlug}
-                    businessHours={store.business_hours}
                     onClose={() => setShowScheduleModal(false)}
                     onSuccess={loadStore}
                 />
