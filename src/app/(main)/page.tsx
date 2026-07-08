@@ -22,7 +22,7 @@ import PromocoesSection from './inicio/sections/PromocoesSection'
 import SortableSection from './inicio/sections/SortableSection'
 import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
-import ConfiguracoesContent from './Configuracoes'
+import ConfiguracoesContent from './ButtonSettingsHeader'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '../theme'
@@ -37,7 +37,9 @@ import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../SacolaButton'
 import BannerPago from './inicio/sections/BannerPago'
-import PainelDaLoja from './PainelDaLoja'
+import PainelDaLoja from './StoreDashboard'
+import ButtonSettingsHome from './ButtonSettingsHome'
+import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 
 const DEFAULT_SECTIONS = [
     'compromissosPessoal',
@@ -45,14 +47,14 @@ const DEFAULT_SECTIONS = [
     'bannerPago',
     'categorias',
     'promocoes',
-    'orderSection',
     'motorista',
-    'transporte',
+    'transporte', 'orderSection',
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
 
 export interface StoreInfo {
+    id: string
     slug: string
     logoUrl: string | null
     name: string
@@ -147,6 +149,8 @@ export default function HomePage() {
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [hasPersonalAgenda, setHasPersonalAgenda] = useState(false)
+    const [hasStoreAgenda, setHasStoreAgenda] = useState(false)
 
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
@@ -351,7 +355,7 @@ export default function HomePage() {
         if (userLocation !== undefined) {
             fetchPublicStores()
         }
-    }, [userLocation, supabase])
+    }, [userLocation])
 
     // Lojas do usuário logado
     useEffect(() => {
@@ -375,6 +379,7 @@ export default function HomePage() {
                         logoUrl = publicUrlData.publicUrl
                     }
                     return {
+                        id: s.id,
                         slug: s.storeSlug,
                         logoUrl,
                         name: s.name,
@@ -384,7 +389,60 @@ export default function HomePage() {
             }
         }
         loadStores()
-    }, [profileSlug, supabase])
+    }, [profileSlug])
+
+    // Verifica se há compromissos agendados (pessoais e de lojas)
+    useEffect(() => {
+        async function checkAgendas() {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user || !profileSlug) {
+                setHasPersonalAgenda(false)
+                setHasStoreAgenda(false)
+                return
+            }
+            // Pessoal
+            const { count: personalCount } = await supabase
+                .from('personal_events')
+                .select('id', { count: 'exact', head: true })
+                .eq('profile_id', user.id)
+            setHasPersonalAgenda((personalCount ?? 0) > 0)
+
+            // Lojas
+            const storeIds = stores.map(s => s.id)
+            if (storeIds.length > 0) {
+                const { count: storeEventCount } = await supabase
+                    .from('store_events')
+                    .select('id', { count: 'exact', head: true })
+                    .in('store_id', storeIds)
+                setHasStoreAgenda((storeEventCount ?? 0) > 0)
+            } else {
+                setHasStoreAgenda(false)
+            }
+        }
+        checkAgendas()
+    }, [profileSlug, stores])
+
+    // Seções exibidas com ordenação especial para visitantes
+    const displayedSections = useMemo(() => {
+        const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
+        if (!profileSlug) {
+            // Visitante: move agendas para após "promocoes"
+            const withoutAgendas = sections.filter(s => !agendaKeys.includes(s))
+            const promocoesIndex = withoutAgendas.indexOf('promocoes')
+            if (promocoesIndex >= 0) {
+                withoutAgendas.splice(promocoesIndex + 1, 0, ...agendaKeys.filter(k => sections.includes(k)))
+            } else {
+                withoutAgendas.push(...agendaKeys.filter(k => sections.includes(k)))
+            }
+            return withoutAgendas
+        }
+        // Logado: mantém a ordem, mas filtra agendas vazias
+        return sections.filter(s => {
+            if (s === 'compromissosPessoal' && !hasPersonalAgenda) return false
+            if (s === 'compromissosLoja' && !hasStoreAgenda) return false
+            return true
+        })
+    }, [sections, profileSlug, hasPersonalAgenda, hasStoreAgenda])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -417,7 +475,9 @@ export default function HomePage() {
         setEditMode(false)
     }
 
-    const toggleEditMode = () => setEditMode((prev) => !prev)
+    const toggleEditMode = () => {
+        setEditMode((prev) => !prev)
+    }
 
     const isSearchVisible = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
 
@@ -508,7 +568,6 @@ export default function HomePage() {
 
         if (stores.length > 0) {
             stores.forEach((s) => {
-                // Apenas o painel (não o dashboard)
                 allTabs.push({
                     id: `loja-${s.slug}-painel`,
                     label: `${s.name} · Painel`,
@@ -621,7 +680,6 @@ export default function HomePage() {
                         onBack={() => setShowProfile(false)}
                     />
                 ) : activeStoreSlug ? (
-                    // Apenas o Painel da Loja (sem StoreDashboard)
                     <PainelDaLoja
                         profileSlug={profileSlug!}
                         storeSlug={activeStoreSlug}
@@ -669,7 +727,7 @@ export default function HomePage() {
                             </DndContext>
                         ) : (
                             <div className="space-y-6">
-                                {sections.map((sectionId) => {
+                                {displayedSections.map((sectionId) => {
                                     const section = renderSection(sectionId)
                                     if (!section) return null
                                     return <div key={sectionId}>{section}</div>
@@ -677,63 +735,19 @@ export default function HomePage() {
                             </div>
                         )}
 
-                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
-                            <div className="flex items-center gap-2 mb-1">
-                                <Store size={20} style={{ color: colors.accent }} />
-                                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                                    Criar Loja
-                                </h2>
-                            </div>
-                            <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
-                                Crie uma nova loja para vender seus produtos ou serviços.
-                            </p>
-                            <button
-                                onClick={() => {
-                                    if (profileSlug && !loading) {
-                                        router.push('/criar-loja')
-                                    } else {
-                                        setShowCreateStore(true)
-                                    }
-                                }}
-                                className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
-                                style={primaryButtonStyle}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.filter = 'brightness(0.95)'
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.filter = 'brightness(1)'
-                                }}
-                            >
-                                <Store size={18} />
-                                {profileSlug ? 'Criar nova loja' : 'Criar loja e perfil'}
-                            </button>
-                        </div>
+                        <ButtonCreateStoreHome
+                            profileSlug={profileSlug}
+                            loading={loading}
+                            onClick={() => {
+                                if (profileSlug && !loading) {
+                                    router.push('/criar-loja')
+                                } else {
+                                    setShowCreateStore(true)
+                                }
+                            }}
+                        />
 
-                        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
-                            <div className="flex items-center gap-2 mb-1">
-                                <Settings size={20} style={{ color: colors.accent }} />
-                                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                                    Configurações
-                                </h2>
-                            </div>
-                            <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
-                                Personalize sua experiência, altere o fundo e muito mais.
-                            </p>
-                            <button
-                                onClick={() => setShowConfig(true)}
-                                className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
-                                style={primaryButtonStyle}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.filter = 'brightness(0.95)'
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.filter = 'brightness(1)'
-                                }}
-                            >
-                                <Settings size={18} />
-                                Acessar Configurações
-                            </button>
-                        </div>
+                        <ButtonSettingsHome onClick={() => setShowConfig(true)} />
                     </div>
                 )}
 
