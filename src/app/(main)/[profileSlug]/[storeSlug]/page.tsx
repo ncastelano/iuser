@@ -133,6 +133,8 @@ function getNextOpeningTime(
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const todayKey = DAY_KEYS[now.getDay()]
 
+    // Se hoje ainda não abriu e a loja abre hoje, pode ser que ainda haja horário hoje? 
+    // Como usaremos com endOfToday, não cairá aqui porque currentMinutes será 23:59.
     const todaySchedule = businessHours[todayKey]
     if (todaySchedule && todaySchedule.open && todaySchedule.close) {
         const [oh, om] = todaySchedule.open.split(':').map(Number)
@@ -144,6 +146,7 @@ function getNextOpeningTime(
         }
     }
 
+    // A partir de amanhã
     for (let i = 1; i <= 7; i++) {
         const nextDate = new Date(today)
         nextDate.setDate(today.getDate() + i)
@@ -312,6 +315,7 @@ export default function StorePage() {
         return store.is_open
     }, [store])
 
+    // Texto do status
     const statusText = useMemo(() => {
         if (!store) return ''
         const todaySchedule = getTodaySchedule(store.business_hours)
@@ -329,6 +333,20 @@ export default function StorePage() {
         }
         return store.is_open ? 'Aberto' : 'Fechado'
     }, [store, isStoreOpen])
+
+    // Próximo horário disponível para o botão Agendar (ignora hoje)
+    const nextAvailable = useMemo(() => {
+        if (!store?.business_hours) return null
+        const endOfToday = new Date()
+        endOfToday.setHours(23, 59, 59, 0)
+        const next = getNextOpeningTime(store.business_hours, endOfToday)
+        if (!next) return null
+        const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+        return {
+            day: days[next.date.getDay()],
+            open: next.open.slice(0, 5),
+        }
+    }, [store?.business_hours])
 
     useEffect(() => {
         setMounted(true)
@@ -692,9 +710,26 @@ export default function StorePage() {
                     0%, 100% { transform: translateY(0px) rotate(0deg); }
                     50% { transform: translateY(-15px) rotate(5deg); }
                 }
+                @keyframes pulse-glow-open {
+                    0%, 100% { box-shadow: 0 8px 24px rgba(16, 185, 129, 0.4), 0 0 0 6px rgba(16, 185, 129, 0.1); }
+                    50% { box-shadow: 0 8px 24px rgba(16, 185, 129, 0.6), 0 0 0 12px rgba(16, 185, 129, 0); }
+                }
+                @keyframes pulse-glow-closed {
+                    0%, 100% { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.4), 0 0 0 6px rgba(239, 68, 68, 0.1); }
+                    50% { box-shadow: 0 8px 24px rgba(239, 68, 68, 0.6), 0 0 0 12px rgba(239, 68, 68, 0); }
+                }
                 @keyframes pulse-status {
                     0%, 100% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.3); opacity: 0.8; }
+                    50% { transform: scale(1.03); opacity: 0.85; }
+                }
+                .animate-pulse-glow-open {
+                    animation: pulse-glow-open 2s ease-in-out infinite;
+                }
+                .animate-pulse-glow-closed {
+                    animation: pulse-glow-closed 2s ease-in-out infinite;
+                }
+                .animate-pulse-status {
+                    animation: pulse-status 2s ease-in-out infinite;
                 }
             `}</style>
 
@@ -703,7 +738,10 @@ export default function StorePage() {
                     className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
                     onClick={() => setShowScheduleModal(false)}
                 >
-                    <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                    <div
+                        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <StoreSchedule
                             storeId={store.id}
                             storeName={store.name}
@@ -716,7 +754,7 @@ export default function StorePage() {
             )}
 
             <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
-                {/* Cabeçalho da loja com foto destacada */}
+                {/* Cabeçalho da loja */}
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}
@@ -725,17 +763,13 @@ export default function StorePage() {
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div className="flex-shrink-0 relative">
-                        {/* Borda gradiente mais grossa e sombra extra */}
+                    <div className="flex-shrink-0">
                         <div
-                            className="w-20 h-20 rounded-2xl p-[4px] shadow-2xl"
+                            className={`w-20 h-20 rounded-2xl p-[4px] ${isStoreOpen ? 'animate-pulse-glow-open' : 'animate-pulse-glow-closed'}`}
                             style={{
                                 background: isStoreOpen
                                     ? 'linear-gradient(135deg, #10b981, #059669, #34d399)'
                                     : 'linear-gradient(135deg, #ef4444, #dc2626, #f87171)',
-                                boxShadow: isStoreOpen
-                                    ? '0 8px 24px rgba(16, 185, 129, 0.4), 0 0 0 6px rgba(16, 185, 129, 0.1)'
-                                    : '0 8px 24px rgba(239, 68, 68, 0.4), 0 0 0 6px rgba(239, 68, 68, 0.1)',
                             }}
                         >
                             <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
@@ -748,11 +782,10 @@ export default function StorePage() {
                                 )}
                             </div>
                         </div>
-
                     </div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{store.name}</h2>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
+                        <div className="flex flex-col gap-1 mt-0.5 text-xs" style={{ color: colors.textSecondary }}>
                             <div className="flex items-center gap-1">
                                 <Eye size={12} />
                                 <span className="font-bold">{totalVisitors} visitantes</span>
@@ -767,7 +800,7 @@ export default function StorePage() {
                                         }
                                     }
                                 }}
-                                className="flex items-center gap-1 font-bold text-xs hover:underline cursor-pointer"
+                                className="flex items-center gap-1 font-bold hover:underline cursor-pointer w-fit"
                                 style={{
                                     color: isStoreOpen ? '#10b981' : '#ef4444',
                                     border: 'none',
@@ -814,15 +847,21 @@ export default function StorePage() {
                     )}
                     <button
                         onClick={() => setShowScheduleModal(true)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''
+                            }`}
                         style={{
-                            background: colors.accent,
-                            borderColor: colors.accent,
+                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
                             color: colors.accentText,
+                            border: `1px solid ${colors.accent}`,
+                            boxShadow: `0 8px 18px ${colors.accent}50`,
                         }}
                     >
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>Agendar um compromisso</span>
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                            {nextAvailable
+                                ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
+                                : 'Agendar'}
+                        </span>
                     </button>
                 </div>
 
