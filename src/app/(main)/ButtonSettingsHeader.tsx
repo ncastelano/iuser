@@ -10,7 +10,7 @@ import {
 import { useFontStore } from '@/store/useFontStore'
 import { toast } from 'sonner'
 import ColloriUser from '@/components/ColloriUser'
-import { useTheme } from '../theme'
+import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 type BgMode = 'animated' | 'black' | 'custom'

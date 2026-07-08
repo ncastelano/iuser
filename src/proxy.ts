@@ -1,4 +1,4 @@
-// middleware.ts
+// proxy.ts
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     const pathname = url.pathname
 
@@ -58,8 +58,4 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.next()
-}
-
-export const config = {
-    matcher: ['/((?!_next|api|static|favicon.ico|.*\\.).*)'],
 }
