@@ -2,7 +2,7 @@
 'use client'
 
 import { Store } from 'lucide-react'
-import { useTheme } from '../theme'
+import { useTheme } from '@/app/theme'
 
 interface ButtonCreateStoreHomeProps {
     profileSlug: string | null

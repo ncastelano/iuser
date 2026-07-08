@@ -2,7 +2,7 @@
 'use client'
 
 import { Settings } from 'lucide-react'
-import { useTheme } from '../theme'
+import { useTheme } from '@/app/theme'
 
 interface ButtonSettingsHomeProps {
     onClick: () => void
