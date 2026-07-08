@@ -128,7 +128,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                             className="min-w-[85%] sm:min-w-[70%] lg:min-w-[55%] snap-center px-2"
                         >
                             <div
-                                onClick={() => router.push(`/loja/${store.slug}`)}
+                                onClick={() => router.push(`/${store.slug}`)}
                                 className="group relative h-72 sm:h-96 lg:h-[30rem] rounded-2xl overflow-hidden border transition-all duration-500 cursor-pointer transform hover:scale-[1.02]"
                                 style={{
                                     borderColor: colors.border,

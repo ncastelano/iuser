@@ -31,7 +31,6 @@ import SearchResultsSection from '@/app/SearchResultsSection'
 import LastSearched, { getRecentClicks } from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
-import StoreDashboard from './StoreDashboard'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
@@ -144,7 +143,6 @@ export default function HomePage() {
     const [allPublicStores, setAllPublicStores] = useState<any[]>([])
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
-    const [storeViewMode, setStoreViewMode] = useState<'dashboard' | 'painel'>('dashboard')
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
@@ -318,9 +316,6 @@ export default function HomePage() {
                     .map(id => imageUrlMap[id])
                     .filter(Boolean) as string[]
 
-                // Se não houver imagens de vendas, usar os primeiros produtos da loja como fallback (opcional)
-                // Vamos deixar vazio e o banner não exibirá nada
-
                 const shortAddress = s.address
                     ? s.address.length > 50 ? s.address.slice(0, 47) + '...' : s.address
                     : undefined
@@ -441,7 +436,6 @@ export default function HomePage() {
                     />
                 )
             case 'categorias':
-                // Agora sempre renderiza a seção de categorias normal
                 return <CategoriasSection />
             case 'transporte':
                 return <TransporteSection />
@@ -461,16 +455,14 @@ export default function HomePage() {
     const showHomeSections = () => {
         setShowConfig(false)
         setActiveStoreSlug(null)
-        setStoreViewMode('dashboard')
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
     }
 
-    const handleStoreTabClick = (storeSlug: string, mode: 'dashboard' | 'painel') => {
+    const handleStoreTabClick = (storeSlug: string) => {
         setShowConfig(false)
         setActiveStoreSlug(storeSlug)
-        setStoreViewMode(mode)
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
@@ -516,21 +508,14 @@ export default function HomePage() {
 
         if (stores.length > 0) {
             stores.forEach((s) => {
-                allTabs.push({
-                    id: `loja-${s.slug}-dashboard`,
-                    label: `${s.name} · Dashboard`,
-                    icon: Store,
-                    imageUrl: s.logoUrl,
-                    onClick: () => handleStoreTabClick(s.slug, 'dashboard'),
-                    isActive: activeStoreSlug === s.slug && storeViewMode === 'dashboard' && !showConfig && !showProfile && !showLogin,
-                })
+                // Apenas o painel (não o dashboard)
                 allTabs.push({
                     id: `loja-${s.slug}-painel`,
                     label: `${s.name} · Painel`,
                     icon: Store,
                     imageUrl: s.logoUrl,
-                    onClick: () => handleStoreTabClick(s.slug, 'painel'),
-                    isActive: activeStoreSlug === s.slug && storeViewMode === 'painel' && !showConfig && !showProfile && !showLogin,
+                    onClick: () => handleStoreTabClick(s.slug),
+                    isActive: activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin,
                 })
             })
         } else {
@@ -547,7 +532,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, storeViewMode, showCreateStore, showLogin, showProfile, stores, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
 
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
@@ -636,19 +621,11 @@ export default function HomePage() {
                         onBack={() => setShowProfile(false)}
                     />
                 ) : activeStoreSlug ? (
-                    // SELEÇÃO DO COMPONENTE BASEADO NO storeViewMode
-                    storeViewMode === 'painel' ? (
-                        <PainelDaLoja
-                            profileSlug={profileSlug!}
-                            storeSlug={activeStoreSlug}
-                        />
-                    ) : (
-                        <StoreDashboard
-                            profileSlug={profileSlug!}
-                            storeSlug={activeStoreSlug}
-                            onBack={showHomeSections}
-                        />
-                    )
+                    // Apenas o Painel da Loja (sem StoreDashboard)
+                    <PainelDaLoja
+                        profileSlug={profileSlug!}
+                        storeSlug={activeStoreSlug}
+                    />
                 ) : (
                     // SEÇÕES NORMAIS
                     <div className="mt-2 px-4 md:px-6">
