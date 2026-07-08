@@ -9,21 +9,17 @@ import {
     ArrowLeft,
     Calendar,
     Search,
-    Share2,
     Clock,
-    Navigation,
     ExternalLink,
-    Settings,
     Star,
     X,
     Plus,
     Shield,
-    MessageCircle,
-    QrCode,
     Eye,
     ShoppingBag,
     Home,
-    Store
+    Store,
+    MapPin,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -94,30 +90,6 @@ type StoreType = {
     view_count?: number
 }
 
-const formatAddress = (fullAddress: string | null | undefined): string => {
-    if (!fullAddress) return 'Endereço não informado'
-    const parts = fullAddress.split(',').map(p => p.trim())
-    if (parts.length >= 2) {
-        const streetWithNumber = parts[0]
-        let city = ''
-        for (let i = parts.length - 1; i >= 0; i--) {
-            const part = parts[i]
-            if (
-                !/^[A-Z]{2}$/.test(part) &&
-                part.toLowerCase() !== 'brasil' &&
-                part.length > 2 &&
-                !part.includes('CEP')
-            ) {
-                city = part
-                break
-            }
-        }
-        const result = city ? `${streetWithNumber}, ${city}` : streetWithNumber
-        return result.length > 30 ? result.substring(0, 27) + '...' : result
-    }
-    return fullAddress.length > 30 ? fullAddress.substring(0, 27) + '...' : fullAddress
-}
-
 const DAY_LABELS: Record<string, string> = {
     mon: 'Segunda-feira',
     tue: 'Terça-feira',
@@ -128,9 +100,10 @@ const DAY_LABELS: Record<string, string> = {
     sun: 'Domingo',
 }
 
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
 function getTodayKey(): string {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    return days[new Date().getDay()]
+    return DAY_KEYS[new Date().getDay()]
 }
 
 function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
@@ -145,17 +118,59 @@ function isOpenNow(schedule: { open: string; close: string } | null | undefined)
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const [openH, openM] = schedule.open.split(':').map(Number)
     let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) {
-        closeH = 24
-    }
+    if (closeH === 0 && closeM === 0) closeH = 24
     const openMinutes = openH * 60 + openM
     const closeMinutes = closeH * 60 + closeM
     return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
 }
 
+function getNextOpeningTime(
+    businessHours: Record<string, { open: string; close: string }>,
+    now: Date
+): { date: Date; open: string } | null {
+    const today = new Date(now)
+    today.setHours(0, 0, 0, 0)
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const todayKey = DAY_KEYS[now.getDay()]
+
+    const todaySchedule = businessHours[todayKey]
+    if (todaySchedule && todaySchedule.open && todaySchedule.close) {
+        const [oh, om] = todaySchedule.open.split(':').map(Number)
+        const openMinutes = oh * 60 + om
+        if (currentMinutes < openMinutes) {
+            const nextDate = new Date(today)
+            nextDate.setHours(oh, om, 0, 0)
+            return { date: nextDate, open: todaySchedule.open }
+        }
+    }
+
+    for (let i = 1; i <= 7; i++) {
+        const nextDate = new Date(today)
+        nextDate.setDate(today.getDate() + i)
+        const dayKey = DAY_KEYS[nextDate.getDay()]
+        const daySchedule = businessHours[dayKey]
+        if (daySchedule && daySchedule.open && daySchedule.close) {
+            const [oh, om] = daySchedule.open.split(':').map(Number)
+            nextDate.setHours(oh, om, 0, 0)
+            return { date: nextDate, open: daySchedule.open }
+        }
+    }
+    return null
+}
+
+function formatTimeRemaining(ms: number): string {
+    if (ms <= 0) return '0m'
+    const totalMinutes = Math.floor(ms / 60000)
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (hours > 0) {
+        return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
+    }
+    return `${minutes}m`
+}
+
 type TabType = 'products' | 'reviews'
 
-// ------------------- Helpers para o novo sistema de visitantes -------------------
 const COOLDOWN_MINUTES = 30
 const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000
 
@@ -185,7 +200,6 @@ function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
     if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
     return 'desktop'
 }
-// --------------------------------------------------------------------------------
 
 export default function StorePage() {
     const params = useParams()
@@ -219,13 +233,11 @@ export default function StorePage() {
     const [expandedDesc, setExpandedDesc] = useState(false)
     const DESC_LIMIT = 80
 
-    // ---------- Estados para o SacolaButton ----------
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- Captura de visitas ----------
     const captureVisit = useCallback(
         async (storeId: string, userId: string | null) => {
             const anonymousId = userId ? null : getOrCreateAnonymousId()
@@ -271,7 +283,6 @@ export default function StorePage() {
         [supabase]
     )
 
-    // ---------- Outras funções ----------
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
         const query = searchQuery.toLowerCase()
@@ -300,6 +311,24 @@ export default function StorePage() {
         }
         return store.is_open
     }, [store])
+
+    const statusText = useMemo(() => {
+        if (!store) return ''
+        const todaySchedule = getTodaySchedule(store.business_hours)
+        if (isStoreOpen && todaySchedule) {
+            return `Aberto: ${todaySchedule.open.slice(0, 5)} - ${todaySchedule.close.slice(0, 5)}`
+        } else if (store.business_hours) {
+            const now = new Date()
+            const next = getNextOpeningTime(store.business_hours, now)
+            if (next) {
+                const diffMs = next.date.getTime() - now.getTime()
+                const remaining = formatTimeRemaining(diffMs)
+                return `Fechado · Abrirá em ${remaining}`
+            }
+            return 'Fechado'
+        }
+        return store.is_open ? 'Aberto' : 'Fechado'
+    }, [store, isStoreOpen])
 
     useEffect(() => {
         setMounted(true)
@@ -339,7 +368,6 @@ export default function StorePage() {
         [supabase]
     )
 
-    // ---------- Carregar loja e dados ----------
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
         setLoading(true)
@@ -369,7 +397,6 @@ export default function StorePage() {
 
         setTotalVisitors(foundStore.view_count ?? 0)
 
-        // Produtos
         const { data: productsData } = await supabase
             .from('products')
             .select('*')
@@ -382,7 +409,6 @@ export default function StorePage() {
                 : null,
         }))
 
-        // WhatsApp
         let storeWhatsapp = foundStore.whatsapp
         if (!storeWhatsapp && foundStore.owner_id) {
             const { data: profile } = await supabase
@@ -397,7 +423,6 @@ export default function StorePage() {
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
 
-        // Vendas recentes (avaliações)
         const { data: salesData } = await supabase
             .from('product_reviews')
             .select(
@@ -425,7 +450,6 @@ export default function StorePage() {
         loadStore()
     }, [loadStore])
 
-    // ---------- Incremento do contador após 3s (com cooldown) ----------
     useEffect(() => {
         if (!store) return
 
@@ -470,7 +494,6 @@ export default function StorePage() {
         }
     }, [store?.id])
 
-    // ---------- Atualização em tempo real do contador de visitantes ----------
     useEffect(() => {
         if (!store) return
 
@@ -554,7 +577,6 @@ export default function StorePage() {
         toggleProduct(product)
     }
 
-    // ---------- Busca status dos pedidos (para o SacolaButton) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -599,7 +621,6 @@ export default function StorePage() {
         }
     }, [cartItems.length])
 
-    // ---------- Estilos baseados no tema ----------
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -662,77 +683,72 @@ export default function StorePage() {
 
     return (
         <div className="relative flex flex-col min-h-screen pb-28" style={{ background: colors.background }}>
-            {/* Fundo animado */}
             <div className="fixed inset-0 z-0">
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            <style jsx global>{`@keyframes float{0%,100%{transform:translateY(0px) rotate(0deg)}50%{transform:translateY(-15px) rotate(5deg)}}`}</style>
+            <style jsx global>{`
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-15px) rotate(5deg); }
+                }
+                @keyframes pulse-status {
+                    0%, 100% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.3); opacity: 0.8; }
+                }
+            `}</style>
 
-            {/* Modal de agendamento */}
             {showScheduleModal && store && (
-                <StoreSchedule
-                    storeId={store.id}
-                    storeName={store.name}
-                    storeSlug={store.storeSlug}
-                    onClose={() => setShowScheduleModal(false)}
-                    onSuccess={loadStore}
-                />
+                <div
+                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setShowScheduleModal(false)}
+                >
+                    <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                        <StoreSchedule
+                            storeId={store.id}
+                            storeName={store.name}
+                            storeSlug={store.storeSlug}
+                            onClose={() => setShowScheduleModal(false)}
+                            onSuccess={loadStore}
+                        />
+                    </div>
+                </div>
             )}
 
-            {/* Header */}
-            <header className="sticky top-0 z-50 px-3 py-3 backdrop-blur-xl border-b" style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.8)`, borderColor: colors.border }}>
-                <div className="flex items-center justify-between">
+            <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
+                {/* Cabeçalho da loja com foto destacada */}
+                <div className="flex items-center gap-4">
                     <button
-                        onClick={() => router.push('/')}
-                        className="flex w-10 h-10 items-center justify-center rounded-2xl border transition-all hover:scale-105 active:scale-95 shadow-sm"
-                        style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                        onClick={() => router.back()}
+                        className="flex-shrink-0 p-2 rounded-full hover:bg-white/10 transition"
+                        style={{ color: colors.textPrimary }}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
-                    <div className="flex items-center gap-1">
-                        {[
-                            { icon: MessageCircle, action: undefined },
-                            { icon: QrCode, action: undefined },
-                            { icon: Navigation, action: openGoogleMaps },
-                            { icon: Share2, action: () => navigator.share?.({ title: store.name, url: storeUrl }).catch(() => { }) },
-                            ...(isOwner ? [{ icon: Settings, action: () => router.push(`/${profileSlug}/${storeSlug}/editar-loja`) }] : []),
-                        ].map(({ icon: Icon, action }, idx) => (
-                            <button
-                                key={idx}
-                                onClick={action}
-                                className="flex w-9 h-9 items-center justify-center rounded-2xl border transition-all hover:scale-105 active:scale-95 shadow-sm"
-                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textSecondary }}
-                            >
-                                <Icon className="w-4 h-4" />
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </header>
-
-            <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
-                {/* Cabeçalho da loja */}
-                <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 relative">
+                        {/* Borda gradiente mais grossa e sombra extra */}
                         <div
-                            className="w-16 h-16 rounded-2xl p-[3px] shadow-xl"
+                            className="w-20 h-20 rounded-2xl p-[4px] shadow-2xl"
                             style={{
                                 background: isStoreOpen
-                                    ? 'linear-gradient(135deg, #10b981, #059669)'
-                                    : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                    ? 'linear-gradient(135deg, #10b981, #059669, #34d399)'
+                                    : 'linear-gradient(135deg, #ef4444, #dc2626, #f87171)',
+                                boxShadow: isStoreOpen
+                                    ? '0 8px 24px rgba(16, 185, 129, 0.4), 0 0 0 6px rgba(16, 185, 129, 0.1)'
+                                    : '0 8px 24px rgba(239, 68, 68, 0.4), 0 0 0 6px rgba(239, 68, 68, 0.1)',
                             }}
                         >
                             <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                                 {store.logo_url ? (
                                     <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <span className="text-xl font-black" style={{ color: colors.accent }}>
+                                    <span className="text-2xl font-black" style={{ color: colors.accent }}>
                                         {store.name?.charAt(0) || '?'}
                                     </span>
                                 )}
                             </div>
                         </div>
+
                     </div>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-xl font-black tracking-tight" style={{ color: colors.textPrimary }}>{store.name}</h2>
@@ -741,6 +757,27 @@ export default function StorePage() {
                                 <Eye size={12} />
                                 <span className="font-bold">{totalVisitors} visitantes</span>
                             </div>
+                            <button
+                                onClick={() => {
+                                    if (isOwner) {
+                                        router.push(`/${profileSlug}/${storeSlug}/editar-loja`)
+                                    } else {
+                                        if (store.business_hours && Object.keys(store.business_hours).length > 0) {
+                                            setShowAllHours(true)
+                                        }
+                                    }
+                                }}
+                                className="flex items-center gap-1 font-bold text-xs hover:underline cursor-pointer"
+                                style={{
+                                    color: isStoreOpen ? '#10b981' : '#ef4444',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    padding: 0,
+                                }}
+                            >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span className="truncate max-w-[200px]">{statusText}</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -764,25 +801,17 @@ export default function StorePage() {
                 )}
 
                 {/* Pills de ação */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-4">
                     {store.address && (
                         <button
                             onClick={openGoogleMaps}
-                            className="group flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
-                            style={{
-                                background: colors.accent,
-                                borderColor: colors.accent,
-                                color: colors.accentText,
-                            }}
+                            className="flex items-center gap-1 font-bold text-xs uppercase hover:underline"
+                            style={{ color: colors.accent }}
                         >
-                            <span className="truncate max-w-[100px]">{formatAddress(store.address)}</span>
-                            <span className="flex items-center gap-0.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                                <span className="hidden sm:inline">Ir</span>
-                                <Navigation className="w-3 h-3" />
-                            </span>
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{store.address.split(',')[0].trim()}</span>
                         </button>
                     )}
-                    {/* NOVO BOTÃO MARCAR COMPROMISSO */}
                     <button
                         onClick={() => setShowScheduleModal(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
@@ -795,42 +824,6 @@ export default function StorePage() {
                         <Calendar className="w-3.5 h-3.5" />
                         <span>Agendar um compromisso</span>
                     </button>
-                    {/* Horários de funcionamento */}
-                    {isOwner ? (
-                        <button
-                            onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-full border text-xs font-bold shadow-sm hover:scale-105 transition-all"
-                            style={{
-                                background: colors.accent,
-                                borderColor: colors.accent,
-                                color: colors.accentText,
-                            }}
-                        >
-                            <span>Editar Horários</span>
-                            <Clock className="w-3.5 h-3.5" />
-                        </button>
-                    ) : (
-                        store.business_hours && Object.keys(store.business_hours).length > 0 && (
-                            <button
-                                onClick={() => setShowAllHours(true)}
-                                className="group flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold shadow-sm hover:scale-105 transition-all"
-                                style={{
-                                    background: isStoreOpen ? '#10b981' : '#ef4444',
-                                    borderColor: isStoreOpen ? '#10b981' : '#ef4444',
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#ffffff' }} />
-                                <span>
-                                    {getTodaySchedule(store.business_hours) && isOpenNow(getTodaySchedule(store.business_hours)) ? 'Aberto' : 'Fechado'}
-                                </span>
-                                <span className="flex items-center gap-0.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                                    <span className="hidden sm:inline">Ver</span>
-                                    <span>›</span>
-                                </span>
-                            </button>
-                        )
-                    )}
                 </div>
 
                 {/* Abas */}
@@ -1093,7 +1086,6 @@ export default function StorePage() {
                 )}
             </main>
 
-            {/* Botões flutuantes */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <SacolaButton
                     totalItems={cartItems.length}
@@ -1120,7 +1112,6 @@ export default function StorePage() {
                 </button>
             </div>
 
-            {/* Modal de horários */}
             {showAllHours && store.business_hours && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllHours(false)}>
                     <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
