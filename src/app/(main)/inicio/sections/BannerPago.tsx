@@ -15,7 +15,9 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
 
+// ---------- Tipos ----------
 interface TopProduct {
     imageUrl: string | null
     name: string
@@ -33,44 +35,166 @@ interface StoreCard {
     distance?: string
     address?: string
     todayHours?: string
-    featuredImages?: string[]
     viewCount?: number
-    /** Menor duração (minutos) entre os produtos da loja */
     durationMin?: number | null
-    /** Maior duração (minutos) entre os produtos da loja */
     durationMax?: number | null
-    /** Os 3 produtos mais vendidos (imagem e nome) */
     topProducts?: TopProduct[]
 }
 
-interface BannerPagoProps {
-    stores: StoreCard[]
+// ---------- Helpers de horário ----------
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function getTodayKey() {
+    return DAY_KEYS[new Date().getDay()]
 }
 
-export default function BannerPago({ stores }: BannerPagoProps) {
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null) {
+    if (!businessHours) return null
+    const todayKey = getTodayKey()
+    return businessHours[todayKey] || null
+}
+
+function isOpenNow(schedule: { open: string; close: string } | null): boolean {
+    if (!schedule || !schedule.open || !schedule.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [oh, om] = schedule.open.split(':').map(Number)
+    let [ch, cm] = schedule.close.split(':').map(Number)
+    if (ch === 0 && cm === 0) ch = 24
+    const openMin = oh * 60 + om
+    const closeMin = ch * 60 + cm
+    return currentMinutes >= openMin && currentMinutes <= closeMin
+}
+
+// ---------- Hook de dados ----------
+function useBannerStores() {
+    const [stores, setStores] = useState<StoreCard[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchStores = async () => {
+            setLoading(true)
+
+            const [
+                { data: storesList, error: sErr },
+                { data: productsList },
+                { data: reviewsList },
+                { data: salesList }
+            ] = await Promise.all([
+                supabase.from('stores').select('*'),
+                supabase.from('products').select('id, name, store_id, image_url, duration_minutes'),
+                supabase.from('product_reviews').select('store_id, rating'),
+                supabase.from('store_sales').select('product_id')
+            ])
+
+            if (sErr) {
+                console.error('[BannerPago] Erro ao buscar lojas:', sErr)
+                setLoading(false)
+                return
+            }
+
+            // Ratings por loja
+            const ratingsMap = new Map<string, { sum: number; count: number }>()
+            reviewsList?.forEach(r => {
+                if (!ratingsMap.has(r.store_id)) ratingsMap.set(r.store_id, { sum: 0, count: 0 })
+                const cur = ratingsMap.get(r.store_id)!
+                cur.sum += r.rating
+                cur.count += 1
+            })
+
+            // Vendas por produto
+            const salesCount = new Map<string, number>()
+            salesList?.forEach(s => {
+                salesCount.set(s.product_id, (salesCount.get(s.product_id) || 0) + 1)
+            })
+
+            // Produtos agrupados por loja
+            const storeProds = new Map<string, typeof productsList>()
+            productsList?.forEach(p => {
+                if (!storeProds.has(p.store_id)) storeProds.set(p.store_id, [])
+                storeProds.get(p.store_id)!.push(p)
+            })
+
+            // Monta cards
+            const cards: StoreCard[] = (storesList || []).map(store => {
+                const logoUrl = store.logo_url
+                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                    : null
+
+                const ratingData = ratingsMap.get(store.id)
+                const avg = ratingData ? ratingData.sum / ratingData.count : store.ratings_avg ?? 0
+                const count = ratingData ? ratingData.count : store.ratings_count ?? 0
+
+                const todaySchedule = getTodaySchedule(store.business_hours)
+                const isOpen = todaySchedule ? isOpenNow(todaySchedule) : (store.is_open ?? true)
+                const todayHours = todaySchedule
+                    ? `${todaySchedule.open.slice(0, 5)} - ${todaySchedule.close.slice(0, 5)}`
+                    : undefined
+
+                const prods = storeProds.get(store.id) || []
+                const durations = prods
+                    .map(p => p.duration_minutes)
+                    .filter((d): d is number => d != null)
+                const durationMin = durations.length ? Math.min(...durations) : null
+                const durationMax = durations.length ? Math.max(...durations) : null
+
+                const topProducts: TopProduct[] = prods
+                    .sort((a, b) => (salesCount.get(b.id) || 0) - (salesCount.get(a.id) || 0))
+                    .slice(0, 3)
+                    .map(p => ({
+                        imageUrl: p.image_url
+                            ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
+                            : null,
+                        name: p.name
+                    }))
+
+                return {
+                    slug: store.storeSlug,
+                    name: store.name,
+                    logoUrl,
+                    description: store.description,
+                    rating: Number(avg.toFixed(1)),
+                    ratingCount: count,
+                    isOpen,
+                    address: store.address,
+                    todayHours,
+                    viewCount: store.view_count ?? 0,
+                    durationMin,
+                    durationMax,
+                    topProducts
+                }
+            })
+
+            // Ordena por viewCount decrescente
+            cards.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+            setStores(cards)
+            setLoading(false)
+        }
+
+        fetchStores()
+    }, [])
+
+    return { stores, loading }
+}
+
+// ---------- Componente ----------
+export default function BannerPago() {
     const router = useRouter()
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    const sortedStores = [...stores].sort(
-        (a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
-    )
+    const { stores, loading } = useBannerStores()
 
+    const sortedStores = stores // já ordenadas no hook
     const totalRealSlides = sortedStores.length
 
     const loopingStores =
         totalRealSlides > 1
-            ? [
-                sortedStores[totalRealSlides - 1],
-                ...sortedStores,
-                sortedStores[0]
-            ]
+            ? [sortedStores[totalRealSlides - 1], ...sortedStores, sortedStores[0]]
             : sortedStores
 
-    const [activeIndex, setActiveIndex] = useState<number>(
-        totalRealSlides > 1 ? 1 : 0
-    )
+    const [activeIndex, setActiveIndex] = useState<number>(totalRealSlides > 1 ? 1 : 0)
     const [isTransitioning, setIsTransitioning] = useState(true)
     const [isHovered, setIsHovered] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
@@ -82,6 +206,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
     const gapPercent = 2
     const unitPercent = slideWidthPercent + gapPercent
 
+    // Reinicia quando totalRealSlides mudar (ex.: dados carregados)
     useEffect(() => {
         if (totalRealSlides > 1) {
             setActiveIndex(1)
@@ -94,17 +219,16 @@ export default function BannerPago({ stores }: BannerPagoProps) {
 
     const goToNext = useCallback(() => {
         if (totalRealSlides <= 1 || !isTransitioning) return
-        setActiveIndex((prev) => prev + 1)
+        setActiveIndex(prev => prev + 1)
     }, [totalRealSlides, isTransitioning])
 
     const goToPrev = useCallback(() => {
         if (totalRealSlides <= 1 || !isTransitioning) return
-        setActiveIndex((prev) => prev - 1)
+        setActiveIndex(prev => prev - 1)
     }, [totalRealSlides, isTransitioning])
 
     useEffect(() => {
         if (totalRealSlides <= 1) return
-
         const handleTransitionEnd = () => {
             if (activeIndex === 0) {
                 setIsTransitioning(false)
@@ -114,7 +238,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                 setActiveIndex(1)
             }
         }
-
         const track = trackRef.current
         track?.addEventListener('transitionend', handleTransitionEnd)
         return () => track?.removeEventListener('transitionend', handleTransitionEnd)
@@ -135,52 +258,30 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         }
     }, [isHovered, isDragging, goToNext, totalRealSlides])
 
-    const handleDragStart = useCallback(
-        (clientX: number) => {
-            setIsDragging(true)
-            setDragStartX(clientX)
-            setDragOffset(0)
-        },
-        []
-    )
-
-    const handleDragMove = useCallback(
-        (clientX: number) => {
-            if (!isDragging) return
-            setDragOffset(clientX - dragStartX)
-        },
-        [isDragging, dragStartX]
-    )
-
+    // Drag
+    const handleDragStart = useCallback((clientX: number) => {
+        setIsDragging(true)
+        setDragStartX(clientX)
+        setDragOffset(0)
+    }, [])
+    const handleDragMove = useCallback((clientX: number) => {
+        if (!isDragging) return
+        setDragOffset(clientX - dragStartX)
+    }, [isDragging, dragStartX])
     const handleDragEnd = useCallback(() => {
         if (!isDragging) return
         setIsDragging(false)
-        if (dragOffset > 50) {
-            goToPrev()
-        } else if (dragOffset < -50) {
-            goToNext()
-        }
+        if (dragOffset > 50) goToPrev()
+        else if (dragOffset < -50) goToNext()
         setDragOffset(0)
     }, [isDragging, dragOffset, goToPrev, goToNext])
 
-    const onMouseDown = (e: React.MouseEvent) => {
-        e.preventDefault()
-        handleDragStart(e.clientX)
-    }
-    const onMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging) return
-        e.preventDefault()
-        handleDragMove(e.clientX)
-    }
+    const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientX) }
+    const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }
     const onMouseUp = () => handleDragEnd()
 
-    const onTouchStart = (e: React.TouchEvent) => {
-        handleDragStart(e.touches[0].clientX)
-    }
-    const onTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging) return
-        handleDragMove(e.touches[0].clientX)
-    }
+    const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientX)
+    const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientX) }
     const onTouchEnd = () => handleDragEnd()
 
     const baseTranslate = -activeIndex * unitPercent + sideSpacingPercent
@@ -200,6 +301,15 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         const h = Math.floor(minutes / 60)
         const m = minutes % 60
         return m > 0 ? `${h}h ${m}min` : `${h}h`
+    }
+
+    if (loading) {
+        return (
+            <div className="animate-pulse space-y-4">
+                <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
+                <div className="h-72 sm:h-96 lg:h-[30rem] bg-gray-200 rounded-2xl" />
+            </div>
+        )
     }
 
     if (!sortedStores.length) return null
@@ -253,8 +363,8 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                         const zIndex = isActive ? 10 : isNear ? 5 : 1
                         const brightness = isActive ? 'brightness(1)' : 'brightness(0.7)'
 
-                        const backgroundImage = store.coverUrl || store.logoUrl
-                        const locationInfo = store.distance || store.address
+                        const backgroundImage = store.logoUrl
+                        const locationInfo = store.address
 
                         const hasDuration = store.durationMin != null || store.durationMax != null
                         const durationText = hasDuration
@@ -317,9 +427,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                                 }}
                                             >
                                                 <Clock size={14} />
-                                                <span>
-                                                    {store.isOpen ? 'Aberto' : 'Fechado'}
-                                                </span>
+                                                <span>{store.isOpen ? 'Aberto' : 'Fechado'}</span>
                                                 {store.todayHours && (
                                                     <span className="opacity-90 ml-1 truncate max-w-[80px]">
                                                         {store.todayHours}
@@ -330,10 +438,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                         {durationText && (
                                             <div
                                                 className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
-                                                style={{
-                                                    background: 'rgba(0,0,0,0.5)',
-                                                    color: '#ffffff',
-                                                }}
+                                                style={{ background: 'rgba(0,0,0,0.5)', color: '#ffffff' }}
                                             >
                                                 <Timer size={14} />
                                                 <span>{durationText}</span>
@@ -342,13 +447,10 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                     </div>
 
                                     <div className="absolute top-4 right-4 z-20">
-                                        {store.viewCount !== undefined && store.viewCount > 0 && (
+                                        {store.viewCount != null && store.viewCount > 0 && (
                                             <div
                                                 className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
-                                                style={{
-                                                    background: 'rgba(0,0,0,0.5)',
-                                                    color: '#ffffff',
-                                                }}
+                                                style={{ background: 'rgba(0,0,0,0.5)', color: '#ffffff' }}
                                             >
                                                 <Eye size={14} />
                                                 <span>{store.viewCount}</span>
@@ -379,9 +481,8 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                             </p>
                                         )}
 
-                                        {/* Rodapé: avaliação + localização + produtos mais vendidos */}
+                                        {/* Rodapé: avaliação, localização, top produtos */}
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
-                                            {/* Avaliação e localização */}
                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                                 {store.rating != null && store.rating > 0 && (
                                                     <div className="flex items-center gap-1.5">
@@ -406,7 +507,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                                 )}
                                             </div>
 
-                                            {/* Produtos mais vendidos */}
                                             {store.topProducts && store.topProducts.length > 0 && (
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex -space-x-2">
@@ -453,10 +553,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                     <button
                         onClick={goToPrev}
                         className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{
-                            background: colors.accent,
-                            color: colors.accentText,
-                        }}
+                        style={{ background: colors.accent, color: colors.accentText }}
                     >
                         <ChevronLeft size={16} />
                     </button>
@@ -472,10 +569,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                 className="h-2 rounded-full transition-all duration-300"
                                 style={{
                                     width: idx === realIndex ? '1.5rem' : '0.5rem',
-                                    background:
-                                        idx === realIndex
-                                            ? colors.accent
-                                            : colors.border,
+                                    background: idx === realIndex ? colors.accent : colors.border,
                                 }}
                             />
                         ))}
@@ -483,10 +577,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                     <button
                         onClick={goToNext}
                         className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{
-                            background: colors.accent,
-                            color: colors.accentText,
-                        }}
+                        style={{ background: colors.accent, color: colors.accentText }}
                     >
                         <ChevronRight size={16} />
                     </button>
