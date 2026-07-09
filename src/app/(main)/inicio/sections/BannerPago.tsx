@@ -9,10 +9,17 @@ import {
     MapPin,
     Clock,
     ShoppingBag,
-    Eye
+    Eye,
+    Timer,
+    TrendingUp
 } from 'lucide-react'
-import { useTheme } from '@/app/theme' // ajuste conforme necessário
+import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
+
+interface TopProduct {
+    imageUrl: string | null
+    name: string
+}
 
 interface StoreCard {
     slug: string
@@ -28,6 +35,12 @@ interface StoreCard {
     todayHours?: string
     featuredImages?: string[]
     viewCount?: number
+    /** Menor duração (minutos) entre os produtos da loja */
+    durationMin?: number | null
+    /** Maior duração (minutos) entre os produtos da loja */
+    durationMax?: number | null
+    /** Os 3 produtos mais vendidos (imagem e nome) */
+    topProducts?: TopProduct[]
 }
 
 interface BannerPagoProps {
@@ -40,24 +53,21 @@ export default function BannerPago({ stores }: BannerPagoProps) {
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    // Ordena lojas por viewCount decrescente (mais vistas primeiro)
     const sortedStores = [...stores].sort(
         (a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0)
     )
 
     const totalRealSlides = sortedStores.length
 
-    // Array com clones para loop infinito (somente se houver mais de 1)
     const loopingStores =
         totalRealSlides > 1
             ? [
-                sortedStores[totalRealSlides - 1], // clone do último
+                sortedStores[totalRealSlides - 1],
                 ...sortedStores,
-                sortedStores[0] // clone do primeiro
+                sortedStores[0]
             ]
             : sortedStores
 
-    // Índice do slide ativo (começa no primeiro real, índice 1 se >1)
     const [activeIndex, setActiveIndex] = useState<number>(
         totalRealSlides > 1 ? 1 : 0
     )
@@ -67,15 +77,21 @@ export default function BannerPago({ stores }: BannerPagoProps) {
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
 
-    // ---- Configurações do carrossel ----
-    const slideWidthPercent = 80 // largura de cada slide em % do container
-    const sideSpacingPercent = (100 - slideWidthPercent) / 2 // margem lateral para centralizar (10%)
-    // Espaço total ocupado por um slide (incluindo margens laterais)
-    const slideUnitPercent = slideWidthPercent + sideSpacingPercent * 2 // 100% ? Na verdade, vamos usar 80% de largura + 2% de gap = 82% de unidade. Vou simplificar: cada slide terá 80% de largura e um gap de 2% (1% de cada lado). Unidade = 82%.
+    const slideWidthPercent = 80
+    const sideSpacingPercent = (100 - slideWidthPercent) / 2
     const gapPercent = 2
-    const unitPercent = slideWidthPercent + gapPercent // 82%
+    const unitPercent = slideWidthPercent + gapPercent
 
-    // ---- Navegação ----
+    useEffect(() => {
+        if (totalRealSlides > 1) {
+            setActiveIndex(1)
+            setIsTransitioning(true)
+        } else if (totalRealSlides === 1) {
+            setActiveIndex(0)
+            setIsTransitioning(true)
+        }
+    }, [totalRealSlides])
+
     const goToNext = useCallback(() => {
         if (totalRealSlides <= 1 || !isTransitioning) return
         setActiveIndex((prev) => prev + 1)
@@ -86,17 +102,14 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         setActiveIndex((prev) => prev - 1)
     }, [totalRealSlides, isTransitioning])
 
-    // ---- Loop infinito: reset ao atingir clones ----
     useEffect(() => {
         if (totalRealSlides <= 1) return
 
         const handleTransitionEnd = () => {
             if (activeIndex === 0) {
-                // clone do último → pular para o último real sem animação
                 setIsTransitioning(false)
                 setActiveIndex(totalRealSlides)
             } else if (activeIndex === loopingStores.length - 1) {
-                // clone do primeiro → pular para o primeiro real
                 setIsTransitioning(false)
                 setActiveIndex(1)
             }
@@ -107,7 +120,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         return () => track?.removeEventListener('transitionend', handleTransitionEnd)
     }, [activeIndex, totalRealSlides, loopingStores.length])
 
-    // Reativar transição após o reset (pequeno delay)
     useEffect(() => {
         if (!isTransitioning) {
             const timeout = setTimeout(() => setIsTransitioning(true), 50)
@@ -115,7 +127,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         }
     }, [isTransitioning])
 
-    // ---- Autoplay ----
     useEffect(() => {
         if (isHovered || isDragging || totalRealSlides <= 1) return
         autoPlayRef.current = setInterval(goToNext, 5000)
@@ -124,7 +135,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         }
     }, [isHovered, isDragging, goToNext, totalRealSlides])
 
-    // ---- Drag manual (arrastar) ----
     const handleDragStart = useCallback(
         (clientX: number) => {
             setIsDragging(true)
@@ -145,7 +155,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
     const handleDragEnd = useCallback(() => {
         if (!isDragging) return
         setIsDragging(false)
-        // Se arrastou mais de 50px, avança/retrocede
         if (dragOffset > 50) {
             goToPrev()
         } else if (dragOffset < -50) {
@@ -154,7 +163,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
         setDragOffset(0)
     }, [isDragging, dragOffset, goToPrev, goToNext])
 
-    // Eventos de mouse e touch
     const onMouseDown = (e: React.MouseEvent) => {
         e.preventDefault()
         handleDragStart(e.clientX)
@@ -175,11 +183,9 @@ export default function BannerPago({ stores }: BannerPagoProps) {
     }
     const onTouchEnd = () => handleDragEnd()
 
-    // ---- Cálculo do translateX ----
     const baseTranslate = -activeIndex * unitPercent + sideSpacingPercent
     const totalTranslate = baseTranslate + dragOffset / (trackRef.current?.clientWidth || 1) * 100
 
-    // Índice real para dots (ignora clones)
     const realIndex =
         totalRealSlides > 1
             ? activeIndex === 0
@@ -188,6 +194,13 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                     ? 0
                     : activeIndex - 1
             : 0
+
+    const formatDuration = (minutes: number) => {
+        if (minutes < 60) return `${minutes}min`
+        const h = Math.floor(minutes / 60)
+        const m = minutes % 60
+        return m > 0 ? `${h}h ${m}min` : `${h}h`
+    }
 
     if (!sortedStores.length) return null
 
@@ -235,7 +248,6 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                         const isActive = distance === 0
                         const isNear = Math.abs(distance) === 1
 
-                        // Estilos dinâmicos baseados na posição
                         const scale = isActive ? 1 : isNear ? 0.92 : 0.85
                         const opacity = isActive ? 1 : isNear ? 0.8 : 0
                         const zIndex = isActive ? 10 : isNear ? 5 : 1
@@ -243,6 +255,13 @@ export default function BannerPago({ stores }: BannerPagoProps) {
 
                         const backgroundImage = store.coverUrl || store.logoUrl
                         const locationInfo = store.distance || store.address
+
+                        const hasDuration = store.durationMin != null || store.durationMax != null
+                        const durationText = hasDuration
+                            ? store.durationMin === store.durationMax
+                                ? formatDuration(store.durationMin!)
+                                : `${formatDuration(store.durationMin!)} - ${formatDuration(store.durationMax!)}`
+                            : null
 
                         return (
                             <div
@@ -287,11 +306,11 @@ export default function BannerPago({ stores }: BannerPagoProps) {
 
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20" />
 
-                                    {/* Badges */}
+                                    {/* Badges superiores */}
                                     <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
                                         {store.isOpen !== undefined && (
                                             <div
-                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
                                                 style={{
                                                     background: store.isOpen ? '#10b981' : '#ef4444',
                                                     color: '#ffffff',
@@ -308,13 +327,26 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                                 )}
                                             </div>
                                         )}
+                                        {durationText && (
+                                            <div
+                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
+                                                style={{
+                                                    background: 'rgba(0,0,0,0.5)',
+                                                    color: '#ffffff',
+                                                }}
+                                            >
+                                                <Timer size={14} />
+                                                <span>{durationText}</span>
+                                            </div>
+                                        )}
                                     </div>
+
                                     <div className="absolute top-4 right-4 z-20">
                                         {store.viewCount !== undefined && store.viewCount > 0 && (
                                             <div
-                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
                                                 style={{
-                                                    background: '#000000',
+                                                    background: 'rgba(0,0,0,0.5)',
                                                     color: '#ffffff',
                                                 }}
                                             >
@@ -347,65 +379,66 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                             </p>
                                         )}
 
-                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-white/90">
-                                            {store.rating != null && store.rating > 0 && (
-                                                <span className="inline-flex items-center gap-1">
-                                                    <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                                                    <span className="font-bold">
-                                                        {store.rating.toFixed(1)}
-                                                    </span>
-                                                    {store.ratingCount && (
-                                                        <span className="opacity-60 ml-0.5">
-                                                            ({store.ratingCount})
+                                        {/* Rodapé: avaliação + localização + produtos mais vendidos */}
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
+                                            {/* Avaliação e localização */}
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                {store.rating != null && store.rating > 0 && (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Star size={16} className="fill-yellow-400 text-yellow-400" />
+                                                        <span className="text-sm font-black">
+                                                            {store.rating.toFixed(1)}
                                                         </span>
-                                                    )}
-                                                </span>
-                                            )}
-                                            {locationInfo && (
-                                                <span className="inline-flex items-center gap-1">
-                                                    <MapPin size={14} className="text-white/70" />
-                                                    <span className="font-bold">{locationInfo}</span>
-                                                </span>
-                                            )}
-                                            {store.featuredImages &&
-                                                store.featuredImages.length > 0 && (
-                                                    <div className="flex items-center gap-2 mt-1 w-full">
-                                                        <div className="flex gap-2">
-                                                            {store.featuredImages
-                                                                .slice(0, 3)
-                                                                .map((img, i) => (
-                                                                    <div
-                                                                        key={i}
-                                                                        className="w-10 h-10 rounded-lg overflow-hidden border border-white/30"
-                                                                    >
-                                                                        <img
-                                                                            src={img}
-                                                                            alt=""
-                                                                            className="w-full h-full object-cover"
-                                                                        />
-                                                                    </div>
-                                                                ))}
-                                                        </div>
+                                                        {store.ratingCount && (
+                                                            <span className="text-xs text-white/70">
+                                                                ({store.ratingCount})
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 )}
-                                        </div>
-
-                                        {/* Botão "Explorar loja" visível apenas no slide ativo */}
-                                        {isActive && (
-                                            <div className="mt-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
-                                                <span
-                                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold"
-                                                    style={{
-                                                        background: colors.accent,
-                                                        color: colors.accentText,
-                                                        boxShadow: `0 8px 20px ${colors.accent}66`,
-                                                    }}
-                                                >
-                                                    Explorar loja
-                                                    <ChevronRight size={16} />
-                                                </span>
+                                                {locationInfo && (
+                                                    <span className="inline-flex items-center gap-1 text-xs text-white/80">
+                                                        <MapPin size={14} className="text-white/70" />
+                                                        <span className="whitespace-normal break-words">
+                                                            {locationInfo}
+                                                        </span>
+                                                    </span>
+                                                )}
                                             </div>
-                                        )}
+
+                                            {/* Produtos mais vendidos */}
+                                            {store.topProducts && store.topProducts.length > 0 && (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex -space-x-2">
+                                                        {store.topProducts.slice(0, 3).map((product, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="w-8 h-8 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
+                                                                title={product.name}
+                                                            >
+                                                                {product.imageUrl ? (
+                                                                    <img
+                                                                        src={product.imageUrl}
+                                                                        alt={product.name}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-white text-xs font-black">
+                                                                        {product.name.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                        {store.topProducts.length > 3 && (
+                                                            <div className="w-8 h-8 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-xs font-bold text-white">
+                                                                +{store.topProducts.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <TrendingUp size={14} className="text-emerald-300" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -414,7 +447,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                 </div>
             </div>
 
-            {/* Controles e dots (somente se +1 slide) */}
+            {/* Controles e dots */}
             {totalRealSlides > 1 && (
                 <div className="flex items-center justify-center gap-3 mt-4">
                     <button
@@ -434,7 +467,7 @@ export default function BannerPago({ stores }: BannerPagoProps) {
                                 onClick={() => {
                                     if (totalRealSlides <= 1) return
                                     setIsTransitioning(true)
-                                    setActiveIndex(idx + 1) // +1 por causa do clone no início
+                                    setActiveIndex(idx + 1)
                                 }}
                                 className="h-2 rounded-full transition-all duration-300"
                                 style={{
