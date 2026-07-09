@@ -36,11 +36,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     const title = `${profileData.name} | Perfil no iUser`
     const description = `Confira o perfil de ${profileData.name} no iUser! Visite as lojas e produtos.`
-    const url = `https://iuser.com.br/${profileSlug}`
+    const url = `https://www.iuser.com.br/${profileSlug}`
 
     return {
         title,
         description,
+        alternates: {
+            canonical: url,
+        },
         openGraph: {
             title,
             description,
