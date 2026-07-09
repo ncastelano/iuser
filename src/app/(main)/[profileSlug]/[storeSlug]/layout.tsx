@@ -39,19 +39,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const titleStr = storeData.name
     const descStr = storeData.description || `Confira os melhores itens na loja ${storeData.name} no iUser.`
     const url = `https://www.iuser.com.br/${profileSlug}/${storeSlug}`
-    const shortUrl = `https://www.iuser.com.br/${storeSlug}`
 
     return {
         metadataBase: new URL('https://www.iuser.com.br'),
         title: titleStr,
         description: descStr,
         alternates: {
-            canonical: shortUrl,
+            canonical: url,
         },
         openGraph: {
             title: titleStr,
             description: descStr,
-            url: shortUrl,
+            url: url,
             siteName: 'iuser.com.br',
             images: [{ url: imageUrl, width: 400, height: 400 }],
             type: 'article',

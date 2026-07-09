@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://iuser.com.br'),
   title: 'iUser | Catálogo Digital Inteligente',
   description: 'Os melhores produtos e serviços, você encontra aqui!',
+  verification: {
+    google: 'lUgD-IyItAD8DLPH6GiHQxOcIXArO5WVoqV-yAZFXQk',
+  },
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -53,7 +56,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" className="light" suppressHydrationWarning>
-      <meta name="google-site-verification" content="lUgD-IyItAD8DLPH6GiHQxOcIXArO5WVoqV-yAZFXQk" />
       <body suppressHydrationWarning>
         <Providers>
           {children}
