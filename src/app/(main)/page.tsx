@@ -484,7 +484,7 @@ export default function HomePage() {
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                return <BannerPago stores={allPublicStores} />
+                return <BannerPago />
             case 'orderSection':
                 return (
                     <OrderSection
