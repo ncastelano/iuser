@@ -1,7 +1,7 @@
 // components/OrderModal.tsx
 'use client'
 
-import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck } from 'lucide-react'
+import { X, CheckCircle2, ChevronRight, Package, Clock, ChefHat, CheckCircle, Ban, MapPin, Truck, Globe, Store } from 'lucide-react'
 
 export interface GroupedOrder {
     id?: string
@@ -119,6 +119,14 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
 
     const totalPrice = Number(order.totalPrice) || (itemsTotal + deliveryFee)
 
+    // Identifica o canal de venda
+    const isInPerson = !order.buyer_profile_slug
+    const channelLabel = isInPerson ? 'Venda Presencial' : 'Venda Online'
+    const ChannelIcon = isInPerson ? Store : Globe
+    const channelColor = isInPerson
+        ? { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' }
+        : { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' }
+
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
@@ -136,9 +144,23 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                         <div>
                             <h3 className="text-xl font-black italic text-gray-900 uppercase tracking-tighter">Gerenciar Pedido</h3>
                             <p className="text-[10px] font-bold text-orange-500 uppercase tracking-wider">
-                                #{order.checkout_id.slice(0, 8)} • @{order.buyer_profile_slug}
+                                #{order.checkout_id.slice(0, 8)} •{' '}
+                                {isInPerson ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <span className="text-green-600">🏪 Presencial:</span> {order.buyer_name || 'Cliente'}
+                                    </span>
+                                ) : (
+                                    <>@{order.buyer_profile_slug}</>
+                                )}
                             </p>
                         </div>
+                    </div>
+
+                    {/* Indicador do canal de venda */}
+                    <div className={`mt-3 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold w-fit ${channelColor.bg} ${channelColor.text}`}>
+                        <span className={`w-2 h-2 rounded-full ${channelColor.dot} animate-pulse`} />
+                        <ChannelIcon size={14} />
+                        {channelLabel}
                     </div>
 
                     {/* Progress Steps */}
@@ -208,7 +230,7 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                             ))}
                         </div>
 
-                        {/* Local de Entrega */}
+                        {/* Local de Entrega (apenas para entregas) */}
                         {deliveryAddress && (
                             <div className="bg-orange-50/50 rounded-2xl p-4 border border-orange-100 space-y-2">
                                 <div className="flex items-center gap-2">
@@ -245,7 +267,7 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-500">Pagamento</span>
                                     <span className="font-bold text-gray-700 capitalize">
-                                        {order.payment_method === 'pix' ? 'PIX' : order.payment_method === 'cartao' ? 'Cartão' : 'Dinheiro'}
+                                        {order.payment_method === 'pix' ? 'PIX' : order.payment_method === 'cartao' ? 'Cartão' : order.payment_method === 'dinheiro' ? 'Dinheiro' : order.payment_method}
                                     </span>
                                 </div>
                             )}
@@ -253,7 +275,7 @@ export function OrderModal({ order, onClose, onAction, storeLat, storeLng, assig
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-500">Tipo</span>
                                     <span className="font-bold text-gray-700 capitalize">
-                                        {order.delivery_option === 'entrega' ? '🚚 Entrega' : '🏪 Retirada'}
+                                        {order.delivery_option === 'entrega' ? '🚚 Entrega' : order.delivery_option === 'pickup' ? '🏪 Retirada / Presencial' : order.delivery_option}
                                     </span>
                                 </div>
                             )}

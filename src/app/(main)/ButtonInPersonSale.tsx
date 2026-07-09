@@ -65,7 +65,6 @@ export default function ButtonInPersonSale({
     const [buyerName, setBuyerName] = useState('')
     const searchInputRef = useRef<HTMLInputElement>(null)
 
-    // Carregar produtos da loja
     useEffect(() => {
         if (!isOpen || !storeId) return
         const loadProducts = async () => {
@@ -80,7 +79,6 @@ export default function ButtonInPersonSale({
         loadProducts()
     }, [isOpen, storeId])
 
-    // Focar no input de busca ao abrir
     useEffect(() => {
         if (isOpen && searchInputRef.current) {
             setTimeout(() => searchInputRef.current?.focus(), 100)
@@ -133,7 +131,6 @@ export default function ButtonInPersonSale({
             const checkoutId = crypto.randomUUID()
             const finalBuyerName = buyerName.trim() || 'Cliente presencial'
 
-            // Criar pedido (sem a coluna 'channel')
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -155,7 +152,6 @@ export default function ButtonInPersonSale({
 
             if (orderError) throw orderError
 
-            // Inserir itens do pedido
             const items = cart.map(item => ({
                 order_id: orderData.id,
                 product_id: item.product.id,
@@ -184,23 +180,27 @@ export default function ButtonInPersonSale({
 
     return (
         <div className="mb-6">
-            {/* Botão principal "Vender" */}
+            {/* Botão principal */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all hover:shadow-lg"
                 style={{
-                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                    background: isOpen
+                        ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                        : 'linear-gradient(135deg, #22c55e, #16a34a)',
                     color: '#ffffff',
-                    border: `1px solid ${colors.accent}`,
-                    boxShadow: `0 8px 18px ${colors.accent}50`,
+                    border: isOpen ? '1px solid #ef4444' : '1px solid #22c55e',
+                    boxShadow: isOpen
+                        ? '0 8px 18px #ef444450'
+                        : '0 8px 18px #22c55e50',
                 }}
             >
                 <ShoppingCart size={18} />
-                {isOpen ? 'Fechar PDV' : 'Vender'}
+                {isOpen ? 'Não executar venda' : 'Vender Presencial'}
                 {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
 
-            {/* Área expansível */}
+            {/* Área expansível (restante inalterado) */}
             {isOpen && (
                 <div
                     className="mt-3 rounded-2xl border p-4 space-y-4 animate-in slide-in-from-top-2 duration-200"

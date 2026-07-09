@@ -635,6 +635,71 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
+    // Componente de item do pedido (com tag de canal na mesma linha do nome)
+    const OrderItem = ({ order, showAssignButton = true }: { order: any; showAssignButton?: boolean }) => {
+        const isInPerson = !order.buyer_profile_slug
+        const channelLabel = isInPerson ? 'v. presencial' : 'v. online'
+        const channelColor = isInPerson ? '#22c55e' : '#3b82f6'
+        const channelBg = isInPerson ? '#22c55e15' : '#3b82f615'
+
+        return (
+            <div
+                className="flex items-center justify-between p-2 rounded-lg mb-1"
+                style={{ background: channelBg }}
+            >
+                <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                    <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                            {isInPerson ? (
+                                <>
+                                    <Store size={12} style={{ color: '#22c55e' }} />
+                                    <span className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                        {order.buyer_name || 'Presencial'}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    @{order.buyer_profile_slug}
+                                </span>
+                            )}
+                            <span
+                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                style={{ background: channelBg, color: channelColor }}
+                            >
+                                {channelLabel}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs mt-0.5">
+                            <span style={{ color: colors.textPrimary }}>
+                                R$ {order.totalPrice.toFixed(2)}
+                            </span>
+                            {order.deliveryFee > 0 && (
+                                <span style={{ color: colors.textSecondary }}>
+                                    frete R$ {order.deliveryFee.toFixed(2)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        {/* espaço vazio para alinhamento */}
+                    </div>
+                </div>
+                {showAssignButton && !isInPerson && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            setSingleAssignOpen({ order })
+                        }}
+                        className="ml-2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                        title="Atribuir entregador"
+                    >
+                        <Send size={14} style={{ color: colors.accent }} />
+                    </button>
+                )}
+            </div>
+        )
+    }
+
     return (
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
             {/* Header */}
@@ -694,36 +759,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accent }}>Novos ({newOrders.length})</h4>
                         {newOrders.map(order => (
-                            <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: `${colors.accent}10` }}>
-                                <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                                    <div className="flex flex-col min-w-0">
-                                        {order.buyer_profile_slug ? (
-                                            <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
-                                        ) : (
-                                            <span className="flex items-center gap-1" style={{ color: colors.textPrimary }}>
-                                                <Store size={12} style={{ color: colors.accent }} />
-                                                <span className="truncate">{order.buyer_name || 'Presencial'}</span>
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="text-right">
-                                        <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                        {order.deliveryFee > 0 && (
-                                            <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                        )}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSingleAssignOpen({ order })
-                                    }}
-                                    className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors"
-                                    title="Atribuir entregador"
-                                >
-                                    <Send size={14} style={{ color: colors.accent }} />
-                                </button>
-                            </div>
+                            <OrderItem key={order.checkout_id} order={order} />
                         ))}
                     </div>
                 )}
@@ -735,35 +771,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                         {preparing.map(order => {
                             const isAssigned = assignmentMap.has(order.checkout_id)
                             return (
-                                <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: `${colors.accentLight}10` }}>
-                                    <div className="flex items-center justify-between">
-                                        {order.buyer_profile_slug ? (
-                                            <span
-                                                className="text-sm truncate cursor-pointer hover:underline"
-                                                style={{ color: colors.textPrimary }}
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                @{order.buyer_profile_slug}
-                                            </span>
-                                        ) : (
-                                            <span
-                                                className="text-sm truncate cursor-pointer hover:underline flex items-center gap-1"
-                                                style={{ color: colors.textPrimary }}
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                <Store size={12} style={{ color: colors.accent }} />
-                                                {order.buyer_name || 'Presencial'}
-                                            </span>
-                                        )}
-                                        <div className="text-right">
-                                            <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                            {order.deliveryFee > 0 && (
-                                                <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {isAssigned ? (
-                                        <div className="flex items-center justify-between mt-1">
+                                <div key={order.checkout_id} className="mb-1">
+                                    <OrderItem order={order} showAssignButton={!isAssigned} />
+                                    {isAssigned && (
+                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
                                             <span className="text-[10px]" style={{ color: colors.accent }}>
                                                 🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                             </span>
@@ -776,19 +787,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                                                 style={{ background: colors.accent, color: 'white' }}
                                             >
                                                 Trocar entregador
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="mt-1 flex justify-end">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setSingleAssignOpen({ order })
-                                                }}
-                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                style={{ background: colors.accent, color: 'white' }}
-                                            >
-                                                Atribuir entregador
                                             </button>
                                         </div>
                                     )}
@@ -805,35 +803,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                         {ready.map(order => {
                             const isAssigned = assignmentMap.has(order.checkout_id)
                             return (
-                                <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: '#8b5cf610' }}>
-                                    <div className="flex items-center justify-between">
-                                        {order.buyer_profile_slug ? (
-                                            <span
-                                                className="text-sm truncate cursor-pointer hover:underline"
-                                                style={{ color: colors.textPrimary }}
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                @{order.buyer_profile_slug}
-                                            </span>
-                                        ) : (
-                                            <span
-                                                className="text-sm truncate cursor-pointer hover:underline flex items-center gap-1"
-                                                style={{ color: colors.textPrimary }}
-                                                onClick={() => setSelectedOrder(order)}
-                                            >
-                                                <Store size={12} style={{ color: colors.accent }} />
-                                                {order.buyer_name || 'Presencial'}
-                                            </span>
-                                        )}
-                                        <div className="text-right">
-                                            <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                            {order.deliveryFee > 0 && (
-                                                <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {isAssigned ? (
-                                        <div className="flex items-center justify-between mt-1">
+                                <div key={order.checkout_id} className="mb-1">
+                                    <OrderItem order={order} showAssignButton={!isAssigned} />
+                                    {isAssigned && (
+                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
                                             <span className="text-[10px]" style={{ color: colors.accent }}>
                                                 🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                             </span>
@@ -848,19 +821,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                                                 Trocar entregador
                                             </button>
                                         </div>
-                                    ) : (
-                                        <div className="mt-1 flex justify-end">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setSingleAssignOpen({ order })
-                                                }}
-                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                style={{ background: colors.accent, color: 'white' }}
-                                            >
-                                                Atribuir entregador
-                                            </button>
-                                        </div>
                                     )}
                                 </div>
                             )
@@ -872,25 +832,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 {finished.length > 0 && (
                     <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
                         <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>Finalizados ({finished.length})</h4>
-                        {finished.slice(0, 3).map(order => (
-                            <div key={order.checkout_id} onClick={() => setSelectedOrder(order)} className="flex items-center justify-between p-2 rounded-lg mb-1 cursor-pointer" style={{ background: '#22c55e10' }}>
-                                <div className="flex flex-col min-w-0">
-                                    {order.buyer_profile_slug ? (
-                                        <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
-                                    ) : (
-                                        <span className="flex items-center gap-1" style={{ color: colors.textPrimary }}>
-                                            <Store size={12} style={{ color: colors.accent }} />
-                                            <span className="truncate">{order.buyer_name || 'Presencial'}</span>
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-right">
-                                    <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
-                                    {order.deliveryFee > 0 && (
-                                        <span className="text-[9px] block" style={{ color: colors.textSecondary }}>frete R$ {order.deliveryFee.toFixed(2)}</span>
-                                    )}
-                                </div>
-                            </div>
+                        {finished.slice(0, 5).map(order => (
+                            <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />
                         ))}
                     </div>
                 )}
