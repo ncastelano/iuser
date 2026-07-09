@@ -59,6 +59,7 @@ export default function CreateStoreAndRegisterProfile({
 
     // Slug check for store
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+    const [storeSlugSuggestions, setStoreSlugSuggestions] = useState<string[]>([])
 
     // Account data
     const [name, setName] = useState('')
@@ -69,6 +70,7 @@ export default function CreateStoreAndRegisterProfile({
     const [showPassword, setShowPassword] = useState(false)
     const [accountError, setAccountError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    const [profileSlugSuggestions, setProfileSlugSuggestions] = useState<string[]>([])
 
     // Slug auto-generation for store
     useEffect(() => {
@@ -85,10 +87,11 @@ export default function CreateStoreAndRegisterProfile({
         setStoreSlug(slug)
     }, [storeName])
 
-    // Check store slug availability
+    // Check store slug availability with suggestions
     useEffect(() => {
         if (!storeSlug || step !== 'store') {
             setSlugStatus('idle')
+            setStoreSlugSuggestions([])
             return
         }
         const check = async () => {
@@ -97,18 +100,44 @@ export default function CreateStoreAndRegisterProfile({
                 .from('stores')
                 .select('id')
                 .eq('storeSlug', storeSlug)
-                .limit(1)
                 .maybeSingle()
             if (data) {
                 setSlugStatus('taken')
-                setStoreSlug(`${storeSlug}-${Math.floor(Math.random() * 9999)}`)
+                const base = storeSlug.replace(/-?\d+$/, '')
+                const sugs = [1, 2, 3].map(n => `${base}-${n}`)
+                setStoreSlugSuggestions(sugs)
             } else {
                 setSlugStatus('available')
+                setStoreSlugSuggestions([])
             }
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)
     }, [storeSlug, step, supabase])
+
+    // Check profile slug availability with suggestions
+    useEffect(() => {
+        if (!profileSlug || step !== 'account') {
+            setProfileSlugSuggestions([])
+            return
+        }
+        const check = async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('profileSlug', profileSlug)
+                .maybeSingle()
+            if (data) {
+                const base = profileSlug.replace(/-?\d+$/, '')
+                const sugs = [1, 2, 3].map(n => `${base}-${n}`)
+                setProfileSlugSuggestions(sugs)
+            } else {
+                setProfileSlugSuggestions([])
+            }
+        }
+        const timer = setTimeout(check, 600)
+        return () => clearTimeout(timer)
+    }, [profileSlug, step, supabase])
 
     // Image preview
     useEffect(() => {
@@ -200,6 +229,12 @@ export default function CreateStoreAndRegisterProfile({
 
         if (!profileSlug || !/^[a-z0-9-]+$/.test(profileSlug)) {
             setAccountError('Seu link de perfil deve conter apenas letras minúsculas, números e hifens (-)')
+            setLoading(false)
+            return
+        }
+
+        if (profileSlugSuggestions.length > 0) {
+            setAccountError('Escolha um link de perfil disponível')
             setLoading(false)
             return
         }
@@ -381,7 +416,24 @@ export default function CreateStoreAndRegisterProfile({
                         {storeSlug && slugStatus === 'taken' && (
                             <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
                                 <AlertCircle className="w-3 h-3" />
-                                Indisponível, adaptado
+                                Indisponível
+                            </div>
+                        )}
+                        {storeSlugSuggestions.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {storeSlugSuggestions.map(sug => (
+                                    <button
+                                        key={sug}
+                                        type="button"
+                                        onClick={() => {
+                                            setStoreSlug(sug)
+                                            setStoreSlugSuggestions([])
+                                        }}
+                                        className="px-3 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs font-bold text-orange-700 hover:bg-orange-100 transition-colors"
+                                    >
+                                        @{sug}
+                                    </button>
+                                ))}
                             </div>
                         )}
                     </div>
@@ -568,8 +620,25 @@ export default function CreateStoreAndRegisterProfile({
                             />
                         </div>
                         <p className="text-[11px] text-gray-500 ml-1">
-                            🔗 Seu link: /{profileSlug || '...'}
+                            🔗 Seu link: https://www.iuser.com.br/ /{profileSlug || '...'}
                         </p>
+                        {profileSlugSuggestions.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {profileSlugSuggestions.map(sug => (
+                                    <button
+                                        key={sug}
+                                        type="button"
+                                        onClick={() => {
+                                            setProfileSlug(sug)
+                                            setProfileSlugSuggestions([])
+                                        }}
+                                        className="px-3 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs font-bold text-orange-700 hover:bg-orange-100 transition-colors"
+                                    >
+                                        @{sug}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Email */}
