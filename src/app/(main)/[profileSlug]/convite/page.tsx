@@ -76,7 +76,7 @@ export default function ConvitePage() {
         }
 
         alert('Bem-vindo! Você agora faz parte da rede de ' + inviter.name)
-        router.push('/eu')
+        router.push('/')
     }
 
     if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Carregando convite...</div>

@@ -1,3 +1,4 @@
+// app/(main)/[profileSlug]/[storeSlug]/StoreDashboard.tsx
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'
@@ -29,6 +30,7 @@ import {
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import SchedulesAndAvailability from './SchedulesAndAvailability'
+import ButtonInPersonSale from './ButtonInPersonSale'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -668,6 +670,15 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 </div>
             </div>
 
+            {/* Venda Presencial */}
+            <ButtonInPersonSale
+                storeId={store.id}
+                storeName={store.name}
+                storeSlug={storeSlug}
+                profileSlug={profileSlug}
+                onSaleCompleted={() => loadDashboard()}
+            />
+
             {/* Seção de pedidos */}
             <div className="space-y-4 mb-6">
                 <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><ShoppingCart size={20} /> Pedidos</h3>
@@ -686,7 +697,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             <div key={order.checkout_id} className="flex items-center justify-between p-2 rounded-lg mb-1" style={{ background: `${colors.accent}10` }}>
                                 <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
                                     <div className="flex flex-col min-w-0">
-                                        <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                        {order.buyer_profile_slug ? (
+                                            <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                        ) : (
+                                            <span className="flex items-center gap-1" style={{ color: colors.textPrimary }}>
+                                                <Store size={12} style={{ color: colors.accent }} />
+                                                <span className="truncate">{order.buyer_name || 'Presencial'}</span>
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
@@ -719,13 +737,24 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             return (
                                 <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: `${colors.accentLight}10` }}>
                                     <div className="flex items-center justify-between">
-                                        <span
-                                            className="text-sm truncate cursor-pointer hover:underline"
-                                            style={{ color: colors.textPrimary }}
-                                            onClick={() => setSelectedOrder(order)}
-                                        >
-                                            @{order.buyer_profile_slug}
-                                        </span>
+                                        {order.buyer_profile_slug ? (
+                                            <span
+                                                className="text-sm truncate cursor-pointer hover:underline"
+                                                style={{ color: colors.textPrimary }}
+                                                onClick={() => setSelectedOrder(order)}
+                                            >
+                                                @{order.buyer_profile_slug}
+                                            </span>
+                                        ) : (
+                                            <span
+                                                className="text-sm truncate cursor-pointer hover:underline flex items-center gap-1"
+                                                style={{ color: colors.textPrimary }}
+                                                onClick={() => setSelectedOrder(order)}
+                                            >
+                                                <Store size={12} style={{ color: colors.accent }} />
+                                                {order.buyer_name || 'Presencial'}
+                                            </span>
+                                        )}
                                         <div className="text-right">
                                             <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                             {order.deliveryFee > 0 && (
@@ -778,13 +807,24 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             return (
                                 <div key={order.checkout_id} className="p-2 rounded-lg mb-1" style={{ background: '#8b5cf610' }}>
                                     <div className="flex items-center justify-between">
-                                        <span
-                                            className="text-sm truncate cursor-pointer hover:underline"
-                                            style={{ color: colors.textPrimary }}
-                                            onClick={() => setSelectedOrder(order)}
-                                        >
-                                            @{order.buyer_profile_slug}
-                                        </span>
+                                        {order.buyer_profile_slug ? (
+                                            <span
+                                                className="text-sm truncate cursor-pointer hover:underline"
+                                                style={{ color: colors.textPrimary }}
+                                                onClick={() => setSelectedOrder(order)}
+                                            >
+                                                @{order.buyer_profile_slug}
+                                            </span>
+                                        ) : (
+                                            <span
+                                                className="text-sm truncate cursor-pointer hover:underline flex items-center gap-1"
+                                                style={{ color: colors.textPrimary }}
+                                                onClick={() => setSelectedOrder(order)}
+                                            >
+                                                <Store size={12} style={{ color: colors.accent }} />
+                                                {order.buyer_name || 'Presencial'}
+                                            </span>
+                                        )}
                                         <div className="text-right">
                                             <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
                                             {order.deliveryFee > 0 && (
@@ -835,7 +875,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                         {finished.slice(0, 3).map(order => (
                             <div key={order.checkout_id} onClick={() => setSelectedOrder(order)} className="flex items-center justify-between p-2 rounded-lg mb-1 cursor-pointer" style={{ background: '#22c55e10' }}>
                                 <div className="flex flex-col min-w-0">
-                                    <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    {order.buyer_profile_slug ? (
+                                        <span style={{ color: colors.textPrimary }}>@{order.buyer_profile_slug}</span>
+                                    ) : (
+                                        <span className="flex items-center gap-1" style={{ color: colors.textPrimary }}>
+                                            <Store size={12} style={{ color: colors.accent }} />
+                                            <span className="truncate">{order.buyer_name || 'Presencial'}</span>
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-right">
                                     <span style={{ color: colors.textPrimary }}>R$ {order.totalPrice.toFixed(2)}</span>
@@ -968,12 +1015,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 </div>
             </div>
 
-
-
             {/* Agendamentos */}
             <SchedulesAndAvailability storeId={store.id} />
 
-            {/* Ações rápidas (agora sem o botão Agendamentos) */}
+            {/* Ações rápidas */}
             <div className="grid grid-cols-2 gap-3">
                 <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
                     <Settings size={18} /> Editar loja
@@ -1030,7 +1075,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             <button onClick={() => setSingleAssignOpen(null)}><X size={20} /></button>
                         </div>
                         <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
-                            Pedido de @{singleAssignOpen.order.buyer_profile_slug} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}
+                            Pedido de @{singleAssignOpen.order.buyer_profile_slug || singleAssignOpen.order.buyer_name || 'Cliente'} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}
                         </p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {ownerProfile && (

@@ -115,13 +115,13 @@ export default function EditarLoja() {
 
             if (error || !store) {
                 alert('Loja não encontrada.')
-                router.push('/eu')
+                router.push('/')
                 return
             }
 
             if (store.owner_id !== user.id) {
                 alert('Você não tem permissão para editar esta loja.')
-                router.push('/eu')
+                router.push('/')
                 return
             }
 

@@ -1,3 +1,4 @@
+// app/(main)/[profileSlug]/[storeSlug]/criar-produto/page.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -10,18 +11,20 @@ import {
   Briefcase,
   MapPinned,
   Edit3,
-  X,
   ArrowLeft,
   Plus,
   Sparkles,
   Clock,
   DollarSign,
+  MessageCircle,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
 type ProductType = "physical" | "digital" | "service";
 type PriceType = "fixed" | "hourly";
+type ListingType = "sale" | "publication";
 
 export default function CriarProduto() {
   const router = useRouter();
@@ -38,6 +41,7 @@ export default function CriarProduto() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
 
@@ -45,27 +49,23 @@ export default function CriarProduto() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [type, setType] = useState<ProductType>("physical");
-  const [priceType, setPriceType] = useState<PriceType>("fixed"); // NOVO
+  const [priceType, setPriceType] = useState<PriceType>("fixed");
   const [category, setCategory] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
+  const [listingType, setListingType] = useState<ListingType>("sale");
 
   // Localização
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null
-  );
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [manualAddress, setManualAddress] = useState("");
-  const [editingAddress, setEditingAddress] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
   const formatCurrencyInput = (value: string) => {
     const numbers = value.replace(/\D/g, "");
-
     if (!numbers) return "";
-
     return (Number(numbers) / 100).toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -73,31 +73,45 @@ export default function CriarProduto() {
   };
 
   const parseCurrencyToNumber = (value: string) => {
-    return Number(
-      value
-        .replace(/\./g, "")
-        .replace(",", ".")
-    );
+    return Number(value.replace(/\./g, "").replace(",", "."));
   };
 
+  // Buscar loja (com fallback e log)
   useEffect(() => {
     const fetchStore = async () => {
-      if (!storeSlug) return;
-      const { data } = await supabase
-        .from("stores")
-        .select("id")
-        .ilike("storeSlug", storeSlug || "")
-        .maybeSingle();
-
-      if (!data) {
-        toast.error("Loja não encontrada");
+      if (!storeSlug) {
+        toast.error("Link da loja ausente.");
         router.push("/");
         return;
       }
+
+      console.log("🔍 Buscando loja com slug:", storeSlug);
+
+      const { data, error } = await supabase
+        .from("stores")
+        .select("id, whatsapp, final_whatsapp")
+        .ilike("storeSlug", storeSlug)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Erro na consulta da loja:", error);
+        toast.error("Erro ao buscar dados da loja.");
+        return;
+      }
+
+      if (!data) {
+        console.warn("Loja não encontrada para o slug:", storeSlug);
+        toast.error("Loja não encontrada. Verifique o link e tente novamente.");
+        return;
+      }
+
       setStoreId(data.id);
+      const wpp = data.final_whatsapp || data.whatsapp || null;
+      setStoreWhatsapp(wpp);
     };
+
     fetchStore();
-  }, [storeSlug]);
+  }, [storeSlug, router]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -124,7 +138,7 @@ export default function CriarProduto() {
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  // Autocomplete de endereço
+  // Autocomplete
   useEffect(() => {
     const delay = setTimeout(() => {
       if (manualAddress.length < 4) return;
@@ -154,10 +168,7 @@ export default function CriarProduto() {
     setAddress(feature.place_name);
     setManualAddress(feature.place_name);
     setSuggestions([]);
-
-    const cityComponent = feature.context?.find((c: any) =>
-      c.id.includes("place")
-    );
+    const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
     if (cityComponent) setCity(cityComponent.text);
   };
 
@@ -171,9 +182,7 @@ export default function CriarProduto() {
       if (data.features?.length > 0) {
         const feature = data.features[0];
         setAddress(feature.place_name);
-        const cityComponent = feature.context?.find((c: any) =>
-          c.id.includes("place")
-        );
+        const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
         if (cityComponent) setCity(cityComponent.text);
       }
     } catch (e) {
@@ -182,24 +191,30 @@ export default function CriarProduto() {
   };
 
   const handleCreate = async () => {
-    if (!name || parseCurrencyToNumber(price) <= 0 || !storeId) {
+    if (!name || !storeId) {
       toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+
+    if (listingType === "sale" && parseCurrencyToNumber(price) <= 0) {
+      toast.error("Informe um preço válido");
+      return;
+    }
+
+    if (listingType === "publication" && !storeWhatsapp) {
+      toast.error("Configure o WhatsApp da loja antes de criar publicações.");
       return;
     }
 
     setLoading(true);
 
-    // Checa sessão
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error("Você precisa estar logado para criar produtos.");
+      toast.error("Faça login para continuar.");
       setLoading(false);
       return;
     }
 
-    // Verifica se é o dono da loja
     const { data: storeOwner } = await supabase
       .from("stores")
       .select("owner_id")
@@ -207,7 +222,7 @@ export default function CriarProduto() {
       .single();
 
     if (!storeOwner || storeOwner.owner_id !== user.id) {
-      toast.error("Você não tem permissão para adicionar produtos nesta loja.");
+      toast.error("Você não tem permissão para esta loja.");
       setLoading(false);
       return;
     }
@@ -252,31 +267,30 @@ export default function CriarProduto() {
       }
     }
 
-    // Localização (formato correto para geography)
     let locationString: string | null = null;
     if (location) {
       locationString = `SRID=4326;POINT(${location.lng} ${location.lat})`;
     }
 
-    // Inserir produto
     const { error } = await supabase.from("products").insert({
       name,
       slug,
       description,
-      price: parseCurrencyToNumber(price),
+      price: listingType === "sale" ? parseCurrencyToNumber(price) : 0,
       type,
-      price_type: priceType,
+      price_type: listingType === "sale" ? priceType : "fixed",
+      listing_type: listingType,
       image_url: imagePath,
       store_id: storeId,
       location: locationString,
-      address: address || null, // agora existe no banco
-      city: city || null, // agora existe no banco
+      address: address || null,
+      city: city || null,
       category: category || null,
     });
 
     if (error) {
       console.error("Erro ao criar produto:", error.message, error.details);
-      toast.error("Erro ao criar produto: " + error.message);
+      toast.error("Erro ao criar: " + error.message);
       setLoading(false);
       return;
     }
@@ -294,9 +308,7 @@ export default function CriarProduto() {
   return (
     <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
       <AnimatedBackground />
-
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-        {/* Header */}
         <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
           <button
             onClick={() => router.back()}
@@ -314,7 +326,6 @@ export default function CriarProduto() {
           </div>
         </header>
 
-        {/* Form Card */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
           {/* IMAGEM */}
           <div className="space-y-3">
@@ -326,16 +337,9 @@ export default function CriarProduto() {
               className="w-40 h-40 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
             >
               {preview ? (
-                <img
-                  src={preview}
-                  className="w-full h-full object-cover"
-                  alt="Preview"
-                />
+                <img src={preview} className="w-full h-full object-cover" alt="Preview" />
               ) : (
-                <ImageIcon
-                  className="text-orange-500 group-hover:scale-110 transition-transform"
-                  size={40}
-                />
+                <ImageIcon className="text-orange-500 group-hover:scale-110 transition-transform" size={40} />
               )}
             </div>
             <input
@@ -343,10 +347,49 @@ export default function CriarProduto() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) =>
-                e.target.files && setImageFile(e.target.files[0])
-              }
+              onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
             />
+          </div>
+
+          {/* MODO DE LISTAGEM */}
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+              <ShoppingCart className="w-3 h-3 text-orange-500" />
+              Modo de Listagem
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setListingType("sale")}
+                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  }`}
+              >
+                <DollarSign className="w-4 h-4" />
+                Vender
+              </button>
+              <button
+                onClick={() => setListingType("publication")}
+                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
+                    ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Divulgar
+              </button>
+            </div>
+            {listingType === "publication" && (
+              <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800">
+                <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
+                <p>O cliente será direcionado para o WhatsApp da loja.</p>
+                {storeWhatsapp ? (
+                  <p className="mt-1">WhatsApp: <strong>{storeWhatsapp}</strong></p>
+                ) : (
+                  <p className="text-red-600 mt-1">⚠️ Nenhum WhatsApp configurado.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* TIPO DE PRODUTO */}
@@ -361,8 +404,8 @@ export default function CriarProduto() {
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
                   className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                     }`}
                 >
                   <option.icon className="w-4 h-4" />
@@ -386,65 +429,56 @@ export default function CriarProduto() {
             />
           </div>
 
-          {/* PREÇO e TIPO DE PREÇO */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-                {priceType === "fixed" ? "Preço" : "Preço por Hora"}
-              </label>
-
-              {/* Seletor de tipo de preço */}
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setPriceType("fixed")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                    }`}
-                >
-                  <DollarSign className="w-3 h-3" />
-                  Fixo
-                </button>
-                <button
-                  onClick={() => setPriceType("hourly")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                    }`}
-                >
-                  <Clock className="w-3 h-3" />
-                  Por Hora
-                </button>
+          {/* PREÇO (apenas venda) */}
+          {listingType === "sale" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                  {priceType === "fixed" ? "Preço" : "Preço por Hora"}
+                </label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setPriceType("fixed")}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      }`}
+                  >
+                    <DollarSign className="w-3 h-3" />
+                    Fixo
+                  </button>
+                  <button
+                    onClick={() => setPriceType("hourly")}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      }`}
+                  >
+                    <Clock className="w-3 h-3" />
+                    Por Hora
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">R$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  value={price}
+                  onChange={(e) => setPrice(formatCurrencyInput(e.target.value))}
+                  className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+                />
+                {priceType === "hourly" && (
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">/h</span>
+                )}
               </div>
             </div>
-
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">
-                R$
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="0,00"
-                value={price}
-                onChange={(e) => {
-                  setPrice(formatCurrencyInput(e.target.value));
-                }}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
-              />
-              {priceType === "hourly" && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">
-                  /h
-                </span>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* DESCRIÇÃO */}
           <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-              Descrição
-            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Descrição</label>
             <textarea
               placeholder="Descreva o produto ou serviço..."
               value={description}
@@ -456,9 +490,7 @@ export default function CriarProduto() {
 
           {/* CATEGORIA */}
           <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-              Categoria
-            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Categoria</label>
             <input
               placeholder="Ex: Bebidas, Sobremesas..."
               value={category}
@@ -472,8 +504,8 @@ export default function CriarProduto() {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                       }`}
                   >
                     {cat}
@@ -489,24 +521,16 @@ export default function CriarProduto() {
               <MapPinned className="w-3 h-3 text-orange-500" />
               Localização (opcional)
             </label>
-
             {!location ? (
               <div className="space-y-3">
-                {/* Botão de geolocalização */}
                 <button
                   disabled={loadingLocation}
                   onClick={() => {
                     setLoadingLocation(true);
                     navigator.geolocation.getCurrentPosition(
                       (pos) => {
-                        setLocation({
-                          lat: pos.coords.latitude,
-                          lng: pos.coords.longitude,
-                        });
-                        fetchAddressFromCoords(
-                          pos.coords.latitude,
-                          pos.coords.longitude
-                        );
+                        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                        fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
                         setLoadingLocation(false);
                       },
                       () => {
@@ -518,12 +542,8 @@ export default function CriarProduto() {
                   className="w-full flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-700 border-2 border-orange-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-orange-100 transition-all"
                 >
                   <MapPinned size={14} />
-                  {loadingLocation
-                    ? "Buscando..."
-                    : "Usar minha localização atual"}
+                  {loadingLocation ? "Buscando..." : "Usar minha localização atual"}
                 </button>
-
-                {/* Input único de busca de endereço */}
                 <div className="relative">
                   <input
                     placeholder="Ou digite o endereço..."
@@ -547,7 +567,6 @@ export default function CriarProduto() {
                 </div>
               </div>
             ) : (
-              /* Endereço selecionado */
               <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-200 space-y-2">
                 <p className="text-sm font-medium text-gray-800">{address}</p>
                 <button
@@ -567,7 +586,6 @@ export default function CriarProduto() {
             )}
           </div>
 
-          {/* BOTÃO CRIAR */}
           <button
             onClick={handleCreate}
             disabled={loading}
@@ -578,7 +596,7 @@ export default function CriarProduto() {
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                Criar Produto
+                {listingType === "sale" ? "Criar Produto" : "Criar Publicação"}
               </>
             )}
           </button>
