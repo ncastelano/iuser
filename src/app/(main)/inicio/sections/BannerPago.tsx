@@ -32,7 +32,6 @@ interface StoreCard {
     rating?: number
     ratingCount?: number
     isOpen?: boolean
-    distance?: string
     address?: string
     todayHours?: string
     viewCount?: number
@@ -151,7 +150,8 @@ function useBannerStores() {
                 return {
                     slug: store.storeSlug,
                     name: store.name,
-                    logoUrl,
+                    logoUrl, // usado apenas como plano de fundo
+                    coverUrl: logoUrl,
                     description: store.description,
                     rating: Number(avg.toFixed(1)),
                     ratingCount: count,
@@ -186,7 +186,7 @@ export default function BannerPago() {
 
     const { stores, loading } = useBannerStores()
 
-    const sortedStores = stores // já ordenadas no hook
+    const sortedStores = stores
     const totalRealSlides = sortedStores.length
 
     const loopingStores =
@@ -206,7 +206,6 @@ export default function BannerPago() {
     const gapPercent = 2
     const unitPercent = slideWidthPercent + gapPercent
 
-    // Reinicia quando totalRealSlides mudar (ex.: dados carregados)
     useEffect(() => {
         if (totalRealSlides > 1) {
             setActiveIndex(1)
@@ -363,7 +362,7 @@ export default function BannerPago() {
                         const zIndex = isActive ? 10 : isNear ? 5 : 1
                         const brightness = isActive ? 'brightness(1)' : 'brightness(0.7)'
 
-                        const backgroundImage = store.logoUrl
+                        const backgroundImage = store.coverUrl || store.logoUrl
                         const locationInfo = store.address
 
                         const hasDuration = store.durationMin != null || store.durationMax != null
@@ -414,10 +413,10 @@ export default function BannerPago() {
                                         />
                                     )}
 
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/50 to-black/20" />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
                                     {/* Badges superiores */}
-                                    <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+                                    <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
                                         {store.isOpen !== undefined && (
                                             <div
                                                 className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
@@ -429,7 +428,7 @@ export default function BannerPago() {
                                                 <Clock size={14} />
                                                 <span>{store.isOpen ? 'Aberto' : 'Fechado'}</span>
                                                 {store.todayHours && (
-                                                    <span className="opacity-90 ml-1 truncate max-w-[80px]">
+                                                    <span className="opacity-90 ml-1">
                                                         {store.todayHours}
                                                     </span>
                                                 )}
@@ -458,87 +457,76 @@ export default function BannerPago() {
                                         )}
                                     </div>
 
-                                    {/* Conteúdo textual */}
-                                    <div className="relative z-10 flex flex-col justify-end h-full p-6 sm:p-8 text-white">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            {store.logoUrl && (
-                                                <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-white/30 flex-shrink-0">
-                                                    <img
-                                                        src={store.logoUrl}
-                                                        alt={store.name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                            )}
-                                            <h3 className="text-xl sm:text-3xl font-black drop-shadow-lg">
-                                                {store.name}
-                                            </h3>
-                                        </div>
+                                    {/* Conteúdo textual alinhado perfeitamente */}
+                                    <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white z-10">
+                                        {/* Nome */}
+                                        <h3 className="text-2xl sm:text-4xl font-black drop-shadow-lg mb-1 leading-tight">
+                                            {store.name}
+                                        </h3>
 
+                                        {/* Descrição (se existir) */}
                                         {store.description && (
-                                            <p className="text-xs sm:text-sm text-white/80 line-clamp-2 mb-3">
+                                            <p className="text-sm sm:text-base text-white/80 line-clamp-2 mb-4 max-w-prose">
                                                 {store.description}
                                             </p>
                                         )}
 
-                                        {/* Rodapé: avaliação, localização, top produtos */}
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
-                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                                {store.rating != null && store.rating > 0 && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Star size={16} className="fill-yellow-400 text-yellow-400" />
-                                                        <span className="text-sm font-black">
-                                                            {store.rating.toFixed(1)}
+                                        {/* Grid de informações: avaliação / localização */}
+                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm">
+                                            {/* Avaliação */}
+                                            {store.rating != null && store.rating > 0 && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Star size={16} className="fill-yellow-400 text-yellow-400" />
+                                                    <span className="font-black">{store.rating.toFixed(1)}</span>
+                                                    {store.ratingCount && (
+                                                        <span className="text-white/70 ml-0.5">
+                                                            ({store.ratingCount})
                                                         </span>
-                                                        {store.ratingCount && (
-                                                            <span className="text-xs text-white/70">
-                                                                ({store.ratingCount})
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                {locationInfo && (
-                                                    <span className="inline-flex items-center gap-1 text-xs text-white/80">
-                                                        <MapPin size={14} className="text-white/70" />
-                                                        <span className="whitespace-normal break-words">
-                                                            {locationInfo}
-                                                        </span>
-                                                    </span>
-                                                )}
-                                            </div>
+                                                    )}
+                                                </div>
+                                            )}
 
-                                            {store.topProducts && store.topProducts.length > 0 && (
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex -space-x-2">
-                                                        {store.topProducts.slice(0, 3).map((product, i) => (
-                                                            <div
-                                                                key={i}
-                                                                className="w-8 h-8 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
-                                                                title={product.name}
-                                                            >
-                                                                {product.imageUrl ? (
-                                                                    <img
-                                                                        src={product.imageUrl}
-                                                                        alt={product.name}
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-white text-xs font-black">
-                                                                        {product.name.charAt(0).toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {store.topProducts.length > 3 && (
-                                                            <div className="w-8 h-8 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-xs font-bold text-white">
-                                                                +{store.topProducts.length - 3}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <TrendingUp size={14} className="text-emerald-300" />
+                                            {/* Localização */}
+                                            {locationInfo && (
+                                                <div className="flex items-start gap-1">
+                                                    <MapPin size={16} className="text-white/70 mt-0.5 shrink-0" />
+                                                    <span className="leading-tight">{locationInfo}</span>
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* Produtos mais vendidos */}
+                                        {store.topProducts && store.topProducts.length > 0 && (
+                                            <div className="flex items-center gap-3 mt-4">
+                                                <div className="flex -space-x-2">
+                                                    {store.topProducts.slice(0, 3).map((product, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
+                                                            title={product.name}
+                                                        >
+                                                            {product.imageUrl ? (
+                                                                <img
+                                                                    src={product.imageUrl}
+                                                                    alt={product.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-white text-sm font-black">
+                                                                    {product.name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {store.topProducts.length > 3 && (
+                                                        <div className="w-10 h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-sm font-bold text-white">
+                                                            +{store.topProducts.length - 3}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <TrendingUp size={16} className="text-emerald-300" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
