@@ -31,7 +31,7 @@ import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import SchedulesAndAvailability from './SchedulesAndAvailability'
 import ButtonInPersonSale from './ButtonInPersonSale'
-import Publication from './Publication' // 👈 novo componente
+import Publication from './Publication'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)

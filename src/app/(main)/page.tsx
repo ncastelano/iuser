@@ -40,11 +40,15 @@ import BannerPago from './inicio/sections/BannerPago'
 import PainelDaLoja from './StoreDashboard'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ButtonCreateStoreHome from './ButtonCreateStoreHome'
+import ProductShowcase from './inicio/sections/ProductShowcase'
+import PublicationShowcase from './inicio/sections/PublicationShowcase'
 
 const DEFAULT_SECTIONS = [
     'compromissosPessoal',
     'compromissosLoja',
     'bannerPago',
+    'productShowcase',
+    'publicationShowcase',
     'categorias',
     'promocoes',
     'motorista',
@@ -497,6 +501,10 @@ export default function HomePage() {
                 )
             case 'categorias':
                 return <CategoriasSection />
+            case 'productShowcase':
+                return <ProductShowcase />
+            case 'publicationShowcase':
+                return <PublicationShowcase />
             case 'transporte':
                 return <TransporteSection />
             case 'motorista':
