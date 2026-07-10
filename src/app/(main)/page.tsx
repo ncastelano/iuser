@@ -113,6 +113,9 @@ export default function HomePage() {
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
 
+    // NOVO estado para controlar carregamento das lojas
+    const [loadingStores, setLoadingStores] = useState(true)
+
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
     const totalCartItems = useMemo(() => {
@@ -126,7 +129,6 @@ export default function HomePage() {
 
     // ---------- CARREGAMENTO DA LOCALIZAÇÃO SALVA (OFFLINE + PERFIL) ----------
     useEffect(() => {
-        // 1. Carrega imediatamente do localStorage (cache offline)
         const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
         if (stored) {
             try {
@@ -134,7 +136,6 @@ export default function HomePage() {
             } catch { }
         }
 
-        // 2. Tenta sincronizar com o perfil do Supabase (se logado e online)
         const syncWithProfile = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
@@ -179,9 +180,7 @@ export default function HomePage() {
                         localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(newLocation))
                     }
                 }
-            } catch {
-                // Ignora erros de rede (offline)
-            }
+            } catch { }
         }
 
         syncWithProfile()
@@ -231,11 +230,16 @@ export default function HomePage() {
         fetchOrderStatuses()
     }, [])
 
-    // Lojas do usuário logado
+    // Lojas do usuário logado - AGORA COM CONTROLE DE CARREGAMENTO
     useEffect(() => {
         async function loadStores() {
+            setLoadingStores(true)
             const { data: { session } } = await supabase.auth.getSession()
-            if (!session?.user || !profileSlug) return
+            if (!session?.user || !profileSlug) {
+                setStores([])
+                setLoadingStores(false)
+                return
+            }
 
             const { data: fetchedStores } = await supabase
                 .from('stores')
@@ -260,7 +264,10 @@ export default function HomePage() {
                     }
                 })
                 setStores(storesData)
+            } else {
+                setStores([])
             }
+            setLoadingStores(false)
         }
         loadStores()
     }, [profileSlug])
@@ -347,7 +354,6 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
-    // ---------- HANDLE LOCATION SAVE ----------
     const handleLocationSave = async (location: { lat: number; lng: number; address: string }) => {
         setSavedLocation(location)
         localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
@@ -383,9 +389,7 @@ export default function HomePage() {
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                // O BannerPago agora obtém a localização sozinho (navigator.geolocation)
-                // e também pode usar a savedLocation internamente se preferir.
-                return <BannerPago />
+                return <BannerPago savedLocation={savedLocation} />
             case 'orderSection':
                 return (
                     <OrderSection
@@ -458,6 +462,7 @@ export default function HomePage() {
         }
     }
 
+    // Tabs com controle de loadingStores para evitar flash
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -471,6 +476,11 @@ export default function HomePage() {
             },
         ]
 
+        // Se ainda estamos carregando as lojas, retorna apenas perfil (sem Criar loja)
+        if (loadingStores) {
+            return allTabs
+        }
+
         if (stores.length > 0) {
             stores.forEach((s) => {
                 allTabs.push({
@@ -483,6 +493,7 @@ export default function HomePage() {
                 })
             })
         } else {
+            // Só mostra Criar loja se não há lojas e o carregamento terminou
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',
@@ -496,7 +507,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, loadingStores, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
     const showHomeFab = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
