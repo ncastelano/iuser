@@ -107,7 +107,6 @@ export default function HomePage() {
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
-    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [hasPersonalAgenda, setHasPersonalAgenda] = useState(false)
     const [hasStoreAgenda, setHasStoreAgenda] = useState(false)
 
@@ -125,7 +124,7 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- CARREGAMENTO DA LOCALIZAÇÃO (OFFLINE PRIMEIRO) ----------
+    // ---------- CARREGAMENTO DA LOCALIZAÇÃO SALVA (OFFLINE + PERFIL) ----------
     useEffect(() => {
         // 1. Carrega imediatamente do localStorage (cache offline)
         const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
@@ -148,7 +147,6 @@ export default function HomePage() {
                     .maybeSingle()
 
                 if (!error && profile?.location) {
-                    // Parseia coordenadas do campo geography
                     let lat: number | null = null
                     let lng: number | null = null
                     const loc = profile.location
@@ -178,7 +176,6 @@ export default function HomePage() {
                             address: profile.address || 'Localização salva',
                         }
                         setSavedLocation(newLocation)
-                        // Atualiza o cache local
                         localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(newLocation))
                     }
                 }
@@ -232,20 +229,6 @@ export default function HomePage() {
             }
         }
         fetchOrderStatuses()
-    }, [])
-
-    useEffect(() => {
-        if ('geolocation' in navigator) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    setUserLocation({
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                    })
-                },
-                () => { }
-            )
-        }
     }, [])
 
     // Lojas do usuário logado
@@ -364,13 +347,11 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
-    // ---------- HANDLE LOCATION SAVE (salva no estado, localStorage e Supabase) ----------
+    // ---------- HANDLE LOCATION SAVE ----------
     const handleLocationSave = async (location: { lat: number; lng: number; address: string }) => {
-        // Atualiza estado e cache imediatamente (offline funciona)
         setSavedLocation(location)
         localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
 
-        // Tenta salvar no perfil (se online e logado)
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
             const point = `SRID=4326;POINT(${location.lng} ${location.lat})`
@@ -402,8 +383,9 @@ export default function HomePage() {
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                const effectiveLocation = savedLocation || userLocation
-                return <BannerPago userLocation={effectiveLocation} />
+                // O BannerPago agora obtém a localização sozinho (navigator.geolocation)
+                // e também pode usar a savedLocation internamente se preferir.
+                return <BannerPago />
             case 'orderSection':
                 return (
                     <OrderSection

@@ -11,7 +11,7 @@ import {
     ShoppingBag,
     Eye,
     Timer,
-    TrendingUp
+    Spline
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
@@ -67,9 +67,23 @@ function isOpenNow(schedule: { open: string; close: string } | null): boolean {
 }
 
 // ---------- Hook de dados ----------
-function useBannerStores(userLocation: { lat: number; lng: number } | null) {
+function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
     const [stores, setStores] = useState<StoreCard[]>([])
     const [loading, setLoading] = useState(true)
+    const [effectiveLocation, setEffectiveLocation] = useState<{ lat: number; lng: number } | null>(null)
+
+    useEffect(() => {
+        if (savedLocation) {
+            setEffectiveLocation(savedLocation)
+        } else if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setEffectiveLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => setEffectiveLocation(null)
+            )
+        } else {
+            setEffectiveLocation(null)
+        }
+    }, [savedLocation])
 
     useEffect(() => {
         const fetchStores = async () => {
@@ -78,11 +92,11 @@ function useBannerStores(userLocation: { lat: number; lng: number } | null) {
             let storesList: any[] | null = null
             let error: any = null
 
-            if (userLocation) {
+            if (effectiveLocation) {
                 const { data, error: rpcErr } = await supabase
                     .rpc('get_stores_with_distance', {
-                        user_lat: userLocation.lat,
-                        user_lng: userLocation.lng
+                        user_lat: effectiveLocation.lat,
+                        user_lng: effectiveLocation.lng
                     })
                 storesList = data
                 error = rpcErr
@@ -111,7 +125,6 @@ function useBannerStores(userLocation: { lat: number; lng: number } | null) {
         }
 
         const processStores = (storesList: any[] | null, productsList: any[] | null, reviewsList: any[] | null, salesList: any[] | null) => {
-            // Ratings por loja
             const ratingsMap = new Map<string, { sum: number; count: number }>()
             reviewsList?.forEach(r => {
                 if (!ratingsMap.has(r.store_id)) ratingsMap.set(r.store_id, { sum: 0, count: 0 })
@@ -120,13 +133,11 @@ function useBannerStores(userLocation: { lat: number; lng: number } | null) {
                 cur.count += 1
             })
 
-            // Vendas por produto
             const salesCount = new Map<string, number>()
             salesList?.forEach(s => {
                 salesCount.set(s.product_id, (salesCount.get(s.product_id) || 0) + 1)
             })
 
-            // Produtos agrupados por loja
             const storeProds = new Map<string, typeof productsList>()
             productsList?.forEach(p => {
                 if (!storeProds.has(p.store_id)) storeProds.set(p.store_id, [])
@@ -192,23 +203,23 @@ function useBannerStores(userLocation: { lat: number; lng: number } | null) {
         }
 
         fetchStores()
-    }, [userLocation])
+    }, [effectiveLocation])
 
     return { stores, loading }
 }
 
 // ---------- Componente ----------
 interface BannerPagoProps {
-    userLocation?: { lat: number; lng: number } | null
+    savedLocation?: { lat: number; lng: number } | null
 }
 
-export default function BannerPago({ userLocation = null }: BannerPagoProps) {
+export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    const { stores, loading } = useBannerStores(userLocation)
+    const { stores, loading } = useBannerStores(savedLocation)
 
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
@@ -281,7 +292,6 @@ export default function BannerPago({ userLocation = null }: BannerPagoProps) {
         }
     }, [isHovered, isDragging, goToNext, totalRealSlides])
 
-    // Drag
     const handleDragStart = useCallback((clientX: number) => {
         setIsDragging(true)
         setDragStartX(clientX)
@@ -438,7 +448,7 @@ export default function BannerPago({ userLocation = null }: BannerPagoProps) {
 
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
-                                    {/* Badges superiores */}
+                                    {/* Badges superiores (status + duração) */}
                                     <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
                                         {store.isOpen !== undefined && (
                                             <div
@@ -468,14 +478,20 @@ export default function BannerPago({ userLocation = null }: BannerPagoProps) {
                                         )}
                                     </div>
 
+                                    {/* Avaliação no topo direito (substituindo o Spline) */}
                                     <div className="absolute top-4 right-4 z-20">
-                                        {store.viewCount != null && store.viewCount > 0 && (
+                                        {store.rating != null && store.rating > 0 && (
                                             <div
-                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
-                                                style={{ background: 'rgba(0,0,0,0.5)', color: '#ffffff' }}
+                                                className="flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-sm"
+                                                style={{ background: 'rgba(0,0,0,0.6)', color: '#ffffff' }}
                                             >
-                                                <Eye size={14} />
-                                                <span>{store.viewCount}</span>
+                                                <Star size={16} className="fill-yellow-400 text-yellow-400" />
+                                                <span className="text-base font-black">{store.rating.toFixed(1)}</span>
+                                                {store.ratingCount && (
+                                                    <span className="text-xs text-white/70 ml-0.5">
+                                                        ({store.ratingCount})
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -492,79 +508,59 @@ export default function BannerPago({ userLocation = null }: BannerPagoProps) {
                                             </p>
                                         )}
 
-                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm">
-                                            {store.rating != null && store.rating > 0 && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <Star size={16} className="fill-yellow-400 text-yellow-400" />
-                                                    <span className="font-black">{store.rating.toFixed(1)}</span>
-                                                    {store.ratingCount && (
-                                                        <span className="text-white/70 ml-0.5">
-                                                            ({store.ratingCount})
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-
+                                        {/* Endereço + distância na mesma linha */}
+                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm mb-4">
                                             {locationInfo && (
                                                 <div className="flex items-start gap-1">
                                                     <MapPin size={16} className="text-white/70 mt-0.5 shrink-0" />
                                                     <span className="leading-tight">{locationInfo}</span>
                                                 </div>
                                             )}
-                                        </div>
-
-                                        {/* Produtos + distância na mesma linha */}
-                                        <div className="flex items-center justify-between mt-4 gap-2">
-                                            <div className="flex items-center gap-3">
-                                                {store.topProducts && store.topProducts.length > 0 && (
-                                                    <div className="flex -space-x-2">
-                                                        {store.topProducts.slice(0, 3).map((product, i) => (
-                                                            <div
-                                                                key={i}
-                                                                className="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
-                                                                title={product.name}
-                                                            >
-                                                                {product.imageUrl ? (
-                                                                    <img
-                                                                        src={product.imageUrl}
-                                                                        alt={product.name}
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-white text-sm font-black">
-                                                                        {product.name.charAt(0).toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {store.topProducts.length > 3 && (
-                                                            <div className="w-10 h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-sm font-bold text-white">
-                                                                +{store.topProducts.length - 3}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                {store.topProducts && store.topProducts.length > 0 && (
-                                                    <TrendingUp size={16} className="text-emerald-300" />
-                                                )}
-                                            </div>
-
-                                            {/* Distância (calculada via PostGIS RPC) */}
                                             {store.distanceMeters != null && (
-                                                <div className="flex items-center gap-1 text-xs font-bold text-white/90 whitespace-nowrap">
-                                                    <MapPin size={14} className="text-emerald-300" />
-                                                    {formatDistance(store.distanceMeters)}
+                                                <div className="flex items-center gap-1.5">
+                                                    <Spline size={14} className="text-emerald-300" />
+                                                    <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
                                                 </div>
                                             )}
                                         </div>
 
-                                        {/* Se não houver produtos, mas houver distância */}
-                                        {(!store.topProducts || store.topProducts.length === 0) && store.distanceMeters != null && (
-                                            <div className="flex items-center gap-1 mt-3 text-xs font-bold text-white/90">
-                                                <MapPin size={14} className="text-emerald-300" />
-                                                {formatDistance(store.distanceMeters)}
-                                            </div>
-                                        )}
+                                        {/* Produtos + número de visitas */}
+                                        <div className="flex items-center gap-4">
+                                            {store.topProducts && store.topProducts.length > 0 && (
+                                                <div className="flex -space-x-2">
+                                                    {store.topProducts.slice(0, 3).map((product, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
+                                                            title={product.name}
+                                                        >
+                                                            {product.imageUrl ? (
+                                                                <img
+                                                                    src={product.imageUrl}
+                                                                    alt={product.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-white text-sm font-black">
+                                                                    {product.name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                    {store.topProducts.length > 3 && (
+                                                        <div className="w-10 h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-sm font-bold text-white">
+                                                            +{store.topProducts.length - 3}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {store.viewCount != null && store.viewCount > 0 && (
+                                                <div className="flex items-center gap-1 text-xs font-bold text-white/90">
+                                                    <Eye size={14} />
+                                                    <span>{store.viewCount}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
