@@ -318,8 +318,10 @@ export default function CreateStoreAndRegisterProfile({
         }
     }
 
+    // ⬇️ ALTERAÇÃO AQUI ⬇️
     const handleGoToStore = () => {
-        router.push(`/${profileSlug}/${storeSlug}`)
+        // Força o reload completo para que o header seja atualizado com a nova loja
+        window.location.href = `/${profileSlug}/${storeSlug}`
     }
 
     // Função de voltar adaptada ao modo embutido

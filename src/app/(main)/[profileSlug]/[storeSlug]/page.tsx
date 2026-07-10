@@ -20,6 +20,7 @@ import {
     Home,
     Store,
     MapPin,
+    MessageCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -133,8 +134,6 @@ function getNextOpeningTime(
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const todayKey = DAY_KEYS[now.getDay()]
 
-    // Se hoje ainda não abriu e a loja abre hoje, pode ser que ainda haja horário hoje? 
-    // Como usaremos com endOfToday, não cairá aqui porque currentMinutes será 23:59.
     const todaySchedule = businessHours[todayKey]
     if (todaySchedule && todaySchedule.open && todaySchedule.close) {
         const [oh, om] = todaySchedule.open.split(':').map(Number)
@@ -146,7 +145,6 @@ function getNextOpeningTime(
         }
     }
 
-    // A partir de amanhã
     for (let i = 1; i <= 7; i++) {
         const nextDate = new Date(today)
         nextDate.setDate(today.getDate() + i)
@@ -315,7 +313,6 @@ export default function StorePage() {
         return store.is_open
     }, [store])
 
-    // Texto do status
     const statusText = useMemo(() => {
         if (!store) return ''
         const todaySchedule = getTodaySchedule(store.business_hours)
@@ -334,7 +331,6 @@ export default function StorePage() {
         return store.is_open ? 'Aberto' : 'Fechado'
     }, [store, isStoreOpen])
 
-    // Próximo horário disponível para o botão Agendar (ignora hoje)
     const nextAvailable = useMemo(() => {
         if (!store?.business_hours) return null
         const endOfToday = new Date()
@@ -754,7 +750,6 @@ export default function StorePage() {
             )}
 
             <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
-                {/* Cabeçalho da loja */}
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}
@@ -815,7 +810,6 @@ export default function StorePage() {
                     </div>
                 </div>
 
-                {/* Descrição */}
                 {store.description && (
                     <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || store.description.length <= DESC_LIMIT
@@ -833,7 +827,6 @@ export default function StorePage() {
                     </div>
                 )}
 
-                {/* Pills de ação */}
                 <div className="flex flex-wrap items-center gap-4">
                     {store.address && (
                         <button
@@ -865,7 +858,6 @@ export default function StorePage() {
                     </button>
                 </div>
 
-                {/* Abas */}
                 <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>
                     <button
                         onClick={() => setActiveTab('products')}
@@ -901,7 +893,6 @@ export default function StorePage() {
                     </div>
                 </div>
 
-                {/* Produtos */}
                 {activeTab === 'products' && (
                     <>
                         <div className="flex items-center gap-2">
@@ -973,14 +964,27 @@ export default function StorePage() {
                                         {products.map(product => {
                                             const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                             const isHourly = product.price_type === 'hourly'
+                                            const isPublication = product.listing_type === 'publication'
+                                            const storeWhatsapp = store?.final_whatsapp || store?.whatsapp || null
+                                            const whatsappLink = isPublication && storeWhatsapp
+                                                ? `https://wa.me/${storeWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no item "${product.name}" da loja ${store?.name}.`)}`
+                                                : '#'
+
                                             return (
                                                 <div
                                                     key={product.id}
-                                                    onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                    onClick={() => {
+                                                        if (isPublication) {
+                                                            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
+                                                        } else {
+                                                            handleProductClick(product)
+                                                        }
+                                                    }}
+                                                    className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''
+                                                        }`}
                                                     style={{
                                                         background: `${colors.surface}88`,
-                                                        borderColor: isSelected ? '#22c55e' : colors.border,
+                                                        borderColor: isSelected && !isPublication ? '#22c55e' : isPublication ? '#10b981' : colors.border,
                                                         backdropFilter: 'blur(8px)',
                                                         WebkitBackdropFilter: 'blur(8px)',
                                                     }}
@@ -999,7 +1003,12 @@ export default function StorePage() {
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
                                                         )}
-                                                        {!isOwner && mounted && isSelected && (
+                                                        {isPublication && (
+                                                            <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-green-500 text-white shadow-md">
+                                                                Divulgação
+                                                            </span>
+                                                        )}
+                                                        {!isOwner && mounted && isSelected && !isPublication && (
                                                             <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
                                                                 <button
                                                                     onClick={(e) => {
@@ -1023,15 +1032,25 @@ export default function StorePage() {
                                                         )}
                                                     </div>
                                                     <div className="p-3">
-                                                        <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>{product.name}</h4>
-                                                        <p className="text-[11px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>{product.description || 'Sem descrição'}</p>
-                                                        <div className="flex items-center justify-between mt-3">
-                                                            <div>
-                                                                <span className="text-base font-extrabold" style={{ color: colors.accent }}>
-                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                </span>
-                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                            </div>
+                                                        <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
+                                                            {product.name}
+                                                        </h4>
+                                                        <p className="text-[11px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
+                                                            {product.description || 'Sem descrição'}
+                                                        </p>
+                                                        <div className="mt-2">
+                                                            {isPublication ? (
+                                                                <p className="text-sm font-black text-green-600">Sob consulta</p>
+                                                            ) : (
+                                                                <div className="flex items-center">
+                                                                    <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                    </span>
+                                                                    {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-3 flex justify-end">
                                                             {isOwner ? (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
@@ -1040,9 +1059,19 @@ export default function StorePage() {
                                                                 >
                                                                     <ExternalLink className="w-4 h-4" />
                                                                 </button>
+                                                            ) : isPublication ? (
+                                                                <a
+                                                                    href={whatsappLink}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
+                                                                >
+                                                                    <MessageCircle size={14} />
+                                                                    Saber mais
+                                                                </a>
                                                             ) : mounted && isSelected ? (
                                                                 <div className="flex items-center gap-1.5">
-                                                                    {/* espaço reservado */}
                                                                 </div>
                                                             ) : (
                                                                 <button
@@ -1065,7 +1094,6 @@ export default function StorePage() {
                     </>
                 )}
 
-                {/* Avaliações */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
                         {ratings.length === 0 ? (

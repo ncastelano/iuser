@@ -1,3 +1,4 @@
+// app/(main)/[profileSlug]/[storeSlug]/editar-loja/page.tsx
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
@@ -16,43 +17,6 @@ const DAYS_OF_WEEK = [
     { key: 'sat', label: 'Sábado' },
     { key: 'sun', label: 'Domingo' },
 ]
-
-function parseLocation(loc: any): { lat: number; lng: number } | null {
-    if (!loc) return null
-
-    if (typeof loc === 'object' && loc.type === 'Point' && Array.isArray(loc.coordinates)) {
-        const [lng, lat] = loc.coordinates
-        if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
-    }
-
-    if (typeof loc === 'string') {
-        const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
-        if (match) {
-            const lng = parseFloat(match[1])
-            const lat = parseFloat(match[2])
-            if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
-        }
-
-        if (loc.startsWith('01') && loc.length >= 42) {
-            try {
-                const hexToDouble = (hex: string) => {
-                    const bytes = new Uint8Array(hex.match(/.{1,2}/g)!.map(b => parseInt(b, 16)))
-                    const view = new DataView(bytes.buffer)
-                    return view.getFloat64(0, true)
-                }
-                const lngHex = loc.substring(20, 36)
-                const latHex = loc.substring(36, 52)
-                const lng = hexToDouble(lngHex)
-                const lat = hexToDouble(latHex)
-                if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
-            } catch (e) {
-                console.warn('Erro ao decodificar EWKB:', e)
-            }
-        }
-    }
-
-    return null
-}
 
 export default function EditarLoja() {
     const router = useRouter()
@@ -90,10 +54,9 @@ export default function EditarLoja() {
     const [deliveryMode, setDeliveryMode] = useState<'free' | 'fixed' | 'distance'>('fixed')
     const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
 
-    // Novos campos para distância com valor base
-    const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5') // km
-    const [deliveryBaseFee, setDeliveryBaseFee] = useState('7')          // R$ até essa distância
-    const [deliveryExtraPerKm, setDeliveryExtraPerKm] = useState('2')   // R$ por km extra
+    const [deliveryBaseDistance, setDeliveryBaseDistance] = useState('5')
+    const [deliveryBaseFee, setDeliveryBaseFee] = useState('7')
+    const [deliveryExtraPerKm, setDeliveryExtraPerKm] = useState('2')
 
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
@@ -163,16 +126,18 @@ export default function EditarLoja() {
                 setPreview(url)
             }
 
-            const coords = parseLocation(store.location)
-            if (coords) {
-                setLocation(coords)
-                if (!store.address) fetchAddressFromCoords(coords.lat, coords.lng)
+            // ---------- NOVA LEITURA SIMPLIFICADA DE COORDENADAS ----------
+            const lat = store.store_lat
+            const lng = store.store_lng
+            if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
+                setLocation({ lat, lng })
+                if (!store.address) fetchAddressFromCoords(lat, lng)
             } else {
-                const lat = store.store_lat
-                const lng = store.store_lng
-                if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-                    setLocation({ lat, lng })
-                    if (!store.address) fetchAddressFromCoords(lat, lng)
+                // fallback para o campo geography (GeoJSON ou WKT)
+                const geo = parseLocation(store.location)
+                if (geo) {
+                    setLocation(geo)
+                    if (!store.address) fetchAddressFromCoords(geo.lat, geo.lng)
                 } else {
                     setLocation(null)
                 }
@@ -256,8 +221,11 @@ export default function EditarLoja() {
 
         const latValue = location?.lat ?? null
         const lngValue = location?.lng ?? null
-        const locationString = location ? `POINT(${lngValue} ${latValue})` : null
 
+        // WKT com SRID para o campo geography
+        const locationString = location ? `SRID=4326;POINT(${lngValue} ${latValue})` : null
+
+        // Configuração de entrega
         let deliveryType = 'none'
         let savedDeliveryFee: number | null = null
         let savedFeePerKm: number | null = null
@@ -279,6 +247,8 @@ export default function EditarLoja() {
             }
         }
 
+        const cleanWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim() || null
+
         const updateData: any = {
             name,
             storeSlug,
@@ -287,7 +257,7 @@ export default function EditarLoja() {
             store_lat: latValue,
             store_lng: lngValue,
             address,
-            whatsapp: whatsapp.replace(/[^\d+]/g, '').trim() || null,
+            whatsapp: cleanWhatsapp,
             accepts_delivery: acceptsDelivery,
             accepts_pickup: acceptsPickup,
             accepts_pix: acceptsPix,
@@ -305,14 +275,18 @@ export default function EditarLoja() {
 
         if (logoPath) updateData.logo_url = logoPath
 
+        console.log('Dados enviados para atualização:', updateData)
+
         const { error } = await supabase.from('stores').update(updateData).eq('id', storeId)
 
         if (error) {
+            console.error('Erro ao atualizar loja:', error)
             alert('Erro ao atualizar loja: ' + error.message)
             setLoading(false)
             return
         }
 
+        alert('Loja atualizada com sucesso!')
         setLoading(false)
         router.push(`/${profileSlug}/${storeSlug}`)
     }
@@ -328,6 +302,29 @@ export default function EditarLoja() {
         }
         alert("Loja deletada com sucesso.")
         router.push('/eu')
+    }
+
+    // Função auxiliar para extrair coordenadas do campo geography (mantida como fallback)
+    function parseLocation(loc: any): { lat: number; lng: number } | null {
+        if (!loc) return null
+
+        // GeoJSON
+        if (typeof loc === 'object' && loc.type === 'Point' && Array.isArray(loc.coordinates)) {
+            const [lng, lat] = loc.coordinates
+            if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
+        }
+
+        // WKT
+        if (typeof loc === 'string') {
+            const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+            if (match) {
+                const lng = parseFloat(match[1])
+                const lat = parseFloat(match[2])
+                if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
+            }
+        }
+
+        return null
     }
 
     if (pageLoading) return <LoadingSpinner />
@@ -452,7 +449,6 @@ export default function EditarLoja() {
                         <div className="space-y-4">
                             <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">Configurações de Venda</label>
 
-                            {/* Entrega / Retirada */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
                                     <span className="text-xs font-bold text-gray-700">📍 Faz entrega</span>
@@ -468,7 +464,6 @@ export default function EditarLoja() {
                                 </div>
                             </div>
 
-                            {/* Detalhes da entrega */}
                             {acceptsDelivery && (
                                 <div className="ml-2 space-y-2">
                                     <p className="text-[10px] font-bold text-gray-500">Tipo de entrega</p>
@@ -505,7 +500,6 @@ export default function EditarLoja() {
                                 </div>
                             )}
 
-                            {/* Pagamento */}
                             <div className="grid grid-cols-3 gap-3 mt-2">
                                 <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
                                     <span className="text-xs font-bold text-gray-700">💳 Cartão</span>
@@ -527,7 +521,6 @@ export default function EditarLoja() {
                                 </div>
                             </div>
 
-                            {/* Chave Pix */}
                             {acceptsPix && (
                                 <div className="ml-2 space-y-2">
                                     <p className="text-[10px] font-bold text-gray-500">Chave Pix</p>

@@ -1,3 +1,4 @@
+// app/(main)/[profileSlug]/[storeSlug]/[productSlug]/editar-produto/page.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -16,12 +17,17 @@ import {
   Trash2,
   Clock,
   DollarSign,
+  MessageCircle,
+  ShoppingCart,
+  Timer,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
 type ProductType = "physical" | "digital" | "service";
 type PriceType = "fixed" | "hourly";
+type ListingType = "sale" | "publication";
 
 export default function EditarProduto() {
   const router = useRouter();
@@ -51,14 +57,11 @@ export default function EditarProduto() {
   const [priceType, setPriceType] = useState<PriceType>("fixed");
   const [category, setCategory] = useState("");
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
+  const [listingType, setListingType] = useState<ListingType>("sale");
 
-  // NOVO: duração do serviço (em minutos)
-  const [duration, setDuration] = useState<number | undefined>(undefined);
+  const [durationMinutes, setDurationMinutes] = useState<string>("60");
 
-  // Localização (estilo consistente)
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
-    null
-  );
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [manualAddress, setManualAddress] = useState("");
@@ -68,13 +71,30 @@ export default function EditarProduto() {
   const [preview, setPreview] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
 
+  // Dados da loja para divulgação
+  const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null);
+  const [storeAddress, setStoreAddress] = useState<string>("");
+  const [storeLat, setStoreLat] = useState<number | null>(null);
+  const [storeLng, setStoreLng] = useState<number | null>(null);
+
+  const formatCurrencyInput = (value: string) => {
+    const numbers = value.replace(/\D/g, "");
+    if (!numbers) return "";
+    return (Number(numbers) / 100).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const parseCurrencyToNumber = (value: string) => {
+    return Number(value.replace(/\./g, "").replace(",", "."));
+  };
+
   useEffect(() => {
     const fetchProductData = async () => {
       if (!storeSlug || !productSlug) return;
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Você precisa estar logado.");
         router.push("/");
@@ -83,9 +103,9 @@ export default function EditarProduto() {
 
       const { data: store, error: storeError } = await supabase
         .from("stores")
-        .select("id, owner_id")
+        .select("*")
         .ilike("storeSlug", storeSlug)
-        .single();
+        .maybeSingle();
 
       if (storeError || !store) {
         toast.error("Loja não encontrada.");
@@ -99,17 +119,16 @@ export default function EditarProduto() {
         return;
       }
 
-      const decodedSlug = decodeURIComponent(productSlug || "");
-      let query = supabase
-        .from("products")
-        .select("*")
-        .eq("store_id", store.id);
+      const wpp = store.final_whatsapp || store.whatsapp || null;
+      setStoreWhatsapp(wpp);
+      setStoreAddress(store.address || "");
+      setStoreLat(store.store_lat ?? null);
+      setStoreLng(store.store_lng ?? null);
 
-      if (
-        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
-          decodedSlug
-        )
-      ) {
+      const decodedSlug = decodeURIComponent(productSlug || "");
+      let query = supabase.from("products").select("*").eq("store_id", store.id);
+
+      if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decodedSlug)) {
         query = query.eq("id", decodedSlug);
       } else {
         query = query.eq("slug", decodedSlug);
@@ -138,61 +157,21 @@ export default function EditarProduto() {
       setAddress(data.address || "");
       setCity(data.city || "");
       setCategory(data.category || "");
-
-      // NOVO: carregar duração
-      setDuration(data.duration_minutes ?? undefined);
+      setListingType((data.listing_type as ListingType) || "sale");
+      setDurationMinutes(data.duration_minutes ? String(data.duration_minutes) : "60");
 
       if (data.image_url) {
-        const url = supabase.storage
-          .from("product-images")
-          .getPublicUrl(data.image_url).data.publicUrl;
+        const url = supabase.storage.from("product-images").getPublicUrl(data.image_url).data.publicUrl;
         setPreview(url);
       }
 
       if (data.location) {
         let coords: { lat: number; lng: number } | null = null;
         if (typeof data.location === "string") {
-          if (data.location.toUpperCase().includes("POINT")) {
-            const match = data.location.match(
-              /POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i
-            );
-            if (match)
-              coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
-          } else if (
-            /^[0-9A-F]+$/i.test(data.location) &&
-            data.location.length >= 42
-          ) {
-            try {
-              const hexToDouble = (hex: string) => {
-                const bytes = new Uint8Array(
-                  hex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16))
-                );
-                const view = new DataView(bytes.buffer);
-                return view.getFloat64(0, true);
-              };
-              if (data.location.length === 50) {
-                coords = {
-                  lng: hexToDouble(data.location.substring(18, 34)),
-                  lat: hexToDouble(data.location.substring(34, 50)),
-                };
-              } else if (data.location.length === 42) {
-                coords = {
-                  lng: hexToDouble(data.location.substring(10, 26)),
-                  lat: hexToDouble(data.location.substring(26, 42)),
-                };
-              }
-            } catch (e) {
-              console.error("Hex parse error:", e);
-            }
-          }
-        } else if (
-          data.location.type === "Point" &&
-          Array.isArray(data.location.coordinates)
-        ) {
-          coords = {
-            lng: data.location.coordinates[0],
-            lat: data.location.coordinates[1],
-          };
+          const match = data.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i);
+          if (match) coords = { lng: parseFloat(match[1]), lat: parseFloat(match[2]) };
+        } else if (data.location.type === "Point" && Array.isArray(data.location.coordinates)) {
+          coords = { lng: data.location.coordinates[0], lat: data.location.coordinates[1] };
         }
         if (coords && isFinite(coords.lat) && isFinite(coords.lng)) {
           setLocation(coords);
@@ -200,7 +179,6 @@ export default function EditarProduto() {
       }
 
       setStoreId(store.id);
-      setPageLoading(false);
 
       const { data: catData } = await supabase
         .from("products")
@@ -212,6 +190,8 @@ export default function EditarProduto() {
         ) as string[];
         setExistingCategories(cats);
       }
+
+      setPageLoading(false);
     };
     fetchProductData();
   }, [storeSlug, productSlug]);
@@ -223,7 +203,6 @@ export default function EditarProduto() {
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  // Autocomplete de endereço (igual ao CriarProduto)
   useEffect(() => {
     const delay = setTimeout(() => {
       if (manualAddress.length < 4) return;
@@ -253,9 +232,7 @@ export default function EditarProduto() {
     setAddress(feature.place_name);
     setManualAddress(feature.place_name);
     setSuggestions([]);
-    const cityComponent = feature.context?.find((c: any) =>
-      c.id.includes("place")
-    );
+    const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
     if (cityComponent) setCity(cityComponent.text);
   };
 
@@ -269,37 +246,69 @@ export default function EditarProduto() {
       if (data.features?.length > 0) {
         const feature = data.features[0];
         setAddress(feature.place_name);
-        const cityComponent = feature.context?.find((c: any) =>
-          c.id.includes("place")
-        );
+        const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
         if (cityComponent) setCity(cityComponent.text);
       }
     } catch (e) {
       console.error(e);
     }
   };
-  const formatCurrencyInput = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
 
-    if (!numbers) return "";
-
-    return (Number(numbers) / 100).toLocaleString("pt-BR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  const useStoreAddress = () => {
+    if (storeLat != null && storeLng != null) {
+      setLocation({ lat: storeLat, lng: storeLng });
+      setAddress(storeAddress);
+      setManualAddress(storeAddress);
+      setCity("");
+      if (!storeAddress) fetchAddressFromCoords(storeLat, storeLng);
+    } else if (storeAddress) {
+      fetchCoordsFromAddress(storeAddress);
+    } else {
+      toast.error("A loja não possui endereço cadastrado.");
+    }
   };
 
-  const parseCurrencyToNumber = (value: string) => {
-    return Number(
-      value
-        .replace(/\./g, "")
-        .replace(",", ".")
-    );
+  const fetchCoordsFromAddress = async (query: string) => {
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query
+        )}.json?access_token=${token}&limit=1&country=BR`
+      );
+      const data = await res.json();
+      if (data?.features?.[0]) {
+        const [lng, lat] = data.features[0].center;
+        setLocation({ lat, lng });
+        setAddress(data.features[0].place_name);
+        setManualAddress(data.features[0].place_name);
+        setSuggestions([]);
+        const cityComponent = data.features[0].context?.find((c: any) =>
+          c.id.includes("place")
+        );
+        if (cityComponent) setCity(cityComponent.text);
+      } else {
+        toast.error("Endereço não encontrado.");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao buscar coordenadas.");
+    }
   };
 
   const handleUpdate = async () => {
-    if (!name || parseCurrencyToNumber(price) <= 0 || !productId) {
+    if (!name || !productId) {
       toast.error("Preencha os campos obrigatórios");
+      return;
+    }
+
+    if (listingType === "sale" && parseCurrencyToNumber(price) <= 0) {
+      toast.error("Informe um preço válido");
+      return;
+    }
+
+    if (listingType === "publication" && !storeWhatsapp) {
+      toast.error("Configure o WhatsApp da loja antes de criar publicações.");
       return;
     }
 
@@ -343,25 +352,23 @@ export default function EditarProduto() {
       name,
       slug,
       description,
-      price: parseCurrencyToNumber(price),
+      price: listingType === "sale" ? parseCurrencyToNumber(price) : 0,
       type,
-      price_type: priceType,
+      price_type: listingType === "sale" ? priceType : "fixed",
+      listing_type: listingType,
       location: locationString,
       address: address || null,
       city: city || null,
       category: category || null,
-      duration_minutes: type === "service" ? (duration ?? null) : null,
+      duration_minutes: type === "service" ? (parseInt(durationMinutes) || null) : null,
     };
 
     if (imagePath) updateData.image_url = imagePath;
 
-    const { error } = await supabase
-      .from("products")
-      .update(updateData)
-      .eq("id", productId);
+    const { error } = await supabase.from("products").update(updateData).eq("id", productId);
     if (error) {
-      console.error(error);
-      toast.error("Erro ao atualizar produto");
+      console.error("Erro ao atualizar produto:", error.message, error.details, error.code);
+      toast.error("Erro ao atualizar: " + (error.message || JSON.stringify(error)));
       setLoading(false);
       return;
     }
@@ -371,25 +378,15 @@ export default function EditarProduto() {
   };
 
   const handleDelete = async () => {
-    if (
-      !window.confirm(
-        "Certeza que deseja deletar permanentemente este produto?"
-      )
-    )
-      return;
-
+    if (!window.confirm("Certeza que deseja deletar permanentemente este produto?")) return;
     setLoading(true);
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", productId);
+    const { error } = await supabase.from("products").delete().eq("id", productId);
     if (error) {
       console.error(error);
       toast.error("Erro ao deletar produto.");
       setLoading(false);
       return;
     }
-
     toast.success("Produto removido.");
     router.push(`/${profileSlug}/${storeSlug}`);
   };
@@ -413,7 +410,6 @@ export default function EditarProduto() {
       <AnimatedBackground />
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-        {/* Header */}
         <header className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-200/50">
           <button
             onClick={() => router.back()}
@@ -431,7 +427,6 @@ export default function EditarProduto() {
           </div>
         </header>
 
-        {/* Form Card */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
           {/* IMAGEM */}
           <div className="space-y-3">
@@ -443,16 +438,9 @@ export default function EditarProduto() {
               className="w-40 h-40 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
             >
               {preview ? (
-                <img
-                  src={preview}
-                  className="w-full h-full object-cover"
-                  alt="Preview"
-                />
+                <img src={preview} className="w-full h-full object-cover" alt="Preview" />
               ) : (
-                <ImageIcon
-                  className="text-orange-500 group-hover:scale-110 transition-transform"
-                  size={40}
-                />
+                <ImageIcon className="text-orange-500 group-hover:scale-110 transition-transform" size={40} />
               )}
             </div>
             <input
@@ -460,10 +448,52 @@ export default function EditarProduto() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) =>
-                e.target.files && setImageFile(e.target.files[0])
-              }
+              onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
             />
+          </div>
+
+          {/* MODO DE LISTAGEM */}
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+              <ShoppingCart className="w-3 h-3 text-orange-500" />
+              Modo de Listagem
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setListingType("sale")}
+                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  }`}
+              >
+                <DollarSign className="w-4 h-4" />
+                Vender
+              </button>
+              <button
+                onClick={() => setListingType("publication")}
+                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
+                    ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Divulgar
+              </button>
+            </div>
+            {listingType === "publication" && (
+              <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800 space-y-1">
+                <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
+                <p>O cliente será direcionado para o WhatsApp da loja.</p>
+                {storeWhatsapp ? (
+                  <p>📱 WhatsApp: <strong>{storeWhatsapp}</strong></p>
+                ) : (
+                  <p className="text-red-600">⚠️ Nenhum WhatsApp configurado na loja.</p>
+                )}
+                {(storeAddress || (storeLat != null && storeLng != null)) && (
+                  <p>📍 Localização da loja cadastrada e disponível para o produto.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* TIPO DE PRODUTO */}
@@ -478,8 +508,8 @@ export default function EditarProduto() {
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
                   className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                     }`}
                 >
                   <option.icon className="w-4 h-4" />
@@ -503,84 +533,75 @@ export default function EditarProduto() {
             />
           </div>
 
-          {/* PREÇO e TIPO DE PREÇO */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-                {priceType === "fixed" ? "Preço" : "Preço por Hora"}
-              </label>
-
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setPriceType("fixed")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                    }`}
-                >
-                  <DollarSign className="w-3 h-3" />
-                  Fixo
-                </button>
-                <button
-                  onClick={() => setPriceType("hourly")}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                    }`}
-                >
-                  <Clock className="w-3 h-3" />
-                  Por Hora
-                </button>
+          {/* PREÇO (apenas venda) */}
+          {listingType === "sale" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                  {priceType === "fixed" ? "Preço" : "Preço por Hora"}
+                </label>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setPriceType("fixed")}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      }`}
+                  >
+                    <DollarSign className="w-3 h-3" />
+                    Fixo
+                  </button>
+                  <button
+                    onClick={() => setPriceType("hourly")}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      }`}
+                  >
+                    <Clock className="w-3 h-3" />
+                    Por Hora
+                  </button>
+                </div>
+              </div>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">R$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  value={price}
+                  onChange={(e) => setPrice(formatCurrencyInput(e.target.value))}
+                  className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+                />
+                {priceType === "hourly" && (
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">/h</span>
+                )}
               </div>
             </div>
+          )}
 
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">
-                R$
-              </span>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="0,00"
-                value={price}
-                onChange={(e) => {
-                  setPrice(formatCurrencyInput(e.target.value));
-                }}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
-              />
-              {priceType === "hourly" && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">
-                  /h
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* NOVO: DURAÇÃO DO SERVIÇO (apenas quando o tipo é "service") */}
+          {/* DURAÇÃO (apenas serviços) */}
           {type === "service" && (
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Clock className="w-3 h-3 text-orange-500" />
-                Duração (minutos)
+                <Timer className="w-3 h-3 text-orange-500" />
+                Duração do Serviço (minutos)
               </label>
               <input
                 type="number"
-                placeholder="Ex: 60"
-                value={duration ?? ""}
-                onChange={(e) =>
-                  setDuration(e.target.value ? Number(e.target.value) : undefined)
-                }
-                min={1}
+                min="1"
+                placeholder="60"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(e.target.value)}
                 className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
               />
+              <p className="text-[9px] text-gray-400 ml-1">Tempo médio de atendimento (opcional)</p>
             </div>
           )}
 
           {/* DESCRIÇÃO */}
           <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-              Descrição
-            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Descrição</label>
             <textarea
               placeholder="Descreva o produto ou serviço..."
               value={description}
@@ -592,9 +613,7 @@ export default function EditarProduto() {
 
           {/* CATEGORIA */}
           <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-              Categoria
-            </label>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Categoria</label>
             <input
               placeholder="Ex: Bebidas, Sobremesas..."
               value={category}
@@ -608,8 +627,8 @@ export default function EditarProduto() {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                       }`}
                   >
                     {cat}
@@ -626,6 +645,16 @@ export default function EditarProduto() {
               Localização (opcional)
             </label>
 
+            {(storeAddress || (storeLat != null && storeLng != null)) && !location && (
+              <button
+                onClick={useStoreAddress}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border-2 border-blue-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-blue-100 transition-all"
+              >
+                <MapPin size={14} />
+                Usar endereço da loja
+              </button>
+            )}
+
             {!location ? (
               <div className="space-y-3">
                 <button
@@ -634,14 +663,8 @@ export default function EditarProduto() {
                     setLoadingLocation(true);
                     navigator.geolocation.getCurrentPosition(
                       (pos) => {
-                        setLocation({
-                          lat: pos.coords.latitude,
-                          lng: pos.coords.longitude,
-                        });
-                        fetchAddressFromCoords(
-                          pos.coords.latitude,
-                          pos.coords.longitude
-                        );
+                        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                        fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
                         setLoadingLocation(false);
                       },
                       () => {
@@ -653,11 +676,8 @@ export default function EditarProduto() {
                   className="w-full flex items-center justify-center gap-2 py-3 bg-orange-50 text-orange-700 border-2 border-orange-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-orange-100 transition-all"
                 >
                   <MapPinned size={14} />
-                  {loadingLocation
-                    ? "Buscando..."
-                    : "Usar minha localização atual"}
+                  {loadingLocation ? "Buscando..." : "Usar minha localização atual"}
                 </button>
-
                 <div className="relative">
                   <input
                     placeholder="Ou digite o endereço..."

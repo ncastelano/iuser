@@ -31,6 +31,7 @@ import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import SchedulesAndAvailability from './SchedulesAndAvailability'
 import ButtonInPersonSale from './ButtonInPersonSale'
+import Publication from './Publication' // 👈 novo componente
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -960,6 +961,9 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
 
             {/* Agendamentos */}
             <SchedulesAndAvailability storeId={store.id} />
+
+            {/* Publicações */}
+            <Publication storeId={store.id} />
 
             {/* Ações rápidas */}
             <div className="grid grid-cols-2 gap-3">

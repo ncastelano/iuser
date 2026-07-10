@@ -18,6 +18,8 @@ import {
   DollarSign,
   MessageCircle,
   ShoppingCart,
+  Timer,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
@@ -42,6 +44,10 @@ export default function CriarProduto() {
 
   const [storeId, setStoreId] = useState<string | null>(null);
   const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null);
+  const [storeAddress, setStoreAddress] = useState<string>("");
+  const [storeLat, setStoreLat] = useState<number | null>(null);
+  const [storeLng, setStoreLng] = useState<number | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
 
@@ -56,7 +62,8 @@ export default function CriarProduto() {
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [listingType, setListingType] = useState<ListingType>("sale");
 
-  // Localização
+  const [durationMinutes, setDurationMinutes] = useState<string>("60");
+
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -76,7 +83,6 @@ export default function CriarProduto() {
     return Number(value.replace(/\./g, "").replace(",", "."));
   };
 
-  // Buscar loja (com fallback e log)
   useEffect(() => {
     const fetchStore = async () => {
       if (!storeSlug) {
@@ -85,22 +91,19 @@ export default function CriarProduto() {
         return;
       }
 
-      console.log("🔍 Buscando loja com slug:", storeSlug);
-
       const { data, error } = await supabase
         .from("stores")
-        .select("id, whatsapp, final_whatsapp")
+        .select("*")
         .ilike("storeSlug", storeSlug)
         .maybeSingle();
 
       if (error) {
         console.error("Erro na consulta da loja:", error);
-        toast.error("Erro ao buscar dados da loja.");
+        toast.error("Erro ao buscar dados da loja: " + error.message);
         return;
       }
 
       if (!data) {
-        console.warn("Loja não encontrada para o slug:", storeSlug);
         toast.error("Loja não encontrada. Verifique o link e tente novamente.");
         return;
       }
@@ -108,6 +111,9 @@ export default function CriarProduto() {
       setStoreId(data.id);
       const wpp = data.final_whatsapp || data.whatsapp || null;
       setStoreWhatsapp(wpp);
+      setStoreAddress(data.address || "");
+      setStoreLat(data.store_lat ?? null);
+      setStoreLng(data.store_lng ?? null);
     };
 
     fetchStore();
@@ -120,7 +126,6 @@ export default function CriarProduto() {
         .from("products")
         .select("category")
         .eq("store_id", storeId);
-
       if (data) {
         const cats = Array.from(
           new Set(data.map((p) => p.category).filter(Boolean))
@@ -138,7 +143,6 @@ export default function CriarProduto() {
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  // Autocomplete
   useEffect(() => {
     const delay = setTimeout(() => {
       if (manualAddress.length < 4) return;
@@ -190,6 +194,50 @@ export default function CriarProduto() {
     }
   };
 
+  const useStoreAddress = () => {
+    if (storeLat != null && storeLng != null) {
+      setLocation({ lat: storeLat, lng: storeLng });
+      setAddress(storeAddress);
+      setManualAddress(storeAddress);
+      setCity("");
+      if (!storeAddress) {
+        fetchAddressFromCoords(storeLat, storeLng);
+      }
+    } else if (storeAddress) {
+      fetchCoordsFromAddress(storeAddress);
+    } else {
+      toast.error("A loja não possui endereço cadastrado.");
+    }
+  };
+
+  const fetchCoordsFromAddress = async (query: string) => {
+    try {
+      const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+      const res = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query
+        )}.json?access_token=${token}&limit=1&country=BR`
+      );
+      const data = await res.json();
+      if (data?.features?.[0]) {
+        const [lng, lat] = data.features[0].center;
+        setLocation({ lat, lng });
+        setAddress(data.features[0].place_name);
+        setManualAddress(data.features[0].place_name);
+        setSuggestions([]);
+        const cityComponent = data.features[0].context?.find((c: any) =>
+          c.id.includes("place")
+        );
+        if (cityComponent) setCity(cityComponent.text);
+      } else {
+        toast.error("Endereço não encontrado.");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Erro ao buscar coordenadas.");
+    }
+  };
+
   const handleCreate = async () => {
     if (!name || !storeId) {
       toast.error("Preencha os campos obrigatórios");
@@ -227,7 +275,6 @@ export default function CriarProduto() {
       return;
     }
 
-    // Upload da imagem
     let imagePath: string | null = null;
     if (imageFile) {
       const fileExt = imageFile.name.split(".").pop();
@@ -243,7 +290,6 @@ export default function CriarProduto() {
       if (data) imagePath = data.path;
     }
 
-    // Slug único
     let slug = name
       .toLowerCase()
       .normalize("NFD")
@@ -272,6 +318,8 @@ export default function CriarProduto() {
       locationString = `SRID=4326;POINT(${location.lng} ${location.lat})`;
     }
 
+    const durationValue = type === "service" ? parseInt(durationMinutes) || 60 : null;
+
     const { error } = await supabase.from("products").insert({
       name,
       slug,
@@ -286,6 +334,7 @@ export default function CriarProduto() {
       address: address || null,
       city: city || null,
       category: category || null,
+      duration_minutes: durationValue,
     });
 
     if (error) {
@@ -380,13 +429,16 @@ export default function CriarProduto() {
               </button>
             </div>
             {listingType === "publication" && (
-              <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800">
+              <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800 space-y-1">
                 <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
                 <p>O cliente será direcionado para o WhatsApp da loja.</p>
                 {storeWhatsapp ? (
-                  <p className="mt-1">WhatsApp: <strong>{storeWhatsapp}</strong></p>
+                  <p>📱 WhatsApp: <strong>{storeWhatsapp}</strong></p>
                 ) : (
-                  <p className="text-red-600 mt-1">⚠️ Nenhum WhatsApp configurado.</p>
+                  <p className="text-red-600">⚠️ Nenhum WhatsApp configurado na loja.</p>
+                )}
+                {(storeAddress || (storeLat != null && storeLng != null)) && (
+                  <p>📍 Localização da loja cadastrada e disponível para o produto.</p>
                 )}
               </div>
             )}
@@ -476,6 +528,25 @@ export default function CriarProduto() {
             </div>
           )}
 
+          {/* DURAÇÃO (apenas serviços) */}
+          {type === "service" && (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                <Timer className="w-3 h-3 text-orange-500" />
+                Duração do Serviço (minutos)
+              </label>
+              <input
+                type="number"
+                min="1"
+                placeholder="60"
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(e.target.value)}
+                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+              />
+              <p className="text-[9px] text-gray-400 ml-1">Tempo médio de atendimento (opcional)</p>
+            </div>
+          )}
+
           {/* DESCRIÇÃO */}
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Descrição</label>
@@ -521,6 +592,17 @@ export default function CriarProduto() {
               <MapPinned className="w-3 h-3 text-orange-500" />
               Localização (opcional)
             </label>
+
+            {(storeAddress || (storeLat != null && storeLng != null)) && !location && (
+              <button
+                onClick={useStoreAddress}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border-2 border-blue-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-blue-100 transition-all"
+              >
+                <MapPin size={14} />
+                Usar endereço da loja
+              </button>
+            )}
+
             {!location ? (
               <div className="space-y-3">
                 <button
