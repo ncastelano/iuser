@@ -5,10 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
     ChevronLeft,
     ChevronRight,
-    Star,
     FileText,
-    Eye,
-    Timer,
     MessageCircle,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
@@ -18,13 +15,7 @@ import { supabase } from '@/lib/supabase/client'
 // ---------- Tipos ----------
 interface PublicationCard {
     id: string
-    name: string
     imageUrl: string | null
-    description?: string
-    durationMinutes: number | null
-    viewCount: number
-    rating: number
-    reviewCount: number
     storeName: string
     storeSlug: string
     storeLogoUrl: string | null
@@ -53,7 +44,7 @@ function usePublicationShowcase() {
 
             const { data: publicationsList, error: pubErr } = await supabase
                 .from('products')
-                .select('*')
+                .select('id, image_url, store_id')
                 .eq('listing_type', 'publication')
                 .order('view_count', { ascending: false })
 
@@ -69,18 +60,6 @@ function usePublicationShowcase() {
                 return
             }
 
-            const { data: reviewsList } = await supabase
-                .from('product_reviews')
-                .select('product_id, rating')
-
-            const ratingMap = new Map<string, { sum: number; count: number }>()
-            reviewsList?.forEach(r => {
-                if (!ratingMap.has(r.product_id)) ratingMap.set(r.product_id, { sum: 0, count: 0 })
-                const cur = ratingMap.get(r.product_id)!
-                cur.sum += r.rating
-                cur.count += 1
-            })
-
             const cards: PublicationCard[] = publicationsList.map(pub => {
                 const store = storeMap.get(pub.store_id)
                 const logoUrl = store?.logo_url
@@ -91,19 +70,9 @@ function usePublicationShowcase() {
                     ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
                     : null
 
-                const ratingData = ratingMap.get(pub.id)
-                const avg = ratingData ? ratingData.sum / ratingData.count : 0
-                const count = ratingData ? ratingData.count : 0
-
                 return {
                     id: pub.id,
-                    name: pub.name,
                     imageUrl,
-                    description: pub.description,
-                    durationMinutes: pub.duration_minutes ?? null,
-                    viewCount: pub.view_count ?? 0,
-                    rating: Number(avg.toFixed(1)),
-                    reviewCount: count,
                     storeName: store?.name ?? 'Loja desconhecida',
                     storeSlug: store?.storeSlug ?? '#',
                     storeLogoUrl: logoUrl,
@@ -118,13 +87,6 @@ function usePublicationShowcase() {
     }, [])
 
     return { publications, loading }
-}
-
-const formatDuration = (minutes: number) => {
-    if (minutes < 60) return `${minutes}min`
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    return m > 0 ? `${h}h ${m}min` : `${h}h`
 }
 
 export default function PublicationShowcase() {
@@ -148,7 +110,6 @@ export default function PublicationShowcase() {
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
 
-    // Mostrando 3 cards por vez
     const cardWidthPercent = 100 / 3
     const unitPercent = cardWidthPercent
 
@@ -238,9 +199,9 @@ export default function PublicationShowcase() {
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
                 <div className="flex gap-4">
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
+                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
+                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
+                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
                 </div>
             </div>
         )
@@ -286,7 +247,6 @@ export default function PublicationShowcase() {
                     }}
                 >
                     {loopingPubs.map((pub, index) => {
-                        const hasRating = pub.rating > 0
                         return (
                             <div
                                 key={`${pub.id}-${index}`}
@@ -303,102 +263,65 @@ export default function PublicationShowcase() {
                                             router.push(`/${pub.storeSlug}?produto=${pub.id}`)
                                         }
                                     }}
-                                    className="group relative h-64 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md"
+                                    className="group h-72 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md flex flex-col"
                                     style={{
                                         borderColor: colors.border,
                                         background: colors.background,
                                     }}
                                 >
-                                    {pub.imageUrl ? (
-                                        <img
-                                            src={pub.imageUrl}
-                                            alt={pub.name}
-                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="absolute inset-0"
-                                            style={{
-                                                background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
-                                            }}
-                                        />
-                                    )}
-
-                                    {/* Gradiente mais suave (menos blur) */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/5" />
-
-                                    {/* Loja (top left) */}
-                                    <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-                                        {pub.storeLogoUrl && (
-                                            <div className="w-7 h-7 rounded-full border border-white/30 overflow-hidden bg-black/30 backdrop-blur-sm">
-                                                <img
-                                                    src={pub.storeLogoUrl}
-                                                    alt={pub.storeName}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
+                                    {/* Imagem da publicação */}
+                                    <div className="relative w-full h-full">
+                                        {pub.imageUrl ? (
+                                            <img
+                                                src={pub.imageUrl}
+                                                alt={pub.storeName}
+                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-full h-full"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
+                                                }}
+                                            />
                                         )}
-                                        <span className="text-xs font-bold text-white bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                                            {pub.storeName}
-                                        </span>
-                                    </div>
 
-                                    {/* Views + ícone de chat (top right) */}
-                                    <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
-                                        {pub.viewCount > 0 && (
-                                            <div className="flex items-center gap-1 text-xs font-bold text-white bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                                                <Eye size={13} />
-                                                {pub.viewCount}
-                                            </div>
-                                        )}
+                                        {/* Sobreposição com gradiente suave para legibilidade */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
+                                        {/* Dono da publicação (loja) */}
+                                        <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                                            {pub.storeLogoUrl && (
+                                                <div className="w-8 h-8 rounded-full border-2 border-white/30 overflow-hidden bg-black/50">
+                                                    <img
+                                                        src={pub.storeLogoUrl}
+                                                        alt={pub.storeName}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                            )}
+                                            <span className="text-sm font-bold text-white bg-black/50 px-3 py-1 rounded-full">
+                                                {pub.storeName}
+                                            </span>
+                                        </div>
+
+                                        {/* Botão "Saber mais" (canto inferior direito, cor do tema, sem blur) */}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation()
-                                                // Iniciar chat/WhatsApp (exemplo)
-                                                window.open(`https://wa.me/55${pub.storeSlug}`, '_blank')
+                                                router.push(`/${pub.storeSlug}?produto=${pub.id}`)
                                             }}
-                                            className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition"
-                                            title="Conversar"
+                                            className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition hover:scale-105"
+                                            style={{
+                                                background: colors.accent,
+                                                color: colors.accentText,
+                                                boxShadow: `0 4px 12px ${colors.accent}66`,
+                                            }}
                                         >
-                                            <MessageCircle size={14} className="text-white" />
+                                            <MessageCircle size={14} />
+                                            <span className="hidden sm:inline">Saber mais</span>
                                         </button>
                                     </div>
-
-                                    {/* Conteúdo inferior */}
-                                    <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-10">
-                                        <h3 className="text-lg sm:text-xl font-black leading-tight line-clamp-2 drop-shadow-lg mb-1">
-                                            {pub.name}
-                                        </h3>
-
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm mt-1">
-                                            {hasRating && (
-                                                <div className="flex items-center gap-1">
-                                                    <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                                                    <span className="font-bold">{pub.rating.toFixed(1)}</span>
-                                                    <span className="text-white/70">({pub.reviewCount})</span>
-                                                </div>
-                                            )}
-                                            {pub.durationMinutes && (
-                                                <div className="flex items-center gap-1">
-                                                    <Timer size={14} />
-                                                    {formatDuration(pub.durationMinutes)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Botão "Saber mais" com ícone (canto inferior direito, menor) */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            router.push(`/${pub.storeSlug}?produto=${pub.id}`)
-                                        }}
-                                        className="absolute bottom-3 right-3 z-20 flex items-center gap-1 px-2 py-1.5 rounded-full bg-white/15 backdrop-blur-sm hover:bg-white/30 transition text-white text-xs font-medium border border-white/30 shadow"
-                                        title="Saber mais"
-                                    >
-                                        <MessageCircle size={14} />
-                                        <span className="hidden sm:inline">Saber mais</span>
-                                    </button>
                                 </div>
                             </div>
                         )

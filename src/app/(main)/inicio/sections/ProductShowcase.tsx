@@ -36,7 +36,6 @@ interface ProductCard {
 function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
     if (products.length <= 1) return products
 
-    // Agrupa por storeSlug
     const storeMap = new Map<string, ProductCard[]>()
     for (const p of products) {
         const list = storeMap.get(p.storeSlug) || []
@@ -44,18 +43,16 @@ function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
         storeMap.set(p.storeSlug, list)
     }
 
-    // Max-heap (array ordenado) baseado no número de produtos de cada loja
     const heap = Array.from(storeMap.entries()).map(([store, items]) => ({
         store,
         items,
     }))
-    heap.sort((a, b) => b.items.length - a.items.length) // decrescente
+    heap.sort((a, b) => b.items.length - a.items.length)
 
     const result: ProductCard[] = []
     let lastStore: string | null = null
 
     while (heap.length > 0) {
-        // Escolhe a loja com mais itens, mas evita a última utilizada se houver alternativa
         let pickIdx = 0
         if (heap[0].store === lastStore && heap.length > 1) {
             pickIdx = 1
@@ -65,12 +62,10 @@ function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
         result.push(picked.items.pop()!)
         lastStore = picked.store
 
-        // Remove loja se não houver mais produtos
         if (picked.items.length === 0) {
             heap.splice(pickIdx, 1)
         }
 
-        // Reordena a heap (pode ser pequena, não há problema de performance)
         heap.sort((a, b) => b.items.length - a.items.length)
     }
 
@@ -86,7 +81,6 @@ function useProductShowcase() {
         const fetchProducts = async () => {
             setLoading(true)
 
-            // 1. Lojas
             const { data: storesList, error: storesErr } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug, address, logo_url')
@@ -99,11 +93,10 @@ function useProductShowcase() {
 
             const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
 
-            // 2. Apenas produtos à venda (exclui publicações)
             const { data: productsList, error: prodErr } = await supabase
                 .from('products')
                 .select('*')
-                .eq('listing_type', 'sale') // <-- agora só vendas
+                .eq('listing_type', 'sale')
                 .order('view_count', { ascending: false })
 
             if (prodErr) {
@@ -118,7 +111,6 @@ function useProductShowcase() {
                 return
             }
 
-            // 3. Avaliações
             const { data: reviewsList } = await supabase
                 .from('product_reviews')
                 .select('product_id, rating')
@@ -131,7 +123,6 @@ function useProductShowcase() {
                 cur.count += 1
             })
 
-            // 4. Montagem dos cards
             const cards: ProductCard[] = productsList.map(prod => {
                 const store = storeMap.get(prod.store_id)
                 const logoUrl = store?.logo_url
@@ -163,7 +154,6 @@ function useProductShowcase() {
                 }
             })
 
-            // Embaralha garantindo que lojas não se repitam consecutivamente
             setProducts(shuffleNoAdjacentStore(cards))
             setLoading(false)
         }
@@ -209,7 +199,7 @@ export default function ProductShowcase() {
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
 
-    // Três cards por vez (ajustado para consistência)
+    // 3 cards por vez
     const cardWidthPercent = 100 / 3
     const unitPercent = cardWidthPercent
 
@@ -369,62 +359,67 @@ export default function ProductShowcase() {
                                             router.push(`/${product.storeSlug}?produto=${product.id}`)
                                         }
                                     }}
-                                    className="group relative h-64 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md"
+                                    className="group relative h-72 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md flex flex-col"
                                     style={{
                                         borderColor: colors.border,
                                         background: colors.background,
                                     }}
                                 >
-                                    {product.imageUrl ? (
-                                        <img
-                                            src={product.imageUrl}
-                                            alt={product.name}
-                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="absolute inset-0"
-                                            style={{
-                                                background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
-                                            }}
-                                        />
-                                    )}
-
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
-
-                                    {/* Badge da loja */}
-                                    <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-                                        {product.storeLogoUrl && (
-                                            <div className="w-7 h-7 rounded-full border border-white/30 overflow-hidden bg-black/30">
-                                                <img
-                                                    src={product.storeLogoUrl}
-                                                    alt={product.storeName}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
+                                    {/* Quadrado da imagem */}
+                                    <div className="relative w-full h-[55%] overflow-hidden">
+                                        {product.imageUrl ? (
+                                            <img
+                                                src={product.imageUrl}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-full h-full"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
+                                                }}
+                                            />
                                         )}
-                                        <span className="text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
-                                            {product.storeName}
-                                        </span>
+
+                                        {/* Gradiente sutil só para os badges ficarem legíveis */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+
+                                        {/* Badges sobre a imagem */}
+                                        <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+                                            {product.storeLogoUrl && (
+                                                <div className="w-7 h-7 rounded-full border border-white/30 overflow-hidden bg-black/40">
+                                                    <img
+                                                        src={product.storeLogoUrl}
+                                                        alt={product.storeName}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                            )}
+                                            <span className="text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
+                                                {product.storeName}
+                                            </span>
+                                        </div>
+
+                                        <div className="absolute top-3 right-3 z-20 flex items-center gap-1">
+                                            {product.viewCount > 0 && (
+                                                <div className="flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
+                                                    <Eye size={13} />
+                                                    {product.viewCount}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {/* Views */}
-                                    {product.viewCount > 0 && (
-                                        <div className="absolute top-3 right-3 z-20 flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
-                                            <Eye size={13} />
-                                            {product.viewCount}
-                                        </div>
-                                    )}
-
-                                    {/* Conteúdo inferior */}
-                                    <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-10">
-                                        <h3 className="text-lg sm:text-xl font-black leading-tight line-clamp-2 drop-shadow-lg mb-1">
+                                    {/* Informações do produto */}
+                                    <div className="flex-1 p-3 flex flex-col justify-center text-sm" style={{ color: colors.textPrimary }}>
+                                        <h3 className="font-black leading-tight line-clamp-2 mb-1">
                                             {product.name}
                                         </h3>
 
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm mt-2">
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                                             {priceFormatted && (
-                                                <span className="font-black text-emerald-300">
+                                                <span className="font-black text-emerald-600 dark:text-emerald-400">
                                                     {priceFormatted}
                                                 </span>
                                             )}
@@ -432,13 +427,11 @@ export default function ProductShowcase() {
                                                 <div className="flex items-center gap-1">
                                                     <Star size={14} className="fill-yellow-400 text-yellow-400" />
                                                     <span className="font-bold">{product.rating.toFixed(1)}</span>
-                                                    <span className="text-white/70">
-                                                        ({product.reviewCount})
-                                                    </span>
+                                                    <span className="opacity-70">({product.reviewCount})</span>
                                                 </div>
                                             )}
                                             {product.durationMinutes && (
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 opacity-70">
                                                     <Timer size={14} />
                                                     {formatDuration(product.durationMinutes)}
                                                 </div>
@@ -446,7 +439,7 @@ export default function ProductShowcase() {
                                         </div>
 
                                         {storeAddress && (
-                                            <div className="flex items-start gap-1 mt-2 text-xs text-white/80">
+                                            <div className="flex items-start gap-1 mt-1 opacity-70 text-xs">
                                                 <MapPin size={13} className="shrink-0 mt-0.5" />
                                                 <span className="line-clamp-1">{storeAddress}</span>
                                             </div>
