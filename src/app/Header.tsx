@@ -8,7 +8,7 @@ import { useTheme } from '@/app/theme'
 export interface Tab {
     id: string
     label: string
-    icon: React.ComponentType<{ size?: number; color?: string }>   // ← ALTERADO
+    icon: React.ComponentType<{ size?: number; color?: string }>
     imageUrl?: string | null
     onClick: () => void
     isActive: boolean
@@ -29,6 +29,7 @@ interface HeaderProps {
     onSearchFocus?: () => void
     onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
     onHomeClick?: () => void
+    locationElement?: React.ReactNode  // NOVA PROP
 }
 
 export default function Header({
@@ -46,6 +47,7 @@ export default function Header({
     onSearchFocus,
     onSearchBlur,
     onHomeClick,
+    locationElement,  // NOVA DESTRUTURAÇÃO
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -182,6 +184,12 @@ export default function Header({
                         >
                             {title}
                         </button>
+                    )}
+                    {/* Elemento de localização adicionado ao lado do título */}
+                    {locationElement && (
+                        <div className="ml-auto">
+                            {locationElement}
+                        </div>
                     )}
                 </div>
 

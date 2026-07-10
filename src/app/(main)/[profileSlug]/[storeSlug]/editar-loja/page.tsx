@@ -60,6 +60,7 @@ export default function EditarLoja() {
 
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
+    // ----- CARREGAMENTO DOS DADOS DA LOJA -----
     useEffect(() => {
         const fetchStoreData = async () => {
             if (!storeSlugParam) return
@@ -126,20 +127,34 @@ export default function EditarLoja() {
                 setPreview(url)
             }
 
-            // ---------- NOVA LEITURA SIMPLIFICADA DE COORDENADAS ----------
-            const lat = store.store_lat
-            const lng = store.store_lng
-            if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-                setLocation({ lat, lng })
-                if (!store.address) fetchAddressFromCoords(lat, lng)
-            } else {
-                // fallback para o campo geography (GeoJSON ou WKT)
-                const geo = parseLocation(store.location)
-                if (geo) {
-                    setLocation(geo)
-                    if (!store.address) fetchAddressFromCoords(geo.lat, geo.lng)
-                } else {
-                    setLocation(null)
+            // ---------- LEITURA DA LOCALIZAÇÃO (APENAS POSTGIS) ----------
+            if (store.location) {
+                let lat: number | null = null
+                let lng: number | null = null
+
+                // O campo pode vir como GeoJSON (objeto) ou WKT (string)
+                if (
+                    typeof store.location === 'object' &&
+                    store.location !== null &&
+                    'type' in store.location &&
+                    store.location.type === 'Point' &&
+                    Array.isArray(store.location.coordinates)
+                ) {
+                    lng = store.location.coordinates[0]
+                    lat = store.location.coordinates[1]
+                } else if (typeof store.location === 'string') {
+                    const match = store.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+                    if (match) {
+                        lng = parseFloat(match[1])
+                        lat = parseFloat(match[2])
+                    }
+                }
+
+                if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                    setLocation({ lat, lng })
+                    if (!store.address) {
+                        fetchAddressFromCoords(lat, lng) // geocodificação reversa
+                    }
                 }
             }
 
@@ -149,6 +164,7 @@ export default function EditarLoja() {
         fetchStoreData()
     }, [storeSlugParam])
 
+    // ----- VERIFICAÇÃO DE SLUG ÚNICO -----
     useEffect(() => {
         if (!storeSlug || storeSlug === storeSlugParam) {
             setSlugStatus('idle')
@@ -163,6 +179,7 @@ export default function EditarLoja() {
         return () => clearTimeout(timer)
     }, [storeSlug, storeSlugParam, storeId])
 
+    // ----- PREVIEW DA IMAGEM -----
     useEffect(() => {
         if (!imageFile) return
         const url = URL.createObjectURL(imageFile)
@@ -170,6 +187,7 @@ export default function EditarLoja() {
         return () => URL.revokeObjectURL(url)
     }, [imageFile])
 
+    // ----- FUNÇÕES DE LOCALIZAÇÃO -----
     const fetchAddressFromCoords = async (lat: number, lng: number) => {
         try {
             const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
@@ -199,6 +217,7 @@ export default function EditarLoja() {
         setBusinessHours(prev => { const n = { ...prev }; delete n[day]; return n })
     }
 
+    // ----- SALVAR ALTERAÇÕES -----
     const handleUpdate = async () => {
         if (!name || !storeSlug || !storeId) {
             alert('Preencha os campos obrigatórios.')
@@ -218,12 +237,6 @@ export default function EditarLoja() {
             const { data, error } = await supabase.storage.from('store-logos').upload(fileName, imageFile)
             if (!error && data) logoPath = data.path
         }
-
-        const latValue = location?.lat ?? null
-        const lngValue = location?.lng ?? null
-
-        // WKT com SRID para o campo geography
-        const locationString = location ? `SRID=4326;POINT(${lngValue} ${latValue})` : null
 
         // Configuração de entrega
         let deliveryType = 'none'
@@ -249,13 +262,16 @@ export default function EditarLoja() {
 
         const cleanWhatsapp = whatsapp.replace(/[^\d+]/g, '').trim() || null
 
+        // Formato WKT para o campo geography (PostGIS)
+        const locationWkt = location
+            ? `SRID=4326;POINT(${location.lng} ${location.lat})`
+            : null
+
         const updateData: any = {
             name,
             storeSlug,
             description,
-            location: locationString,
-            store_lat: latValue,
-            store_lng: lngValue,
+            location: locationWkt,   // PostGIS
             address,
             whatsapp: cleanWhatsapp,
             accepts_delivery: acceptsDelivery,
@@ -271,6 +287,9 @@ export default function EditarLoja() {
             delivery_base_distance: savedBaseDistance,
             delivery_base_fee: savedBaseFee,
             business_hours: businessHours,
+            // Campos antigos removidos — não são mais utilizados
+            store_lat: null,
+            store_lng: null,
         }
 
         if (logoPath) updateData.logo_url = logoPath
@@ -291,6 +310,7 @@ export default function EditarLoja() {
         router.push(`/${profileSlug}/${storeSlug}`)
     }
 
+    // ----- DELETAR LOJA -----
     const handleDelete = async () => {
         if (!confirm("Tem certeza que deseja deletar permanentemente esta loja?")) return
         setLoading(true)
@@ -302,29 +322,6 @@ export default function EditarLoja() {
         }
         alert("Loja deletada com sucesso.")
         router.push('/eu')
-    }
-
-    // Função auxiliar para extrair coordenadas do campo geography (mantida como fallback)
-    function parseLocation(loc: any): { lat: number; lng: number } | null {
-        if (!loc) return null
-
-        // GeoJSON
-        if (typeof loc === 'object' && loc.type === 'Point' && Array.isArray(loc.coordinates)) {
-            const [lng, lat] = loc.coordinates
-            if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
-        }
-
-        // WKT
-        if (typeof loc === 'string') {
-            const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
-            if (match) {
-                const lng = parseFloat(match[1])
-                const lat = parseFloat(match[2])
-                if (!isNaN(lat) && !isNaN(lng)) return { lng, lat }
-            }
-        }
-
-        return null
     }
 
     if (pageLoading) return <LoadingSpinner />

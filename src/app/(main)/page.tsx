@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Settings, Store, Home } from 'lucide-react'
+import { User, Settings, Store, Home, MapPin } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -42,6 +42,7 @@ import ButtonSettingsHome from './ButtonSettingsHome'
 import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
+import LocationPicker from './LocationPicker'
 
 const DEFAULT_SECTIONS = [
     'compromissosPessoal',
@@ -56,59 +57,13 @@ const DEFAULT_SECTIONS = [
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
+const LOCATION_STORAGE_KEY = 'user_saved_location'
 
 export interface StoreInfo {
     id: string
     slug: string
     logoUrl: string | null
     name: string
-}
-
-// ---------- Utilitários de distância ----------
-function deg2rad(deg: number) {
-    return deg * (Math.PI / 180)
-}
-
-function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371
-    const dLat = deg2rad(lat2 - lat1)
-    const dLon = deg2rad(lon2 - lon1)
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
-}
-
-// ---------- Utilitários de horário ----------
-function getTodayKey(): string {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    return days[new Date().getDay()]
-}
-
-function formatTodayHours(businessHours: any): string | undefined {
-    if (!businessHours) return undefined
-    const todayKey = getTodayKey()
-    const today = businessHours[todayKey]
-    if (today && today.open && today.close) {
-        return `${today.open.slice(0, 5)} - ${today.close.slice(0, 5)}`
-    }
-    return undefined
-}
-
-function isOpenNowFromHours(businessHours: any): boolean {
-    const todayKey = getTodayKey()
-    const today = businessHours?.[todayKey]
-    if (!today || !today.open || !today.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = today.open.split(':').map(Number)
-    let [closeH, closeM] = today.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) { closeH = 24 }
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
 }
 
 export default function HomePage() {
@@ -156,6 +111,9 @@ export default function HomePage() {
     const [hasPersonalAgenda, setHasPersonalAgenda] = useState(false)
     const [hasStoreAgenda, setHasStoreAgenda] = useState(false)
 
+    const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [showLocationDialog, setShowLocationDialog] = useState(false)
+
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
     const totalCartItems = useMemo(() => {
@@ -166,6 +124,71 @@ export default function HomePage() {
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
+
+    // ---------- CARREGAMENTO DA LOCALIZAÇÃO (OFFLINE PRIMEIRO) ----------
+    useEffect(() => {
+        // 1. Carrega imediatamente do localStorage (cache offline)
+        const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
+        if (stored) {
+            try {
+                setSavedLocation(JSON.parse(stored))
+            } catch { }
+        }
+
+        // 2. Tenta sincronizar com o perfil do Supabase (se logado e online)
+        const syncWithProfile = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            try {
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('address, location')
+                    .eq('id', user.id)
+                    .maybeSingle()
+
+                if (!error && profile?.location) {
+                    // Parseia coordenadas do campo geography
+                    let lat: number | null = null
+                    let lng: number | null = null
+                    const loc = profile.location
+                    if (
+                        typeof loc === 'object' &&
+                        loc !== null &&
+                        'type' in loc &&
+                        loc.type === 'Point' &&
+                        Array.isArray(loc.coordinates)
+                    ) {
+                        lng = loc.coordinates[0]
+                        lat = loc.coordinates[1]
+                    } else if (typeof loc === 'string') {
+                        const match = loc.match(
+                            /POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i
+                        )
+                        if (match) {
+                            lng = parseFloat(match[1])
+                            lat = parseFloat(match[2])
+                        }
+                    }
+
+                    if (lat !== null && lng !== null) {
+                        const newLocation = {
+                            lat,
+                            lng,
+                            address: profile.address || 'Localização salva',
+                        }
+                        setSavedLocation(newLocation)
+                        // Atualiza o cache local
+                        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(newLocation))
+                    }
+                }
+            } catch {
+                // Ignora erros de rede (offline)
+            }
+        }
+
+        syncWithProfile()
+    }, [])
 
     useEffect(() => {
         if (totalCartItems > 0) {
@@ -211,7 +234,6 @@ export default function HomePage() {
         fetchOrderStatuses()
     }, [])
 
-    // Geolocalização
     useEffect(() => {
         if ('geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
@@ -221,145 +243,10 @@ export default function HomePage() {
                         lng: pos.coords.longitude,
                     })
                 },
-                () => {
-                    // Se negado, manter null
-                }
+                () => { }
             )
         }
     }, [])
-
-    // Busca lojas públicas (com distância, imagens dos produtos mais vendidos, etc.)
-    useEffect(() => {
-        async function fetchPublicStores() {
-            // 1. Busca lojas ativas
-            const { data: storesData, error: storesError } = await supabase
-                .from('stores')
-                .select('storeSlug, name, logo_url, banner_url, description, ratings_avg, ratings_count, is_open, category, location, address, business_hours, view_count, id')
-                .eq('is_active', true)
-                .order('ratings_avg', { ascending: false })
-                .limit(20)
-
-            if (storesError || !storesData) return
-
-            const storeIds = storesData.map(s => s.id)
-
-            // 2. Busca vendas com product_id para identificar os mais vendidos
-            const { data: salesWithProductId } = await supabase
-                .from('store_sales')
-                .select('store_id, product_id, product_name')
-                .in('store_id', storeIds)
-
-            // Contagem por product_id
-            const productCountById: Record<string, Record<string, { count: number; name: string }>> = {}
-            if (salesWithProductId) {
-                for (const sale of salesWithProductId) {
-                    const sid = sale.store_id
-                    const pid = sale.product_id
-                    const pname = sale.product_name
-                    if (!pid) continue
-                    if (!productCountById[sid]) productCountById[sid] = {}
-                    if (!productCountById[sid][pid]) {
-                        productCountById[sid][pid] = { count: 0, name: pname }
-                    }
-                    productCountById[sid][pid].count++
-                }
-            }
-
-            // Top 3 product_id por loja
-            const storeTopProductIds: Record<string, string[]> = {}
-            const allTopProductIds: string[] = []
-            for (const s of storesData) {
-                const counts = productCountById[s.id] || {}
-                const sorted = Object.entries(counts)
-                    .sort(([, a], [, b]) => b.count - a.count)
-                    .slice(0, 3)
-                const ids = sorted.map(([pid]) => pid)
-                storeTopProductIds[s.id] = ids
-                allTopProductIds.push(...ids)
-            }
-
-            // 3. Busca as imagens dos produtos identificados
-            let imageUrlMap: Record<string, string | null> = {}
-            if (allTopProductIds.length > 0) {
-                const { data: productsImages } = await supabase
-                    .from('products')
-                    .select('id, image_url')
-                    .in('id', allTopProductIds)
-
-                if (productsImages) {
-                    for (const prod of productsImages) {
-                        const url = prod.image_url
-                            ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl
-                            : null
-                        imageUrlMap[prod.id] = url
-                    }
-                }
-            }
-
-            // 4. Monta o array final com imagens
-            const formatted = storesData.map(s => {
-                // Distância
-                let distanceStr: string | undefined = undefined
-                if (userLocation && s.location) {
-                    let lat: number | null = null
-                    let lng: number | null = null
-                    if (typeof s.location === 'object' && s.location !== null && 'type' in s.location && s.location.type === 'Point' && Array.isArray(s.location.coordinates)) {
-                        lng = s.location.coordinates[0]
-                        lat = s.location.coordinates[1]
-                    } else if (typeof s.location === 'string') {
-                        const match = s.location.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
-                        if (match) {
-                            lng = parseFloat(match[1])
-                            lat = parseFloat(match[2])
-                        }
-                    }
-                    if (lat !== null && lng !== null) {
-                        const dist = getDistanceFromLatLonInKm(userLocation.lat, userLocation.lng, lat, lng)
-                        distanceStr = dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
-                    }
-                }
-
-                const topIds = storeTopProductIds[s.id] || []
-                const featuredImages = topIds
-                    .map(id => imageUrlMap[id])
-                    .filter(Boolean) as string[]
-
-                const shortAddress = s.address
-                    ? s.address.length > 50 ? s.address.slice(0, 47) + '...' : s.address
-                    : undefined
-
-                const todayHours = formatTodayHours(s.business_hours)
-                const openNow = s.business_hours
-                    ? isOpenNowFromHours(s.business_hours)
-                    : s.is_open ?? true
-
-                return {
-                    slug: s.storeSlug,
-                    name: s.name,
-                    logoUrl: s.logo_url
-                        ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
-                        : null,
-                    coverUrl: s.banner_url
-                        ? supabase.storage.from('store-covers').getPublicUrl(s.banner_url).data.publicUrl
-                        : null,
-                    description: s.description?.length > 100 ? s.description.slice(0, 100) + '...' : s.description,
-                    rating: s.ratings_avg || 0,
-                    ratingCount: s.ratings_count || 0,
-                    isOpen: openNow,
-                    distance: distanceStr,
-                    address: shortAddress,
-                    todayHours,
-                    featuredImages,
-                    viewCount: s.view_count || 0,
-                }
-            })
-            setAllPublicStores(formatted)
-        }
-
-        if (userLocation !== undefined) {
-            fetchPublicStores()
-        }
-    }, [userLocation])
 
     // Lojas do usuário logado
     useEffect(() => {
@@ -395,7 +282,6 @@ export default function HomePage() {
         loadStores()
     }, [profileSlug])
 
-    // Verifica se há compromissos agendados (pessoais e de lojas)
     useEffect(() => {
         async function checkAgendas() {
             const { data: { user } } = await supabase.auth.getUser()
@@ -404,14 +290,12 @@ export default function HomePage() {
                 setHasStoreAgenda(false)
                 return
             }
-            // Pessoal
             const { count: personalCount } = await supabase
                 .from('personal_events')
                 .select('id', { count: 'exact', head: true })
                 .eq('profile_id', user.id)
             setHasPersonalAgenda((personalCount ?? 0) > 0)
 
-            // Lojas
             const storeIds = stores.map(s => s.id)
             if (storeIds.length > 0) {
                 const { count: storeEventCount } = await supabase
@@ -426,11 +310,9 @@ export default function HomePage() {
         checkAgendas()
     }, [profileSlug, stores])
 
-    // Seções exibidas com ordenação especial para visitantes
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
         if (!profileSlug) {
-            // Visitante: move agendas para após "promocoes"
             const withoutAgendas = sections.filter(s => !agendaKeys.includes(s))
             const promocoesIndex = withoutAgendas.indexOf('promocoes')
             if (promocoesIndex >= 0) {
@@ -440,7 +322,6 @@ export default function HomePage() {
             }
             return withoutAgendas
         }
-        // Logado: mantém a ordem, mas filtra agendas vazias
         return sections.filter(s => {
             if (s === 'compromissosPessoal' && !hasPersonalAgenda) return false
             if (s === 'compromissosLoja' && !hasStoreAgenda) return false
@@ -483,12 +364,46 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
+    // ---------- HANDLE LOCATION SAVE (salva no estado, localStorage e Supabase) ----------
+    const handleLocationSave = async (location: { lat: number; lng: number; address: string }) => {
+        // Atualiza estado e cache imediatamente (offline funciona)
+        setSavedLocation(location)
+        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
+
+        // Tenta salvar no perfil (se online e logado)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const point = `SRID=4326;POINT(${location.lng} ${location.lat})`
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    location: point,
+                    address: location.address,
+                })
+                .eq('id', user.id)
+
+            if (updateError) {
+                const { error: insertError } = await supabase
+                    .from('profiles')
+                    .insert({
+                        id: user.id,
+                        location: point,
+                        address: location.address,
+                    })
+                if (insertError) console.error('Erro ao salvar localização no perfil:', insertError)
+            }
+        }
+
+        setShowLocationDialog(false)
+    }
+
     const isSearchVisible = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
 
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                return <BannerPago />
+                const effectiveLocation = savedLocation || userLocation
+                return <BannerPago userLocation={effectiveLocation} />
             case 'orderSection':
                 return (
                     <OrderSection
@@ -601,38 +516,6 @@ export default function HomePage() {
         return allTabs
     }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, router])
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardStyle = {
-        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${colors.border}`,
-        boxShadow: colors.shadow,
-    }
-
-    const primaryButtonStyle = {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '1rem',
-        fontSize: '0.875rem',
-        fontWeight: 700,
-        transition: 'all 0.2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 12px ${colors.accent}40`,
-        cursor: 'pointer',
-    }
-
     const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
     const showHomeFab = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
 
@@ -661,6 +544,16 @@ export default function HomePage() {
                         setSearchFocused(false)
                     }}
                     profileSlug={profileSlug}
+                    locationElement={
+                        <button
+                            onClick={() => setShowLocationDialog(true)}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition"
+                            style={{ color: colors.textPrimary }}
+                        >
+                            <MapPin size={14} />
+                            {savedLocation ? savedLocation.address.slice(0, 20) : 'Definir local'}
+                        </button>
+                    }
                 />
 
                 {showConfig ? (
@@ -693,9 +586,7 @@ export default function HomePage() {
                         storeSlug={activeStoreSlug}
                     />
                 ) : (
-                    // SEÇÕES NORMAIS
                     <div className="mt-2 px-4 md:px-6">
-                        {/* BLOCO DE RESULTADOS DA BUSCA SEMPRE NO TOPO */}
                         {(searchFocused || searchQuery.trim()) && (
                             <div className="mb-6">
                                 {searchQuery.trim() ? (
@@ -788,6 +679,14 @@ export default function HomePage() {
                     >
                         <Home size={24} />
                     </button>
+                )}
+
+                {showLocationDialog && (
+                    <LocationPicker
+                        initialLocation={savedLocation}
+                        onSave={handleLocationSave}
+                        onClose={() => setShowLocationDialog(false)}
+                    />
                 )}
             </main>
 
