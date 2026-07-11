@@ -10,7 +10,10 @@ import {
     Clock,
     ShoppingBag,
     Eye,
-    Spline
+    Spline,
+    Timer,
+    Bike,
+    PackageCheck,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
@@ -38,6 +41,10 @@ interface StoreCard {
     durationMax?: number | null
     topProducts?: TopProduct[]
     distanceMeters?: number | null
+    deliveryType?: string | null
+    deliveryFee?: number | null
+    acceptsDelivery?: boolean
+    acceptsPickup?: boolean
 }
 
 // ---------- Helpers de horário ----------
@@ -104,7 +111,6 @@ function saveCache(stores: StoreCard[]) {
 
 // ---------- Hook de dados ----------
 function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
-    // Estado inicial SEMPRE vazio para manter SSR/Cliente idênticos
     const [stores, setStores] = useState<StoreCard[]>([])
     const [loading, setLoading] = useState(true)
     const [effectiveLocation, setEffectiveLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -155,6 +161,18 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
             }
 
             if (error || cancelled) return
+
+            const storeIds = storesList?.map((s: any) => s.id) || []
+            let deliveryFieldsMap = new Map<string, any>()
+            if (storeIds.length > 0) {
+                const { data: deliveryData } = await supabase
+                    .from('stores')
+                    .select('id, accepts_delivery, accepts_pickup, delivery_type, delivery_fee')
+                    .in('id', storeIds)
+                if (deliveryData) {
+                    deliveryData.forEach((d: any) => deliveryFieldsMap.set(d.id, d))
+                }
+            }
 
             const { data: productsList } = await supabase
                 .from('products')
@@ -223,6 +241,12 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 const distanceMeters = store.distance_meters ?? null
                 const streetAddress = extractStreetAddress(store.address)
 
+                const deliveryFields = deliveryFieldsMap.get(store.id) || {}
+                const acceptsDelivery = deliveryFields.accepts_delivery ?? store.accepts_delivery ?? false
+                const acceptsPickup = deliveryFields.accepts_pickup ?? store.accepts_pickup ?? false
+                const deliveryType = deliveryFields.delivery_type ?? store.delivery_type ?? null
+                const deliveryFee = deliveryFields.delivery_fee ?? store.delivery_fee ?? null
+
                 return {
                     slug: store.storeSlug,
                     name: store.name,
@@ -238,7 +262,11 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                     durationMin,
                     durationMax,
                     topProducts,
-                    distanceMeters
+                    distanceMeters,
+                    deliveryType,
+                    deliveryFee,
+                    acceptsDelivery,
+                    acceptsPickup,
                 }
             })
 
@@ -246,14 +274,12 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
             return cards
         }
 
-        // 1. Tenta carregar do cache primeiro (só no cliente)
         const cached = loadCache()
         if (cached) {
             setStores(cached)
             setLoading(false)
         }
 
-        // 2. Busca dados frescos
         fetchFreshData().then((freshCards) => {
             if (!cancelled && freshCards) {
                 setStores(freshCards)
@@ -278,9 +304,9 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+    const isPageVisibleRef = useRef(true)
 
     const { stores, loading } = useBannerStores(savedLocation)
-
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
 
@@ -344,8 +370,31 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         }
     }, [isTransitioning])
 
+    // Visibilidade da página (evita sumiço)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            const isVisible = document.visibilityState === 'visible'
+            isPageVisibleRef.current = isVisible
+
+            if (isVisible && totalRealSlides > 1) {
+                if (activeIndex === 0 || activeIndex === loopingStores.length - 1) {
+                    setIsTransitioning(false)
+                    setActiveIndex(activeIndex === 0 ? totalRealSlides : 1)
+                }
+                requestAnimationFrame(() => {
+                    setIsTransitioning(true)
+                })
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [activeIndex, totalRealSlides, loopingStores.length])
+
     useEffect(() => {
         if (isHovered || isDragging || totalRealSlides <= 1) return
+        if (!isPageVisibleRef.current) return
+
         autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
@@ -372,7 +421,6 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientX) }
     const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }
     const onMouseUp = () => handleDragEnd()
-
     const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientX)
     const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientX) }
     const onTouchEnd = () => handleDragEnd()
@@ -400,6 +448,33 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         meters < 1000
             ? `${Math.round(meters)} m`
             : `${(meters / 1000).toFixed(1)} km`
+
+    const renderDeliveryBadge = (store: StoreCard) => {
+        if (!store.acceptsDelivery) return null
+        if (store.deliveryType === 'free' || (store.deliveryFee != null && store.deliveryFee === 0)) {
+            return (
+                <span className="flex items-center gap-1">
+                    <Bike size={12} />
+                    <span>Grátis</span>
+                </span>
+            )
+        } else if (store.deliveryType === 'fixed' && store.deliveryFee != null) {
+            return (
+                <span className="flex items-center gap-1">
+                    <Bike size={12} />
+                    <span>R$ {store.deliveryFee.toFixed(2)}</span>
+                </span>
+            )
+        } else if (store.deliveryType === 'distance') {
+            return (
+                <span className="flex items-center gap-1">
+                    <Bike size={12} />
+                    <span>a calcular</span>
+                </span>
+            )
+        }
+        return null
+    }
 
     if (loading && stores.length === 0) {
         return (
@@ -501,9 +576,10 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
+                                        {/* Badge de status no canto superior esquerdo */}
                                         <div className="absolute top-3 left-3 z-20">
                                             <div
-                                                className="flex items-center gap-1.5 pl-3 pr-4 py-1.5 rounded-full text-xs font-bold shadow-lg"
+                                                className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
                                                 style={{
                                                     background: store.isOpen ? '#10b981' : '#ef4444',
                                                     color: '#ffffff',
@@ -512,7 +588,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                             >
                                                 <Clock size={12} />
                                                 <span>{store.isOpen ? 'Aberto' : 'Fechado'}</span>
-                                                {store.todayHours && (
+                                                {store.isOpen && store.todayHours && (
                                                     <span className="opacity-90 ml-0.5 text-[10px]">
                                                         {store.todayHours}
                                                     </span>
@@ -520,10 +596,11 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                             </div>
                                         </div>
 
-                                        {store.rating != null && store.rating > 0 && (
-                                            <div className="absolute top-3 right-3 z-20">
+                                        {/* Badge de avaliação no canto superior direito */}
+                                        <div className="absolute top-3 right-3 z-20">
+                                            {store.rating != null && store.rating > 0 && (
                                                 <div
-                                                    className="flex items-center gap-1.5 pl-4 pr-3 py-1.5 rounded-full text-xs font-bold shadow-lg"
+                                                    className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
                                                     style={{
                                                         background: 'rgba(0,0,0,0.75)',
                                                         color: '#ffffff',
@@ -538,9 +615,43 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                         </span>
                                                     )}
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
+                                        {/* Container único abaixo do status: duração + entrega/retirada */}
+                                        <div className="absolute top-12 left-3 z-20">
+                                            <div
+                                                className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
+                                                style={{
+                                                    background: 'rgba(0,0,0,0.75)',
+                                                    color: '#ffffff',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                                }}
+                                            >
+                                                {store.durationMin != null && store.durationMax != null && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Timer size={12} />
+                                                        <span>
+                                                            {formatDuration(store.durationMin)}
+                                                            {store.durationMin !== store.durationMax && ` - ${formatDuration(store.durationMax)}`}
+                                                        </span>
+                                                    </span>
+                                                )}
+                                                {store.durationMin != null && store.durationMax != null && (
+                                                    <span className="opacity-50 mx-0.5">•</span>
+                                                )}
+                                                {store.acceptsDelivery ? (
+                                                    renderDeliveryBadge(store)
+                                                ) : store.acceptsPickup ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <PackageCheck size={12} />
+                                                        <span>Retirada</span>
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        {/* Conteúdo inferior */}
                                         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-white z-10">
                                             <h3 className="text-xl sm:text-3xl lg:text-4xl font-black drop-shadow-lg mb-0.5 leading-tight">
                                                 {store.name}
