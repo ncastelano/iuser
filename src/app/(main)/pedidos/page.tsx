@@ -29,13 +29,8 @@ export default function PedidosPage() {
             setCurrentUserAvatar(profile.avatar_url)
         }
 
-        const { data: purchaseDataLegacy } = await supabase
-            .from('store_sales')
-            .select('*, stores(name)')
-            .eq('buyer_id', userId)
-            .order('created_at', { ascending: false })
-
-        const { data: purchaseDataNew } = await supabase
+        // Busca apenas pedidos da nova estrutura (orders + order_items)
+        const { data: ordersData } = await supabase
             .from('orders')
             .select('*, order_items(*), stores(name)')
             .eq('buyer_id', userId)
@@ -43,32 +38,28 @@ export default function PedidosPage() {
 
         let allPurchases: any[] = []
 
-        if (purchaseDataLegacy) {
-            allPurchases = [...allPurchases, ...purchaseDataLegacy.map((p: any) => ({
-                ...p,
-                store_name: p.stores?.name || 'Loja'
-            }))]
+        if (ordersData) {
+            const mapped = ordersData.flatMap((order: any) =>
+                (order.order_items || []).map((item: any) => ({
+                    id: item.id,
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    quantity: item.quantity,
+                    price: item.total_price,
+                    created_at: order.created_at,
+                    status: order.status,
+                    checkout_id: order.checkout_id,
+                    buyer_id: order.buyer_id,
+                    buyer_name: order.buyer_name,
+                    buyer_profile_slug: order.buyer_profile_slug,
+                    store_id: order.store_id,
+                    store_name: order.stores?.name || 'Loja',
+                }))
+            )
+            allPurchases = mapped
         }
 
-        if (purchaseDataNew) {
-            const mappedNew = purchaseDataNew.flatMap((o: any) => o.order_items.map((i: any) => ({
-                id: i.id,
-                product_id: i.product_id,
-                product_name: i.product_name,
-                quantity: i.quantity,
-                price: i.total_price,
-                created_at: o.created_at,
-                status: o.status,
-                checkout_id: o.checkout_id,
-                buyer_id: o.buyer_id,
-                buyer_name: o.buyer_name,
-                buyer_profile_slug: o.buyer_profile_slug,
-                store_id: o.store_id,
-                store_name: o.stores?.name || 'Loja'
-            })))
-            allPurchases = [...allPurchases, ...mappedNew]
-        }
-
+        // Remove duplicatas (caso existam)
         const uniquePurchases = Array.from(new Map(allPurchases.map(item => [item.id, item])).values())
         setMyPurchases([...uniquePurchases])
         setLoading(false)
@@ -87,7 +78,7 @@ export default function PedidosPage() {
         checkUser()
     }, [supabase])
 
-    // Real-time updates for myPurchases
+    // Real-time apenas para orders
     useEffect(() => {
         if (!currentUserId) return
 
@@ -100,24 +91,17 @@ export default function PedidosPage() {
                     setMyPurchases(prev => {
                         const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
                         if (!exists) return prev
-                        return prev.map(p => p.checkout_id === payload.new.checkout_id ? { ...p, status: payload.new.status } : p)
-                    })
-                }
-            )
-            .on(
-                'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'store_sales' },
-                (payload) => {
-                    setMyPurchases(prev => {
-                        const exists = prev.some(p => p.checkout_id === payload.new.checkout_id)
-                        if (!exists) return prev
-                        return prev.map(p => p.id === payload.new.id ? { ...p, status: payload.new.status } : p)
+                        return prev.map(p =>
+                            p.checkout_id === payload.new.checkout_id
+                                ? { ...p, status: payload.new.status }
+                                : p
+                        )
                     })
                 }
             )
             .subscribe()
 
-        // Fallback polling (garante atualização se realtime não estiver ativado no banco)
+        // Fallback polling
         const interval = setInterval(() => {
             loadUserData(currentUserId)
         }, 5000)
@@ -130,21 +114,23 @@ export default function PedidosPage() {
 
     if (!mounted) return null
 
-    const groupedOrders = Object.values(myPurchases.reduce((groups: any, p) => {
-        if (!groups[p.checkout_id]) {
-            groups[p.checkout_id] = {
-                checkout_id: p.checkout_id,
-                store_name: p.store_name,
-                created_at: p.created_at,
-                status: p.status,
-                total: 0,
-                items: []
+    const groupedOrders = Object.values(
+        myPurchases.reduce((groups: any, p) => {
+            if (!groups[p.checkout_id]) {
+                groups[p.checkout_id] = {
+                    checkout_id: p.checkout_id,
+                    store_name: p.store_name,
+                    created_at: p.created_at,
+                    status: p.status,
+                    total: 0,
+                    items: [],
+                }
             }
-        }
-        groups[p.checkout_id].total += p.price
-        groups[p.checkout_id].items.push(p)
-        return groups
-    }, {})).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            groups[p.checkout_id].total += p.price
+            groups[p.checkout_id].items.push(p)
+            return groups
+        }, {})
+    ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-green-500 selection:text-white pb-32">

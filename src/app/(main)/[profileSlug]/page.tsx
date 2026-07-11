@@ -92,9 +92,9 @@ export default function ProfilePage() {
             setProfile(profileData)
             setIsOwner(user?.id === profileData.id)
 
-            const [storesRes, salesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
+            // Busca lojas, seguidores, etc. (sem store_sales)
+            const [storesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
                 supabase.from('stores').select('*').eq('owner_id', profileData.id),
-                supabase.from('store_sales').select('*, stores(name, logo_url, storeSlug)').eq('buyer_id', profileData.id).order('created_at', { ascending: false }),
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profileData.id),
                 supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profileData.id),
                 user ? supabase.from('follows').select('*').eq('follower_id', user.id).eq('following_id', profileData.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
@@ -105,11 +105,32 @@ export default function ProfilePage() {
             setFollowingCount(followingRes.count || 0)
             setIsFollowing(!!checkFollowRes.data)
 
-            const uniquePurchases = (salesRes.data || []).reduce((acc: any[], cur: any) => {
-                if (!acc.find(item => item.store_id === cur.store_id)) acc.push(cur)
-                return acc
-            }, [])
-            setPurchases(uniquePurchases)
+            // --- COMPRAS: pedidos pagos agrupados por loja (substitui store_sales) ---
+            const { data: paidOrders, error: ordersErr } = await supabase
+                .from('orders')
+                .select('id, store_id, stores!inner(name, logo_url, storeSlug)')
+                .eq('buyer_id', profileData.id)
+                .eq('status', 'paid')
+                .order('created_at', { ascending: false })
+
+            if (ordersErr) {
+                console.error('[ProfilePage] Erro ao buscar pedidos:', ordersErr)
+            }
+
+            // Agrupa por loja (pega apenas o primeiro pedido de cada loja)
+            const uniqueStorePurchases: any[] = []
+            const seenStoreIds = new Set<string>()
+            paidOrders?.forEach((order: any) => {
+                if (!seenStoreIds.has(order.store_id)) {
+                    seenStoreIds.add(order.store_id)
+                    uniqueStorePurchases.push({
+                        id: order.id,
+                        store_id: order.store_id,
+                        stores: order.stores, // já veio com o join
+                    })
+                }
+            })
+            setPurchases(uniqueStorePurchases)
 
             const todayStr = new Date().toISOString().split('T')[0]
             try {
@@ -142,51 +163,6 @@ export default function ProfilePage() {
         load()
     }, [profileSlug])
 
-    // === ABAS DO HEADER (idênticas às da HomePage) ===
-    const tabs: Tab[] = useMemo(() => {
-        const isLoggedIn = !!loggedUserSlug && !profileLoading
-        const allTabs: Tab[] = [
-            // Aba Início
-            {
-                id: 'inicio',
-                label: 'Início',
-                icon: User as any,
-                imageUrl: '/logo.png',
-                onClick: () => router.push('/'),
-                isActive: false, // nunca ativo, pois é outra página
-            },
-            // Aba Perfil
-            {
-                id: 'perfil',
-                label: isLoggedIn ? `@${loggedUserSlug}` : 'Entrar',
-                icon: User as any,
-                imageUrl: isLoggedIn ? loggedUserAvatarUrl : null,
-                onClick: () => {
-                    if (isLoggedIn) {
-                        // Abre o perfil no dashboard embutido da HomePage usando query param
-                        router.push('/?perfil=true')
-                    } else {
-                        router.push('/?login=true')
-                    }
-                },
-                isActive: false,
-            },
-        ]
-
-        // Buscar as lojas do usuário logado para exibir como abas
-        // (usaremos um estado separado, mas vamos carregar junto com o perfil)
-        // Vamos adicionar um estado para as lojas do usuário logado
-        // ... faremos isso fora do useMemo com um useEffect separado
-
-        // Como a lista de lojas do usuário logado não está disponível aqui, 
-        // faremos uma busca paralela. Mas para simplificar, vamos apenas 
-        // deixar as abas de loja vazias (elas serão carregadas depois).
-        // Na prática, a HomePage carrega as lojas do contexto. Aqui não temos.
-        // Solução: buscar as lojas do usuário logado em um useEffect e armazenar em estado.
-
-        return allTabs
-    }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, router])
-
     // Estado para armazenar as lojas do usuário logado (para as abas)
     const [loggedUserStores, setLoggedUserStores] = useState<any[]>([])
     useEffect(() => {
@@ -214,7 +190,6 @@ export default function ProfilePage() {
         loadLoggedStores()
     }, [loggedUserSlug, profileLoading])
 
-    // Reconstruir as abas incluindo as lojas do usuário logado e Criar loja
     const finalTabs: Tab[] = useMemo(() => {
         const isLoggedIn = !!loggedUserSlug && !profileLoading
         const allTabs: Tab[] = [
@@ -254,7 +229,6 @@ export default function ProfilePage() {
                 })
             })
         } else if (isLoggedIn) {
-            // Nenhuma loja ainda → aba "Criar loja"
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',
@@ -264,7 +238,6 @@ export default function ProfilePage() {
                 isActive: false,
             })
         } else {
-            // Não logado → "Criar loja" leva para o fluxo combinado
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',
@@ -278,7 +251,6 @@ export default function ProfilePage() {
         return allTabs
     }, [loggedUserSlug, profileLoading, loggedUserAvatarUrl, loggedUserStores, router])
 
-    // Ações do perfil visitado
     const handleFollowToggle = async () => {
         if (!currentUser || !profile) return
         if (isFollowing) {
@@ -634,7 +606,7 @@ export default function ProfilePage() {
                                     ) : (
                                         purchases.map((purchase) => (
                                             <div key={purchase.id}
-                                                onClick={() => router.push(`/${purchase.stores?.profileSlug || profileSlug}/${purchase.stores?.storeSlug}`)}
+                                                onClick={() => router.push(`/${purchase.stores?.storeSlug ? profileSlug + '/' + purchase.stores.storeSlug : ''}`)}
                                                 className="group rounded-3xl p-6 flex items-center gap-5 hover:shadow-lg transition cursor-pointer"
                                                 style={{ background: colors.surface, border: `1px solid ${colors.border}` }}>
                                                 <div className="w-16 h-16 rounded-2xl overflow-hidden" style={{ background: colors.background }}>

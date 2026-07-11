@@ -591,11 +591,13 @@ export default function StorePage() {
         toggleProduct(product)
     }
 
+    // ---------- SUBSTITUIÇÃO DE store_sales POR orders + order_items ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            // Status dos pedidos (contagem)
             const { data: orders } = await supabase
                 .from('orders')
                 .select('status')
@@ -607,21 +609,41 @@ export default function StorePage() {
                 setReadyCount(orders.filter(o => o.status === 'ready').length)
             }
 
-            const { data: purchases } = await supabase
-                .from('store_sales')
+            // --- Avaliações pendentes (pedidos pagos) ---
+            // 1. Buscar pedidos pagos do usuário
+            const { data: paidOrders } = await supabase
+                .from('orders')
                 .select('id')
                 .eq('buyer_id', user.id)
                 .eq('status', 'paid')
 
-            if (purchases) {
-                const { data: reviews } = await supabase
-                    .from('product_reviews')
-                    .select('id')
-                    .eq('profile_id', user.id)
+            if (paidOrders && paidOrders.length > 0) {
+                const orderIds = paidOrders.map(o => o.id)
 
-                const reviewedIds = new Set(reviews?.map(r => r.id) || [])
-                const pending = purchases.filter(p => !reviewedIds.has(p.id)).length
-                setPendingReviewsCount(pending)
+                // 2. Buscar itens desses pedidos
+                const { data: orderItems } = await supabase
+                    .from('order_items')
+                    .select('product_id')
+                    .in('order_id', orderIds)
+
+                if (orderItems && orderItems.length > 0) {
+                    const productIds = orderItems.map(item => item.product_id)
+
+                    // 3. Verificar quais produtos já foram avaliados
+                    const { data: reviews } = await supabase
+                        .from('product_reviews')
+                        .select('product_id')
+                        .eq('profile_id', user.id)
+                        .in('product_id', productIds)
+
+                    const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
+                    const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
+                    setPendingReviewsCount(pending)
+                } else {
+                    setPendingReviewsCount(0)
+                }
+            } else {
+                setPendingReviewsCount(0)
             }
         }
         fetchOrderStatuses()

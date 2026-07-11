@@ -99,73 +99,73 @@ export default function CompraramAquiPage() {
 
         setStoreName(storeData.name)
 
-        // Busca as vendas
-        const { data: salesData, error: salesError } = await supabase
-            .from('store_sales')
-            .select('*, profiles:buyer_id(avatar_url, name, "profileSlug")')
+        // Busca pedidos pagos com itens e perfis dos compradores
+        const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select(`
+                id,
+                buyer_id,
+                buyer_name,
+                created_at,
+                status,
+                order_items(product_id, product_name, total_price),
+                profiles:buyer_id(avatar_url, name, "profileSlug")
+            `)
             .eq('store_id', storeData.id)
+            .eq('status', 'paid')
             .order('created_at', { ascending: false })
 
-        if (salesError) {
+        if (ordersError) {
             setError('Erro ao carregar compras')
             setLoading(false)
             return
         }
 
-        const mappedSales = (salesData || []).map((item: any) => ({
-            ...item,
-            profiles: Array.isArray(item.profiles) ? item.profiles[0] : item.profiles
+        // Mapeia pedidos para o formato GroupedSale
+        const mappedSales: GroupedSale[] = (ordersData || []).map((order: any) => ({
+            buyer_id: order.buyer_id,
+            buyer_name: order.buyer_name,
+            created_at: order.created_at,
+            total_price: (order.order_items || []).reduce((sum: number, item: any) => sum + (item.total_price || 0), 0),
+            items: (order.order_items || []).map((item: any) => ({
+                product_id: item.product_id,
+                product_name: item.product_name,
+                price: item.total_price || 0
+            })),
+            profiles: Array.isArray(order.profiles) ? order.profiles[0] : order.profiles
         }))
 
-        // Agrupar compras do mesmo cliente no mesmo horário (intervalo de 1 minuto)
+        // Agrupa compras do mesmo comprador no mesmo minuto (mantendo compatibilidade)
         const groupedMap = new Map<string, GroupedSale>()
-
         mappedSales.forEach(sale => {
-            // Criar uma chave única baseada no comprador + data/hora (minuto)
             const saleDate = new Date(sale.created_at)
             const key = `${sale.buyer_id}_${saleDate.getFullYear()}_${saleDate.getMonth()}_${saleDate.getDate()}_${saleDate.getHours()}_${saleDate.getMinutes()}`
 
             const existing = groupedMap.get(key)
             if (existing) {
-                existing.items.push({
-                    product_id: sale.product_id,
-                    product_name: sale.product_name,
-                    price: sale.price || 0
-                })
-                existing.total_price += sale.price || 0
+                existing.items.push(...sale.items)
+                existing.total_price += sale.total_price
             } else {
-                groupedMap.set(key, {
-                    buyer_id: sale.buyer_id,
-                    buyer_name: sale.buyer_name,
-                    created_at: sale.created_at,
-                    total_price: sale.price || 0,
-                    items: [{
-                        product_id: sale.product_id,
-                        product_name: sale.product_name,
-                        price: sale.price || 0
-                    }],
-                    profiles: sale.profiles
-                })
+                groupedMap.set(key, { ...sale })
             }
         })
 
         const groupedSalesList = Array.from(groupedMap.values())
         setGroupedSales(groupedSalesList)
 
-        // Calcular top compradores (agrupado por pessoa)
+        // Calcula top compradores
         const buyerMap = new Map<string, TopBuyer>()
-
         mappedSales.forEach(sale => {
             const existing = buyerMap.get(sale.buyer_id)
             if (existing) {
                 existing.total_purchases += 1
-                existing.total_spent += sale.price || 0
+                existing.total_spent += sale.total_price
             } else {
                 buyerMap.set(sale.buyer_id, {
                     buyer_id: sale.buyer_id,
                     buyer_name: sale.buyer_name,
                     total_purchases: 1,
-                    total_spent: sale.price || 0,
+                    total_spent: sale.total_price,
                     profiles: sale.profiles
                 })
             }
@@ -208,7 +208,6 @@ export default function CompraramAquiPage() {
         }
     }
 
-    // Função para gerar a chave única da venda
     const getSaleKey = (sale: GroupedSale) => {
         const date = new Date(sale.created_at)
         return `${sale.buyer_id}_${date.getTime()}`

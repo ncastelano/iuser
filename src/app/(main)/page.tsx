@@ -101,19 +101,15 @@ export default function HomePage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
-    const [allPublicStores, setAllPublicStores] = useState<any[]>([])
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
-    const [hasPersonalAgenda, setHasPersonalAgenda] = useState(false)
-    const [hasStoreAgenda, setHasStoreAgenda] = useState(false)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
 
-    // NOVO estado para controlar carregamento das lojas
     const [loadingStores, setLoadingStores] = useState(true)
 
     const lastSearchedRef = useRef<HTMLDivElement>(null)
@@ -127,7 +123,7 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- CARREGAMENTO DA LOCALIZAÇÃO SALVA (OFFLINE + PERFIL) ----------
+    // ---------- LOCALIZAÇÃO (cache + perfil) ----------
     useEffect(() => {
         const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
         if (stored) {
@@ -194,11 +190,13 @@ export default function HomePage() {
         }
     }, [totalCartItems])
 
+    // ---------- PEDIDOS DO USUÁRIO (com orders e order_items) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            // Contagem de status dos pedidos
             const { data: orders } = await supabase
                 .from('orders')
                 .select('status')
@@ -210,27 +208,48 @@ export default function HomePage() {
                 setReadyCount(orders.filter(o => o.status === 'ready').length)
             }
 
-            const { data: purchases } = await supabase
-                .from('store_sales')
+            // --- AVALIAÇÕES PENDENTES (baseado em orders pagos + order_items) ---
+            // 1. Busca todos os pedidos pagos
+            const { data: paidOrders } = await supabase
+                .from('orders')
                 .select('id')
                 .eq('buyer_id', user.id)
                 .eq('status', 'paid')
 
-            if (purchases) {
-                const { data: reviews } = await supabase
-                    .from('product_reviews')
-                    .select('id')
-                    .eq('profile_id', user.id)
+            if (paidOrders && paidOrders.length > 0) {
+                const orderIds = paidOrders.map(o => o.id)
 
-                const reviewedIds = new Set(reviews?.map(r => r.id) || [])
-                const pending = purchases.filter(p => !reviewedIds.has(p.id)).length
-                setPendingReviewsCount(pending)
+                // 2. Busca os itens desses pedidos
+                const { data: orderItems } = await supabase
+                    .from('order_items')
+                    .select('product_id')
+                    .in('order_id', orderIds)
+
+                if (orderItems && orderItems.length > 0) {
+                    const productIds = orderItems.map(item => item.product_id)
+
+                    // 3. Verifica quais já foram avaliados pelo usuário
+                    const { data: reviews } = await supabase
+                        .from('product_reviews')
+                        .select('product_id')
+                        .eq('profile_id', user.id)
+                        .in('product_id', productIds)
+
+                    const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
+                    const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
+                    setPendingReviewsCount(pending)
+                } else {
+                    setPendingReviewsCount(0)
+                }
+            } else {
+                setPendingReviewsCount(0)
             }
         }
+
         fetchOrderStatuses()
     }, [])
 
-    // Lojas do usuário logado - AGORA COM CONTROLE DE CARREGAMENTO
+    // ---------- LOJAS DO USUÁRIO ----------
     useEffect(() => {
         async function loadStores() {
             setLoadingStores(true)
@@ -272,37 +291,11 @@ export default function HomePage() {
         loadStores()
     }, [profileSlug])
 
-    useEffect(() => {
-        async function checkAgendas() {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user || !profileSlug) {
-                setHasPersonalAgenda(false)
-                setHasStoreAgenda(false)
-                return
-            }
-            const { count: personalCount } = await supabase
-                .from('personal_events')
-                .select('id', { count: 'exact', head: true })
-                .eq('profile_id', user.id)
-            setHasPersonalAgenda((personalCount ?? 0) > 0)
-
-            const storeIds = stores.map(s => s.id)
-            if (storeIds.length > 0) {
-                const { count: storeEventCount } = await supabase
-                    .from('store_events')
-                    .select('id', { count: 'exact', head: true })
-                    .in('store_id', storeIds)
-                setHasStoreAgenda((storeEventCount ?? 0) > 0)
-            } else {
-                setHasStoreAgenda(false)
-            }
-        }
-        checkAgendas()
-    }, [profileSlug, stores])
 
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
         if (!profileSlug) {
+            // Usuário não logado: remove as agendas da lista
             const withoutAgendas = sections.filter(s => !agendaKeys.includes(s))
             const promocoesIndex = withoutAgendas.indexOf('promocoes')
             if (promocoesIndex >= 0) {
@@ -312,12 +305,9 @@ export default function HomePage() {
             }
             return withoutAgendas
         }
-        return sections.filter(s => {
-            if (s === 'compromissosPessoal' && !hasPersonalAgenda) return false
-            if (s === 'compromissosLoja' && !hasStoreAgenda) return false
-            return true
-        })
-    }, [sections, profileSlug, hasPersonalAgenda, hasStoreAgenda])
+        // Logado: exibe todas as seções, inclusive agendas
+        return sections
+    }, [sections, profileSlug])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -462,7 +452,6 @@ export default function HomePage() {
         }
     }
 
-    // Tabs com controle de loadingStores para evitar flash
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -476,7 +465,6 @@ export default function HomePage() {
             },
         ]
 
-        // Se ainda estamos carregando as lojas, retorna apenas perfil (sem Criar loja)
         if (loadingStores) {
             return allTabs
         }
@@ -493,7 +481,6 @@ export default function HomePage() {
                 })
             })
         } else {
-            // Só mostra Criar loja se não há lojas e o carregamento terminou
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',

@@ -1,4 +1,4 @@
-//app/(main)/[profileSlug]/[storeSlug]/[productSlug]/page.tsx
+// app/(main)/[profileSlug]/[storeSlug]/[productSlug]/page.tsx
 
 'use client'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -248,18 +248,9 @@ export default function ProductPage() {
 
         const finalBuyerName = buyerName || 'Cliente iUser'
 
-        try {
-            await supabase.from('store_sales').insert({
-                store_id: store.id,
-                buyer_id: currentUserId,
-                buyer_name: finalBuyerName,
-                product_name: product.name,
-                price: product.price,
-                product_id: product.id
-            })
-        } catch (e) {
-            console.error('[BuyNow] Erro ao registrar venda:', e)
-        }
+        // Inserção removida da tabela store_sales.
+        // Quando o fluxo de pedidos via orders/order_items estiver pronto,
+        // registre aqui a criação do pedido (ex.: supabase.from('orders').insert(...)).
 
         const message = formatOrderMessage({
             storeName: store.name,

@@ -10,7 +10,6 @@ import {
     Clock,
     ShoppingBag,
     Eye,
-    Timer,
     Spline
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
@@ -66,29 +65,73 @@ function isOpenNow(schedule: { open: string; close: string } | null): boolean {
     return currentMinutes >= openMin && currentMinutes <= closeMin
 }
 
+function extractStreetAddress(fullAddress?: string): string {
+    if (!fullAddress) return ''
+    const parts = fullAddress.split(',').map(p => p.trim())
+    let street = parts[0] || ''
+    if (parts.length > 1 && !/\d/.test(street)) {
+        street += ', ' + parts[1]
+    }
+    return street
+}
+
+// Cache helpers
+const CACHE_KEY = 'banner_stores_cache'
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+
+function loadCache(): StoreCard[] | null {
+    if (typeof window === 'undefined') return null
+    try {
+        const raw = localStorage.getItem(CACHE_KEY)
+        if (!raw) return null
+        const { data, timestamp } = JSON.parse(raw)
+        if (Date.now() - timestamp < CACHE_TTL) {
+            return data as StoreCard[]
+        }
+    } catch { }
+    return null
+}
+
+function saveCache(stores: StoreCard[]) {
+    if (typeof window === 'undefined') return
+    try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data: stores,
+            timestamp: Date.now()
+        }))
+    } catch { }
+}
+
 // ---------- Hook de dados ----------
 function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
+    // Estado inicial SEMPRE vazio para manter SSR/Cliente idênticos
     const [stores, setStores] = useState<StoreCard[]>([])
     const [loading, setLoading] = useState(true)
     const [effectiveLocation, setEffectiveLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [locationAttempted, setLocationAttempted] = useState(false)
 
     useEffect(() => {
         if (savedLocation) {
             setEffectiveLocation(savedLocation)
-        } else if ('geolocation' in navigator) {
+            setLocationAttempted(true)
+        } else if (!locationAttempted && 'geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
-                (pos) => setEffectiveLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-                () => setEffectiveLocation(null)
+                (pos) => {
+                    setEffectiveLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                    setLocationAttempted(true)
+                },
+                () => {
+                    setEffectiveLocation(null)
+                    setLocationAttempted(true)
+                }
             )
-        } else {
-            setEffectiveLocation(null)
         }
-    }, [savedLocation])
+    }, [savedLocation, locationAttempted])
 
     useEffect(() => {
-        const fetchStores = async () => {
-            setLoading(true)
+        let cancelled = false
 
+        const fetchFreshData = async () => {
             let storesList: any[] | null = null
             let error: any = null
 
@@ -111,20 +154,21 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 error = queryErr
             }
 
-            if (error) {
-                console.error('[BannerPago] Erro na busca:', error)
-                setLoading(false)
-                return
-            }
+            if (error || cancelled) return
 
-            const { data: productsList } = await supabase.from('products').select('id, name, store_id, image_url, duration_minutes')
-            const { data: reviewsList } = await supabase.from('product_reviews').select('store_id, rating')
-            const { data: salesList } = await supabase.from('store_sales').select('product_id')
+            const { data: productsList } = await supabase
+                .from('products')
+                .select('id, name, store_id, image_url, duration_minutes')
+            const { data: reviewsList } = await supabase
+                .from('product_reviews')
+                .select('store_id, rating')
+            const { data: paidOrderItems } = await supabase
+                .from('order_items')
+                .select('product_id, orders!inner(status)')
+                .eq('orders.status', 'paid')
 
-            processStores(storesList, productsList, reviewsList, salesList)
-        }
+            if (cancelled) return
 
-        const processStores = (storesList: any[] | null, productsList: any[] | null, reviewsList: any[] | null, salesList: any[] | null) => {
             const ratingsMap = new Map<string, { sum: number; count: number }>()
             reviewsList?.forEach(r => {
                 if (!ratingsMap.has(r.store_id)) ratingsMap.set(r.store_id, { sum: 0, count: 0 })
@@ -134,8 +178,8 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
             })
 
             const salesCount = new Map<string, number>()
-            salesList?.forEach(s => {
-                salesCount.set(s.product_id, (salesCount.get(s.product_id) || 0) + 1)
+            paidOrderItems?.forEach((item: any) => {
+                salesCount.set(item.product_id, (salesCount.get(item.product_id) || 0) + 1)
             })
 
             const storeProds = new Map<string, typeof productsList>()
@@ -177,6 +221,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                     }))
 
                 const distanceMeters = store.distance_meters ?? null
+                const streetAddress = extractStreetAddress(store.address)
 
                 return {
                     slug: store.storeSlug,
@@ -187,7 +232,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                     rating: Number(avg.toFixed(1)),
                     ratingCount: count,
                     isOpen,
-                    address: store.address,
+                    address: streetAddress,
                     todayHours,
                     viewCount: store.view_count ?? 0,
                     durationMin,
@@ -198,11 +243,26 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
             })
 
             cards.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
-            setStores(cards)
+            return cards
+        }
+
+        // 1. Tenta carregar do cache primeiro (só no cliente)
+        const cached = loadCache()
+        if (cached) {
+            setStores(cached)
             setLoading(false)
         }
 
-        fetchStores()
+        // 2. Busca dados frescos
+        fetchFreshData().then((freshCards) => {
+            if (!cancelled && freshCards) {
+                setStores(freshCards)
+                saveCache(freshCards)
+                setLoading(false)
+            }
+        })
+
+        return () => { cancelled = true }
     }, [effectiveLocation])
 
     return { stores, loading }
@@ -341,10 +401,10 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
             ? `${Math.round(meters)} m`
             : `${(meters / 1000).toFixed(1)} km`
 
-    if (loading) {
+    if (loading && stores.length === 0) {
         return (
             <div className="animate-pulse space-y-4">
-                <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
+                <div className="h-6 w-40 bg-gray-200 rounded mb-2" />
                 <div className="h-72 sm:h-96 lg:h-[30rem] bg-gray-200 rounded-2xl" />
             </div>
         )
@@ -354,11 +414,11 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
     return (
         <div
-            className="relative w-full overflow-hidden rounded-2xl"
+            className="relative w-full"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="flex items-center gap-2 mb-4 px-1">
+            <div className="flex items-center gap-2 mb-2 px-1">
                 <ShoppingBag size={18} style={{ color: colors.accent }} />
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Lojas em destaque
@@ -397,14 +457,6 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                         const brightness = isActive ? 'brightness(1)' : 'brightness(0.7)'
 
                         const backgroundImage = store.coverUrl || store.logoUrl
-                        const locationInfo = store.address
-
-                        const hasDuration = store.durationMin != null || store.durationMax != null
-                        const durationText = hasDuration
-                            ? store.durationMin === store.durationMax
-                                ? formatDuration(store.durationMin!)
-                                : `${formatDuration(store.durationMin!)} - ${formatDuration(store.durationMax!)}`
-                            : null
 
                         return (
                             <div
@@ -419,147 +471,138 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                     filter: brightness,
                                 }}
                             >
-                                <div
-                                    onClick={() => {
-                                        if (!isDragging) router.push(`/${store.slug}`)
-                                    }}
-                                    className="group relative h-72 sm:h-96 lg:h-[30rem] rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02]"
-                                    style={{
-                                        borderColor: colors.border,
-                                        boxShadow: isActive
-                                            ? `0 20px 40px ${colors.accent}33`
-                                            : colors.shadow,
-                                    }}
-                                >
-                                    {backgroundImage ? (
-                                        <img
-                                            src={backgroundImage}
-                                            alt={store.name}
-                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="absolute inset-0"
-                                            style={{
-                                                background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
-                                            }}
-                                        />
-                                    )}
-
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
-
-                                    {/* Badges superiores (status + duração) */}
-                                    <div className="absolute top-4 left-4 z-20 flex flex-wrap gap-2">
-                                        {store.isOpen !== undefined && (
+                                <div className="relative h-72 sm:h-96 lg:h-[30rem]">
+                                    <div
+                                        onClick={() => {
+                                            if (!isDragging) router.push(`/${store.slug}`)
+                                        }}
+                                        className="group absolute inset-0 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02]"
+                                        style={{
+                                            borderColor: colors.border,
+                                            boxShadow: isActive
+                                                ? `0 20px 40px ${colors.accent}33`
+                                                : colors.shadow,
+                                        }}
+                                    >
+                                        {backgroundImage ? (
+                                            <img
+                                                src={backgroundImage}
+                                                alt={store.name}
+                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            />
+                                        ) : (
                                             <div
-                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
+                                                className="absolute inset-0"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
+                                                }}
+                                            />
+                                        )}
+
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
+
+                                        <div className="absolute top-3 left-3 z-20">
+                                            <div
+                                                className="flex items-center gap-1.5 pl-3 pr-4 py-1.5 rounded-full text-xs font-bold shadow-lg"
                                                 style={{
                                                     background: store.isOpen ? '#10b981' : '#ef4444',
                                                     color: '#ffffff',
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                                                 }}
                                             >
-                                                <Clock size={14} />
+                                                <Clock size={12} />
                                                 <span>{store.isOpen ? 'Aberto' : 'Fechado'}</span>
                                                 {store.todayHours && (
-                                                    <span className="opacity-90 ml-1">
+                                                    <span className="opacity-90 ml-0.5 text-[10px]">
                                                         {store.todayHours}
                                                     </span>
                                                 )}
                                             </div>
-                                        )}
-                                        {durationText && (
-                                            <div
-                                                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold backdrop-blur-sm"
-                                                style={{ background: 'rgba(0,0,0,0.5)', color: '#ffffff' }}
-                                            >
-                                                <Timer size={14} />
-                                                <span>{durationText}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Avaliação no topo direito (substituindo o Spline) */}
-                                    <div className="absolute top-4 right-4 z-20">
-                                        {store.rating != null && store.rating > 0 && (
-                                            <div
-                                                className="flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-sm"
-                                                style={{ background: 'rgba(0,0,0,0.6)', color: '#ffffff' }}
-                                            >
-                                                <Star size={16} className="fill-yellow-400 text-yellow-400" />
-                                                <span className="text-base font-black">{store.rating.toFixed(1)}</span>
-                                                {store.ratingCount && (
-                                                    <span className="text-xs text-white/70 ml-0.5">
-                                                        ({store.ratingCount})
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Conteúdo textual */}
-                                    <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white z-10">
-                                        <h3 className="text-2xl sm:text-4xl font-black drop-shadow-lg mb-1 leading-tight">
-                                            {store.name}
-                                        </h3>
-
-                                        {store.description && (
-                                            <p className="text-sm sm:text-base text-white/80 line-clamp-2 mb-4 max-w-prose">
-                                                {store.description}
-                                            </p>
-                                        )}
-
-                                        {/* Endereço + distância na mesma linha */}
-                                        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs sm:text-sm mb-4">
-                                            {locationInfo && (
-                                                <div className="flex items-start gap-1">
-                                                    <MapPin size={16} className="text-white/70 mt-0.5 shrink-0" />
-                                                    <span className="leading-tight">{locationInfo}</span>
-                                                </div>
-                                            )}
-                                            {store.distanceMeters != null && (
-                                                <div className="flex items-center gap-1.5">
-                                                    <Spline size={14} className="text-emerald-300" />
-                                                    <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
-                                                </div>
-                                            )}
                                         </div>
 
-                                        {/* Produtos + número de visitas */}
-                                        <div className="flex items-center gap-4">
-                                            {store.topProducts && store.topProducts.length > 0 && (
-                                                <div className="flex -space-x-2">
-                                                    {store.topProducts.slice(0, 3).map((product, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className="w-10 h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
-                                                            title={product.name}
-                                                        >
-                                                            {product.imageUrl ? (
-                                                                <img
-                                                                    src={product.imageUrl}
-                                                                    alt={product.name}
-                                                                    className="w-full h-full object-cover"
-                                                                />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-white text-sm font-black">
-                                                                    {product.name.charAt(0).toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                    {store.topProducts.length > 3 && (
-                                                        <div className="w-10 h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-sm font-bold text-white">
-                                                            +{store.topProducts.length - 3}
-                                                        </div>
+                                        {store.rating != null && store.rating > 0 && (
+                                            <div className="absolute top-3 right-3 z-20">
+                                                <div
+                                                    className="flex items-center gap-1.5 pl-4 pr-3 py-1.5 rounded-full text-xs font-bold shadow-lg"
+                                                    style={{
+                                                        background: 'rgba(0,0,0,0.75)',
+                                                        color: '#ffffff',
+                                                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                                    }}
+                                                >
+                                                    <Star size={12} className="fill-yellow-400 text-yellow-400" />
+                                                    <span>{store.rating.toFixed(1)}</span>
+                                                    {store.ratingCount && (
+                                                        <span className="text-[10px] text-white/80">
+                                                            ({store.ratingCount})
+                                                        </span>
                                                     )}
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-white z-10">
+                                            <h3 className="text-xl sm:text-3xl lg:text-4xl font-black drop-shadow-lg mb-0.5 leading-tight">
+                                                {store.name}
+                                            </h3>
+
+                                            {store.description && (
+                                                <p className="text-xs sm:text-sm text-white/80 line-clamp-2 mb-2 max-w-prose">
+                                                    {store.description}
+                                                </p>
                                             )}
-                                            {store.viewCount != null && store.viewCount > 0 && (
-                                                <div className="flex items-center gap-1 text-xs font-bold text-white/90">
-                                                    <Eye size={14} />
-                                                    <span>{store.viewCount}</span>
-                                                </div>
-                                            )}
+
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs mb-2">
+                                                {store.address && (
+                                                    <div className="flex items-center gap-1">
+                                                        <MapPin size={14} className="text-white/70 shrink-0" />
+                                                        <span className="leading-tight opacity-90">{store.address}</span>
+                                                    </div>
+                                                )}
+                                                {store.distanceMeters != null && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Spline size={14} className="text-emerald-300" />
+                                                        <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-3 mt-2">
+                                                {store.topProducts && store.topProducts.length > 0 && (
+                                                    <div className="flex -space-x-2">
+                                                        {store.topProducts.slice(0, 3).map((product, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
+                                                                title={product.name}
+                                                            >
+                                                                {product.imageUrl ? (
+                                                                    <img
+                                                                        src={product.imageUrl}
+                                                                        alt={product.name}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-white text-[10px] sm:text-sm font-black">
+                                                                        {product.name.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                        {store.topProducts.length > 3 && (
+                                                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-[10px] sm:text-sm font-bold text-white">
+                                                                +{store.topProducts.length - 3}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {store.viewCount != null && store.viewCount > 0 && (
+                                                    <div className="flex items-center gap-1 text-[11px] font-bold text-white/90">
+                                                        <Eye size={12} />
+                                                        <span>{store.viewCount}</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart, ChefHat, CheckCircle, Package, PartyPopper } from 'lucide-react'
+import { Star, X, ShoppingBag, ArrowRight, Sparkles, MessageSquareHeart } from 'lucide-react'
 import { ReviewModal } from './ReviewModal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useMerchantStore } from '@/store/useMerchantStore'
 import { toast } from 'sonner'
-import { useRef } from 'react'
 
 export function FinishedOrderTrigger() {
     const [unreviewedOrders, setUnreviewedOrders] = useState<any[]>([])
@@ -20,41 +19,41 @@ export function FinishedOrderTrigger() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Fetch from both store_sales and orders
-        const { data: sales, error: salesError } = await supabase
-            .from('store_sales')
-            .select('*')
-            .eq('buyer_id', user.id)
-            .eq('status', 'paid')
-
-        const { data: ordersData, error: ordersError } = await supabase
+        // Buscar apenas pedidos pagos com seus itens e nome da loja
+        const { data: paidOrders, error: ordersError } = await supabase
             .from('orders')
-            .select('*')
+            .select(`
+                id,
+                checkout_id,
+                store_id,
+                created_at,
+                buyer_name,
+                stores(name),
+                order_items(product_id, product_name)
+            `)
             .eq('buyer_id', user.id)
             .eq('status', 'paid')
+            .order('created_at', { ascending: false })
 
-        if (salesError) console.error('Error fetching store_sales:', salesError)
-        if (ordersError) console.error('Error fetching orders:', ordersError)
+        if (ordersError) {
+            console.error('Error fetching orders:', ordersError)
+            return
+        }
 
-        const allPaidItems = [...(sales || []), ...(ordersData || [])]
+        if (paidOrders && paidOrders.length > 0) {
+            // Mapear para o formato esperado
+            const orders = paidOrders.map((order: any) => ({
+                id: order.checkout_id,
+                store_id: order.store_id,
+                store_name: order.stores?.name || 'Loja',
+                created_at: order.created_at,
+                items: (order.order_items || []).map((item: any) => ({
+                    product_id: item.product_id,
+                    product_name: item.product_name
+                }))
+            }))
 
-        if (allPaidItems.length > 0) {
-            // Group by checkout_id to treat as orders
-            const grouped = allPaidItems.reduce((acc: any, item: any) => {
-                if (!acc[item.checkout_id]) {
-                    acc[item.checkout_id] = {
-                        id: item.checkout_id,
-                        store_id: item.store_id,
-                        created_at: item.created_at,
-                        items: []
-                    }
-                }
-                acc[item.checkout_id].items.push(item)
-                return acc
-            }, {})
-
-            const orders = Object.values(grouped).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
+            // Verificar avaliações já realizadas
             const { data: reviews } = await supabase
                 .from('product_reviews')
                 .select('order_id')
@@ -76,22 +75,21 @@ export function FinishedOrderTrigger() {
     }
 
     useEffect(() => {
-        let isMounted = true;
-        let channel: any;
+        let isMounted = true
+        let channel: any
 
         async function setupRealtime() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user || !isMounted) return
 
             const handlePayload = (payload: any) => {
-                const newStatus = payload.new?.status;
-                const checkoutId = payload.new?.checkout_id;
-                const storeName = payload.new?.store_name || 'Loja';
+                const newStatus = payload.new?.status
+                const checkoutId = payload.new?.checkout_id
+                const storeName = payload.new?.stores?.name || 'Loja'
 
-                if (!checkoutId || !newStatus) return;
-
-                if (notifiedRef.current[checkoutId] === newStatus) return;
-                notifiedRef.current[checkoutId] = newStatus;
+                if (!checkoutId || !newStatus) return
+                if (notifiedRef.current[checkoutId] === newStatus) return
+                notifiedRef.current[checkoutId] = newStatus
 
                 if (newStatus === 'pending') {
                     toast.success(`📦 Pedido Recebido!`, {
@@ -103,7 +101,7 @@ export function FinishedOrderTrigger() {
                             border: 'none',
                             borderRadius: '1.5rem'
                         }
-                    });
+                    })
                 } else if (newStatus === 'preparing') {
                     toast.success(`👨‍🍳 Em Preparo!`, {
                         description: `Seu pedido na ${storeName} está sendo preparado agora.`,
@@ -114,7 +112,7 @@ export function FinishedOrderTrigger() {
                             border: 'none',
                             borderRadius: '1.5rem'
                         }
-                    });
+                    })
                 } else if (newStatus === 'ready') {
                     toast.success(`✅ Pedido Pronto!`, {
                         description: `Pode retirar seu pedido na ${storeName}!`,
@@ -126,7 +124,7 @@ export function FinishedOrderTrigger() {
                             borderRadius: '1.5rem'
                         },
                         duration: 10000
-                    });
+                    })
                 } else if (newStatus === 'paid') {
                     toast.success(`🎉 Pedido Finalizado!`, {
                         description: `Obrigado por comprar na ${storeName}! Avalie agora.`,
@@ -137,22 +135,18 @@ export function FinishedOrderTrigger() {
                             border: 'none',
                             borderRadius: '1.5rem'
                         }
-                    });
-                    setTimeout(() => checkOrders(), 2000);
+                    })
+                    setTimeout(() => checkOrders(), 2000)
                 }
             }
 
-            const channelSales = supabase.channel(`finished-sales-${user.id}-${Date.now()}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'store_sales', filter: `buyer_id=eq.${user.id}` }, handlePayload)
-                .subscribe()
-
+            // Apenas canal de orders (não usamos store_sales)
             const channelOrders = supabase.channel(`finished-orders-${user.id}-${Date.now()}`)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${user.id}` }, handlePayload)
                 .subscribe()
 
             channel = {
                 unsubscribe: () => {
-                    supabase.removeChannel(channelSales)
                     supabase.removeChannel(channelOrders)
                 }
             }
@@ -162,8 +156,8 @@ export function FinishedOrderTrigger() {
         setupRealtime()
 
         return () => {
-            isMounted = false;
-            if (channel) supabase.removeChannel(channel)
+            isMounted = false
+            if (channel) channel.unsubscribe()
         }
     }, [supabase])
 
@@ -203,7 +197,6 @@ export function FinishedOrderTrigger() {
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
                             className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
                         >
-                            {/* Decorative background */}
                             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-orange-500 to-red-600" />
                             <div className="absolute top-0 left-0 w-full h-32 overflow-hidden opacity-20">
                                 <Sparkles className="absolute top-4 left-4 text-white w-12 h-12 rotate-12" />
@@ -260,8 +253,6 @@ export function FinishedOrderTrigger() {
                     isOpen={reviewOrder.isOpen}
                     onClose={() => {
                         setReviewOrder(null)
-                        // If closed without success, we don't automatically mark as dismissed 
-                        // unless the user clicks "Não quero avaliar este" in the prompt
                         setShowPrompt(unreviewedOrders.length > 0)
                     }}
                     orderId={reviewOrder.orderId}
@@ -270,7 +261,6 @@ export function FinishedOrderTrigger() {
                     storeId={reviewOrder.storeId}
                     onSuccess={() => {
                         setReviewOrder(null)
-                        // This will re-fetch and skip the one just reviewed
                         checkOrders()
                     }}
                 />

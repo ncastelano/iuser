@@ -23,7 +23,6 @@ export type StoreType = {
     store_stats: StoreStats
     profileSlug?: string
     top_products?: ProductType[]
-    // campos diretos para fácil acesso (garantem compatibilidade)
     ratings_avg?: number
     ratings_count?: number
 }
@@ -61,14 +60,12 @@ export function useVitrineData() {
         const minPrice = prices.length > 0 ? Math.min(...prices) : null
         const maxPrice = prices.length > 0 ? Math.max(...prices) : null
 
-        // Ratings: prioriza os calculados a partir das avaliações reais
         const ratingsFromReviews = ratingsMap.get(store.id)
         const calculatedAvg = ratingsFromReviews
             ? ratingsFromReviews.sum / ratingsFromReviews.count
             : 0
         const calculatedCount = ratingsFromReviews ? ratingsFromReviews.count : 0
 
-        // Se houver avaliações reais, use-as; senão, caia para as colunas da loja
         const finalAvg = calculatedCount > 0 ? calculatedAvg : (store.ratings_avg ?? 0)
         const finalCount = calculatedCount > 0 ? calculatedCount : (store.ratings_count ?? 0)
 
@@ -81,7 +78,6 @@ export function useVitrineData() {
             profileSlug: prof?.profileSlug || 'loja',
             logo_url: logoUrl,
             is_open: store.is_open ?? true,
-            // Expondo também os campos diretos, para facilitar o consumo no StoreCard
             ratings_avg: finalAvg,
             ratings_count: finalCount,
             store_stats: {
@@ -108,27 +104,36 @@ export function useVitrineData() {
             setError(null)
 
             try {
-                // Buscar tudo em paralelo
+                // Buscar tudo em paralelo (sem store_sales)
                 const [
                     { data: storesList, error: sErr },
                     { data: profilesList, error: prErr },
                     { data: productsList, error: pErr },
-                    { data: reviewsList, error: rErr },   // <-- alterado de store_ratings para product_reviews
-                    { data: salesList, error: slErr }
+                    { data: reviewsList, error: rErr }
                 ] = await Promise.all([
                     supabase.from('stores').select('*'),
                     supabase.from('profiles').select('id, "profileSlug"'),
                     supabase.from('products').select('*'),
-                    supabase.from('product_reviews').select('store_id, rating'), // tabela correta
-                    supabase.from('store_sales').select('product_id')
+                    supabase.from('product_reviews').select('store_id, rating')
                 ])
 
-                if (sErr || prErr || pErr || rErr || slErr) {
-                    const errorMsg = sErr?.message || prErr?.message || pErr?.message || rErr?.message || slErr?.message || 'Erro desconhecido'
+                if (sErr || prErr || pErr || rErr) {
+                    const errorMsg = sErr?.message || prErr?.message || pErr?.message || rErr?.message || 'Erro desconhecido'
                     console.error('[Vitrine] Detalhes do erro:', { sErr, prErr, pErr, rErr })
                     setError(`Erro ao carregar dados: ${errorMsg}`)
                     setLoading(false)
                     return
+                }
+
+                // Buscar itens de pedidos pagos para contar vendas
+                const { data: paidOrderItems, error: oiErr } = await supabase
+                    .from('order_items')
+                    .select('product_id, orders!inner(status)')
+                    .eq('orders.status', 'paid')
+
+                if (oiErr) {
+                    console.error('[Vitrine] Erro ao buscar order_items:', oiErr)
+                    // Não é crítico, prossegue sem contagem de vendas
                 }
 
                 // Mapear produtos
@@ -162,10 +167,10 @@ export function useVitrineData() {
                     current.count += 1
                 })
 
-                // Calcular vendas por produto
+                // Calcular vendas por produto usando order_items de pedidos pagos
                 const salesMap = new Map<string, number>()
-                salesList?.forEach((sale: any) => {
-                    salesMap.set(sale.product_id, (salesMap.get(sale.product_id) || 0) + 1)
+                paidOrderItems?.forEach((item: any) => {
+                    salesMap.set(item.product_id, (salesMap.get(item.product_id) || 0) + 1)
                 })
 
                 // Mapear lojas
