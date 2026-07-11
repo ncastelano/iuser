@@ -14,6 +14,7 @@ import {
     Star,
     X,
     Plus,
+    Minus,
     Shield,
     Eye,
     ShoppingBag,
@@ -591,13 +592,11 @@ export default function StorePage() {
         toggleProduct(product)
     }
 
-    // ---------- SUBSTITUIÇÃO DE store_sales POR orders + order_items ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // Status dos pedidos (contagem)
             const { data: orders } = await supabase
                 .from('orders')
                 .select('status')
@@ -609,8 +608,6 @@ export default function StorePage() {
                 setReadyCount(orders.filter(o => o.status === 'ready').length)
             }
 
-            // --- Avaliações pendentes (pedidos pagos) ---
-            // 1. Buscar pedidos pagos do usuário
             const { data: paidOrders } = await supabase
                 .from('orders')
                 .select('id')
@@ -620,7 +617,6 @@ export default function StorePage() {
             if (paidOrders && paidOrders.length > 0) {
                 const orderIds = paidOrders.map(o => o.id)
 
-                // 2. Buscar itens desses pedidos
                 const { data: orderItems } = await supabase
                     .from('order_items')
                     .select('product_id')
@@ -629,7 +625,6 @@ export default function StorePage() {
                 if (orderItems && orderItems.length > 0) {
                     const productIds = orderItems.map(item => item.product_id)
 
-                    // 3. Verificar quais produtos já foram avaliados
                     const { data: reviews } = await supabase
                         .from('product_reviews')
                         .select('product_id')
@@ -919,10 +914,10 @@ export default function StorePage() {
                     <>
                         <div className="flex items-center gap-2">
                             <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
                                 <input
                                     type="text"
-                                    placeholder="Buscar produtos..."
+                                    placeholder="Buscar..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="w-full border rounded-2xl py-3 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 transition-all"
@@ -991,7 +986,95 @@ export default function StorePage() {
                                             const whatsappLink = isPublication && storeWhatsapp
                                                 ? `https://wa.me/${storeWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no item "${product.name}" da loja ${store?.name}.`)}`
                                                 : '#'
+                                            const hasImage = !!product.image_url
 
+                                            // ===== CARD PARA PRODUTOS SEM IMAGEM (APENAS TEXTO) =====
+                                            if (!hasImage) {
+                                                return (
+                                                    <div
+                                                        key={product.id}
+                                                        onClick={() => {
+                                                            if (isPublication) {
+                                                                router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
+                                                            } else {
+                                                                handleProductClick(product)
+                                                            }
+                                                        }}
+                                                        className={`col-span-2 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                        style={{
+                                                            background: `${colors.surface}88`,
+                                                            borderColor: isSelected && !isPublication ? '#22c55e' : isPublication ? '#10b981' : colors.border,
+                                                            backdropFilter: 'blur(8px)',
+                                                            WebkitBackdropFilter: 'blur(8px)',
+                                                        }}
+                                                    >
+                                                        <div className="p-4 flex flex-col justify-center min-w-0">
+                                                            <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
+                                                                {product.name}
+                                                            </h4>
+                                                            <p className="text-[11px] line-clamp-1 mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
+                                                                {product.description || 'Sem descrição'}
+                                                            </p>
+                                                            <div className="mt-2">
+                                                                {isPublication ? (
+                                                                    <p className="text-sm font-black text-green-600">Sob consulta</p>
+                                                                ) : (
+                                                                    <div className="flex items-center">
+                                                                        <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                        </span>
+                                                                        {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="mt-3 flex justify-end">
+                                                                {isOwner ? (
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
+                                                                        className="w-8 h-8 rounded-full border flex items-center justify-center"
+                                                                        style={{ borderColor: colors.border, color: colors.accent }}
+                                                                    >
+                                                                        <ExternalLink className="w-4 h-4" />
+                                                                    </button>
+                                                                ) : isPublication ? (
+                                                                    <a
+                                                                        href={whatsappLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
+                                                                    >
+                                                                        <MessageCircle size={14} />
+                                                                        Saber mais
+                                                                    </a>
+                                                                ) : mounted && isSelected ? (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                removeItem(storeSlug as string, product.id);
+                                                                            }}
+                                                                            className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        >
+                                                                            <Minus className="w-4 h-4" />
+                                                                        </button>
+                                                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>1</span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={e => { e.stopPropagation(); toggleProduct(product) }}
+                                                                        className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    >
+                                                                        <Plus className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+
+                                            // ===== CARD VERTICAL PARA PRODUTOS COM IMAGEM =====
                                             return (
                                                 <div
                                                     key={product.id}
@@ -1094,12 +1177,21 @@ export default function StorePage() {
                                                                 </a>
                                                             ) : mounted && isSelected ? (
                                                                 <div className="flex items-center gap-1.5">
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            removeItem(storeSlug as string, product.id);
+                                                                        }}
+                                                                        className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    >
+                                                                        <Minus className="w-4 h-4" />
+                                                                    </button>
+                                                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>1</span>
                                                                 </div>
                                                             ) : (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); toggleProduct(product) }}
-                                                                    className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                    style={{ background: colors.accent }}
+                                                                    className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
                                                                 >
                                                                     <Plus className="w-4 h-4" />
                                                                 </button>

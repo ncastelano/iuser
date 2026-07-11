@@ -33,11 +33,13 @@ type Step = 'store' | 'account' | 'success'
 interface CreateStoreAndRegisterProfileProps {
     embedded?: boolean
     onBack?: () => void
+    onSuccess?: (profileSlug: string, storeName: string, storeSlug: string) => void
 }
 
 export default function CreateStoreAndRegisterProfile({
     embedded = false,
     onBack,
+    onSuccess,
 }: CreateStoreAndRegisterProfileProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -320,8 +322,13 @@ export default function CreateStoreAndRegisterProfile({
 
     // ⬇️ ALTERAÇÃO AQUI ⬇️
     const handleGoToStore = () => {
-        // Força o reload completo para que o header seja atualizado com a nova loja
-        window.location.href = `/${profileSlug}/${storeSlug}`
+        // Se estiver no modo embutido e tiver onSuccess, chama o callback
+        if (embedded && onSuccess) {
+            onSuccess(profileSlug, storeName, storeSlug)
+        } else {
+            // Fallback: recarrega a página
+            window.location.href = `/${profileSlug}/${storeSlug}`
+        }
     }
 
     // Função de voltar adaptada ao modo embutido
@@ -622,7 +629,7 @@ export default function CreateStoreAndRegisterProfile({
                             />
                         </div>
                         <p className="text-[11px] text-gray-500 ml-1">
-                            🔗 Seu link: https://www.iuser.com.br/ /{profileSlug || '...'}
+                            🔗 Seu link: https://www.iuser.com.br/{profileSlug || '...'}
                         </p>
                         {profileSlugSuggestions.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">

@@ -7,7 +7,7 @@ import {
     ChevronDown,
     Star,
     MapPin,
-    ShoppingBag,
+    Package,
     Eye,
     Timer,
 } from 'lucide-react'
@@ -309,7 +309,7 @@ export default function ProductShowcase() {
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className="flex items-center gap-2 mb-4 px-1">
-                <ShoppingBag size={18} style={{ color: colors.accent }} />
+                <Package size={18} style={{ color: colors.accent }} />
                 <h2
                     className="text-sm font-black uppercase tracking-wider"
                     style={{ color: colors.textPrimary }}
@@ -360,7 +360,7 @@ export default function ProductShowcase() {
                                         background: colors.background,
                                     }}
                                 >
-                                    {/* Imagem à esquerda (preenche todo o espaço, sem cortes) */}
+                                    {/* Imagem à esquerda (ou placeholder com ícone) */}
                                     <div className="w-2/5 sm:w-1/3 h-full relative overflow-hidden flex-shrink-0">
                                         {product.imageUrl ? (
                                             <img
@@ -370,11 +370,13 @@ export default function ProductShowcase() {
                                             />
                                         ) : (
                                             <div
-                                                className="w-full h-full"
+                                                className="w-full h-full flex items-center justify-center"
                                                 style={{
-                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
+                                                    background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}30)`,
                                                 }}
-                                            />
+                                            >
+                                                <Package size={48} style={{ color: colors.accent }} />
+                                            </div>
                                         )}
                                         {product.viewCount > 0 && (
                                             <div className="absolute top-2 right-2 z-20 flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
