@@ -1,13 +1,8 @@
 // src/app/(main)/inicio/sections/PublicationShowcase.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import {
-    ChevronLeft,
-    ChevronRight,
-    FileText,
-    MessageCircle,
-} from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { ChevronUp, ChevronDown, FileText, Store } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -29,7 +24,6 @@ function usePublicationShowcase() {
     useEffect(() => {
         const fetchPublications = async () => {
             setLoading(true)
-
             const { data: storesList, error: storesErr } = await supabase
                 .from('stores')
                 .select('id, name, storeSlug, logo_url')
@@ -39,7 +33,6 @@ function usePublicationShowcase() {
                 setLoading(false)
                 return
             }
-
             const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
 
             const { data: publicationsList, error: pubErr } = await supabase
@@ -53,7 +46,6 @@ function usePublicationShowcase() {
                 setLoading(false)
                 return
             }
-
             if (!publicationsList || publicationsList.length === 0) {
                 setPublications([])
                 setLoading(false)
@@ -65,11 +57,9 @@ function usePublicationShowcase() {
                 const logoUrl = store?.logo_url
                     ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                     : null
-
                 const imageUrl = pub.image_url
                     ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
                     : null
-
                 return {
                     id: pub.id,
                     imageUrl,
@@ -82,72 +72,74 @@ function usePublicationShowcase() {
             setPublications(cards)
             setLoading(false)
         }
-
         fetchPublications()
     }, [])
 
     return { publications, loading }
 }
 
+// ---------- Componente ----------
 export default function PublicationShowcase() {
     const router = useRouter()
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { publications, loading } = usePublicationShowcase()
     const totalReal = publications.length
 
-    const loopingPubs =
-        totalReal > 1
-            ? [publications[totalReal - 1], ...publications, publications[0]]
-            : publications
+    // Modo vertical infinito para 5+ publicações
+    const isVerticalLoop = totalReal >= 5
+    const cardsPerView = isVerticalLoop ? 4 : totalReal <= 4 ? totalReal : totalReal === 3 ? 2 : 4
+    const isStatic = totalReal <= 4 && totalReal !== 3
 
-    const [activeIndex, setActiveIndex] = useState<number>(totalReal > 1 ? 1 : 0)
+    const [activeIndex, setActiveIndex] = useState(isVerticalLoop ? cardsPerView : 0)
     const [isTransitioning, setIsTransitioning] = useState(true)
     const [isHovered, setIsHovered] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
-    const [dragStartX, setDragStartX] = useState(0)
+    const [dragStartY, setDragStartY] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
 
-    const cardWidthPercent = 100 / 3
-    const unitPercent = cardWidthPercent
+    // Construir array com clones para o loop infinito
+    const displayPublications = useMemo(() => {
+        if (!isVerticalLoop) return publications
+        const clonesStart = publications.slice(-cardsPerView)
+        const clonesEnd = publications.slice(0, cardsPerView)
+        return [...clonesStart, ...publications, ...clonesEnd]
+    }, [publications, isVerticalLoop, cardsPerView])
 
-    useEffect(() => {
-        if (totalReal > 1) {
-            setActiveIndex(1)
-            setIsTransitioning(true)
-        } else if (totalReal === 1) {
-            setActiveIndex(0)
-            setIsTransitioning(true)
-        }
-    }, [totalReal])
+    // Cálculo de dimensões
+    const getContainerHeight = () => containerRef.current?.clientHeight ?? 600
+    const gapPx = 12
+    const cardHeightPx = (getContainerHeight() - gapPx * (cardsPerView - 1)) / cardsPerView
 
     const goToNext = useCallback(() => {
-        if (totalReal <= 1 || !isTransitioning) return
+        if (!isVerticalLoop || !isTransitioning) return
         setActiveIndex(prev => prev + 1)
-    }, [totalReal, isTransitioning])
+    }, [isVerticalLoop, isTransitioning])
 
     const goToPrev = useCallback(() => {
-        if (totalReal <= 1 || !isTransitioning) return
+        if (!isVerticalLoop || !isTransitioning) return
         setActiveIndex(prev => prev - 1)
-    }, [totalReal, isTransitioning])
+    }, [isVerticalLoop, isTransitioning])
 
+    // Reset para loop infinito
     useEffect(() => {
-        if (totalReal <= 1) return
+        if (!isVerticalLoop) return
         const handleTransitionEnd = () => {
-            if (activeIndex === loopingPubs.length - 1) {
+            if (activeIndex >= totalReal + cardsPerView) {
                 setIsTransitioning(false)
-                setActiveIndex(1)
-            } else if (activeIndex === 0) {
+                setActiveIndex(cardsPerView)
+            } else if (activeIndex < cardsPerView) {
                 setIsTransitioning(false)
-                setActiveIndex(totalReal)
+                setActiveIndex(totalReal + cardsPerView - 1)
             }
         }
         const track = trackRef.current
         track?.addEventListener('transitionend', handleTransitionEnd)
         return () => track?.removeEventListener('transitionend', handleTransitionEnd)
-    }, [activeIndex, totalReal, loopingPubs.length])
+    }, [activeIndex, isVerticalLoop, totalReal, cardsPerView])
 
     useEffect(() => {
         if (!isTransitioning) {
@@ -156,23 +148,28 @@ export default function PublicationShowcase() {
         }
     }, [isTransitioning])
 
+    // Autoplay
     useEffect(() => {
-        if (isHovered || isDragging || totalReal <= 1) return
-        autoPlayRef.current = setInterval(goToNext, 5000)
+        if (isHovered || isDragging || !isVerticalLoop) return
+        autoPlayRef.current = setInterval(goToNext, 4000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
         }
-    }, [isHovered, isDragging, goToNext, totalReal])
+    }, [isHovered, isDragging, goToNext, isVerticalLoop])
 
-    const handleDragStart = useCallback((clientX: number) => {
+    // Drag vertical
+    const handleDragStart = useCallback((clientY: number) => {
+        if (!isVerticalLoop) return
         setIsDragging(true)
-        setDragStartX(clientX)
+        setDragStartY(clientY)
         setDragOffset(0)
-    }, [])
-    const handleDragMove = useCallback((clientX: number) => {
+    }, [isVerticalLoop])
+
+    const handleDragMove = useCallback((clientY: number) => {
         if (!isDragging) return
-        setDragOffset(clientX - dragStartX)
-    }, [isDragging, dragStartX])
+        setDragOffset(clientY - dragStartY)
+    }, [isDragging, dragStartY])
+
     const handleDragEnd = useCallback(() => {
         if (!isDragging) return
         setIsDragging(false)
@@ -181,27 +178,46 @@ export default function PublicationShowcase() {
         setDragOffset(0)
     }, [isDragging, dragOffset, goToPrev, goToNext])
 
-    const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientX) }
-    const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }
-    const onMouseUp = () => handleDragEnd()
-    const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientX)
-    const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientX) }
-    const onTouchEnd = () => handleDragEnd()
+    const onPointerDown = (e: React.PointerEvent) => {
+        e.preventDefault()
+        handleDragStart(e.clientY)
+    }
+    const onPointerMove = (e: React.PointerEvent) => {
+        if (isDragging) handleDragMove(e.clientY)
+    }
+    const onPointerUp = () => handleDragEnd()
 
-    const trackWidth = trackRef.current?.clientWidth || 1
-    const baseTranslate = -activeIndex * unitPercent
-    const totalTranslate = baseTranslate + (dragOffset / trackWidth) * 100
+    // Translação vertical
+    const translateY = useMemo(() => {
+        if (!isVerticalLoop) return 0
+        return -activeIndex * (cardHeightPx + gapPx) + dragOffset
+    }, [isVerticalLoop, activeIndex, cardHeightPx, gapPx, dragOffset])
 
-    const realIndex = totalReal > 1 ? (activeIndex - 1 + totalReal) % totalReal : 0
+    // Índice real (0 a totalReal-1)
+    const realIndex = useMemo(() => {
+        if (!isVerticalLoop) return 0
+        if (activeIndex < cardsPerView) return totalReal - 1
+        if (activeIndex >= totalReal + cardsPerView) return 0
+        return activeIndex - cardsPerView
+    }, [isVerticalLoop, activeIndex, totalReal, cardsPerView])
+
+    // Grid para layout estático
+    const gridClass = totalReal === 1
+        ? 'grid-cols-1'
+        : totalReal === 2
+            ? 'grid-cols-2'
+            : totalReal === 3
+                ? 'grid-cols-2'
+                : 'grid-cols-2 sm:grid-cols-4'
 
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
                 <div className="flex gap-4">
-                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="flex-1 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
+                    ))}
                 </div>
             </div>
         )
@@ -211,141 +227,129 @@ export default function PublicationShowcase() {
 
     return (
         <div
-            className="relative w-full overflow-hidden rounded-2xl"
+            className="relative w-full"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className="flex items-center gap-2 mb-4 px-1">
                 <FileText size={18} style={{ color: colors.accent }} />
-                <h2
-                    className="text-sm font-black uppercase tracking-wider"
-                    style={{ color: colors.textPrimary }}
-                >
+                <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Publicações em destaque
                 </h2>
             </div>
 
             <div
-                className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseUp={onMouseUp}
-                onMouseLeave={onMouseUp}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
+                ref={containerRef}
+                className={`relative overflow-hidden select-none ${isVerticalLoop ? 'h-[36rem]' : ''}`}
+                onPointerDown={isVerticalLoop ? onPointerDown : undefined}
+                onPointerMove={isVerticalLoop ? onPointerMove : undefined}
+                onPointerUp={isVerticalLoop ? onPointerUp : undefined}
+                onPointerLeave={isVerticalLoop ? onPointerUp : undefined}
             >
-                <div
-                    ref={trackRef}
-                    className="flex"
-                    style={{
-                        transform: `translateX(${totalTranslate}%)`,
-                        transition: isTransitioning && !isDragging
-                            ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                            : 'none',
-                        willChange: 'transform',
-                    }}
-                >
-                    {loopingPubs.map((pub, index) => {
-                        return (
+                {isVerticalLoop ? (
+                    <div
+                        ref={trackRef}
+                        className="flex flex-col gap-3 absolute left-0 right-0 px-2"
+                        style={{
+                            transform: `translateY(${translateY}px)`,
+                            transition: isTransitioning && !isDragging
+                                ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                                : 'none',
+                            willChange: 'transform',
+                        }}
+                    >
+                        {displayPublications.map((pub, index) => (
                             <div
                                 key={`${pub.id}-${index}`}
-                                className="flex-shrink-0"
+                                className="flex-shrink-0 rounded-2xl overflow-hidden border shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative"
                                 style={{
-                                    width: `${cardWidthPercent}%`,
-                                    padding: '0 6px',
-                                    boxSizing: 'border-box',
+                                    height: `${cardHeightPx}px`,
+                                    borderColor: colors.border,
+                                    background: colors.background,
+                                }}
+                                onClick={() => {
+                                    if (!isDragging) router.push(`/${pub.storeSlug}?produto=${pub.id}`)
                                 }}
                             >
-                                <div
-                                    onClick={() => {
-                                        if (!isDragging) {
-                                            router.push(`/${pub.storeSlug}?produto=${pub.id}`)
-                                        }
-                                    }}
-                                    className="group h-72 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md flex flex-col"
-                                    style={{
-                                        borderColor: colors.border,
-                                        background: colors.background,
-                                    }}
-                                >
-                                    {/* Imagem da publicação */}
-                                    <div className="relative w-full h-full">
-                                        {pub.imageUrl ? (
-                                            <img
-                                                src={pub.imageUrl}
-                                                alt={pub.storeName}
-                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            />
+                                {pub.imageUrl ? (
+                                    <img
+                                        src={pub.imageUrl}
+                                        alt={pub.storeName}
+                                        className="absolute inset-0 w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
+                                )}
+                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                                <div className="absolute bottom-0 left-0 right-0 p-4 z-10 flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
+                                        {pub.storeLogoUrl ? (
+                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
                                         ) : (
-                                            <div
-                                                className="w-full h-full"
-                                                style={{
-                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
-                                                }}
-                                            />
+                                            <div className="w-full h-full flex items-center justify-center text-white/80">
+                                                <Store size={20} />
+                                            </div>
                                         )}
-
-                                        {/* Sobreposição com gradiente suave para legibilidade */}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-
-                                        {/* Dono da publicação (loja) */}
-                                        <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-                                            {pub.storeLogoUrl && (
-                                                <div className="w-8 h-8 rounded-full border-2 border-white/30 overflow-hidden bg-black/50">
-                                                    <img
-                                                        src={pub.storeLogoUrl}
-                                                        alt={pub.storeName}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                            )}
-                                            <span className="text-sm font-bold text-white bg-black/50 px-3 py-1 rounded-full">
-                                                {pub.storeName}
-                                            </span>
-                                        </div>
-
-                                        {/* Botão "Saber mais" (canto inferior direito, cor do tema, sem blur) */}
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                router.push(`/${pub.storeSlug}?produto=${pub.id}`)
-                                            }}
-                                            className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition hover:scale-105"
-                                            style={{
-                                                background: colors.accent,
-                                                color: colors.accentText,
-                                                boxShadow: `0 4px 12px ${colors.accent}66`,
-                                            }}
-                                        >
-                                            <MessageCircle size={14} />
-                                            <span className="hidden sm:inline">Saber mais</span>
-                                        </button>
                                     </div>
+                                    <h3 className="text-white font-bold text-sm sm:text-base leading-tight truncate">
+                                        {pub.storeName}
+                                    </h3>
                                 </div>
                             </div>
-                        )
-                    })}
-                </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className={`grid ${gridClass} gap-3`}>
+                        {publications.map(pub => (
+                            <div
+                                key={pub.id}
+                                onClick={() => router.push(`/${pub.storeSlug}?produto=${pub.id}`)}
+                                className="group relative h-72 sm:h-80 rounded-2xl overflow-hidden border shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+                                style={{ borderColor: colors.border, background: colors.background }}
+                            >
+                                {pub.imageUrl ? (
+                                    <img src={pub.imageUrl} alt={pub.storeName} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                                ) : (
+                                    <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
+                                )}
+                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                                <div className="absolute bottom-0 left-0 right-0 p-4 z-10 flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
+                                        {pub.storeLogoUrl ? (
+                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-white/80">
+                                                <Store size={20} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <h3 className="text-white font-bold text-sm sm:text-base leading-tight truncate">
+                                        {pub.storeName}
+                                    </h3>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {totalReal > 1 && (
+            {isVerticalLoop && totalReal > 0 && (
                 <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                         onClick={goToPrev}
                         className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
                         style={{ background: colors.accent, color: colors.accentText }}
+                        aria-label="Anterior"
                     >
-                        <ChevronLeft size={16} />
+                        <ChevronUp size={16} />
                     </button>
                     <div className="flex gap-2">
                         {publications.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => {
-                                    if (totalReal <= 1) return
                                     setIsTransitioning(true)
-                                    setActiveIndex(idx + 1)
+                                    setActiveIndex(idx + cardsPerView)
                                 }}
                                 className="h-2 rounded-full transition-all duration-300"
                                 style={{
@@ -359,8 +363,9 @@ export default function PublicationShowcase() {
                         onClick={goToNext}
                         className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
                         style={{ background: colors.accent, color: colors.accentText }}
+                        aria-label="Próximo"
                     >
-                        <ChevronRight size={16} />
+                        <ChevronDown size={16} />
                     </button>
                 </div>
             )}

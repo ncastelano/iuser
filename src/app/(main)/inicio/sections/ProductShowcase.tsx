@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-    ChevronLeft,
-    ChevronRight,
+    ChevronUp,
+    ChevronDown,
     Star,
     MapPin,
     ShoppingBag,
@@ -32,7 +32,7 @@ interface ProductCard {
     storeLogoUrl: string | null
 }
 
-// ---------- Embaralhamento que evita lojas consecutivas ----------
+// ---------- Embaralhamento ----------
 function shuffleNoAdjacentStore(products: ProductCard[]): ProductCard[] {
     if (products.length <= 1) return products
 
@@ -182,11 +182,13 @@ export default function ProductShowcase() {
     const router = useRouter()
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { products, loading } = useProductShowcase()
     const totalReal = products.length
 
+    // Loop infinito: clonamos o último e o primeiro
     const loopingProducts =
         totalReal > 1
             ? [products[totalReal - 1], ...products, products[0]]
@@ -196,12 +198,10 @@ export default function ProductShowcase() {
     const [isTransitioning, setIsTransitioning] = useState(true)
     const [isHovered, setIsHovered] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
-    const [dragStartX, setDragStartX] = useState(0)
+    const [dragStartY, setDragStartY] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
 
-    // 3 cards por vez
-    const cardWidthPercent = 100 / 3
-    const unitPercent = cardWidthPercent
+    const CARD_GAP = 8 // gap-2 = 0.5rem = 8px
 
     useEffect(() => {
         if (totalReal > 1) {
@@ -226,12 +226,12 @@ export default function ProductShowcase() {
     useEffect(() => {
         if (totalReal <= 1) return
         const handleTransitionEnd = () => {
-            if (activeIndex === loopingProducts.length - 1) {
-                setIsTransitioning(false)
-                setActiveIndex(1)
-            } else if (activeIndex === 0) {
+            if (activeIndex === 0) {
                 setIsTransitioning(false)
                 setActiveIndex(totalReal)
+            } else if (activeIndex === loopingProducts.length - 1) {
+                setIsTransitioning(false)
+                setActiveIndex(1)
             }
         }
         const track = trackRef.current
@@ -254,15 +254,15 @@ export default function ProductShowcase() {
         }
     }, [isHovered, isDragging, goToNext, totalReal])
 
-    const handleDragStart = useCallback((clientX: number) => {
+    const handleDragStart = useCallback((clientY: number) => {
         setIsDragging(true)
-        setDragStartX(clientX)
+        setDragStartY(clientY)
         setDragOffset(0)
     }, [])
-    const handleDragMove = useCallback((clientX: number) => {
+    const handleDragMove = useCallback((clientY: number) => {
         if (!isDragging) return
-        setDragOffset(clientX - dragStartX)
-    }, [isDragging, dragStartX])
+        setDragOffset(clientY - dragStartY)
+    }, [isDragging, dragStartY])
     const handleDragEnd = useCallback(() => {
         if (!isDragging) return
         setIsDragging(false)
@@ -271,16 +271,18 @@ export default function ProductShowcase() {
         setDragOffset(0)
     }, [isDragging, dragOffset, goToPrev, goToNext])
 
-    const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientX) }
-    const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }
+    const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientY) }
+    const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientY) } }
     const onMouseUp = () => handleDragEnd()
-    const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientX)
-    const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientX) }
+    const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientY)
+    const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientY) }
     const onTouchEnd = () => handleDragEnd()
 
-    const trackWidth = trackRef.current?.clientWidth || 1
-    const baseTranslate = -activeIndex * unitPercent
-    const totalTranslate = baseTranslate + (dragOffset / trackWidth) * 100
+    // Altura do container e cálculo de cada card
+    const containerHeight = containerRef.current?.clientHeight ?? 1
+    const cardHeight = (containerHeight - CARD_GAP * 2) / 3
+    const baseTranslate = -activeIndex * (cardHeight + CARD_GAP)
+    const totalTranslate = baseTranslate + dragOffset
 
     const realIndex = totalReal > 1
         ? (activeIndex - 1 + totalReal) % totalReal
@@ -291,9 +293,8 @@ export default function ProductShowcase() {
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
                 <div className="flex gap-4">
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
-                    <div className="w-1/3 h-64 sm:h-80 bg-gray-200 rounded-2xl" />
+                    <div className="flex-1 h-[30rem] sm:h-[36rem] bg-gray-200 rounded-2xl" />
+                    <div className="w-10 h-[30rem] sm:h-[36rem] bg-gray-200 rounded-2xl" />
                 </div>
             </div>
         )
@@ -303,7 +304,7 @@ export default function ProductShowcase() {
 
     return (
         <div
-            className="relative w-full overflow-hidden rounded-2xl"
+            className="relative w-full"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -317,41 +318,35 @@ export default function ProductShowcase() {
                 </h2>
             </div>
 
-            <div
-                className="relative overflow-hidden cursor-grab active:cursor-grabbing select-none"
-                onMouseDown={onMouseDown}
-                onMouseMove={onMouseMove}
-                onMouseUp={onMouseUp}
-                onMouseLeave={onMouseUp}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-            >
+            <div className="flex gap-2">
+                {/* Carrossel (sem card externo) */}
                 <div
-                    ref={trackRef}
-                    className="flex"
-                    style={{
-                        transform: `translateX(${totalTranslate}%)`,
-                        transition: isTransitioning && !isDragging
-                            ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                            : 'none',
-                        willChange: 'transform',
-                    }}
+                    ref={containerRef}
+                    className="flex-1 relative overflow-hidden select-none h-[30rem] sm:h-[36rem]"
+                    onMouseDown={onMouseDown}
+                    onMouseMove={onMouseMove}
+                    onMouseUp={onMouseUp}
+                    onMouseLeave={onMouseUp}
+                    onTouchStart={onTouchStart}
+                    onTouchMove={onTouchMove}
+                    onTouchEnd={onTouchEnd}
                 >
-                    {loopingProducts.map((product, index) => {
-                        const priceFormatted = formatPrice(product.price)
-                        const hasRating = product.rating > 0
-                        const storeAddress = product.storeAddress
-
-                        return (
+                    <div
+                        ref={trackRef}
+                        className="flex flex-col gap-2"
+                        style={{
+                            transform: `translateY(${totalTranslate}px)`,
+                            transition: isTransitioning && !isDragging
+                                ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                                : 'none',
+                            willChange: 'transform',
+                        }}
+                    >
+                        {loopingProducts.map((product, index) => (
                             <div
                                 key={`${product.id}-${index}`}
-                                className="flex-shrink-0"
-                                style={{
-                                    width: `${cardWidthPercent}%`,
-                                    padding: '0 6px',
-                                    boxSizing: 'border-box',
-                                }}
+                                className="flex-shrink-0 px-2"
+                                style={{ height: `${cardHeight}px` }}
                             >
                                 <div
                                     onClick={() => {
@@ -359,14 +354,14 @@ export default function ProductShowcase() {
                                             router.push(`/${product.storeSlug}?produto=${product.id}`)
                                         }
                                     }}
-                                    className="group relative h-72 sm:h-80 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] shadow-md flex flex-col"
+                                    className="group relative h-full rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 shadow-md flex flex-row items-stretch"
                                     style={{
                                         borderColor: colors.border,
                                         background: colors.background,
                                     }}
                                 >
-                                    {/* Quadrado da imagem */}
-                                    <div className="relative w-full h-[55%] overflow-hidden">
+                                    {/* Imagem à esquerda (preenche todo o espaço, sem cortes) */}
+                                    <div className="w-2/5 sm:w-1/3 h-full relative overflow-hidden flex-shrink-0">
                                         {product.imageUrl ? (
                                             <img
                                                 src={product.imageUrl}
@@ -381,112 +376,136 @@ export default function ProductShowcase() {
                                                 }}
                                             />
                                         )}
+                                        {product.viewCount > 0 && (
+                                            <div className="absolute top-2 right-2 z-20 flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
+                                                <Eye size={13} />
+                                                {product.viewCount}
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
+                                    </div>
 
-                                        {/* Gradiente sutil só para os badges ficarem legíveis */}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-
-                                        {/* Badges sobre a imagem */}
-                                        <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
-                                            {product.storeLogoUrl && (
-                                                <div className="w-7 h-7 rounded-full border border-white/30 overflow-hidden bg-black/40">
+                                    {/* Conteúdo à direita */}
+                                    <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            {product.storeLogoUrl ? (
+                                                <div className="w-5 h-5 rounded-full border border-white/30 overflow-hidden bg-black/40 flex-shrink-0">
                                                     <img
                                                         src={product.storeLogoUrl}
                                                         alt={product.storeName}
                                                         className="w-full h-full object-cover"
                                                     />
                                                 </div>
+                                            ) : (
+                                                <div
+                                                    className="w-5 h-5 rounded-full flex-shrink-0"
+                                                    style={{ background: colors.accent }}
+                                                />
                                             )}
-                                            <span className="text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
+                                            <span
+                                                className="text-xs font-medium truncate"
+                                                style={{ color: colors.textSecondary }}
+                                            >
                                                 {product.storeName}
                                             </span>
                                         </div>
 
-                                        <div className="absolute top-3 right-3 z-20 flex items-center gap-1">
-                                            {product.viewCount > 0 && (
-                                                <div className="flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
-                                                    <Eye size={13} />
-                                                    {product.viewCount}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Informações do produto */}
-                                    <div className="flex-1 p-3 flex flex-col justify-center text-sm" style={{ color: colors.textPrimary }}>
-                                        <h3 className="font-black leading-tight line-clamp-2 mb-1">
+                                        <h3
+                                            className="font-black leading-tight text-sm sm:text-base line-clamp-2 mb-1"
+                                            style={{ color: colors.textPrimary }}
+                                        >
                                             {product.name}
                                         </h3>
 
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                                            {priceFormatted && (
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-auto">
+                                            {formatPrice(product.price) && (
                                                 <span className="font-black text-emerald-600 dark:text-emerald-400">
-                                                    {priceFormatted}
+                                                    {formatPrice(product.price)}
                                                 </span>
                                             )}
-                                            {hasRating && (
+                                            {product.rating > 0 && (
                                                 <div className="flex items-center gap-1">
-                                                    <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                                                    <Star size={12} className="fill-yellow-400 text-yellow-400" />
                                                     <span className="font-bold">{product.rating.toFixed(1)}</span>
                                                     <span className="opacity-70">({product.reviewCount})</span>
                                                 </div>
                                             )}
                                             {product.durationMinutes && (
                                                 <div className="flex items-center gap-1 opacity-70">
-                                                    <Timer size={14} />
+                                                    <Timer size={12} />
                                                     {formatDuration(product.durationMinutes)}
                                                 </div>
                                             )}
                                         </div>
 
-                                        {storeAddress && (
-                                            <div className="flex items-start gap-1 mt-1 opacity-70 text-xs">
-                                                <MapPin size={13} className="shrink-0 mt-0.5" />
-                                                <span className="line-clamp-1">{storeAddress}</span>
+                                        {product.storeAddress && (
+                                            <div
+                                                className="flex items-start gap-1 mt-1 opacity-70 text-xs"
+                                                style={{ color: colors.textSecondary }}
+                                            >
+                                                <MapPin size={11} className="shrink-0 mt-0.5" />
+                                                <span className="line-clamp-1">{product.storeAddress}</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             </div>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {totalReal > 1 && (
-                <div className="flex items-center justify-center gap-3 mt-4">
-                    <button
-                        onClick={goToPrev}
-                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{ background: colors.accent, color: colors.accentText }}
-                    >
-                        <ChevronLeft size={16} />
-                    </button>
-                    <div className="flex gap-2">
-                        {products.map((_, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => {
-                                    if (totalReal <= 1) return
-                                    setIsTransitioning(true)
-                                    setActiveIndex(idx + 1)
-                                }}
-                                className="h-2 rounded-full transition-all duration-300"
-                                style={{
-                                    width: idx === realIndex ? '1.5rem' : '0.5rem',
-                                    background: idx === realIndex ? colors.accent : colors.border,
-                                }}
-                            />
                         ))}
                     </div>
-                    <button
-                        onClick={goToNext}
-                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{ background: colors.accent, color: colors.accentText }}
-                    >
-                        <ChevronRight size={16} />
-                    </button>
                 </div>
-            )}
+
+                {/* Barra de navegação direita */}
+                <div className="flex flex-col items-center justify-center gap-1 w-10 flex-shrink-0">
+                    {totalReal > 1 && (
+                        <>
+                            <button
+                                onClick={goToPrev}
+                                className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                style={{ background: colors.accent, color: colors.accentText }}
+                                aria-label="Anterior"
+                            >
+                                <ChevronUp size={16} />
+                            </button>
+
+                            <div className="flex flex-col gap-2 my-1">
+                                {products.map((_, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            if (totalReal <= 1) return
+                                            setIsTransitioning(true)
+                                            setActiveIndex(idx + 1)
+                                        }}
+                                        className="rounded-full transition-all duration-300"
+                                        style={{
+                                            width: '0.5rem',
+                                            height: idx === realIndex ? '1.5rem' : '0.5rem',
+                                            background: idx === realIndex ? colors.accent : colors.border,
+                                        }}
+                                        aria-label={`Ir para slide ${idx + 1}`}
+                                    />
+                                ))}
+                            </div>
+
+                            <span
+                                className="text-xs font-bold"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                {realIndex + 1}/{totalReal}
+                            </span>
+
+                            <button
+                                onClick={goToNext}
+                                className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                style={{ background: colors.accent, color: colors.accentText }}
+                                aria-label="Próximo"
+                            >
+                                <ChevronDown size={16} />
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }

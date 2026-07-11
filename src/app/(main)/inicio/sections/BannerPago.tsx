@@ -84,7 +84,7 @@ function extractStreetAddress(fullAddress?: string): string {
 
 // Cache helpers
 const CACHE_KEY = 'banner_stores_cache'
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
     if (typeof window === 'undefined') return null
@@ -123,7 +123,10 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
         } else if (!locationAttempted && 'geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    setEffectiveLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+                    setEffectiveLocation({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude
+                    })
                     setLocationAttempted(true)
                 },
                 () => {
@@ -304,7 +307,6 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
-    const isPageVisibleRef = useRef(true)
 
     const { stores, loading } = useBannerStores(savedLocation)
     const sortedStores = stores
@@ -323,9 +325,8 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const [dragOffset, setDragOffset] = useState(0)
 
     const slideWidthPercent = 80
-    const sideSpacingPercent = (100 - slideWidthPercent) / 2
-    const gapPercent = 2
-    const unitPercent = slideWidthPercent + gapPercent
+    const sideSpacingPercent = 10
+    const unitPercent = slideWidthPercent
 
     useEffect(() => {
         if (totalRealSlides > 1) {
@@ -347,54 +348,23 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         setActiveIndex(prev => prev - 1)
     }, [totalRealSlides, isTransitioning])
 
+    // Loop infinito sem piscar
     useEffect(() => {
         if (totalRealSlides <= 1) return
-        const handleTransitionEnd = () => {
-            if (activeIndex === 0) {
-                setIsTransitioning(false)
-                setActiveIndex(totalRealSlides)
-            } else if (activeIndex === loopingStores.length - 1) {
-                setIsTransitioning(false)
-                setActiveIndex(1)
-            }
-        }
-        const track = trackRef.current
-        track?.addEventListener('transitionend', handleTransitionEnd)
-        return () => track?.removeEventListener('transitionend', handleTransitionEnd)
-    }, [activeIndex, totalRealSlides, loopingStores.length])
-
-    useEffect(() => {
-        if (!isTransitioning) {
-            const timeout = setTimeout(() => setIsTransitioning(true), 50)
-            return () => clearTimeout(timeout)
-        }
-    }, [isTransitioning])
-
-    // Visibilidade da página (evita sumiço)
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            const isVisible = document.visibilityState === 'visible'
-            isPageVisibleRef.current = isVisible
-
-            if (isVisible && totalRealSlides > 1) {
-                if (activeIndex === 0 || activeIndex === loopingStores.length - 1) {
-                    setIsTransitioning(false)
-                    setActiveIndex(activeIndex === 0 ? totalRealSlides : 1)
-                }
+        if (activeIndex === 0 || activeIndex === loopingStores.length - 1) {
+            setIsTransitioning(false)
+            const newIndex = activeIndex === 0 ? totalRealSlides : 1
+            requestAnimationFrame(() => {
+                setActiveIndex(newIndex)
                 requestAnimationFrame(() => {
                     setIsTransitioning(true)
                 })
-            }
+            })
         }
-
-        document.addEventListener('visibilitychange', handleVisibilityChange)
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
     }, [activeIndex, totalRealSlides, loopingStores.length])
 
     useEffect(() => {
         if (isHovered || isDragging || totalRealSlides <= 1) return
-        if (!isPageVisibleRef.current) return
-
         autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
@@ -526,17 +496,17 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                         const isActive = distance === 0
                         const isNear = Math.abs(distance) === 1
 
-                        const scale = isActive ? 1 : isNear ? 0.92 : 0.85
-                        const opacity = isActive ? 1 : isNear ? 0.8 : 0
+                        const scale = isActive ? 1 : isNear ? 0.9 : 0.8
+                        const opacity = isActive ? 1 : isNear ? 0.6 : 0
                         const zIndex = isActive ? 10 : isNear ? 5 : 1
-                        const brightness = isActive ? 'brightness(1)' : 'brightness(0.7)'
+                        const brightness = isActive ? 'brightness(1)' : 'brightness(0.8)'
 
                         const backgroundImage = store.coverUrl || store.logoUrl
 
                         return (
                             <div
                                 key={`${store.slug}-${index}`}
-                                className="flex-shrink-0 px-[1%]"
+                                className="flex-shrink-0"
                                 style={{
                                     width: `${slideWidthPercent}%`,
                                     transition: 'transform 0.5s ease, opacity 0.5s ease, filter 0.5s ease',
@@ -576,7 +546,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
-                                        {/* Badge de status no canto superior esquerdo */}
+                                        {/* Badge de status (aberto/fechado) no canto superior esquerdo */}
                                         <div className="absolute top-3 left-3 z-20">
                                             <div
                                                 className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
@@ -596,29 +566,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                             </div>
                                         </div>
 
-                                        {/* Badge de avaliação no canto superior direito */}
-                                        <div className="absolute top-3 right-3 z-20">
-                                            {store.rating != null && store.rating > 0 && (
-                                                <div
-                                                    className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
-                                                    style={{
-                                                        background: 'rgba(0,0,0,0.75)',
-                                                        color: '#ffffff',
-                                                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                                    }}
-                                                >
-                                                    <Star size={12} className="fill-yellow-400 text-yellow-400" />
-                                                    <span>{store.rating.toFixed(1)}</span>
-                                                    {store.ratingCount && (
-                                                        <span className="text-[10px] text-white/80">
-                                                            ({store.ratingCount})
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Container único abaixo do status: duração + entrega/retirada */}
+                                        {/* Container de duração + entrega/retirada */}
                                         <div className="absolute top-12 left-3 z-20">
                                             <div
                                                 className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
@@ -678,7 +626,8 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-3 mt-2">
+                                            {/* Linha inferior: produtos (esquerda) + visualizações e avaliação (direita) */}
+                                            <div className="flex items-center justify-between mt-2">
                                                 {store.topProducts && store.topProducts.length > 0 && (
                                                     <div className="flex -space-x-2">
                                                         {store.topProducts.slice(0, 3).map((product, i) => (
@@ -707,12 +656,26 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                         )}
                                                     </div>
                                                 )}
-                                                {store.viewCount != null && store.viewCount > 0 && (
-                                                    <div className="flex items-center gap-1 text-[11px] font-bold text-white/90">
-                                                        <Eye size={12} />
-                                                        <span>{store.viewCount}</span>
-                                                    </div>
-                                                )}
+
+                                                <div className="flex items-center gap-3 ml-auto">
+                                                    {store.viewCount != null && store.viewCount > 0 && (
+                                                        <div className="flex items-center gap-1 text-[11px] font-bold text-white/90">
+                                                            <Eye size={12} />
+                                                            <span>{store.viewCount}</span>
+                                                        </div>
+                                                    )}
+                                                    {store.rating != null && store.rating > 0 && (
+                                                        <div className="flex items-center gap-1.5 text-xs font-bold">
+                                                            <Star size={12} className="fill-yellow-400 text-yellow-400" />
+                                                            <span className="text-white/90">{store.rating.toFixed(1)}</span>
+                                                            {store.ratingCount && (
+                                                                <span className="text-[10px] text-white/60">
+                                                                    ({store.ratingCount})
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

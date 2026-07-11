@@ -3,7 +3,7 @@
 
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, X, Earth, Lock, User, Store, Check } from 'lucide-react'
+import { Plus, X, Earth, Lock, User, Store, Check, Megaphone, CalendarPlus, Eye, EyeOff } from 'lucide-react'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -22,11 +22,13 @@ function formatTime(time: string) {
 interface AtalhoCompromissosDaLojaProps {
     dragHandle?: ReactNode
     profileSlug?: string | null
+    onHasItemsChange?: (hasItems: boolean) => void
 }
 
 export default function AtalhoCompromissosDaLoja({
     dragHandle,
     profileSlug,
+    onHasItemsChange,
 }: AtalhoCompromissosDaLojaProps) {
     const { colors } = useTheme()
     const { appointments, loading, refetch } = useAppointments()
@@ -50,13 +52,15 @@ export default function AtalhoCompromissosDaLoja({
         )
     }, [appointments, userId])
 
+    useEffect(() => {
+        onHasItemsChange?.(storeAppointments.length > 0)
+    }, [storeAppointments, onHasItemsChange])
+
     const filtered = useMemo(() => {
         if (!showPending) return storeAppointments.filter((a) => a.status !== 'pending')
         return storeAppointments
     }, [storeAppointments, showPending])
 
-    // Ordenação: pendentes primeiro, depois confirmados, depois cancelados.
-    // Dentro de cada status, mais recente primeiro.
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => {
             const statusOrder: Record<string, number> = { pending: 0, confirmed: 1, cancelled: 2 }
@@ -66,11 +70,10 @@ export default function AtalhoCompromissosDaLoja({
 
             const da = new Date(`${a.date}T${a.time}`)
             const db = new Date(`${b.date}T${b.time}`)
-            return db.getTime() - da.getTime() // mais recente primeiro
+            return db.getTime() - da.getTime()
         })
     }, [filtered])
 
-    // Agrupa por loja (storeSlug)
     const groupedByStore = useMemo(() => {
         const map = new Map<string, typeof sorted>()
         sorted.forEach((a) => {
@@ -83,6 +86,9 @@ export default function AtalhoCompromissosDaLoja({
             appointments: apps,
         }))
     }, [sorted])
+
+    // Verifica se há pendentes ocultos quando o toggle está desligado
+    const hasHiddenPending = !showPending && storeAppointments.some(a => a.status === 'pending')
 
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation(); e.preventDefault()
@@ -140,51 +146,174 @@ export default function AtalhoCompromissosDaLoja({
 
     return (
         <section>
-            {/* Top bar: dragHandle + filtro pendentes + link "Ver todos" */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            {/* Cabeçalho reorganizado */}
+            <div className="flex flex-wrap items-center gap-3 mb-5">
                 <div className="flex items-center gap-2">
                     {dragHandle}
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex items-center gap-4 flex-1 justify-between ml-6">
+                    <Link
+                        href="/compromissos/agendar"
+                        className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+                        style={{ background: colors.accentLight, color: accentColor }}
+                    >
+                        Criar
+                    </Link>
+
+                    {sorted.length > 0 && (
+                        <Link
+                            href="/compromissos"
+                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+                            style={{ background: colors.accentLight, color: accentColor }}
+                        >
+                            Ver todos
+                        </Link>
+                    )}
+
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium select-none" style={{ color: textSecondary }}>Pendentes</span>
+                        <span
+                            className="text-xs font-medium select-none cursor-pointer"
+                            style={{ color: textSecondary }}
+                            onClick={() => setShowPending(prev => !prev)}
+                        >
+                            Pendentes
+                        </span>
                         <label className="relative inline-flex items-center cursor-pointer" style={{ width: 44, height: 24 }}>
                             <input type="checkbox" className="sr-only peer" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
                             <span className="absolute inset-0 rounded-full transition-colors duration-200" style={{ background: showPending ? accentColor : colors.border }} />
                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-5' : 'translate-x-0'}`} />
                         </label>
                     </div>
-                    {sorted.length > 0 && (
-                        <Link href="/compromissos" className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap" style={{ background: colors.accentLight, color: accentColor }}>
-                            Ver todos
-                        </Link>
-                    )}
                 </div>
             </div>
 
-            {sorted.length === 0 ? (
-                <div className="rounded-2xl p-5 flex items-center justify-between"
+            {/* Conteúdo principal */}
+            {sorted.length === 0 && !hasHiddenPending ? (
+                /* Estado vazio real: sem nenhum compromisso */
+                <div
+                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
                     style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`,
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
                         border: `1px solid ${colors.border}`,
-                    }}>
-                    <p className="font-medium text-sm" style={{ color: textSecondary }}>Nenhum compromisso nas suas lojas.</p>
-                    <Link href="/compromissos/agendar" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-sm transition-colors shadow-md whitespace-nowrap"
-                        style={{ background: accentColor, color: colors.accentText }}>
-                        <Plus size={14} /> Criar
-                    </Link>
+                    }}
+                >
+                    <div className="flex items-center gap-4">
+                        <div
+                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <Store size={28} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Sua loja está parada?
+                            </h3>
+                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                                Divulgue seus produtos ou crie um evento para atrair clientes.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
+                            style={{
+                                background: accentColor,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 10px ${accentColor}40`,
+                            }}
+                            disabled
+                            aria-disabled="true"
+                        >
+                            <Megaphone size={16} />
+                            Divulgar loja
+                        </button>
+                        <button
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
+                            style={{
+                                background: accentColor,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 10px ${accentColor}40`,
+                            }}
+                            disabled
+                            aria-disabled="true"
+                        >
+                            <CalendarPlus size={16} />
+                            Criar evento
+                        </button>
+                        <Link
+                            href="/compromissos/agendar"
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md hover:scale-105"
+                            style={{
+                                background: colors.accentLight,
+                                color: accentColor,
+                                border: `1px solid ${accentColor}`,
+                            }}
+                        >
+                            <Plus size={16} />
+                            Novo compromisso
+                        </Link>
+                    </div>
+                </div>
+            ) : sorted.length === 0 && hasHiddenPending ? (
+                /* Estado com pendentes ocultos */
+                <div
+                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${accentColor}40`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <div className="flex items-center gap-4">
+                        <div
+                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <EyeOff size={28} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Sua loja tem agendamentos pendentes
+                            </h3>
+                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                                Ative a exibição de pendentes para aceitar ou recusar novos pedidos.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowPending(true)}
+                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                        style={{
+                            background: accentColor,
+                            color: colors.accentText,
+                            boxShadow: `0 4px 14px ${accentColor}60`,
+                        }}
+                    >
+                        <Eye size={16} />
+                        Ativar pendentes
+                    </button>
                 </div>
             ) : (
+                /* Lista de compromissos agrupados */
                 <div className="space-y-6">
                     {groupedByStore.map(({ storeSlug, appointments }) => (
                         <div key={storeSlug}>
-                            {/* Título da loja */}
                             <h3 className="text-lg font-black mb-3 flex items-center gap-2" style={{ color: textPrimary }}>
                                 <Store size={18} style={{ color: accentColor }} />
                                 Agenda da <span style={{ color: accentColor }}>@{storeSlug === 'loja-desconhecida' ? 'Loja' : storeSlug}</span>
                             </h3>
 
-                            {/* Cards horizontais com espaçamento interno */}
                             <div className="flex gap-3 overflow-x-auto overflow-y-visible pt-3 pb-2 pl-2 pr-2 snap-x snap-mandatory scroll-container">
                                 {appointments.map((appointment) => {
                                     const status = appointment.status as 'confirmed' | 'pending' | 'cancelled'
@@ -199,7 +328,7 @@ export default function AtalhoCompromissosDaLoja({
                                     const customerName = appointment.customer_slug || 'Cliente'
                                     const serviceName = appointment.service_name
                                     const customerSlug = appointment.customer_slug || null
-                                    const duration = appointment.duration_minutes // duração do serviço
+                                    const duration = appointment.duration_minutes
 
                                     return (
                                         <div
@@ -210,7 +339,6 @@ export default function AtalhoCompromissosDaLoja({
                                                 borderColor: isPending ? '#fbbf2466' : colors.border,
                                             }}
                                         >
-                                            {/* Badge "Novo" – no canto superior direito */}
                                             {isPending && (
                                                 <span
                                                     className="absolute -top-2 -right-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shadow-md"
@@ -224,7 +352,6 @@ export default function AtalhoCompromissosDaLoja({
                                                 </span>
                                             )}
 
-                                            {/* Avatar do cliente com link */}
                                             {customerSlug ? (
                                                 <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                                                     {avatarUrl ? (
@@ -249,9 +376,7 @@ export default function AtalhoCompromissosDaLoja({
                                                 </div>
                                             )}
 
-                                            {/* Informações e ações */}
                                             <Link href="/compromissos" className="flex-1 min-w-0 flex flex-col" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                                {/* Linha 1: data + status */}
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <span className="text-xs font-medium" style={{ color: textSecondary }}>{dateStr}</span>
                                                     <span
@@ -262,7 +387,6 @@ export default function AtalhoCompromissosDaLoja({
                                                     </span>
                                                 </div>
 
-                                                {/* Linha 2: serviço + duração (se houver) */}
                                                 <div className="flex items-center gap-1 mb-1">
                                                     <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>{serviceName}</h4>
                                                     {duration && (
@@ -272,7 +396,6 @@ export default function AtalhoCompromissosDaLoja({
                                                     )}
                                                 </div>
 
-                                                {/* Linha 3: cliente e visibilidade */}
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
                                                         <User size={10} />@{customerName}
@@ -291,7 +414,6 @@ export default function AtalhoCompromissosDaLoja({
                                                     )}
                                                 </div>
 
-                                                {/* Linha 4: hora e ações */}
                                                 <div className="flex items-center justify-between mt-2">
                                                     <span className="text-sm font-black tabular-nums" style={{ color: accentColor }}>
                                                         {formatTime(appointment.time)}
@@ -327,7 +449,6 @@ export default function AtalhoCompromissosDaLoja({
                 </div>
             )}
 
-            {/* Estilização da scrollbar personalizada */}
             <style jsx>{`
                 .scroll-container::-webkit-scrollbar {
                     height: 6px;
@@ -342,7 +463,6 @@ export default function AtalhoCompromissosDaLoja({
                 .scroll-container::-webkit-scrollbar-thumb:hover {
                     background-color: ${accentColor};
                 }
-                /* Firefox */
                 .scroll-container {
                     scrollbar-width: thin;
                     scrollbar-color: ${scrollbarThumbColor} transparent;

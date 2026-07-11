@@ -1,89 +1,90 @@
-// src/app/(main)/inicio/components/ButtonCreateStoreHome.tsx
+// src/app/(main)/ButtonCreateStoreHome.tsx
 'use client'
 
-import { Store } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Store, Sparkles } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
-interface ButtonCreateStoreHomeProps {
-    profileSlug: string | null
-    loading: boolean
-    onClick: () => void
+/* ─── Helper para converter hex em RGB ─── */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255,
+    }
 }
 
-const ButtonCreateStoreHome: React.FC<ButtonCreateStoreHomeProps> = ({
+interface ButtonCreateStoreHomeProps {
+    profileSlug?: string | null
+    loading?: boolean
+    onClick?: () => void
+}
+
+export default function ButtonCreateStoreHome({
     profileSlug,
     loading,
     onClick,
-}) => {
+}: ButtonCreateStoreHomeProps) {
+    const router = useRouter()
     const { colors } = useTheme()
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return {
-            r: (bigint >> 16) & 255,
-            g: (bigint >> 8) & 255,
-            b: bigint & 255,
+    const handleClick = () => {
+        if (profileSlug && !loading) {
+            router.push('/criar-loja')
+        } else {
+            onClick?.()
         }
     }
 
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const cardStyle = {
-        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${colors.border}`,
-        boxShadow: colors.shadow,
-    }
-
-    const primaryButtonStyle = {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '1rem',
-        fontSize: '0.875rem',
-        fontWeight: 700,
-        transition: 'all 0.2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 12px ${colors.accent}40`,
-        cursor: 'pointer',
-    }
-
-    const buttonText = profileSlug && !loading ? 'Criar nova loja' : 'Criar loja e perfil'
-
     return (
-        <div className="mt-6 rounded-2xl p-5 flex flex-col gap-1" style={cardStyle}>
-            <div className="flex items-center gap-2 mb-1">
-                <Store size={20} style={{ color: colors.accent }} />
-                <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                    Criar Loja
-                </h2>
+        <div
+            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+            style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                border: `1px solid ${colors.border}`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+            }}
+        >
+            <div className="flex items-center gap-4">
+                {/* Ícone da loja com gradiente do accent */}
+                <div
+                    className="w-14 h-14 rounded-xl flex items-center justify-center"
+                    style={{
+                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                        color: colors.accentText,
+                    }}
+                >
+                    <Store size={28} />
+                </div>
+                <div>
+                    <h3
+                        className="text-lg font-black"
+                        style={{ color: colors.textPrimary }}
+                    >
+                        Tenha sua própria loja no iUser
+                    </h3>
+                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                        Venda produtos, gerencie serviços e conquiste clientes.
+                    </p>
+                </div>
             </div>
-            <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
-                Crie uma nova loja para vender seus produtos ou serviços.
-            </p>
             <button
-                onClick={onClick}
-                className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
-                style={primaryButtonStyle}
-                onMouseEnter={(e) => {
-                    e.currentTarget.style.filter = 'brightness(0.95)'
-                }}
-                onMouseLeave={(e) => {
-                    e.currentTarget.style.filter = 'brightness(1)'
+                onClick={handleClick}
+                className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                style={{
+                    background: colors.accent,
+                    color: colors.accentText,
+                    boxShadow: `0 4px 14px ${colors.accent}60`,
                 }}
             >
-                <Store size={18} />
-                {buttonText}
+                <Sparkles size={16} />
+                Criar minha loja
             </button>
         </div>
     )
 }
-
-export default ButtonCreateStoreHome

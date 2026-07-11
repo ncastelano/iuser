@@ -3,7 +3,7 @@
 
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Clock3, Plus, Check, X, Calendar, User, Lock, Earth } from 'lucide-react'
+import { Plus, Check, X, Calendar, User, Lock, Earth, Search, Star, Eye, EyeOff } from 'lucide-react'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -46,6 +46,7 @@ interface AtalhoCompromissosPessoalProps {
     dragHandle?: ReactNode
     profileSlug?: string | null
     userAvatarUrl?: string | null
+    onHasItemsChange?: (hasItems: boolean) => void
 }
 
 function parseDateTime(date: string, time: string) {
@@ -62,6 +63,7 @@ export default function AtalhoCompromissosPessoal({
     dragHandle,
     profileSlug,
     userAvatarUrl,
+    onHasItemsChange,
 }: AtalhoCompromissosPessoalProps) {
     const { colors } = useTheme()
     const { appointments, loading, refetch } = useAppointments()
@@ -81,15 +83,21 @@ export default function AtalhoCompromissosPessoal({
         return appointments.filter(a => a.customer_id === userId && !a.store_id)
     }, [appointments, userId])
 
+    useEffect(() => {
+        onHasItemsChange?.(personalAppointments.length > 0)
+    }, [personalAppointments, onHasItemsChange])
+
     const filtered = useMemo(() => {
         if (!showPending) return personalAppointments.filter(a => a.status !== 'pending')
         return personalAppointments
     }, [personalAppointments, showPending])
 
-    // Ordenação DECRESCENTE: mais recentes primeiro
     const sorted = useMemo(() => {
         return [...filtered].sort((a, b) => parseDateTime(b.date, b.time) - parseDateTime(a.date, a.time))
     }, [filtered])
+
+    // Verifica se há compromissos pendentes ocultos quando o toggle está desligado
+    const hasHiddenPending = !showPending && personalAppointments.some(a => a.status === 'pending')
 
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation()
@@ -135,11 +143,12 @@ export default function AtalhoCompromissosPessoal({
 
     const title = profileSlug ? `Agenda de @${profileSlug}` : 'Agenda Pessoal'
 
-    const cardBg = `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.5)`
+    const cardBg = `rgba(${hexToRgb(colors.surface).r}, ${hexToRgb(colors.surface).g}, ${hexToRgb(colors.surface).b}, 0.6)`
     const borderColor = colors.border
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
+    const surfaceRgb = hexToRgb(colors.surface)
 
     if (loading) {
         return (
@@ -164,14 +173,40 @@ export default function AtalhoCompromissosPessoal({
 
     return (
         <section>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            {/* Cabeçalho reorganizado */}
+            <div className="flex flex-wrap items-center gap-3 mb-5">
                 <div className="flex items-center gap-2">
                     {dragHandle}
                     <h2 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h2>
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex items-center gap-4 flex-1 justify-between ml-6">
+                    <Link
+                        href="/compromissos/agendar"
+                        className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+                        style={{ background: colors.accentLight, color: accentColor }}
+                    >
+                        Criar
+                    </Link>
+
+                    {sorted.length > 0 && (
+                        <Link
+                            href="/compromissos"
+                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+                            style={{ background: colors.accentLight, color: accentColor }}
+                        >
+                            Ver todos
+                        </Link>
+                    )}
+
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium select-none" style={{ color: textSecondary }}>Pendentes</span>
+                        <span
+                            className="text-xs font-medium select-none cursor-pointer"
+                            style={{ color: textSecondary }}
+                            onClick={() => setShowPending(prev => !prev)}
+                        >
+                            Pendentes
+                        </span>
                         <label className="relative inline-flex items-center cursor-pointer" style={{ width: 44, height: 24 }}>
                             <input type="checkbox" className="sr-only peer" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
                             <span
@@ -183,38 +218,127 @@ export default function AtalhoCompromissosPessoal({
                             />
                         </label>
                     </div>
-                    {sorted.length > 0 && (
-                        <Link
-                            href="/compromissos"
-                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
-                            style={{ background: colors.accentLight, color: accentColor }}
-                        >
-                            Ver todos
-                        </Link>
-                    )}
                 </div>
             </div>
 
-            {sorted.length === 0 ? (
+            {/* Conteúdo principal com os novos estados */}
+            {sorted.length === 0 && !hasHiddenPending ? (
+                /* Estado vazio real: sem compromisso algum */
                 <div
-                    className="rounded-2xl p-5 flex items-center justify-between"
+                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
                     style={{
-                        background: cardBg,
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                         backdropFilter: 'blur(12px)',
                         WebkitBackdropFilter: 'blur(12px)',
                         border: `1px solid ${borderColor}`,
                     }}
                 >
-                    <p className="font-medium text-sm" style={{ color: textSecondary }}>Nenhum compromisso pessoal.</p>
-                    <Link
-                        href="/compromissos/agendar"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-sm transition-colors shadow-md whitespace-nowrap"
-                        style={{ background: accentColor, color: colors.accentText }}
+                    <div className="flex items-center gap-4">
+                        <div
+                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <Calendar size={28} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Sua agenda está livre
+                            </h3>
+                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                                Que tal agendar um serviço, encontrar um profissional ou marcar um compromisso só seu?
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
+                            style={{
+                                background: accentColor,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 10px ${accentColor}40`,
+                            }}
+                            disabled
+                            aria-disabled="true"
+                        >
+                            <Search size={16} />
+                            Explorar serviços
+                        </button>
+                        <button
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
+                            style={{
+                                background: accentColor,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 10px ${accentColor}40`,
+                            }}
+                            disabled
+                            aria-disabled="true"
+                        >
+                            <Star size={16} />
+                            Profissionais
+                        </button>
+                        <Link
+                            href="/compromissos/agendar"
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md hover:scale-105"
+                            style={{
+                                background: colors.accentLight,
+                                color: accentColor,
+                                border: `1px solid ${accentColor}`,
+                            }}
+                        >
+                            <Plus size={16} />
+                            Novo compromisso
+                        </Link>
+                    </div>
+                </div>
+            ) : sorted.length === 0 && hasHiddenPending ? (
+                /* Estado com pendentes ocultos: há compromissos pendentes, mas o filtro está desativado */
+                <div
+                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${accentColor}40`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <div className="flex items-center gap-4">
+                        <div
+                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <EyeOff size={28} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Você tem compromissos pendentes
+                            </h3>
+                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                                Ative a exibição de pendentes para aceitar ou recusar convites.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowPending(true)}
+                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                        style={{
+                            background: accentColor,
+                            color: colors.accentText,
+                            boxShadow: `0 4px 14px ${accentColor}60`,
+                        }}
                     >
-                        <Plus size={14} /> Criar
-                    </Link>
+                        <Eye size={16} />
+                        Ativar pendentes
+                    </button>
                 </div>
             ) : (
+                /* Lista de compromissos visíveis */
                 <div className="flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
                     {sorted.map(appointment => {
                         const isIncomingPending = appointment.direction === 'incoming' && appointment.status === 'pending'

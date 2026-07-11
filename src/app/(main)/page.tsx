@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Settings, Store, Home, MapPin } from 'lucide-react'
+import { User, Store, Home, MapPin } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -53,7 +53,10 @@ const DEFAULT_SECTIONS = [
     'categorias',
     'promocoes',
     'motorista',
-    'transporte', 'orderSection',
+    'transporte',
+    'createStore',
+    'settingsSection',
+    'orderSection',
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
@@ -112,6 +115,21 @@ export default function HomePage() {
 
     const [loadingStores, setLoadingStores] = useState(true)
 
+    const [hasPessoalItems, setHasPessoalItems] = useState(true)
+    const [hasLojaItems, setHasLojaItems] = useState(true)
+
+    const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
+
+    // Callbacks estáveis para "em breve" (evita loop infinito)
+    const breveCallbacks = useMemo(() => ({
+        transporte: (isBreve: boolean) => {
+            setBreveMap(prev => ({ ...prev, transporte: isBreve }))
+        },
+        motorista: (isBreve: boolean) => {
+            setBreveMap(prev => ({ ...prev, motorista: isBreve }))
+        },
+    }), [])
+
     const lastSearchedRef = useRef<HTMLDivElement>(null)
 
     const totalCartItems = useMemo(() => {
@@ -123,7 +141,7 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- LOCALIZAÇÃO (cache + perfil) ----------
+    // ---------- LOCALIZAÇÃO ----------
     useEffect(() => {
         const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
         if (stored) {
@@ -190,13 +208,12 @@ export default function HomePage() {
         }
     }, [totalCartItems])
 
-    // ---------- PEDIDOS DO USUÁRIO (com orders e order_items) ----------
+    // ---------- PEDIDOS ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // Contagem de status dos pedidos
             const { data: orders } = await supabase
                 .from('orders')
                 .select('status')
@@ -208,8 +225,6 @@ export default function HomePage() {
                 setReadyCount(orders.filter(o => o.status === 'ready').length)
             }
 
-            // --- AVALIAÇÕES PENDENTES (baseado em orders pagos + order_items) ---
-            // 1. Busca todos os pedidos pagos
             const { data: paidOrders } = await supabase
                 .from('orders')
                 .select('id')
@@ -219,7 +234,6 @@ export default function HomePage() {
             if (paidOrders && paidOrders.length > 0) {
                 const orderIds = paidOrders.map(o => o.id)
 
-                // 2. Busca os itens desses pedidos
                 const { data: orderItems } = await supabase
                     .from('order_items')
                     .select('product_id')
@@ -228,7 +242,6 @@ export default function HomePage() {
                 if (orderItems && orderItems.length > 0) {
                     const productIds = orderItems.map(item => item.product_id)
 
-                    // 3. Verifica quais já foram avaliados pelo usuário
                     const { data: reviews } = await supabase
                         .from('product_reviews')
                         .select('product_id')
@@ -291,23 +304,43 @@ export default function HomePage() {
         loadStores()
     }, [profileSlug])
 
-
+    // Seções exibidas com ordenação dinâmica:
+    // 1. Normais (preenchidas)
+    // 2. Agendas vazias
+    // 3. Seções "em breve"
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
-        if (!profileSlug) {
-            // Usuário não logado: remove as agendas da lista
-            const withoutAgendas = sections.filter(s => !agendaKeys.includes(s))
-            const promocoesIndex = withoutAgendas.indexOf('promocoes')
-            if (promocoesIndex >= 0) {
-                withoutAgendas.splice(promocoesIndex + 1, 0, ...agendaKeys.filter(k => sections.includes(k)))
-            } else {
-                withoutAgendas.push(...agendaKeys.filter(k => sections.includes(k)))
+
+        const baseSections = !profileSlug
+            ? sections.filter(s => !agendaKeys.includes(s))
+            : sections
+
+        const normal: string[] = []
+        const emptyAgendas: string[] = []
+        const breve: string[] = []
+
+        baseSections.forEach(s => {
+            if (breveMap[s]) {
+                breve.push(s)
+                return
             }
-            return withoutAgendas
-        }
-        // Logado: exibe todas as seções, inclusive agendas
-        return sections
-    }, [sections, profileSlug])
+
+            if (agendaKeys.includes(s)) {
+                if (s === 'compromissosPessoal' && !hasPessoalItems) {
+                    emptyAgendas.push(s)
+                } else if (s === 'compromissosLoja' && !hasLojaItems) {
+                    emptyAgendas.push(s)
+                } else {
+                    normal.push(s)
+                }
+                return
+            }
+
+            normal.push(s)
+        })
+
+        return [...normal, ...emptyAgendas, ...breve]
+    }, [sections, profileSlug, hasPessoalItems, hasLojaItems, breveMap])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -397,15 +430,27 @@ export default function HomePage() {
             case 'publicationShowcase':
                 return <PublicationShowcase />
             case 'transporte':
-                return <TransporteSection />
+                return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
-                return <MotoristaSection />
+                return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
             case 'promocoes':
                 return <PromocoesSection />
             case 'compromissosPessoal':
-                return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
+                return <AtalhoCompromissosPessoal profileSlug={profileSlug} onHasItemsChange={setHasPessoalItems} />
             case 'compromissosLoja':
-                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
+                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} onHasItemsChange={setHasLojaItems} />
+            case 'createStore':
+                return (
+                    <ButtonCreateStoreHome
+                        profileSlug={profileSlug}
+                        loading={loading}
+                        onClick={() => {
+                            if (!profileSlug || loading) setShowCreateStore(true)
+                        }}
+                    />
+                )
+            case 'settingsSection':
+                return <ButtonSettingsHome onClick={() => setShowConfig(true)} />
             default:
                 return null
         }
@@ -613,20 +658,6 @@ export default function HomePage() {
                                 })}
                             </div>
                         )}
-
-                        <ButtonCreateStoreHome
-                            profileSlug={profileSlug}
-                            loading={loading}
-                            onClick={() => {
-                                if (profileSlug && !loading) {
-                                    router.push('/criar-loja')
-                                } else {
-                                    setShowCreateStore(true)
-                                }
-                            }}
-                        />
-
-                        <ButtonSettingsHome onClick={() => setShowConfig(true)} />
                     </div>
                 )}
 
