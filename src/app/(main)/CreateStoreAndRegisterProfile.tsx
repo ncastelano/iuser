@@ -33,13 +33,11 @@ type Step = 'store' | 'account' | 'success'
 interface CreateStoreAndRegisterProfileProps {
     embedded?: boolean
     onBack?: () => void
-    onSuccess?: (profileSlug: string, storeName: string, storeSlug: string) => void
 }
 
 export default function CreateStoreAndRegisterProfile({
     embedded = false,
     onBack,
-    onSuccess,
 }: CreateStoreAndRegisterProfileProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -298,7 +296,7 @@ export default function CreateStoreAndRegisterProfile({
                 }
             }
 
-            // 5. Criar loja
+            // 5. Criar loja - AGORA COM is_open = false
             const { error: storeError } = await supabase.from('stores').insert({
                 name: storeName,
                 storeSlug,
@@ -307,6 +305,7 @@ export default function CreateStoreAndRegisterProfile({
                 owner_id: userId,
                 location: location ? `POINT(${location.lng} ${location.lat})` : null,
                 address: address,
+                is_open: false, // <-- NOVO: inicia fechada
             })
             if (storeError) {
                 toast.error('Loja criada, mas houve um erro: ' + storeError.message)
@@ -320,23 +319,15 @@ export default function CreateStoreAndRegisterProfile({
         }
     }
 
-    // ⬇️ ALTERAÇÃO AQUI ⬇️
     const handleGoToStore = () => {
-        // Se estiver no modo embutido e tiver onSuccess, chama o callback
-        if (embedded && onSuccess) {
-            onSuccess(profileSlug, storeName, storeSlug)
-        } else {
-            // Fallback: recarrega a página
-            window.location.href = `/${profileSlug}/${storeSlug}`
-        }
+        window.location.href = `/${profileSlug}/${storeSlug}`
     }
 
-    // Função de voltar adaptada ao modo embutido
     const handleBack = () => {
         if (embedded && onBack) {
             if (step === 'account') setStep('store')
             else if (step === 'success') onBack()
-            else onBack() // step === 'store' volta para a home
+            else onBack()
         } else {
             if (step === 'account') setStep('store')
             else if (step === 'success') router.push('/')
@@ -344,7 +335,7 @@ export default function CreateStoreAndRegisterProfile({
         }
     }
 
-    // Conteúdo dos steps (reaproveitado)
+    // Conteúdo dos steps (reaproveitado) - não alterado, apenas mantido
     const stepsContent = (
         <>
             {/* STORE STEP */}
@@ -763,7 +754,6 @@ export default function CreateStoreAndRegisterProfile({
     if (embedded) {
         return (
             <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-                {/* Indicador de step, sem cabeçalho próprio */}
                 <div className="text-center mb-6">
                     <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
                         {step === 'store' && 'Criar Loja'}
@@ -787,7 +777,6 @@ export default function CreateStoreAndRegisterProfile({
             <AnimatedBackground />
 
             <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-                {/* Header with step indicator */}
                 <header className="flex items-center justify-between mb-6 pb-4 border-b border-orange-200/50">
                     <button
                         onClick={handleBack}
@@ -807,7 +796,7 @@ export default function CreateStoreAndRegisterProfile({
                             {step === 'success' && 'Sua loja está no ar'}
                         </p>
                     </div>
-                    <div className="w-10" /> {/* espaçador */}
+                    <div className="w-10" />
                 </header>
 
                 {stepsContent}

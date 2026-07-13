@@ -62,7 +62,7 @@ export default function CriarProduto() {
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [listingType, setListingType] = useState<ListingType>("sale");
 
-  const [durationMinutes, setDurationMinutes] = useState<string>("60");
+  const [durationMinutes, setDurationMinutes] = useState<string>("");
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
@@ -318,7 +318,8 @@ export default function CriarProduto() {
       locationString = `SRID=4326;POINT(${location.lng} ${location.lat})`;
     }
 
-    const durationValue = type === "service" ? parseInt(durationMinutes) || 60 : null;
+    // Agora salvamos a duração para qualquer tipo (se preenchida)
+    const durationValue = durationMinutes.trim() ? parseInt(durationMinutes) : null;
 
     const { error } = await supabase.from("products").insert({
       name,
@@ -528,24 +529,24 @@ export default function CriarProduto() {
             </div>
           )}
 
-          {/* DURAÇÃO (apenas serviços) */}
-          {type === "service" && (
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Timer className="w-3 h-3 text-orange-500" />
-                Duração do Serviço (minutos)
-              </label>
-              <input
-                type="number"
-                min="1"
-                placeholder="60"
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(e.target.value)}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
-              />
-              <p className="text-[9px] text-gray-400 ml-1">Tempo médio de atendimento (opcional)</p>
-            </div>
-          )}
+          {/* DURAÇÃO (para todos os tipos, opcional) */}
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+              <Timer className="w-3 h-3 text-orange-500" />
+              Duração (minutos) – opcional
+            </label>
+            <input
+              type="number"
+              min="1"
+              placeholder="Ex: 60"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+            />
+            <p className="text-[9px] text-gray-400 ml-1">
+              Tempo médio para este produto/serviço (será usado em agendamentos)
+            </p>
+          </div>
 
           {/* DESCRIÇÃO */}
           <div className="space-y-2">

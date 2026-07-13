@@ -1,7 +1,6 @@
-// src/app/(main)/inicio/sections/ProductShowcase.tsx
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
     ChevronUp,
     ChevronDown,
@@ -181,120 +180,63 @@ const formatPrice = (price: number | null) => {
 export default function ProductShowcase() {
     const router = useRouter()
     const { colors } = useTheme()
-    const trackRef = useRef<HTMLDivElement>(null)
-    const containerRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { products, loading } = useProductShowcase()
-    const totalReal = products.length
+    const total = products.length
 
-    // Loop infinito: clonamos o último e o primeiro
-    const loopingProducts =
-        totalReal > 1
-            ? [products[totalReal - 1], ...products, products[0]]
-            : products
+    // 3 cards por página (3 linhas, 1 coluna)
+    const ITEMS_PER_PAGE = 3
+    const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 
-    const [activeIndex, setActiveIndex] = useState<number>(totalReal > 1 ? 1 : 0)
-    const [isTransitioning, setIsTransitioning] = useState(true)
+    const [currentPage, setCurrentPage] = useState(0)
     const [isHovered, setIsHovered] = useState(false)
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragStartY, setDragStartY] = useState(0)
-    const [dragOffset, setDragOffset] = useState(0)
 
-    const CARD_GAP = 8 // gap-2 = 0.5rem = 8px
-
-    useEffect(() => {
-        if (totalReal > 1) {
-            setActiveIndex(1)
-            setIsTransitioning(true)
-        } else if (totalReal === 1) {
-            setActiveIndex(0)
-            setIsTransitioning(true)
-        }
-    }, [totalReal])
-
+    // Navegação circular
     const goToNext = useCallback(() => {
-        if (totalReal <= 1 || !isTransitioning) return
-        setActiveIndex(prev => prev + 1)
-    }, [totalReal, isTransitioning])
+        setCurrentPage(prev => (prev + 1) % totalPages)
+    }, [totalPages])
 
     const goToPrev = useCallback(() => {
-        if (totalReal <= 1 || !isTransitioning) return
-        setActiveIndex(prev => prev - 1)
-    }, [totalReal, isTransitioning])
+        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
+    }, [totalPages])
 
+    // Autoplay
     useEffect(() => {
-        if (totalReal <= 1) return
-        const handleTransitionEnd = () => {
-            if (activeIndex === 0) {
-                setIsTransitioning(false)
-                setActiveIndex(totalReal)
-            } else if (activeIndex === loopingProducts.length - 1) {
-                setIsTransitioning(false)
-                setActiveIndex(1)
-            }
-        }
-        const track = trackRef.current
-        track?.addEventListener('transitionend', handleTransitionEnd)
-        return () => track?.removeEventListener('transitionend', handleTransitionEnd)
-    }, [activeIndex, totalReal, loopingProducts.length])
-
-    useEffect(() => {
-        if (!isTransitioning) {
-            const timeout = setTimeout(() => setIsTransitioning(true), 50)
-            return () => clearTimeout(timeout)
-        }
-    }, [isTransitioning])
-
-    useEffect(() => {
-        if (isHovered || isDragging || totalReal <= 1) return
+        if (isHovered || totalPages <= 1) return
         autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
         }
-    }, [isHovered, isDragging, goToNext, totalReal])
+    }, [isHovered, goToNext, totalPages])
 
-    const handleDragStart = useCallback((clientY: number) => {
-        setIsDragging(true)
-        setDragStartY(clientY)
-        setDragOffset(0)
-    }, [])
-    const handleDragMove = useCallback((clientY: number) => {
-        if (!isDragging) return
-        setDragOffset(clientY - dragStartY)
-    }, [isDragging, dragStartY])
-    const handleDragEnd = useCallback(() => {
-        if (!isDragging) return
-        setIsDragging(false)
-        if (dragOffset > 50) goToPrev()
-        else if (dragOffset < -50) goToNext()
-        setDragOffset(0)
-    }, [isDragging, dragOffset, goToPrev, goToNext])
+    // Itens da página atual com loop infinito (sempre 3 cards)
+    const currentItems = useMemo(() => {
+        if (total === 0) return []
 
-    const onMouseDown = (e: React.MouseEvent) => { e.preventDefault(); handleDragStart(e.clientY) }
-    const onMouseMove = (e: React.MouseEvent) => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientY) } }
-    const onMouseUp = () => handleDragEnd()
-    const onTouchStart = (e: React.TouchEvent) => handleDragStart(e.touches[0].clientY)
-    const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientY) }
-    const onTouchEnd = () => handleDragEnd()
+        // Se total for menor que ITEMS_PER_PAGE, exibe todos (1 página)
+        if (total <= ITEMS_PER_PAGE) {
+            return products.slice(0, total)
+        }
 
-    // Altura do container e cálculo de cada card
-    const containerHeight = containerRef.current?.clientHeight ?? 1
-    const cardHeight = (containerHeight - CARD_GAP * 2) / 3
-    const baseTranslate = -activeIndex * (cardHeight + CARD_GAP)
-    const totalTranslate = baseTranslate + dragOffset
-
-    const realIndex = totalReal > 1
-        ? (activeIndex - 1 + totalReal) % totalReal
-        : 0
+        // Caso contrário, pega 3 itens circularmente a partir da página atual
+        const start = currentPage * ITEMS_PER_PAGE
+        const items: ProductCard[] = []
+        for (let i = start; i < start + ITEMS_PER_PAGE; i++) {
+            const index = i % total
+            items.push(products[index])
+        }
+        return items
+    }, [products, currentPage, total])
 
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
-                <div className="flex gap-4">
-                    <div className="flex-1 h-[30rem] sm:h-[36rem] bg-gray-200 rounded-2xl" />
-                    <div className="w-10 h-[30rem] sm:h-[36rem] bg-gray-200 rounded-2xl" />
+                <div className="space-y-3">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-28 bg-gray-200 rounded-xl" />
+                    ))}
                 </div>
             </div>
         )
@@ -310,155 +252,118 @@ export default function ProductShowcase() {
         >
             <div className="flex items-center gap-2 mb-4 px-1">
                 <Package size={18} style={{ color: colors.accent }} />
-                <h2
-                    className="text-sm font-black uppercase tracking-wider"
-                    style={{ color: colors.textPrimary }}
-                >
+                <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Produtos em destaque
                 </h2>
             </div>
 
-            <div className="flex gap-2">
-                {/* Carrossel (sem card externo) */}
-                <div
-                    ref={containerRef}
-                    className="flex-1 relative overflow-hidden select-none h-[30rem] sm:h-[36rem]"
-                    onMouseDown={onMouseDown}
-                    onMouseMove={onMouseMove}
-                    onMouseUp={onMouseUp}
-                    onMouseLeave={onMouseUp}
-                    onTouchStart={onTouchStart}
-                    onTouchMove={onTouchMove}
-                    onTouchEnd={onTouchEnd}
-                >
-                    <div
-                        ref={trackRef}
-                        className="flex flex-col gap-2"
-                        style={{
-                            transform: `translateY(${totalTranslate}px)`,
-                            transition: isTransitioning && !isDragging
-                                ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                                : 'none',
-                            willChange: 'transform',
-                        }}
-                    >
-                        {loopingProducts.map((product, index) => (
-                            <div
-                                key={`${product.id}-${index}`}
-                                className="flex-shrink-0 px-2"
-                                style={{ height: `${cardHeight}px` }}
-                            >
-                                <div
-                                    onClick={() => {
-                                        if (!isDragging) {
-                                            router.push(`/${product.storeSlug}?produto=${product.id}`)
-                                        }
-                                    }}
-                                    className="group relative h-full rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 shadow-md flex flex-row items-stretch"
-                                    style={{
-                                        borderColor: colors.border,
-                                        background: colors.background,
-                                    }}
-                                >
-                                    {/* Imagem à esquerda (ou placeholder com ícone) */}
-                                    <div className="w-2/5 sm:w-1/3 h-full relative overflow-hidden flex-shrink-0">
-                                        {product.imageUrl ? (
-                                            <img
-                                                src={product.imageUrl}
-                                                alt={product.name}
-                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            />
-                                        ) : (
-                                            <div
-                                                className="w-full h-full flex items-center justify-center"
-                                                style={{
-                                                    background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}30)`,
-                                                }}
-                                            >
-                                                <Package size={48} style={{ color: colors.accent }} />
-                                            </div>
-                                        )}
-                                        {product.viewCount > 0 && (
-                                            <div className="absolute top-2 right-2 z-20 flex items-center gap-1 text-xs font-bold text-white bg-black/40 px-2 py-0.5 rounded-full">
-                                                <Eye size={13} />
-                                                {product.viewCount}
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
+            {/* Grid vertical: 3 cards por página */}
+            <div className="flex gap-3">
+                <div className="flex-1 space-y-3">
+                    {currentItems.map((product, idx) => (
+                        <div
+                            key={`${product.id}-${idx}`}
+                            onClick={() => router.push(`/${product.storeSlug}?produto=${product.id}`)}
+                            className="group relative h-28 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 shadow-md flex flex-row items-stretch cursor-pointer"
+                            style={{
+                                borderColor: colors.border,
+                                background: colors.background,
+                            }}
+                        >
+                            {/* Imagem à esquerda */}
+                            <div className="w-1/3 h-full relative overflow-hidden flex-shrink-0">
+                                {product.imageUrl ? (
+                                    <img
+                                        src={product.imageUrl}
+                                        alt={product.name}
+                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                    />
+                                ) : (
+                                    <div
+                                        className="w-full h-full flex items-center justify-center"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}30)`,
+                                        }}
+                                    >
+                                        <Package size={32} style={{ color: colors.accent }} />
                                     </div>
-
-                                    {/* Conteúdo à direita */}
-                                    <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            {product.storeLogoUrl ? (
-                                                <div className="w-5 h-5 rounded-full border border-white/30 overflow-hidden bg-black/40 flex-shrink-0">
-                                                    <img
-                                                        src={product.storeLogoUrl}
-                                                        alt={product.storeName}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="w-5 h-5 rounded-full flex-shrink-0"
-                                                    style={{ background: colors.accent }}
-                                                />
-                                            )}
-                                            <span
-                                                className="text-xs font-medium truncate"
-                                                style={{ color: colors.textSecondary }}
-                                            >
-                                                {product.storeName}
-                                            </span>
-                                        </div>
-
-                                        <h3
-                                            className="font-black leading-tight text-sm sm:text-base line-clamp-2 mb-1"
-                                            style={{ color: colors.textPrimary }}
-                                        >
-                                            {product.name}
-                                        </h3>
-
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mt-auto">
-                                            {formatPrice(product.price) && (
-                                                <span className="font-black text-emerald-600 dark:text-emerald-400">
-                                                    {formatPrice(product.price)}
-                                                </span>
-                                            )}
-                                            {product.rating > 0 && (
-                                                <div className="flex items-center gap-1">
-                                                    <Star size={12} className="fill-yellow-400 text-yellow-400" />
-                                                    <span className="font-bold">{product.rating.toFixed(1)}</span>
-                                                    <span className="opacity-70">({product.reviewCount})</span>
-                                                </div>
-                                            )}
-                                            {product.durationMinutes && (
-                                                <div className="flex items-center gap-1 opacity-70">
-                                                    <Timer size={12} />
-                                                    {formatDuration(product.durationMinutes)}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {product.storeAddress && (
-                                            <div
-                                                className="flex items-start gap-1 mt-1 opacity-70 text-xs"
-                                                style={{ color: colors.textSecondary }}
-                                            >
-                                                <MapPin size={11} className="shrink-0 mt-0.5" />
-                                                <span className="line-clamp-1">{product.storeAddress}</span>
-                                            </div>
-                                        )}
+                                )}
+                                {product.viewCount > 0 && (
+                                    <div className="absolute top-1 right-1 z-20 flex items-center gap-0.5 text-[10px] font-bold text-white bg-black/40 px-1.5 py-0.5 rounded-full">
+                                        <Eye size={11} />
+                                        {product.viewCount}
                                     </div>
-                                </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-r from-black/20 to-transparent pointer-events-none" />
                             </div>
-                        ))}
-                    </div>
+
+                            {/* Conteúdo à direita */}
+                            <div className="flex-1 p-2 sm:p-3 flex flex-col justify-center min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    {product.storeLogoUrl ? (
+                                        <div className="w-4 h-4 rounded-full border border-white/30 overflow-hidden bg-black/40 flex-shrink-0">
+                                            <img
+                                                src={product.storeLogoUrl}
+                                                alt={product.storeName}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="w-4 h-4 rounded-full flex-shrink-0"
+                                            style={{ background: colors.accent }}
+                                        />
+                                    )}
+                                    <span className="text-[10px] font-medium truncate" style={{ color: colors.textSecondary }}>
+                                        {product.storeName}
+                                    </span>
+                                </div>
+
+                                <h3
+                                    className="font-black leading-tight text-sm line-clamp-1"
+                                    style={{ color: colors.textPrimary }}
+                                >
+                                    {product.name}
+                                </h3>
+
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] mt-0.5">
+                                    {formatPrice(product.price) && (
+                                        <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                            {formatPrice(product.price)}
+                                        </span>
+                                    )}
+                                    {product.rating > 0 && (
+                                        <div className="flex items-center gap-0.5">
+                                            <Star size={10} className="fill-yellow-400 text-yellow-400" />
+                                            <span className="font-bold">{product.rating.toFixed(1)}</span>
+                                            <span className="opacity-70">({product.reviewCount})</span>
+                                        </div>
+                                    )}
+                                    {product.durationMinutes && (
+                                        <div className="flex items-center gap-0.5 opacity-70">
+                                            <Timer size={10} />
+                                            {formatDuration(product.durationMinutes)}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {product.storeAddress && (
+                                    <div
+                                        className="flex items-start gap-0.5 mt-0.5 opacity-70 text-[10px]"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        <MapPin size={10} className="shrink-0 mt-0.5" />
+                                        <span className="line-clamp-1">{product.storeAddress}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Barra de navegação direita */}
                 <div className="flex flex-col items-center justify-center gap-1 w-10 flex-shrink-0">
-                    {totalReal > 1 && (
+                    {totalPages > 1 && (
                         <>
                             <button
                                 onClick={goToPrev}
@@ -469,31 +374,24 @@ export default function ProductShowcase() {
                                 <ChevronUp size={16} />
                             </button>
 
-                            <div className="flex flex-col gap-2 my-1">
-                                {products.map((_, idx) => (
+                            <div className="flex flex-col gap-1.5 my-1">
+                                {Array.from({ length: totalPages }).map((_, idx) => (
                                     <button
                                         key={idx}
-                                        onClick={() => {
-                                            if (totalReal <= 1) return
-                                            setIsTransitioning(true)
-                                            setActiveIndex(idx + 1)
-                                        }}
+                                        onClick={() => setCurrentPage(idx)}
                                         className="rounded-full transition-all duration-300"
                                         style={{
                                             width: '0.5rem',
-                                            height: idx === realIndex ? '1.5rem' : '0.5rem',
-                                            background: idx === realIndex ? colors.accent : colors.border,
+                                            height: idx === currentPage ? '1.5rem' : '0.5rem',
+                                            background: idx === currentPage ? colors.accent : colors.border,
                                         }}
-                                        aria-label={`Ir para slide ${idx + 1}`}
+                                        aria-label={`Ir para página ${idx + 1}`}
                                     />
                                 ))}
                             </div>
 
-                            <span
-                                className="text-xs font-bold"
-                                style={{ color: colors.textSecondary }}
-                            >
-                                {realIndex + 1}/{totalReal}
+                            <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                {currentPage + 1}/{totalPages}
                             </span>
 
                             <button

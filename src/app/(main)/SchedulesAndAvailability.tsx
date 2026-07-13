@@ -1,4 +1,3 @@
-// components/SchedulesAndAvailability.tsx
 'use client'
 
 import { useMemo, useState, useEffect, useCallback } from 'react'
@@ -57,8 +56,8 @@ export default function SchedulesAndAvailability({ storeId }: SchedulesAndAvaila
     const [configLoaded, setConfigLoaded] = useState(false)
 
     // ---------- Configuração de horários ----------
-    const [availability, setAvailability] = useState(true)
-    const [slotInterval, setSlotInterval] = useState(60) // mantido no estado, mas não exibido
+    const [availability, setAvailability] = useState(true)   // reflete allow_scheduling
+    const [slotInterval, setSlotInterval] = useState(60)
     const [weekly, setWeekly] = useState<any>(DEFAULT_SCHEDULE.weekly)
     const [blockedDates, setBlockedDates] = useState<string[]>([])
     const [blockedDateInput, setBlockedDateInput] = useState('')
@@ -68,16 +67,26 @@ export default function SchedulesAndAvailability({ storeId }: SchedulesAndAvaila
         if (!storeId) return
         const { data } = await supabase
             .from('stores')
-            .select('opening_hours')
+            .select('business_hours, allow_scheduling')   // ← CORRIGIDO: business_hours
             .eq('id', storeId)
             .single()
-        if (data?.opening_hours) {
-            const oh = data.opening_hours as any
-            setAvailability(oh.is_active ?? true)
-            setSlotInterval(oh.slot_interval ?? 60)
-            setWeekly(oh.weekly ?? DEFAULT_SCHEDULE.weekly)
-            setBlockedDates(oh.blocked_dates ?? [])
+        if (data) {
+            // Prioridade para allow_scheduling (master switch)
+            const masterSwitch = data.allow_scheduling ?? true
+            setAvailability(masterSwitch)
+
+            const oh = data.business_hours as any   // ← CORRIGIDO
+            if (oh) {
+                setSlotInterval(oh.slot_interval ?? 60)
+                setWeekly(oh.weekly ?? DEFAULT_SCHEDULE.weekly)
+                setBlockedDates(oh.blocked_dates ?? [])
+            } else {
+                setSlotInterval(60)
+                setWeekly(DEFAULT_SCHEDULE.weekly)
+                setBlockedDates([])
+            }
         } else {
+            // fallback
             setAvailability(true)
             setSlotInterval(60)
             setWeekly(DEFAULT_SCHEDULE.weekly)
@@ -113,17 +122,28 @@ export default function SchedulesAndAvailability({ storeId }: SchedulesAndAvaila
     const saveAvailability = async () => {
         if (!storeId) return
         setSavingConfig(true)
+
+        // 1. Salvar configuração detalhada (business_hours)
         const config = {
             is_active: availability,
             slot_interval: Number(slotInterval),
             weekly,
             blocked_dates: blockedDates,
         }
-        const { error } = await supabase
+        const update1 = supabase
             .from('stores')
-            .update({ opening_hours: config })
+            .update({ business_hours: config })   // ← CORRIGIDO
             .eq('id', storeId)
-        if (error) {
+
+        // 2. Atualizar o master switch allow_scheduling para manter sincronia
+        const update2 = supabase
+            .from('stores')
+            .update({ allow_scheduling: availability })
+            .eq('id', storeId)
+
+        const [res1, res2] = await Promise.all([update1, update2])
+
+        if (res1.error || res2.error) {
             alert('Erro ao salvar configurações.')
         } else {
             alert('Horários salvos!')
@@ -426,7 +446,7 @@ export default function SchedulesAndAvailability({ storeId }: SchedulesAndAvaila
                     className="w-full flex items-center justify-between p-4 text-left"
                 >
                     <span className="text-lg font-black" style={{ color: textPrimary }}>
-                        Horários e Disponibilidade
+                        Horários e disponibilidade da agenda
                     </span>
                     {isConfigExpanded ? <ChevronUp size={22} color={textPrimary} /> : <ChevronDown size={22} color={textPrimary} />}
                 </button>

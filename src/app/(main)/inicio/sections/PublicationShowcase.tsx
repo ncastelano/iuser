@@ -1,4 +1,3 @@
-// src/app/(main)/inicio/sections/PublicationShowcase.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
@@ -82,141 +81,66 @@ function usePublicationShowcase() {
 export default function PublicationShowcase() {
     const router = useRouter()
     const { colors } = useTheme()
-    const trackRef = useRef<HTMLDivElement>(null)
-    const containerRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { publications, loading } = usePublicationShowcase()
-    const totalReal = publications.length
+    const total = publications.length
 
-    // Modo vertical infinito para 5+ publicações
-    const isVerticalLoop = totalReal >= 5
-    const cardsPerView = isVerticalLoop ? 4 : totalReal <= 4 ? totalReal : totalReal === 3 ? 2 : 4
-    const isStatic = totalReal <= 4 && totalReal !== 3
+    const ITEMS_PER_PAGE = 4
+    // totalPages só é usado para navegação, mas se total < 4 ainda teremos 1 página
+    const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE))
 
-    const [activeIndex, setActiveIndex] = useState(isVerticalLoop ? cardsPerView : 0)
-    const [isTransitioning, setIsTransitioning] = useState(true)
+    const [currentPage, setCurrentPage] = useState(0)
     const [isHovered, setIsHovered] = useState(false)
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragStartY, setDragStartY] = useState(0)
-    const [dragOffset, setDragOffset] = useState(0)
 
-    // Construir array com clones para o loop infinito
-    const displayPublications = useMemo(() => {
-        if (!isVerticalLoop) return publications
-        const clonesStart = publications.slice(-cardsPerView)
-        const clonesEnd = publications.slice(0, cardsPerView)
-        return [...clonesStart, ...publications, ...clonesEnd]
-    }, [publications, isVerticalLoop, cardsPerView])
-
-    // Cálculo de dimensões
-    const getContainerHeight = () => containerRef.current?.clientHeight ?? 600
-    const gapPx = 12
-    const cardHeightPx = (getContainerHeight() - gapPx * (cardsPerView - 1)) / cardsPerView
-
+    // Funções de navegação (circular)
     const goToNext = useCallback(() => {
-        if (!isVerticalLoop || !isTransitioning) return
-        setActiveIndex(prev => prev + 1)
-    }, [isVerticalLoop, isTransitioning])
+        setCurrentPage(prev => (prev + 1) % totalPages)
+    }, [totalPages])
 
     const goToPrev = useCallback(() => {
-        if (!isVerticalLoop || !isTransitioning) return
-        setActiveIndex(prev => prev - 1)
-    }, [isVerticalLoop, isTransitioning])
-
-    // Reset para loop infinito
-    useEffect(() => {
-        if (!isVerticalLoop) return
-        const handleTransitionEnd = () => {
-            if (activeIndex >= totalReal + cardsPerView) {
-                setIsTransitioning(false)
-                setActiveIndex(cardsPerView)
-            } else if (activeIndex < cardsPerView) {
-                setIsTransitioning(false)
-                setActiveIndex(totalReal + cardsPerView - 1)
-            }
-        }
-        const track = trackRef.current
-        track?.addEventListener('transitionend', handleTransitionEnd)
-        return () => track?.removeEventListener('transitionend', handleTransitionEnd)
-    }, [activeIndex, isVerticalLoop, totalReal, cardsPerView])
-
-    useEffect(() => {
-        if (!isTransitioning) {
-            const timeout = setTimeout(() => setIsTransitioning(true), 50)
-            return () => clearTimeout(timeout)
-        }
-    }, [isTransitioning])
+        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
+    }, [totalPages])
 
     // Autoplay
     useEffect(() => {
-        if (isHovered || isDragging || !isVerticalLoop) return
+        if (isHovered || totalPages <= 1) return
         autoPlayRef.current = setInterval(goToNext, 4000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
         }
-    }, [isHovered, isDragging, goToNext, isVerticalLoop])
+    }, [isHovered, goToNext, totalPages])
 
-    // Drag vertical
-    const handleDragStart = useCallback((clientY: number) => {
-        if (!isVerticalLoop) return
-        setIsDragging(true)
-        setDragStartY(clientY)
-        setDragOffset(0)
-    }, [isVerticalLoop])
+    // -- Lógica de loop infinito: sempre 4 cards por página --
+    const currentItems = useMemo(() => {
+        if (total === 0) return []
 
-    const handleDragMove = useCallback((clientY: number) => {
-        if (!isDragging) return
-        setDragOffset(clientY - dragStartY)
-    }, [isDragging, dragStartY])
+        // Se total >= 4, pegamos o slice normal, mas se sobrar menos de 4 na última,
+        // complementamos com os primeiros itens da lista.
+        const start = currentPage * ITEMS_PER_PAGE
+        const end = start + ITEMS_PER_PAGE
 
-    const handleDragEnd = useCallback(() => {
-        if (!isDragging) return
-        setIsDragging(false)
-        if (dragOffset > 50) goToPrev()
-        else if (dragOffset < -50) goToNext()
-        setDragOffset(0)
-    }, [isDragging, dragOffset, goToPrev, goToNext])
+        // Se o total é menor que ITEMS_PER_PAGE, simplesmente exibe todos (1 página)
+        if (total <= ITEMS_PER_PAGE) {
+            return publications.slice(0, total)
+        }
 
-    const onPointerDown = (e: React.PointerEvent) => {
-        e.preventDefault()
-        handleDragStart(e.clientY)
-    }
-    const onPointerMove = (e: React.PointerEvent) => {
-        if (isDragging) handleDragMove(e.clientY)
-    }
-    const onPointerUp = () => handleDragEnd()
-
-    // Translação vertical
-    const translateY = useMemo(() => {
-        if (!isVerticalLoop) return 0
-        return -activeIndex * (cardHeightPx + gapPx) + dragOffset
-    }, [isVerticalLoop, activeIndex, cardHeightPx, gapPx, dragOffset])
-
-    // Índice real (0 a totalReal-1)
-    const realIndex = useMemo(() => {
-        if (!isVerticalLoop) return 0
-        if (activeIndex < cardsPerView) return totalReal - 1
-        if (activeIndex >= totalReal + cardsPerView) return 0
-        return activeIndex - cardsPerView
-    }, [isVerticalLoop, activeIndex, totalReal, cardsPerView])
-
-    // Grid para layout estático
-    const gridClass = totalReal === 1
-        ? 'grid-cols-1'
-        : totalReal === 2
-            ? 'grid-cols-2'
-            : totalReal === 3
-                ? 'grid-cols-2'
-                : 'grid-cols-2 sm:grid-cols-4'
+        // Pega os itens do índice start até start+4, dando a volta se necessário
+        const items: PublicationCard[] = []
+        for (let i = start; i < end; i++) {
+            const index = i % total
+            items.push(publications[index])
+        }
+        return items
+    }, [publications, currentPage, total])
 
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
-                <div className="flex gap-4">
+                <div className="grid grid-cols-2 gap-3">
                     {[1, 2, 3, 4].map(i => (
-                        <div key={i} className="flex-1 h-72 sm:h-80 bg-gray-200 rounded-2xl" />
+                        <div key={i} className="h-48 sm:h-64 bg-gray-200 rounded-2xl" />
                     ))}
                 </div>
             </div>
@@ -238,102 +162,45 @@ export default function PublicationShowcase() {
                 </h2>
             </div>
 
-            <div
-                ref={containerRef}
-                className={`relative overflow-hidden select-none ${isVerticalLoop ? 'h-[36rem]' : ''}`}
-                onPointerDown={isVerticalLoop ? onPointerDown : undefined}
-                onPointerMove={isVerticalLoop ? onPointerMove : undefined}
-                onPointerUp={isVerticalLoop ? onPointerUp : undefined}
-                onPointerLeave={isVerticalLoop ? onPointerUp : undefined}
-            >
-                {isVerticalLoop ? (
+            {/* Grid 2x2 com loop infinito (sempre 4 cards) */}
+            <div className="grid grid-cols-2 gap-3">
+                {currentItems.map((pub, idx) => (
                     <div
-                        ref={trackRef}
-                        className="flex flex-col gap-3 absolute left-0 right-0 px-2"
-                        style={{
-                            transform: `translateY(${translateY}px)`,
-                            transition: isTransitioning && !isDragging
-                                ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                                : 'none',
-                            willChange: 'transform',
-                        }}
+                        key={`${pub.id}-${idx}`} // idx evita conflitos se o mesmo pub aparecer repetido
+                        onClick={() => router.push(`/${pub.storeSlug}?produto=${pub.id}`)}
+                        className="group relative aspect-[3/4] rounded-2xl overflow-hidden border shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+                        style={{ borderColor: colors.border, background: colors.background }}
                     >
-                        {displayPublications.map((pub, index) => (
-                            <div
-                                key={`${pub.id}-${index}`}
-                                className="flex-shrink-0 rounded-2xl overflow-hidden border shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer relative"
-                                style={{
-                                    height: `${cardHeightPx}px`,
-                                    borderColor: colors.border,
-                                    background: colors.background,
-                                }}
-                                onClick={() => {
-                                    if (!isDragging) router.push(`/${pub.storeSlug}?produto=${pub.id}`)
-                                }}
-                            >
-                                {pub.imageUrl ? (
-                                    <img
-                                        src={pub.imageUrl}
-                                        alt={pub.storeName}
-                                        className="absolute inset-0 w-full h-full object-cover"
-                                    />
+                        {pub.imageUrl ? (
+                            <img
+                                src={pub.imageUrl}
+                                alt={pub.storeName}
+                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            />
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 z-10 flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
+                                {pub.storeLogoUrl ? (
+                                    <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
-                                )}
-                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
-                                <div className="absolute bottom-0 left-0 right-0 p-4 z-10 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
-                                        {pub.storeLogoUrl ? (
-                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-white/80">
-                                                <Store size={20} />
-                                            </div>
-                                        )}
+                                    <div className="w-full h-full flex items-center justify-center text-white/80">
+                                        <Store size={16} />
                                     </div>
-                                    <h3 className="text-white font-bold text-sm sm:text-base leading-tight truncate">
-                                        {pub.storeName}
-                                    </h3>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className={`grid ${gridClass} gap-3`}>
-                        {publications.map(pub => (
-                            <div
-                                key={pub.id}
-                                onClick={() => router.push(`/${pub.storeSlug}?produto=${pub.id}`)}
-                                className="group relative h-72 sm:h-80 rounded-2xl overflow-hidden border shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                                style={{ borderColor: colors.border, background: colors.background }}
-                            >
-                                {pub.imageUrl ? (
-                                    <img src={pub.imageUrl} alt={pub.storeName} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                ) : (
-                                    <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
                                 )}
-                                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
-                                <div className="absolute bottom-0 left-0 right-0 p-4 z-10 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
-                                        {pub.storeLogoUrl ? (
-                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-white/80">
-                                                <Store size={20} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <h3 className="text-white font-bold text-sm sm:text-base leading-tight truncate">
-                                        {pub.storeName}
-                                    </h3>
-                                </div>
                             </div>
-                        ))}
+                            <h3 className="text-white font-bold text-xs sm:text-sm leading-tight truncate">
+                                {pub.storeName}
+                            </h3>
+                        </div>
                     </div>
-                )}
+                ))}
             </div>
 
-            {isVerticalLoop && totalReal > 0 && (
+            {/* Controles de navegação (apenas se > 1 página) */}
+            {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                         onClick={goToPrev}
@@ -344,17 +211,14 @@ export default function PublicationShowcase() {
                         <ChevronUp size={16} />
                     </button>
                     <div className="flex gap-2">
-                        {publications.map((_, idx) => (
+                        {Array.from({ length: totalPages }).map((_, idx) => (
                             <button
                                 key={idx}
-                                onClick={() => {
-                                    setIsTransitioning(true)
-                                    setActiveIndex(idx + cardsPerView)
-                                }}
+                                onClick={() => setCurrentPage(idx)}
                                 className="h-2 rounded-full transition-all duration-300"
                                 style={{
-                                    width: idx === realIndex ? '1.5rem' : '0.5rem',
-                                    background: idx === realIndex ? colors.accent : colors.border,
+                                    width: idx === currentPage ? '1.5rem' : '0.5rem',
+                                    background: idx === currentPage ? colors.accent : colors.border,
                                 }}
                             />
                         ))}

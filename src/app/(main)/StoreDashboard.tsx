@@ -31,7 +31,8 @@ import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import SchedulesAndAvailability from './SchedulesAndAvailability'
 import ButtonInPersonSale from './ButtonInPersonSale'
-import Publication from './Publication'
+import Publication from './Publication'  // <-- NOVO: import do componente
+import StoreVisitors from './StoreVisitors'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -93,10 +94,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
 
-    const [onlineNow, setOnlineNow] = useState(0)
-    const [todayVisitsCount, setTodayVisitsCount] = useState(0)
-    const [totalUniqueVisitors, setTotalUniqueVisitors] = useState(0)
-
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({ daily: { revenue: 0, orders: 0 } })
 
@@ -127,26 +124,9 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
     const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
     const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
 
-    const [dialogOpen, setDialogOpen] = useState<'online' | 'today' | 'all' | null>(null)
-
     const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
     const intervalRef = useRef<any>(null)
-
-    const fetchVisitorData = useCallback(async (storeId: string) => {
-        const oneMinAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString()
-        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-        const todayISO = todayStart.toISOString()
-
-        const { data: online } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId).gte('created_at', oneMinAgo)
-        setOnlineNow(new Set(online?.map(v => v.viewer_id || v.anonymous_id)).size)
-
-        const { data: today } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId).gte('created_at', todayISO)
-        setTodayVisitsCount(new Set(today?.map(v => v.viewer_id || v.anonymous_id)).size)
-
-        const { data: all } = await supabase.from('store_views').select('viewer_id, anonymous_id').eq('store_id', storeId)
-        setTotalUniqueVisitors(new Set(all?.map(v => v.viewer_id || v.anonymous_id)).size)
-    }, [])
 
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
@@ -309,9 +289,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
         const { data: empData } = await supabase.from('employees').select('*').eq('store_id', storeId).eq('is_active', true)
         setEmployees(empData || [])
 
-        await fetchVisitorData(storeId)
         setLoading(false)
-    }, [storeSlug, profileSlug, fetchVisitorData])
+    }, [storeSlug, profileSlug])
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
@@ -446,14 +425,12 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
             )
             .subscribe()
 
-        intervalRef.current = setInterval(() => fetchVisitorData(store.id), 10000)
-
         return () => {
             supabase.removeChannel(ordersChannel)
             supabase.removeChannel(assignmentsChannel)
             clearInterval(intervalRef.current)
         }
-    }, [store?.id, loadDashboard, fetchVisitorData, fetchEmployeeRoutes])
+    }, [store?.id, loadDashboard, fetchEmployeeRoutes])
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
@@ -940,30 +917,14 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 </div>
             ) : null}
 
-            {/* Cards de visitantes */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('online')}>
-                    <Users size={16} style={{ color: colors.accent }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{onlineNow}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>online</p>
-                </div>
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('today')}>
-                    <Eye size={16} style={{ color: colors.accentLight }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accentLight }}>{todayVisitsCount}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>hoje</p>
-                </div>
-                <div className="p-4 rounded-2xl border" style={{ background: 'transparent', borderColor: colors.border }} onClick={() => setDialogOpen('all')}>
-                    <Users size={16} style={{ color: colors.accent }} />
-                    <p className="text-2xl font-black mt-1" style={{ color: colors.accent }}>{totalUniqueVisitors}</p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>total</p>
-                </div>
-            </div>
-
             {/* Agendamentos */}
             <SchedulesAndAvailability storeId={store.id} />
 
             {/* Publicações */}
             <Publication storeId={store.id} />
+
+            {/* Visitantes - NOVO */}
+            <StoreVisitors storeId={store.id} />
 
             {/* Ações rápidas */}
             <div className="grid grid-cols-2 gap-3">
@@ -1074,17 +1035,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                     storeLat={store.store_lat}
                     storeLng={store.store_lng}
                 />
-            )}
-
-            {dialogOpen && (
-                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDialogOpen(null)}>
-                    <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-bold mb-2" style={{ color: colors.textPrimary }}>
-                            {dialogOpen === 'online' ? 'Visitantes online' : dialogOpen === 'today' ? 'Visitantes hoje' : 'Total de visitantes'}
-                        </h3>
-                        <p style={{ color: colors.textSecondary }}>Detalhes em breve.</p>
-                    </div>
-                </div>
             )}
         </div>
     )

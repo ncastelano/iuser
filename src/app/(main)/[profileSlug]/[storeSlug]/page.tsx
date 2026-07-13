@@ -14,7 +14,6 @@ import {
     Star,
     X,
     Plus,
-    Minus,
     Shield,
     Eye,
     ShoppingBag,
@@ -31,7 +30,7 @@ import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import SacolaButton from '@/app/SacolaButton'
+import SacolaButton from '@/app/ButtonSacola'
 import StoreSchedule from '../../StoreSchedule'
 
 type RatingRow = {
@@ -173,9 +172,7 @@ function formatTimeRemaining(ms: number): string {
 
 type TabType = 'products' | 'reviews'
 
-const COOLDOWN_MINUTES = 30
-const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000
-
+// Helpers para identificar visitantes (usados apenas para fallback ou captura de produto)
 function getOrCreateAnonymousId(): string {
     const key = 'iuser_anon_id'
     let id = localStorage.getItem(key)
@@ -224,8 +221,20 @@ export default function StorePage() {
     const [recentSales, setRecentSales] = useState<SaleType[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cartAnimating, setCartAnimating] = useState(false)
-    const { itemsByStore, addItem, removeItem } = useCartStore()
+
+    const {
+        itemsByStore,
+        addItem,
+        removeItem,
+        updateQuantity,
+    } = useCartStore()
+
     const cartItems = typeof storeSlug === 'string' ? (itemsByStore[storeSlug] || []) : []
+
+    const totalCartQuantity = useMemo(
+        () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
+        [cartItems]
+    )
 
     const [showAllHours, setShowAllHours] = useState(false)
     const [totalVisitors, setTotalVisitors] = useState(0)
@@ -240,14 +249,83 @@ export default function StorePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
+    // ========== QUANTITY HELPERS ==========
+    const getProductQuantity = useCallback(
+        (productId: string) => {
+            const storeItems = itemsByStore[storeSlug as string] || []
+            const found = storeItems.find((item) => item.product.id === productId)
+            return found ? found.quantity : 0
+        },
+        [itemsByStore, storeSlug]
+    )
+
+    const increaseQuantity = useCallback(
+        (product: any) => {
+            if (!store) return
+            addItem(storeSlug as string, { name: store.name, logo_url: store.logo_url ?? null }, product)
+        },
+        [store, storeSlug, addItem]
+    )
+
+    const decreaseQuantity = useCallback(
+        (productId: string) => {
+            updateQuantity(storeSlug as string, productId, -1)
+        },
+        [storeSlug, updateQuantity]
+    )
+
+    const removeAllOfProduct = useCallback(
+        (productId: string) => {
+            removeItem(storeSlug as string, productId)
+        },
+        [storeSlug, removeItem]
+    )
+
+    // ========== VISIT CAPTURE via RPC ==========
     const captureVisit = useCallback(
         async (storeId: string, userId: string | null) => {
-            const anonymousId = userId ? null : getOrCreateAnonymousId()
-            const sessionId = getOrCreateSessionId()
-            const device = getDeviceType()
-            const referrer = document.referrer || null
-            const userAgent = navigator.userAgent || null
+            try {
+                const sessionId = getOrCreateSessionId()
+                const anonymousId = userId ? null : getOrCreateAnonymousId()
+                const device = getDeviceType()
+                const referrer = document.referrer || null
+                const userAgent = navigator.userAgent || null
 
+                // Chamada à função RPC que gerencia cooldown e incremento
+                const { data, error } = await supabase.rpc('record_store_visit', {
+                    p_store_id: storeId,
+                    p_session_id: sessionId,
+                    p_viewer_id: userId,
+                    p_anonymous_id: anonymousId,
+                    p_device_type: device,
+                    p_referrer: referrer,
+                    p_user_agent: userAgent,
+                })
+
+                if (error) {
+                    console.warn('[StorePage] Erro ao registrar visita via RPC:', error.message)
+                    // Fallback: método antigo (inserção direta)
+                    await fallbackCaptureVisit(storeId, userId, anonymousId, sessionId, device, referrer, userAgent)
+                    return
+                }
+
+                if (data === true) {
+                    // Visita registrada com sucesso – atualizamos o contador local
+                    setTotalVisitors(prev => prev + 1)
+                } else {
+                    // Visita ignorada (cooldown)
+                    console.log('[StorePage] Visita ignorada (cooldown)')
+                }
+            } catch (err) {
+                console.error('[StorePage] Erro inesperado ao registrar visita:', err)
+            }
+        },
+        []
+    )
+
+    // Fallback para caso a RPC falhe (mantém a lógica antiga)
+    const fallbackCaptureVisit = useCallback(
+        async (storeId: string, userId: string | null, anonymousId: string | null, sessionId: string, device: string, referrer: string | null, userAgent: string | null) => {
             const { error } = await supabase.from('store_visits').insert({
                 store_id: storeId,
                 viewer_id: userId || null,
@@ -257,9 +335,32 @@ export default function StorePage() {
                 referrer,
                 user_agent: userAgent,
             })
-            if (error) console.warn('[StorePage] Erro ao registrar visita:', error.message)
+            if (error) {
+                console.warn('[StorePage] Fallback de visita falhou:', error.message)
+                return
+            }
+            // Incremento manual (se a RPC não estiver disponível)
+            const { error: rpcError } = await supabase.rpc('increment_store_view', { store_id: storeId })
+            if (!rpcError) {
+                setTotalVisitors(prev => prev + 1)
+            } else {
+                // Tentar update direto
+                const { data: storeData } = await supabase
+                    .from('stores')
+                    .select('view_count')
+                    .eq('id', storeId)
+                    .single()
+                if (storeData) {
+                    const newCount = (storeData.view_count || 0) + 1
+                    await supabase
+                        .from('stores')
+                        .update({ view_count: newCount })
+                        .eq('id', storeId)
+                    setTotalVisitors(newCount)
+                }
+            }
         },
-        [supabase]
+        []
     )
 
     const captureProductView = useCallback(
@@ -285,6 +386,7 @@ export default function StorePage() {
         [supabase]
     )
 
+    // ========== FILTROS E AGRUPAMENTO ==========
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products
         const query = searchQuery.toLowerCase()
@@ -354,6 +456,7 @@ export default function StorePage() {
         return `${baseUrl}/${profileSlug}/${storeSlug}`
     }, [profileSlug, storeSlug])
 
+    // ========== CARREGAR LOJA E DADOS ==========
     const loadRatings = useCallback(
         async (storeId: string, userId: string | null) => {
             const { data, error: ratingsError } = await supabase
@@ -459,56 +562,20 @@ export default function StorePage() {
         )
 
         setLoading(false)
-    }, [storeSlug, supabase, loadRatings])
+
+        // Após carregar a loja, registrar a visita (com um pequeno atraso para não bloquear o render)
+        setTimeout(() => {
+            if (foundStore) {
+                captureVisit(foundStore.id, userId)
+            }
+        }, 2000)
+    }, [storeSlug, supabase, loadRatings, captureVisit])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
 
-    useEffect(() => {
-        if (!store) return
-
-        const storeId = store.id
-        let cancelled = false
-
-        const timer = setTimeout(async () => {
-            if (cancelled) return
-
-            const cooldownKey = `iuser_vt_${storeId}`
-            const lastVisit = localStorage.getItem(cooldownKey)
-            const now = Date.now()
-
-            if (lastVisit && now - Number(lastVisit) < COOLDOWN_MS) {
-                return
-            }
-
-            localStorage.setItem(cooldownKey, String(now))
-
-            setTotalVisitors(prev => prev + 1)
-
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id ?? null
-            if (!cancelled) {
-                await captureVisit(storeId, userId)
-            }
-
-            if (!cancelled) {
-                const { data: newCount, error: rpcError } = await supabase
-                    .rpc('increment_store_view', { store_id: storeId })
-                if (!rpcError && typeof newCount === 'number') {
-                    setTotalVisitors(newCount)
-                } else {
-                    console.warn('[StorePage] Erro ao incrementar view_count:', rpcError)
-                }
-            }
-        }, 3000)
-
-        return () => {
-            cancelled = true
-            clearTimeout(timer)
-        }
-    }, [store?.id])
-
+    // ========== REALTIME: atualizar totalVisitors quando view_count mudar ==========
     useEffect(() => {
         if (!store) return
 
@@ -536,6 +603,7 @@ export default function StorePage() {
         }
     }, [store?.id])
 
+    // ========== MAPS E PRODUTOS ==========
     const openGoogleMaps = () => {
         if (!store) return
         let url = ''
@@ -570,28 +638,26 @@ export default function StorePage() {
         }
     }
 
-    const toggleProduct = (product: any) => {
+    const handleProductClick = (product: any) => {
         if (isOwner) {
             router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
             return
         }
-        const isSelected = cartItems.some((item: any) => item.product.id === product.id)
-        if (isSelected) {
-            removeItem(storeSlug as string, product.id)
-            setCartAnimating(true)
-            setTimeout(() => setCartAnimating(false), 500)
-        } else {
-            if (store) captureProductView(product.id, store.id, currentUserId)
-            addItem(storeSlug as string, { name: store!.name, logo_url: store!.logo_url ?? null }, product)
-            setCartAnimating(true)
-            setTimeout(() => setCartAnimating(false), 500)
+        const isPublication = product.listing_type === 'publication'
+        if (isPublication) {
+            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
+            return
         }
+        const alreadyInCart = cartItems.some((item: any) => item.product.id === product.id)
+        if (alreadyInCart) return
+
+        if (store) captureProductView(product.id, store.id, currentUserId)
+        addItem(storeSlug as string, { name: store!.name, logo_url: store!.logo_url ?? null }, product)
+        setCartAnimating(true)
+        setTimeout(() => setCartAnimating(false), 500)
     }
 
-    const handleProductClick = (product: any) => {
-        toggleProduct(product)
-    }
-
+    // ========== PEDIDOS E STATUS (mantido igual) ==========
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -652,6 +718,7 @@ export default function StorePage() {
         }
     }, [cartItems.length])
 
+    // ========== ESTILOS ==========
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
         const bigint = parseInt(clean, 16)
@@ -712,6 +779,7 @@ export default function StorePage() {
             </div>
         )
 
+    // ========== RENDER ==========
     return (
         <div className="relative flex flex-col min-h-screen pb-28" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -767,6 +835,7 @@ export default function StorePage() {
             )}
 
             <main className="relative z-10 px-4 py-4 flex flex-col gap-5">
+                {/* ===== HEADER DA LOJA ===== */}
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}
@@ -827,6 +896,7 @@ export default function StorePage() {
                     </div>
                 </div>
 
+                {/* ===== DESCRIÇÃO ===== */}
                 {store.description && (
                     <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || store.description.length <= DESC_LIMIT
@@ -844,6 +914,7 @@ export default function StorePage() {
                     </div>
                 )}
 
+                {/* ===== BOTÃO DE AGENDAR CONDICIONAL ===== */}
                 <div className="flex flex-wrap items-center gap-4">
                     {store.address && (
                         <button
@@ -855,26 +926,30 @@ export default function StorePage() {
                             <span>{store.address.split(',')[0].trim()}</span>
                         </button>
                     )}
-                    <button
-                        onClick={() => setShowScheduleModal(true)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''
-                            }`}
-                        style={{
-                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                            color: colors.accentText,
-                            border: `1px solid ${colors.accent}`,
-                            boxShadow: `0 8px 18px ${colors.accent}50`,
-                        }}
-                    >
-                        <Calendar className="w-4 h-4" />
-                        <span>
-                            {nextAvailable
-                                ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
-                                : 'Agendar'}
-                        </span>
-                    </button>
+
+                    {store.allow_scheduling && (
+                        <button
+                            onClick={() => setShowScheduleModal(true)}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''
+                                }`}
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: `1px solid ${colors.accent}`,
+                                boxShadow: `0 8px 18px ${colors.accent}50`,
+                            }}
+                        >
+                            <Calendar className="w-4 h-4" />
+                            <span>
+                                {nextAvailable
+                                    ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
+                                    : 'Agendar'}
+                            </span>
+                        </button>
+                    )}
                 </div>
 
+                {/* ===== TABS ===== */}
                 <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>
                     <button
                         onClick={() => setActiveTab('products')}
@@ -910,14 +985,15 @@ export default function StorePage() {
                     </div>
                 </div>
 
+                {/* ===== TAB PRODUTOS ===== */}
                 {activeTab === 'products' && (
                     <>
                         <div className="flex items-center gap-2">
                             <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-black" />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.textSecondary }} />
                                 <input
                                     type="text"
-                                    placeholder="Buscar..."
+                                    placeholder="Buscar produtos..."
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                     className="w-full border rounded-2xl py-3 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 transition-all"
@@ -980,6 +1056,7 @@ export default function StorePage() {
                                     <div className="grid grid-cols-2 gap-3">
                                         {products.map(product => {
                                             const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
+                                            const quantity = getProductQuantity(product.id)
                                             const isHourly = product.price_type === 'hourly'
                                             const isPublication = product.listing_type === 'publication'
                                             const storeWhatsapp = store?.final_whatsapp || store?.whatsapp || null
@@ -988,18 +1065,11 @@ export default function StorePage() {
                                                 : '#'
                                             const hasImage = !!product.image_url
 
-                                            // ===== CARD PARA PRODUTOS SEM IMAGEM (APENAS TEXTO) =====
                                             if (!hasImage) {
                                                 return (
                                                     <div
                                                         key={product.id}
-                                                        onClick={() => {
-                                                            if (isPublication) {
-                                                                router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
-                                                            } else {
-                                                                handleProductClick(product)
-                                                            }
-                                                        }}
+                                                        onClick={() => handleProductClick(product)}
                                                         className={`col-span-2 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                         style={{
                                                             background: `${colors.surface}88`,
@@ -1027,7 +1097,7 @@ export default function StorePage() {
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            <div className="mt-3 flex justify-end">
+                                                            <div className="mt-3 flex justify-end items-center">
                                                                 {isOwner ? (
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
@@ -1047,23 +1117,47 @@ export default function StorePage() {
                                                                         <MessageCircle size={14} />
                                                                         Saber mais
                                                                     </a>
-                                                                ) : mounted && isSelected ? (
-                                                                    <div className="flex items-center gap-1.5">
+                                                                ) : isSelected ? (
+                                                                    <div className="flex items-center gap-2">
                                                                         <button
                                                                             onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                removeItem(storeSlug as string, product.id);
+                                                                                e.stopPropagation()
+                                                                                if (quantity <= 1) {
+                                                                                    removeAllOfProduct(product.id)
+                                                                                } else {
+                                                                                    decreaseQuantity(product.id)
+                                                                                }
                                                                             }}
-                                                                            className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                            className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-sm"
                                                                         >
-                                                                            <Minus className="w-4 h-4" />
+                                                                            −
                                                                         </button>
-                                                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>1</span>
+                                                                        <span className="text-sm font-bold min-w-[20px] text-center">{quantity}</span>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation()
+                                                                                increaseQuantity(product)
+                                                                            }}
+                                                                            className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-sm"
+                                                                        >
+                                                                            +
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation()
+                                                                                removeAllOfProduct(product.id)
+                                                                            }}
+                                                                            className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                            title="Remover todos"
+                                                                        >
+                                                                            <X className="w-4 h-4 text-white" />
+                                                                        </button>
                                                                     </div>
                                                                 ) : (
                                                                     <button
-                                                                        onClick={e => { e.stopPropagation(); toggleProduct(product) }}
-                                                                        className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        onClick={e => { e.stopPropagation(); handleProductClick(product) }}
+                                                                        className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        style={{ background: colors.accent }}
                                                                     >
                                                                         <Plus className="w-4 h-4" />
                                                                     </button>
@@ -1074,17 +1168,10 @@ export default function StorePage() {
                                                 )
                                             }
 
-                                            // ===== CARD VERTICAL PARA PRODUTOS COM IMAGEM =====
                                             return (
                                                 <div
                                                     key={product.id}
-                                                    onClick={() => {
-                                                        if (isPublication) {
-                                                            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
-                                                        } else {
-                                                            handleProductClick(product)
-                                                        }
-                                                    }}
+                                                    onClick={() => handleProductClick(product)}
                                                     className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''
                                                         }`}
                                                     style={{
@@ -1113,28 +1200,6 @@ export default function StorePage() {
                                                                 Divulgação
                                                             </span>
                                                         )}
-                                                        {!isOwner && mounted && isSelected && !isPublication && (
-                                                            <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        removeItem(storeSlug as string, product.id);
-                                                                    }}
-                                                                    className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                >
-                                                                    <X className="w-4 h-4 text-white" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        router.push('/sacola');
-                                                                    }}
-                                                                    className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                >
-                                                                    <ShoppingBag className="w-4 h-4 text-white" />
-                                                                </button>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                     <div className="p-3">
                                                         <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
@@ -1155,7 +1220,7 @@ export default function StorePage() {
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <div className="mt-3 flex justify-end">
+                                                        <div className="mt-3 flex justify-end items-center">
                                                             {isOwner ? (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
@@ -1175,23 +1240,47 @@ export default function StorePage() {
                                                                     <MessageCircle size={14} />
                                                                     Saber mais
                                                                 </a>
-                                                            ) : mounted && isSelected ? (
-                                                                <div className="flex items-center gap-1.5">
+                                                            ) : isSelected ? (
+                                                                <div className="flex items-center gap-2">
                                                                     <button
                                                                         onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            removeItem(storeSlug as string, product.id);
+                                                                            e.stopPropagation()
+                                                                            if (quantity <= 1) {
+                                                                                removeAllOfProduct(product.id)
+                                                                            } else {
+                                                                                decreaseQuantity(product.id)
+                                                                            }
                                                                         }}
-                                                                        className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-sm"
                                                                     >
-                                                                        <Minus className="w-4 h-4" />
+                                                                        −
                                                                     </button>
-                                                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>1</span>
+                                                                    <span className="text-sm font-bold min-w-[20px] text-center">{quantity}</span>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation()
+                                                                            increaseQuantity(product)
+                                                                        }}
+                                                                        className="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-sm"
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation()
+                                                                            removeAllOfProduct(product.id)
+                                                                        }}
+                                                                        className="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        title="Remover todos"
+                                                                    >
+                                                                        <X className="w-4 h-4 text-white" />
+                                                                    </button>
                                                                 </div>
                                                             ) : (
                                                                 <button
-                                                                    onClick={e => { e.stopPropagation(); toggleProduct(product) }}
-                                                                    className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    onClick={e => { e.stopPropagation(); handleProductClick(product) }}
+                                                                    className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    style={{ background: colors.accent }}
                                                                 >
                                                                     <Plus className="w-4 h-4" />
                                                                 </button>
@@ -1208,6 +1297,7 @@ export default function StorePage() {
                     </>
                 )}
 
+                {/* ===== TAB AVALIAÇÕES ===== */}
                 {activeTab === 'reviews' && (
                     <div className="space-y-4">
                         {ratings.length === 0 ? (
@@ -1267,9 +1357,10 @@ export default function StorePage() {
                 )}
             </main>
 
+            {/* ===== BOTÕES FLUTUANTES ===== */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <SacolaButton
-                    totalItems={cartItems.length}
+                    totalItems={totalCartQuantity}
                     statusCounts={{
                         pending: pendingCount,
                         preparing: preparingCount,
@@ -1293,6 +1384,7 @@ export default function StorePage() {
                 </button>
             </div>
 
+            {/* ===== MODAL DE HORÁRIOS ===== */}
             {showAllHours && store.business_hours && (
                 <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAllHours(false)}>
                     <div className="w-full max-w-md rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>

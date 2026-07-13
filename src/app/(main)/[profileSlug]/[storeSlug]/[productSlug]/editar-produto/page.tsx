@@ -59,7 +59,7 @@ export default function EditarProduto() {
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [listingType, setListingType] = useState<ListingType>("sale");
 
-  const [durationMinutes, setDurationMinutes] = useState<string>("60");
+  const [durationMinutes, setDurationMinutes] = useState<string>("");
 
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [address, setAddress] = useState("");
@@ -158,7 +158,7 @@ export default function EditarProduto() {
       setCity(data.city || "");
       setCategory(data.category || "");
       setListingType((data.listing_type as ListingType) || "sale");
-      setDurationMinutes(data.duration_minutes ? String(data.duration_minutes) : "60");
+      setDurationMinutes(data.duration_minutes ? String(data.duration_minutes) : "");
 
       if (data.image_url) {
         const url = supabase.storage.from("product-images").getPublicUrl(data.image_url).data.publicUrl;
@@ -348,6 +348,8 @@ export default function EditarProduto() {
       ? `SRID=4326;POINT(${location.lng} ${location.lat})`
       : null;
 
+    const durationValue = durationMinutes.trim() ? parseInt(durationMinutes) : null;
+
     const updateData: any = {
       name,
       slug,
@@ -360,7 +362,7 @@ export default function EditarProduto() {
       address: address || null,
       city: city || null,
       category: category || null,
-      duration_minutes: type === "service" ? (parseInt(durationMinutes) || null) : null,
+      duration_minutes: durationValue,
     };
 
     if (imagePath) updateData.image_url = imagePath;
@@ -580,24 +582,24 @@ export default function EditarProduto() {
             </div>
           )}
 
-          {/* DURAÇÃO (apenas serviços) */}
-          {type === "service" && (
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Timer className="w-3 h-3 text-orange-500" />
-                Duração do Serviço (minutos)
-              </label>
-              <input
-                type="number"
-                min="1"
-                placeholder="60"
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(e.target.value)}
-                className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
-              />
-              <p className="text-[9px] text-gray-400 ml-1">Tempo médio de atendimento (opcional)</p>
-            </div>
-          )}
+          {/* DURAÇÃO (para todos os tipos, opcional) */}
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+              <Timer className="w-3 h-3 text-orange-500" />
+              Duração (minutos) – opcional
+            </label>
+            <input
+              type="number"
+              min="1"
+              placeholder="Ex: 60"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+            />
+            <p className="text-[9px] text-gray-400 ml-1">
+              Tempo médio para este produto/serviço (será usado em agendamentos)
+            </p>
+          </div>
 
           {/* DESCRIÇÃO */}
           <div className="space-y-2">

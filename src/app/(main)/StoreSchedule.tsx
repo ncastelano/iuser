@@ -14,6 +14,9 @@ import {
     Edit3,
     Lock,
     Earth,
+    Plus,
+    Minus,
+    Trash2,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -59,6 +62,11 @@ interface Product {
     duration_minutes?: number
 }
 
+interface SelectedItem {
+    product: Product
+    quantity: number
+}
+
 interface Props {
     storeId?: string
     storeName?: string
@@ -101,18 +109,41 @@ export default function StoreSchedule({
     const [selectedTime, setSelectedTime] = useState<string | null>(null)
     const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth())
     const [calendarYear, setCalendarYear] = useState(new Date().getFullYear())
-    const [selectedDuration, setSelectedDuration] = useState<number>(60)
     const [appointmentNote, setAppointmentNote] = useState('')
     const [isPublic, setIsPublic] = useState(false)
 
     const [storeProducts, setStoreProducts] = useState<Product[]>([])
     const [loadingProducts, setLoadingProducts] = useState(false)
-    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+    const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
     const [isEditingNote, setIsEditingNote] = useState(false)
     const [submitting, setSubmitting] = useState(false)
 
     const hoje = new Date()
     const todayStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`
+
+    // Duração total baseada nos itens selecionados
+    const selectedDuration = useMemo(() => {
+        if (selectedItems.length === 0) return 60
+        return selectedItems.reduce(
+            (total, item) => total + (item.product.duration_minutes || 60) * item.quantity,
+            0
+        )
+    }, [selectedItems])
+
+    // Gera automaticamente a nota baseada nos itens selecionados
+    const autoNote = useMemo(() => {
+        if (selectedItems.length === 0) return ''
+        return selectedItems
+            .map(item => `${item.quantity}x ${item.product.name}`)
+            .join(', ')
+    }, [selectedItems])
+
+    // Atualiza a nota quando os itens mudam, mas apenas se o usuário não editou manualmente
+    useEffect(() => {
+        if (!isEditingNote) {
+            setAppointmentNote(autoNote)
+        }
+    }, [autoNote, isEditingNote])
 
     // ---------- Efeitos ----------
 
@@ -173,7 +204,7 @@ export default function StoreSchedule({
         setSearchQuery('')
         setShowDropdown(false)
         setAppointmentNote('')
-        setSelectedProduct(null)
+        setSelectedItems([])
         setStep('datetime')
     }
 
@@ -190,10 +221,47 @@ export default function StoreSchedule({
             .from('products')
             .select('id, name, description, price, duration_minutes')
             .eq('store_id', storeId)
-            .eq('type', 'service')
+            .eq('is_active', true)
+            .order('name', { ascending: true })
             .limit(20)
         setStoreProducts(data || [])
         setLoadingProducts(false)
+    }
+
+    // ---------- Manipulação dos itens selecionados ----------
+    const addToSelection = (product: Product) => {
+        setSelectedItems(prev => {
+            const existing = prev.find(item => item.product.id === product.id)
+            if (existing) {
+                return prev.map(item =>
+                    item.product.id === product.id
+                        ? { ...item, quantity: item.quantity + 1 }
+                        : item
+                )
+            }
+            return [...prev, { product, quantity: 1 }]
+        })
+        setIsEditingNote(false)
+    }
+
+    const removeFromSelection = (productId: string) => {
+        setSelectedItems(prev => prev.filter(item => item.product.id !== productId))
+        setIsEditingNote(false)
+    }
+
+    const updateItemQuantity = (productId: string, delta: number) => {
+        setSelectedItems(prev => {
+            return prev
+                .map(item => {
+                    if (item.product.id === productId) {
+                        const newQty = item.quantity + delta
+                        return newQty > 0 ? { ...item, quantity: newQty } : null
+                    }
+                    return item
+                })
+                .filter(Boolean) as SelectedItem[]
+        })
+        setIsEditingNote(false)
     }
 
     // ---------- Configuração de horários ----------
@@ -246,12 +314,13 @@ export default function StoreSchedule({
             if (isToday && m < currentMinutes) continue
 
             const timeStr = fromMinutes(m)
+            const slotEnd = m + selectedDuration
+            if (slotEnd > endMinutes) continue
+
             const overlapping = relevantAppointments.find(a => {
                 const aStart = toMinutes(a.time)
                 const aEnd = aStart + (a.duration_minutes || 60)
-                const slotStart = m
-                const slotEnd = m + slotInterval
-                return slotStart < aEnd && aStart < slotEnd
+                return m < aEnd && aStart < slotEnd
             })
 
             slots.push({
@@ -262,7 +331,7 @@ export default function StoreSchedule({
         }
 
         return slots
-    }, [selectedDate, appointments, config, target])
+    }, [selectedDate, appointments, config, target, selectedDuration])
 
     // ---------- Mapa de compromissos ocupados ----------
     const eventsByDate = useMemo(() => {
@@ -277,7 +346,7 @@ export default function StoreSchedule({
         return map
     }, [appointments, target])
 
-    // ---------- Mapa de vagas livres por dia (para badges verdes) ----------
+    // ---------- Mapa de vagas livres por dia ----------
     const freeSlotsByDate = useMemo(() => {
         const map: Record<string, number> = {}
         if (!target) return map
@@ -356,13 +425,6 @@ export default function StoreSchedule({
         } else {
             onClose?.()
         }
-    }
-
-    const selectProduct = (product: Product) => {
-        setSelectedProduct(product)
-        setAppointmentNote(product.name)
-        setIsEditingNote(false)
-        setSelectedDuration(product.duration_minutes || 60)
     }
 
     async function handleConfirm() {
@@ -616,68 +678,63 @@ export default function StoreSchedule({
                                 )}
                             </div>
 
-                            {/* Lista horizontal de produtos */}
+                            {/* Lista horizontal de produtos (catálogo) */}
                             <div style={{ marginBottom: 16 }}>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 mb-2 block">
+                                    Selecione os serviços
+                                </label>
                                 {loadingProducts ? (
                                     <div style={{ padding: 12, textAlign: 'center', color: colors.textSecondary }}>
-                                        Carregando produtos...
+                                        Carregando...
                                     </div>
                                 ) : storeProducts.length === 0 ? (
                                     <div style={{ padding: 12, textAlign: 'center', color: colors.textSecondary }}>
-                                        Nenhum produto disponível.
+                                        Nenhum serviço disponível.
                                     </div>
                                 ) : (
                                     <div
                                         style={{
                                             display: 'flex',
-                                            gap: 12,
+                                            gap: 8,
                                             overflowX: 'auto',
                                             paddingBottom: 8,
                                             WebkitOverflowScrolling: 'touch',
                                         }}
                                     >
                                         {storeProducts.map(product => {
-                                            const isSelected = selectedProduct?.id === product.id
+                                            const isInSelection = selectedItems.some(item => item.product.id === product.id)
                                             return (
                                                 <button
                                                     key={product.id}
-                                                    onClick={() => selectProduct(product)}
+                                                    onClick={() => addToSelection(product)}
                                                     style={{
                                                         flex: '0 0 auto',
-                                                        minWidth: 140,
-                                                        maxWidth: 180,
-                                                        padding: '14px 16px',
-                                                        borderRadius: 18,
-                                                        border: isSelected
+                                                        minWidth: 130,
+                                                        maxWidth: 160,
+                                                        padding: '10px 14px',
+                                                        borderRadius: 16,
+                                                        border: isInSelection
                                                             ? `2px solid ${colors.accent}`
                                                             : `1px solid ${colors.border}`,
-                                                        background: isSelected
-                                                            ? `${colors.accent}20`
-                                                            : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                                        background: isInSelection
+                                                            ? `${colors.accent}15`
+                                                            : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         cursor: 'pointer',
                                                         textAlign: 'left',
                                                         color: colors.textPrimary,
                                                         display: 'flex',
                                                         flexDirection: 'column',
-                                                        gap: 8,
+                                                        gap: 4,
                                                         transition: 'all 0.2s',
                                                     }}
                                                 >
-                                                    <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.3 }}>
+                                                    <span style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>
                                                         {product.name}
                                                     </span>
-                                                    <div
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexWrap: 'wrap',
-                                                            gap: 8,
-                                                            fontSize: 13,
-                                                            color: colors.textSecondary,
-                                                        }}
-                                                    >
+                                                    <div style={{ display: 'flex', gap: 8, fontSize: 11, color: colors.textSecondary }}>
                                                         {product.duration_minutes && (
-                                                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                <Clock size={14} /> {product.duration_minutes}min
+                                                            <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                                <Clock size={12} /> {product.duration_minutes}min
                                                             </span>
                                                         )}
                                                         {product.price !== undefined && product.price > 0 && (
@@ -686,12 +743,111 @@ export default function StoreSchedule({
                                                             </span>
                                                         )}
                                                     </div>
+                                                    {isInSelection && (
+                                                        <span style={{ fontSize: 10, color: colors.accent, fontWeight: 700 }}>
+                                                            Adicionado
+                                                        </span>
+                                                    )}
                                                 </button>
                                             )
                                         })}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Itens selecionados com quantidades */}
+                            {selectedItems.length > 0 && (
+                                <div style={{ marginBottom: 16 }}>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 mb-2 block">
+                                        Itens agendados
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {selectedItems.map(item => (
+                                            <div
+                                                key={item.product.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '8px 12px',
+                                                    borderRadius: 12,
+                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                                    border: `1px solid ${colors.border}`,
+                                                }}
+                                            >
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: colors.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {item.product.name}
+                                                    </p>
+                                                    <p style={{ fontSize: 11, color: colors.textSecondary, margin: 0 }}>
+                                                        {item.product.duration_minutes || 60} min cada
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <button
+                                                        onClick={() => updateItemQuantity(item.product.id, -1)}
+                                                        style={{
+                                                            width: 24,
+                                                            height: 24,
+                                                            borderRadius: '50%',
+                                                            border: 'none',
+                                                            background: colors.border,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: 'pointer',
+                                                            color: colors.textPrimary,
+                                                        }}
+                                                    >
+                                                        <Minus size={14} />
+                                                    </button>
+                                                    <span style={{ fontWeight: 700, minWidth: 20, textAlign: 'center' }}>
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => updateItemQuantity(item.product.id, 1)}
+                                                        style={{
+                                                            width: 24,
+                                                            height: 24,
+                                                            borderRadius: '50%',
+                                                            border: 'none',
+                                                            background: colors.accent,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: 'pointer',
+                                                            color: colors.accentText,
+                                                        }}
+                                                    >
+                                                        <Plus size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => removeFromSelection(item.product.id)}
+                                                        style={{
+                                                            width: 24,
+                                                            height: 24,
+                                                            borderRadius: '50%',
+                                                            border: 'none',
+                                                            background: '#ef4444',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: 'pointer',
+                                                            color: 'white',
+                                                            marginLeft: 4,
+                                                        }}
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: colors.accent }}>
+                                            Duração total: {selectedDuration} min
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Nota (editável) */}
                             <div style={{ position: 'relative' }}>
@@ -700,15 +856,13 @@ export default function StoreSchedule({
                                     value={appointmentNote}
                                     onChange={e => {
                                         setAppointmentNote(e.target.value)
-                                        if (selectedProduct && e.target.value !== selectedProduct.name) {
-                                            setSelectedProduct(null)
-                                        }
+                                        setIsEditingNote(true)
                                     }}
                                     placeholder="Nota do compromisso (opcional)"
                                     style={{
                                         width: '100%',
                                         padding: '14px 18px',
-                                        paddingRight: selectedProduct ? 40 : 18,
+                                        paddingRight: 40,
                                         borderRadius: 16,
                                         border: `1px solid ${colors.border}`,
                                         fontSize: 15,
@@ -717,41 +871,26 @@ export default function StoreSchedule({
                                         color: colors.textPrimary,
                                     }}
                                 />
-                                {selectedProduct && (
-                                    <button
-                                        onClick={() => setIsEditingNote(!isEditingNote)}
-                                        style={{
-                                            position: 'absolute',
-                                            right: 12,
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            background: 'transparent',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: colors.accent,
-                                        }}
-                                    >
-                                        <Edit3 size={16} />
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Duração (informação) */}
-                            {selectedProduct && (
-                                <div
-                                    style={{
-                                        marginTop: 12,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 6,
-                                        fontSize: 14,
-                                        color: colors.accent,
-                                        fontWeight: 700,
+                                <button
+                                    onClick={() => {
+                                        setIsEditingNote(false)
+                                        setAppointmentNote(autoNote)
                                     }}
+                                    style={{
+                                        position: 'absolute',
+                                        right: 12,
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: isEditingNote ? colors.accent : colors.textSecondary,
+                                    }}
+                                    title="Reverter para nota automática"
                                 >
-                                    <span>⏱️ {selectedDuration} min</span>
-                                </div>
-                            )}
+                                    <Edit3 size={16} />
+                                </button>
+                            </div>
                         </div>
 
                         {/* CALENDÁRIO */}
@@ -1179,6 +1318,30 @@ export default function StoreSchedule({
                                     </p>
                                 </div>
                             </div>
+                            {selectedItems.length > 0 && (
+                                <div
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                        borderRadius: 18,
+                                        padding: 18,
+                                        border: `1px solid ${colors.border}`,
+                                        textAlign: 'left',
+                                    }}
+                                >
+                                    <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15, marginBottom: 8 }}>
+                                        Serviços
+                                    </p>
+                                    {selectedItems.map(item => (
+                                        <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: colors.textSecondary, marginBottom: 4 }}>
+                                            <span>{item.product.name}</span>
+                                            <span>x{item.quantity}</span>
+                                        </div>
+                                    ))}
+                                    <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 8, paddingTop: 8, fontWeight: 700, color: colors.accent }}>
+                                        Duração total: {selectedDuration} min
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Toggle Público/Privado */}
                             <div
