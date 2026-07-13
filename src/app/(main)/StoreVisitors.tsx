@@ -47,11 +47,13 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
     const [totalCount, setTotalCount] = useState(0)
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null)
+    const channelRef = useRef<any>(null)
 
     // ---------- Buscar dados (somente leitura) ----------
     const fetchVisitorData = useCallback(async () => {
         if (!storeId) return
         try {
+            //console.log('[StoreVisitors] Buscando dados...')
             const oneMinAgo = new Date(Date.now() - 60 * 1000).toISOString()
             const todayStart = startOfDay(new Date()).toISOString()
 
@@ -175,10 +177,12 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
         }
         load()
 
-        // Atualizar a cada 30s
+        // Atualizar a cada 5 segundos (antes era 30s)
         intervalRef.current = setInterval(() => {
-            if (!cancelled) fetchVisitorData()
-        }, 30000)
+            if (!cancelled) {
+                fetchVisitorData()
+            }
+        }, 5000)
 
         // Realtime: atualizar quando houver novas visitas (ouvir inserções na store_visits)
         const channel = supabase
@@ -192,15 +196,25 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                     filter: `store_id=eq.${storeId}`,
                 },
                 () => {
-                    if (!cancelled) fetchVisitorData()
+                    if (!cancelled) {
+                        fetchVisitorData()
+                    }
                 }
             )
-            .subscribe()
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    //console.log('[StoreVisitors] Canal Realtime inscrito com sucesso')
+                }
+            })
+
+        channelRef.current = channel
 
         return () => {
             cancelled = true
             if (intervalRef.current) clearInterval(intervalRef.current)
-            supabase.removeChannel(channel)
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current)
+            }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [storeId, period])
@@ -225,7 +239,6 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
         boxShadow: colors.shadow,
     }
 
-    // Encontrar o máximo para escala do gráfico
     const maxCount = Math.max(...dailyData.map(d => d.count), 1)
 
     return (
@@ -265,7 +278,6 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                             </div>
                         ) : (
                             <>
-                                {/* Métricas principais */}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                                     <div className="p-3 rounded-xl border" style={{ borderColor: colors.border }}>
                                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
@@ -297,7 +309,6 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                                     </div>
                                 </div>
 
-                                {/* Filtro de período e gráfico */}
                                 <div className="mb-6">
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2 text-sm font-bold" style={{ color: textPrimary }}>
@@ -348,7 +359,6 @@ export default function StoreVisitors({ storeId }: StoreVisitorsProps) {
                                     </div>
                                 </div>
 
-                                {/* Lista de visitantes */}
                                 {visitors.length === 0 ? (
                                     <div className="py-8 text-center" style={{ color: textSecondary }}>
                                         <p>Nenhum visitante registrado ainda.</p>
