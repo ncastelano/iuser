@@ -31,8 +31,10 @@ import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import SchedulesAndAvailability from './SchedulesAndAvailability'
 import ButtonInPersonSale from './ButtonInPersonSale'
-import Publication from './Publication'  // <-- NOVO: import do componente
+import Publication from './Publication'
 import StoreVisitors from './StoreVisitors'
+import StoreOperatingDays from './StoreOperatingDays'
+import StoreAddress from './StoreAddress'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -58,6 +60,12 @@ interface EmployeeRoute {
     employeeName: string
     color: string
     stops: DeliveryStop[]
+}
+
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -89,6 +97,7 @@ function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; 
 export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { profileSlug: string; storeSlug: string; onBack?: () => void }) {
     const router = useRouter()
     const { colors } = useTheme()
+    const surfaceRgb = hexToRgb(colors.surface)
 
     const [store, setStore] = useState<any>(null)
     const [loading, setLoading] = useState(true)
@@ -613,7 +622,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // Componente de item do pedido (com tag de canal na mesma linha do nome)
+    // Componente OrderItem (mantido)
     const OrderItem = ({ order, showAssignButton = true }: { order: any; showAssignButton?: boolean }) => {
         const isInPerson = !order.buyer_profile_slug
         const channelLabel = isInPerson ? 'v. presencial' : 'v. online'
@@ -658,9 +667,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             )}
                         </div>
                     </div>
-                    <div className="text-right">
-                        {/* espaço vazio para alinhamento */}
-                    </div>
+                    <div className="text-right" />
                 </div>
                 {showAssignButton && !isInPerson && (
                     <button
@@ -701,242 +708,379 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 </button>
             </div>
 
-            {/* Vendas do dia */}
-            <div className="mb-6 p-4 rounded-2xl border" style={{ background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}20)`, borderColor: colors.border }}>
-                <div className="flex justify-between items-center">
-                    <div>
-                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Vendas Hoje</p>
-                        <p className="text-2xl font-black" style={{ color: colors.accent }}>R$ {metrics.daily.revenue.toFixed(2)}</p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>{metrics.daily.orders} pedidos finalizados</p>
+            {/* ===== Vendas do dia ===== */}
+            <div className="mb-6 mt-4">
+                <div
+                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <DollarSign size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Vendas Hoje
+                            </h3>
+                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                <span className="text-2xl font-black" style={{ color: colors.accent }}>
+                                    R$ {metrics.daily.revenue.toFixed(2)}
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    <span className="font-bold" style={{ color: '#10b981' }}>
+                                        {metrics.daily.orders}
+                                    </span>{' '}
+                                    pedidos finalizados
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <DollarSign size={40} style={{ color: colors.accent, opacity: 0.6 }} />
                 </div>
             </div>
 
-            {/* Venda Presencial */}
-            <ButtonInPersonSale
-                storeId={store.id}
-                storeName={store.name}
-                storeSlug={storeSlug}
-                profileSlug={profileSlug}
-                onSaleCompleted={() => loadDashboard()}
-            />
-
-            {/* Seção de pedidos */}
-            <div className="space-y-4 mb-6">
-                <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><ShoppingCart size={20} /> Pedidos</h3>
-
-                {selectedOrderIds.size > 0 && (
-                    <button onClick={() => setShowAssignModal(true)} className="w-full py-2 rounded-full font-bold text-sm flex items-center justify-center gap-2" style={{ background: colors.accent, color: 'white' }}>
-                        <Send size={16} /> Atribuir {selectedOrderIds.size} pedido(s)
-                    </button>
-                )}
-
-                {/* Novos */}
-                {newOrders.length > 0 && (
-                    <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accent }}>Novos ({newOrders.length})</h4>
-                        {newOrders.map(order => (
-                            <OrderItem key={order.checkout_id} order={order} />
-                        ))}
-                    </div>
-                )}
-
-                {/* Em Preparo */}
-                {preparing.length > 0 && (
-                    <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: colors.accentLight }}>Em Preparo ({preparing.length})</h4>
-                        {preparing.map(order => {
-                            const isAssigned = assignmentMap.has(order.checkout_id)
-                            return (
-                                <div key={order.checkout_id} className="mb-1">
-                                    <OrderItem order={order} showAssignButton={!isAssigned} />
-                                    {isAssigned && (
-                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                            <span className="text-[10px]" style={{ color: colors.accent }}>
-                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                            </span>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setSingleAssignOpen({ order })
-                                                }}
-                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                style={{ background: colors.accent, color: 'white' }}
-                                            >
-                                                Trocar entregador
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {/* Prontos */}
-                {ready.length > 0 && (
-                    <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>Prontos ({ready.length})</h4>
-                        {ready.map(order => {
-                            const isAssigned = assignmentMap.has(order.checkout_id)
-                            return (
-                                <div key={order.checkout_id} className="mb-1">
-                                    <OrderItem order={order} showAssignButton={!isAssigned} />
-                                    {isAssigned && (
-                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                            <span className="text-[10px]" style={{ color: colors.accent }}>
-                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                            </span>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setSingleAssignOpen({ order })
-                                                }}
-                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                style={{ background: colors.accent, color: 'white' }}
-                                            >
-                                                Trocar entregador
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {/* Finalizados */}
-                {finished.length > 0 && (
-                    <div className="rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>Finalizados ({finished.length})</h4>
-                        {finished.slice(0, 5).map(order => (
-                            <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />
-                        ))}
-                    </div>
-                )}
-
-                {groupedOrders.length === 0 && <p className="text-center text-sm" style={{ color: colors.textSecondary }}>Nenhum pedido ainda.</p>}
+            {/* ===== Venda Presencial ===== */}
+            <div className="mb-6 mt-4">
+                <ButtonInPersonSale
+                    storeId={store.id}
+                    storeName={store.name}
+                    storeSlug={storeSlug}
+                    profileSlug={profileSlug}
+                    onSaleCompleted={() => loadDashboard()}
+                />
             </div>
 
-            {/* Produtos */}
-            <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.textPrimary }}><Package size={16} /> Produtos</h3>
-                    <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
-                            <ArrowUpDown size={14} />
-                            <select
-                                value={sortBy}
-                                onChange={e => setSortBy(e.target.value as any)}
-                                className="bg-transparent border rounded px-2 py-1 text-xs"
-                                style={{ borderColor: colors.border, color: colors.textPrimary }}
+            {/* ===== Pedidos ===== */}
+            <div className="mb-6 mt-4">
+                <div
+                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{
+                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                    color: colors.accentText,
+                                }}
                             >
-                                <option value="mostSold">Mais vendidos</option>
-                                <option value="leastSold">Menos vendidos</option>
-                                <option value="mostExpensive">Mais caro</option>
-                                <option value="cheapest">Mais barato</option>
-                            </select>
-                        </div>
-                        <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: colors.accent, color: 'white' }}>+ Adicionar</button>
-                    </div>
-                </div>
-                {products.length === 0 ? (
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum produto cadastrado.</p>
-                ) : (
-                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
-                        {sortedProducts.map(prod => {
-                            const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
-                            return (
-                                <div
-                                    key={prod.id}
-                                    className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
-                                    style={{ background: 'transparent', borderColor: colors.border }}
-                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
-                                >
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`);
-                                        }}
-                                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
-                                        title="Editar produto"
-                                    >
-                                        <Pencil size={14} color="white" />
-                                    </button>
-
-                                    <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
-                                        {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                        <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
-                                        <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
-                                            <span>👁 {prod.viewsToday} hoje</span>
-                                            <span>🛒 {prod.inCart} na sacola</span>
-                                            <span>📊 {prod.viewsTotal} views</span>
-                                            <span>💰 {prod.salesCount} vendas</span>
-                                        </div>
-                                    </div>
+                                <ShoppingCart size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                    Pedidos
+                                </h3>
+                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#ef4444' }}>{newOrders.length}</span> pendentes
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#f59e0b' }}>{preparing.length}</span> preparo
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#8b5cf6' }}>{ready.length}</span> prontos
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#10b981' }}>{finished.length}</span> finalizados
+                                    </span>
                                 </div>
-                            )
-                        })}
+                            </div>
+                        </div>
+
+                        {selectedOrderIds.size > 0 && (
+                            <button
+                                onClick={() => setShowAssignModal(true)}
+                                className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                                style={{
+                                    background: colors.accent,
+                                    color: colors.accentText,
+                                    boxShadow: `0 4px 12px ${colors.accent}40`,
+                                }}
+                            >
+                                <Send size={14} />
+                                Atribuir {selectedOrderIds.size}
+                            </button>
+                        )}
                     </div>
-                )}
+
+                    {/* Lista de pedidos */}
+                    {groupedOrders.length === 0 ? (
+                        <div
+                            className="rounded-xl p-6 text-center"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                border: `1px dashed ${colors.border}`,
+                            }}
+                        >
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                Nenhum pedido ainda.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {newOrders.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#ef4444' }}>
+                                        Novos ({newOrders.length})
+                                    </h4>
+                                    {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}
+                                </div>
+                            )}
+
+                            {preparing.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#f59e0b' }}>
+                                        Em Preparo ({preparing.length})
+                                    </h4>
+                                    {preparing.map(order => {
+                                        const isAssigned = assignmentMap.has(order.checkout_id)
+                                        return (
+                                            <div key={order.checkout_id} className="mb-1">
+                                                <OrderItem order={order} showAssignButton={!isAssigned} />
+                                                {isAssigned && (
+                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
+                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setSingleAssignOpen({ order })}
+                                                            className="px-3 py-1 rounded-full text-xs font-bold"
+                                                            style={{ background: colors.accent, color: 'white' }}
+                                                        >
+                                                            Trocar entregador
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {ready.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>
+                                        Prontos ({ready.length})
+                                    </h4>
+                                    {ready.map(order => {
+                                        const isAssigned = assignmentMap.has(order.checkout_id)
+                                        return (
+                                            <div key={order.checkout_id} className="mb-1">
+                                                <OrderItem order={order} showAssignButton={!isAssigned} />
+                                                {isAssigned && (
+                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
+                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => setSingleAssignOpen({ order })}
+                                                            className="px-3 py-1 rounded-full text-xs font-bold"
+                                                            style={{ background: colors.accent, color: 'white' }}
+                                                        >
+                                                            Trocar entregador
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {finished.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>
+                                        Finalizados ({finished.length})
+                                    </h4>
+                                    {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Funcionários */}
-            <Employee
-                employees={employees}
-                employeeRoutes={employeeRoutes}
-                assignmentMap={assignmentMap}
-                expandedEmployee={expandedEmployee}
-                onToggleExpand={setExpandedEmployee}
-                storeId={store.id}
-                onRefresh={fetchEmployeeRoutes}
-            />
-
-            {/* Informações da Loja */}
-            {store.address || store.whatsapp ? (
-                <div className="mb-6 rounded-2xl p-4 border" style={{ background: 'transparent', borderColor: colors.border }}>
-                    <h3 className="text-sm font-bold mb-2 flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                        <Store size={16} /> Informações da Loja
-                    </h3>
-                    {store.address && (
-                        <div className="flex items-center gap-2 text-xs mb-1" style={{ color: colors.textSecondary }}>
-                            <MapPin size={14} />
-                            <span>{store.address}</span>
+            {/* ===== Produtos ===== */}
+            <div className="mb-6 mt-4">
+                <div
+                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{
+                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                    color: colors.accentText,
+                                }}
+                            >
+                                <Package size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                    Produtos
+                                </h3>
+                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                    <span>{products.length} cadastrados</span>
+                                </div>
+                            </div>
                         </div>
-                    )}
-                    {store.whatsapp && (
-                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                            <Phone size={14} />
-                            <span>{store.whatsapp}</span>
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
+                                <ArrowUpDown size={14} />
+                                <select
+                                    value={sortBy}
+                                    onChange={e => setSortBy(e.target.value as any)}
+                                    className="bg-transparent border rounded px-2 py-1 text-xs"
+                                    style={{ borderColor: colors.border, color: colors.textPrimary }}
+                                >
+                                    <option value="mostSold">Mais vendidos</option>
+                                    <option value="leastSold">Menos vendidos</option>
+                                    <option value="mostExpensive">Mais caro</option>
+                                    <option value="cheapest">Mais barato</option>
+                                </select>
+                            </div>
+                            <button
+                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1"
+                                style={{ background: colors.accent, color: 'white' }}
+                            >
+                                <Plus size={14} /> Adicionar
+                            </button>
+                        </div>
+                    </div>
+
+                    {products.length === 0 ? (
+                        <div
+                            className="rounded-xl p-6 text-center"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                border: `1px dashed ${colors.border}`,
+                            }}
+                        >
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                Nenhum produto cadastrado.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                            {sortedProducts.map(prod => {
+                                const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
+                                return (
+                                    <div
+                                        key={prod.id}
+                                        className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
+                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
+                                    >
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
+                                            }}
+                                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+                                            title="Editar produto"
+                                        >
+                                            <Pencil size={14} color="white" />
+                                        </button>
+
+                                        <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
+                                            {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
+                                            <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                            <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
+                                                <span>👁 {prod.viewsToday} hoje</span>
+                                                <span>🛒 {prod.inCart} na sacola</span>
+                                                <span>📊 {prod.viewsTotal} views</span>
+                                                <span>💰 {prod.salesCount} vendas</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
-            ) : null}
+            </div>
 
-            {/* Agendamentos */}
+            {/* ===== Funcionários ===== */}
+            <div className="mb-6 mt-4">
+                <Employee
+                    employees={employees}
+                    employeeRoutes={employeeRoutes}
+                    assignmentMap={assignmentMap}
+                    expandedEmployee={expandedEmployee}
+                    onToggleExpand={setExpandedEmployee}
+                    storeId={store.id}
+                    onRefresh={fetchEmployeeRoutes}
+                />
+            </div>
+
+            {/* ===== Informações da Loja ===== */}
+            <StoreAddress address={store.address} whatsapp={store.whatsapp} />
+
+            {/* ===== Agendamentos ===== */}
             <SchedulesAndAvailability storeId={store.id} />
 
-            {/* Publicações */}
+            {/* ===== Dias de funcionamento ===== */}
+            <StoreOperatingDays storeId={store.id} />
+
+            {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />
 
-            {/* Visitantes - NOVO */}
+            {/* ===== Visitantes ===== */}
             <StoreVisitors storeId={store.id} />
 
-            {/* Ações rápidas */}
-            <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
+            {/* ===== Ações rápidas ===== */}
+            <div className="grid grid-cols-2 gap-3 mt-4">
+                <button
+                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
+                    className="p-3 rounded-2xl border flex items-center gap-2"
+                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                >
                     <Settings size={18} /> Editar loja
                 </button>
-                <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)} className="p-3 rounded-2xl border flex items-center gap-2" style={{ background: 'transparent', borderColor: colors.border }}>
+                <button
+                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                    className="p-3 rounded-2xl border flex items-center gap-2"
+                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                >
                     <Plus size={18} /> Adicionar produto
                 </button>
             </div>
 
-            {/* Modal de atribuição múltipla */}
+            {/* ===== Modais ===== */}
             {showAssignModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
                     <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -946,14 +1090,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                         </div>
                         <div className="space-y-2">
                             {ownerProfile && (
-                                <div
-                                    onClick={handleAssignAsOwner}
-                                    className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
-                                    style={{ borderColor: colors.border }}
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">
-                                        {ownerProfile.name.charAt(0)}
-                                    </div>
+                                <div onClick={handleAssignAsOwner} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name.charAt(0)}</div>
                                     <div>
                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
                                         {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
@@ -974,7 +1112,6 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                 </div>
             )}
 
-            {/* Modal de atribuição rápida */}
             {singleAssignOpen && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSingleAssignOpen(null)}>
                     <div className="w-full max-w-xs rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -982,19 +1119,11 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atribuir pedido</h3>
                             <button onClick={() => setSingleAssignOpen(null)}><X size={20} /></button>
                         </div>
-                        <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
-                            Pedido de @{singleAssignOpen.order.buyer_profile_slug || singleAssignOpen.order.buyer_name || 'Cliente'} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}
-                        </p>
+                        <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Pedido de @{singleAssignOpen.order.buyer_profile_slug || singleAssignOpen.order.buyer_name || 'Cliente'} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}</p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {ownerProfile && (
-                                <div
-                                    onClick={handleSingleAssignAsOwner}
-                                    className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
-                                    style={{ borderColor: colors.border }}
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">
-                                        {ownerProfile.name.charAt(0)}
-                                    </div>
+                                <div onClick={handleSingleAssignAsOwner} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name.charAt(0)}</div>
                                     <div>
                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
                                         {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
@@ -1005,15 +1134,8 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum funcionário cadastrado.</p>
                             ) : (
                                 employees.map(emp => (
-                                    <div
-                                        key={emp.id}
-                                        onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)}
-                                        className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors"
-                                        style={{ borderColor: colors.border }}
-                                    >
-                                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white font-bold">
-                                            {emp.name.charAt(0)}
-                                        </div>
+                                    <div key={emp.id} onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white font-bold">{emp.name.charAt(0)}</div>
                                         <div>
                                             <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{emp.name}</p>
                                             {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}

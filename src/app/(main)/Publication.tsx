@@ -13,8 +13,8 @@ import {
     Send,
     Trash2,
     ExternalLink,
-    ShoppingBag,
     MessageCircle,
+    Megaphone,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -33,8 +33,15 @@ interface PublicationProps {
     storeId: string
 }
 
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
+
 export default function Publication({ storeId }: PublicationProps) {
     const { colors } = useTheme()
+    const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -43,45 +50,52 @@ export default function Publication({ storeId }: PublicationProps) {
     const [publications, setPublications] = useState<Publication[]>([])
     const [loading, setLoading] = useState(false)
 
-    // Formulário de criação
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [preview, setPreview] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
 
-    // WhatsApp da loja (para exibir no rodapé)
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
 
-    // Buscar publicações ao expandir
     useEffect(() => {
         if (!isExpanded || !storeId) return
+        let isMounted = true
+
         const load = async () => {
             setLoading(true)
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, name, description, image_url, slug, created_at')
-                .eq('store_id', storeId)
-                .eq('listing_type', 'publication')
-                .order('created_at', { ascending: false })
-            if (!error && data) {
-                setPublications(data as Publication[])
+            try {
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('id, name, description, image_url, slug, created_at')
+                    .eq('store_id', storeId)
+                    .eq('listing_type', 'publication')
+                    .order('created_at', { ascending: false })
+
+                if (!error && data && isMounted) {
+                    setPublications(data as Publication[])
+                }
+
+                const { data: storeData } = await supabase
+                    .from('stores')
+                    .select('whatsapp, final_whatsapp')
+                    .eq('id', storeId)
+                    .single()
+
+                if (storeData && isMounted) {
+                    setStoreWhatsapp(storeData.final_whatsapp || storeData.whatsapp || null)
+                }
+            } catch (err) {
+                console.error('[Publication] Erro ao carregar:', err)
+            } finally {
+                if (isMounted) setLoading(false)
             }
-            // Buscar WhatsApp da loja
-            const { data: storeData } = await supabase
-                .from('stores')
-                .select('whatsapp, final_whatsapp')
-                .eq('id', storeId)
-                .single()
-            if (storeData) {
-                setStoreWhatsapp(storeData.final_whatsapp || storeData.whatsapp || null)
-            }
-            setLoading(false)
         }
         load()
+
+        return () => { isMounted = false }
     }, [isExpanded, storeId])
 
-    // Preview da imagem
     useEffect(() => {
         if (!imageFile) return
         const url = URL.createObjectURL(imageFile)
@@ -107,7 +121,6 @@ export default function Publication({ storeId }: PublicationProps) {
                 imagePath = uploadData?.path ?? null
             }
 
-            // Gerar slug único
             let slug = name
                 .toLowerCase()
                 .normalize('NFD')
@@ -144,13 +157,12 @@ export default function Publication({ storeId }: PublicationProps) {
             if (insertError) throw insertError
 
             toast.success('Publicação criada com sucesso!')
-            // Limpar formulário
             setName('')
             setDescription('')
             setImageFile(null)
             setPreview(null)
             setIsCreating(false)
-            // Recarregar lista
+
             const { data: freshData } = await supabase
                 .from('products')
                 .select('id, name, description, image_url, slug, created_at')
@@ -183,69 +195,96 @@ export default function Publication({ storeId }: PublicationProps) {
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
 
+    const accentColor = colors.accent
+    const textPrimary = colors.textPrimary
+    const textSecondary = colors.textSecondary
+
     return (
-        <div className="mb-6">
-            {/* Cabeçalho colapsável */}
+        <div className="mb-6 mt-4">
             <div
-                className="rounded-2xl border"
+                className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
                 style={{
-                    background: colors.surface,
-                    borderColor: colors.border,
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
                 }}
             >
+                {/* Cabeçalho */}
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="w-full flex items-center justify-between p-4 text-left"
+                    className="w-full flex items-center justify-between text-left"
                 >
-                    <span className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                        📢 Publicações
-                    </span>
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                            }}
+                        >
+                            <Megaphone size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                                Publicações
+                            </h3>
+                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                                Divulgue sua loja, produtos ou serviços
+                            </p>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2">
                         {publications.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: accentColor }}>
                                 {publications.length}
                             </span>
                         )}
                         {isExpanded ? (
-                            <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                            <ChevronUp size={22} style={{ color: textSecondary }} />
                         ) : (
-                            <ChevronDown size={22} style={{ color: colors.textSecondary }} />
+                            <ChevronDown size={22} style={{ color: textSecondary }} />
                         )}
                     </div>
                 </button>
 
                 {isExpanded && (
-                    <div className="px-4 pb-6">
+                    <div className="flex flex-col gap-5">
                         {loading ? (
                             <div className="flex justify-center py-8">
                                 <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
                             </div>
                         ) : publications.length === 0 ? (
-                            /* Estado vazio */
-                            <div className="text-center py-8 space-y-4">
+                            <div
+                                className="rounded-xl p-6 text-center flex flex-col items-center gap-4"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                    border: `1px dashed ${colors.border}`,
+                                }}
+                            >
                                 <div
-                                    className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center"
+                                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
                                     style={{ background: colors.accentLight }}
                                 >
-                                    <MessageCircle size={28} style={{ color: colors.accent }} />
+                                    <MessageCircle size={28} style={{ color: accentColor }} />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    <p className="text-sm font-bold" style={{ color: textPrimary }}>
                                         Você ainda não fez nenhuma publicação
                                     </p>
-                                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                        Comece divulgando sua loja, um produto ou um serviço. <br />
-                                        <span className="italic">“Sua vitrine merece brilhar!” ✨</span>
+                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>
+                                        Comece divulgando sua loja, um produto ou um serviço.
                                     </p>
                                 </div>
                                 {!isCreating && (
                                     <button
                                         onClick={() => setIsCreating(true)}
-                                        className="px-6 py-2.5 rounded-full font-black text-sm uppercase tracking-wider flex items-center gap-2 mx-auto transition-all hover:scale-105"
+                                        className="text-xs font-bold px-6 py-2.5 rounded-full flex items-center gap-2 transition-all hover:scale-105"
                                         style={{
-                                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
+                                            background: accentColor,
                                             color: colors.accentText,
-                                            boxShadow: `0 4px 14px ${colors.accent}40`,
+                                            boxShadow: `0 4px 12px ${accentColor}40`,
                                         }}
                                     >
                                         <Plus size={16} />
@@ -254,87 +293,86 @@ export default function Publication({ storeId }: PublicationProps) {
                                 )}
                             </div>
                         ) : (
-                            /* Lista de publicações existentes */
-                            <div className="space-y-4">
-                                <div className="flex overflow-x-auto gap-3 pb-2">
+                            <>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {publications.map(pub => {
                                         const imgUrl = getImageUrl(pub.image_url)
                                         return (
                                             <div
                                                 key={pub.id}
-                                                className="flex-shrink-0 w-[160px] rounded-xl border p-3 flex flex-col gap-2 relative group"
+                                                className="rounded-xl border p-3 flex flex-col gap-2 relative group"
                                                 style={{
-                                                    background: colors.surface,
+                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
                                                 }}
                                             >
                                                 <div
-                                                    className="w-full h-24 rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
-                                                    onClick={() => router.push(`/${pub.slug}`)} // ajuste a rota conforme necessário
+                                                    className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                                                    onClick={() => router.push(`/${pub.slug}`)}
                                                 >
                                                     {imgUrl ? (
                                                         <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>
-                                                            <MessageCircle size={24} />
+                                                        <div className="w-full h-full flex items-center justify-center text-4xl" style={{ color: textSecondary }}>
+                                                            <MessageCircle size={32} />
                                                         </div>
                                                     )}
                                                 </div>
-                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
                                                     {pub.name}
                                                 </p>
-                                                <div className="flex items-center justify-between mt-1">
+                                                <div className="flex items-center justify-between mt-auto">
                                                     <button
-                                                        onClick={() => router.push(`/${pub.slug}/editar-produto`)} // ou editar-publicacao
-                                                        className="p-1 rounded hover:bg-white/10"
+                                                        onClick={() => router.push(`/${pub.slug}/editar-produto`)}
+                                                        className="p-1.5 rounded hover:bg-white/10 transition-colors"
                                                         title="Editar"
                                                     >
-                                                        <ExternalLink size={12} style={{ color: colors.textSecondary }} />
+                                                        <ExternalLink size={14} style={{ color: textSecondary }} />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(pub.id)}
-                                                        className="p-1 rounded hover:bg-red-50"
+                                                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
                                                         title="Excluir"
                                                     >
-                                                        <Trash2 size={12} style={{ color: '#ef4444' }} />
+                                                        <Trash2 size={14} style={{ color: '#ef4444' }} />
                                                     </button>
                                                 </div>
                                             </div>
                                         )
                                     })}
                                 </div>
+
                                 {!isCreating && (
                                     <button
                                         onClick={() => setIsCreating(true)}
-                                        className="w-full py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-white/5"
+                                        className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-white/5"
                                         style={{
                                             border: `1px dashed ${colors.border}`,
-                                            color: colors.accent,
+                                            color: accentColor,
                                         }}
                                     >
                                         <Plus size={16} />
                                         Nova publicação
                                     </button>
                                 )}
-                            </div>
+                            </>
                         )}
 
-                        {/* Formulário de criação (expansão secundária) */}
                         {isCreating && (
-                            <div className="mt-4 p-4 rounded-xl border space-y-4 animate-in slide-in-from-top-2 duration-200"
+                            <div
+                                className="rounded-xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200"
                                 style={{
-                                    background: colors.surface,
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     borderColor: colors.border,
                                 }}
                             >
-                                <h4 className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
-                                    <Send size={16} style={{ color: colors.accent }} />
+                                <h4 className="text-sm font-black flex items-center gap-2" style={{ color: textPrimary }}>
+                                    <Send size={16} style={{ color: accentColor }} />
                                     Nova Publicação
                                 </h4>
 
-                                {/* Imagem */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>
                                         Imagem (opcional)
                                     </label>
                                     <div
@@ -359,9 +397,8 @@ export default function Publication({ storeId }: PublicationProps) {
                                     />
                                 </div>
 
-                                {/* Nome */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>
                                         Título da publicação
                                     </label>
                                     <input
@@ -373,14 +410,13 @@ export default function Publication({ storeId }: PublicationProps) {
                                         style={{
                                             background: colors.surface,
                                             borderColor: colors.border,
-                                            color: colors.textPrimary,
+                                            color: textPrimary,
                                         }}
                                     />
                                 </div>
 
-                                {/* Descrição */}
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: textSecondary }}>
                                         Descrição
                                     </label>
                                     <textarea
@@ -392,20 +428,18 @@ export default function Publication({ storeId }: PublicationProps) {
                                         style={{
                                             background: colors.surface,
                                             borderColor: colors.border,
-                                            color: colors.textPrimary,
+                                            color: textPrimary,
                                         }}
                                     />
                                 </div>
 
-                                {/* WhatsApp da loja (informativo) */}
                                 {storeWhatsapp && (
-                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
                                         <MessageCircle size={14} />
                                         <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
                                     </div>
                                 )}
 
-                                {/* Ações */}
                                 <div className="flex gap-2 pt-2">
                                     <button
                                         onClick={() => {
@@ -418,7 +452,7 @@ export default function Publication({ storeId }: PublicationProps) {
                                         className="flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors"
                                         style={{
                                             borderColor: colors.border,
-                                            color: colors.textSecondary,
+                                            color: textSecondary,
                                         }}
                                     >
                                         Cancelar
