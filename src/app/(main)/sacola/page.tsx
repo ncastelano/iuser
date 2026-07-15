@@ -101,6 +101,8 @@ export default function SacolaPage() {
     })
 
     const [pendingReviews, setPendingReviews] = useState<any[]>([])
+    const [userReviews, setUserReviews] = useState<any[]>([])
+    const [pendingProductDetails, setPendingProductDetails] = useState<Record<string, { image_url?: string; price?: number }>>({})
     const [loadingPendingReviews, setLoadingPendingReviews] = useState(false)
 
     // Configurações individuais por loja
@@ -119,7 +121,96 @@ export default function SacolaPage() {
     // Cache dos dados de entrega da loja (usado apenas na exibição da sacola)
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
 
-    // ----- Funções auxiliares (atualizadas para orders + order_items) -----
+    // ----- Funções auxiliares -----
+    const fetchPendingReviews = useCallback(async (userId: string) => {
+        setLoadingPendingReviews(true)
+        try {
+            const { data: orderItemsRaw } = await supabase
+                .from('orders')
+                .select('id, checkout_id, store_id, created_at, order_items(product_id, product_name, total_price)')
+                .eq('buyer_id', userId)
+                .eq('status', 'paid')
+
+            const allPaidItems: any[] = []
+            orderItemsRaw?.forEach((order) => {
+                order.order_items?.forEach((item: any) => {
+                    allPaidItems.push({
+                        id: item.product_id,
+                        product_id: item.product_id,
+                        product_name: item.product_name,
+                        store_id: order.store_id,
+                        checkout_id: order.checkout_id,
+                        price: item.total_price,
+                        created_at: order.created_at,
+                    })
+                })
+            })
+
+            const { data: reviews } = await supabase
+                .from('product_reviews')
+                .select('product_id')
+                .eq('profile_id', userId)
+
+            const reviewedProductIds = new Set(reviews?.map((r) => r.product_id) || [])
+
+            const pending = allPaidItems.filter((item) => !reviewedProductIds.has(item.product_id))
+            const uniquePending = Array.from(new Map(pending.map((item) => [item.product_id, item])).values())
+
+            setPendingReviews(uniquePending)
+
+            // Busca detalhes (imagem e preço atual) dos produtos pendentes
+            const productIds = uniquePending.map((p) => p.product_id)
+            if (productIds.length > 0) {
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('id, image_url, price')
+                    .in('id', productIds)
+                const details: Record<string, { image_url?: string; price?: number }> = {}
+                products?.forEach((prod) => {
+                    details[prod.id] = {
+                        image_url: prod.image_url,
+                        price: prod.price,
+                    }
+                })
+                setPendingProductDetails(details)
+            }
+        } catch (err) {
+            console.error('Erro ao buscar avaliações pendentes:', err)
+        } finally {
+            setLoadingPendingReviews(false)
+        }
+    }, [supabase])
+
+    const fetchUserReviews = useCallback(async (userId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('product_reviews')
+                .select('id, rating, comment, created_at, product_id, products(name, price, image_url)')
+                .eq('profile_id', userId)
+                .order('created_at', { ascending: false })
+
+            if (error) {
+                console.error('Erro ao buscar avaliações:', error)
+                return
+            }
+
+            const mapped = (data || []).map((review: any) => ({
+                id: review.id,
+                rating: review.rating,
+                comment: review.comment,
+                created_at: review.created_at,
+                product_id: review.product_id,
+                product_name: review.products?.name || 'Produto',
+                product_price: review.products?.price || 0,
+                product_image_url: review.products?.image_url || null,
+            }))
+
+            setUserReviews(mapped)
+        } catch (err) {
+            console.error('Erro ao buscar avaliações:', err)
+        }
+    }, [supabase])
+
     const loadUserData = useCallback(
         async (userId: string) => {
             setCurrentUserId(userId)
@@ -138,7 +229,6 @@ export default function SacolaPage() {
                 if (profile.address) setAddressInput(profile.address)
             }
 
-            // Busca apenas na nova estrutura orders + order_items
             const { data: ordersData } = await supabase
                 .from('orders')
                 .select(`
@@ -177,7 +267,6 @@ export default function SacolaPage() {
 
             setMyPurchases(allPurchases)
 
-            // Atualiza os pedidos finalizados recentes com status do banco
             setFinishedOrders((prev) => {
                 if (prev.length === 0) return prev
                 return prev.map((order) => {
@@ -190,52 +279,10 @@ export default function SacolaPage() {
             })
 
             await fetchPendingReviews(userId)
+            await fetchUserReviews(userId)
         },
-        [supabase]
+        [supabase, fetchPendingReviews, fetchUserReviews]
     )
-
-    const fetchPendingReviews = async (userId: string) => {
-        setLoadingPendingReviews(true)
-        try {
-            // Busca somente da nova estrutura orders + order_items
-            const { data: orderItemsRaw } = await supabase
-                .from('orders')
-                .select('id, checkout_id, store_id, created_at, order_items(product_id, product_name, total_price)')
-                .eq('buyer_id', userId)
-                .eq('status', 'paid')
-
-            const allPaidItems: any[] = []
-            orderItemsRaw?.forEach((order) => {
-                order.order_items?.forEach((item: any) => {
-                    allPaidItems.push({
-                        id: item.product_id,
-                        product_id: item.product_id,
-                        product_name: item.product_name,
-                        store_id: order.store_id,
-                        checkout_id: order.checkout_id,
-                        price: item.total_price,
-                        created_at: order.created_at,
-                    })
-                })
-            })
-
-            const { data: reviews } = await supabase
-                .from('product_reviews')
-                .select('product_id')
-                .eq('profile_id', userId)
-
-            const reviewedProductIds = new Set(reviews?.map((r) => r.product_id) || [])
-
-            const pending = allPaidItems.filter((item) => !reviewedProductIds.has(item.product_id))
-            const uniquePending = Array.from(new Map(pending.map((item) => [item.product_id, item])).values())
-
-            setPendingReviews(uniquePending)
-        } catch (err) {
-            console.error('Erro ao buscar avaliações pendentes:', err)
-        } finally {
-            setLoadingPendingReviews(false)
-        }
-    }
 
     useEffect(() => {
         setMounted(true)
@@ -304,7 +351,7 @@ export default function SacolaPage() {
         }
     }, [authProfileSlug, supabase])
 
-    // Listener em tempo real apenas na tabela orders (removeu store_sales)
+    // Listener em tempo real apenas na tabela orders
     useEffect(() => {
         if (!currentUserId) return
         const channel = supabase
@@ -409,6 +456,14 @@ export default function SacolaPage() {
         fetchConfigs()
     }, [itemsByStore])
 
+    // Recarrega pendentes e avaliações quando o modal de review é fechado
+    useEffect(() => {
+        if (!reviewOrder.isOpen && currentUserId) {
+            fetchPendingReviews(currentUserId)
+            fetchUserReviews(currentUserId)
+        }
+    }, [reviewOrder.isOpen, currentUserId, fetchPendingReviews, fetchUserReviews])
+
     // ---- Handler de finalização por loja (orders + order_items) ----
     const handleFinalizarLoja = async (slug: string) => {
         if (!currentUserId) return
@@ -418,14 +473,12 @@ export default function SacolaPage() {
             const items = itemsByStore[slug]
             const details = storeDetails[slug]
 
-            // Busca os dados de entrega DIRETAMENTE no banco, ignorando o estado
             const { data: storeDeliveryData } = await supabase
                 .from('stores')
                 .select('delivery_type, delivery_fee, delivery_fee_per_km, store_lat, store_lng')
                 .eq('storeSlug', slug)
                 .single()
 
-            // Garante um objeto com todas as propriedades, mesmo se não encontrado
             const deliveryInfo: StoreDeliveryInfo = storeDeliveryData || {
                 delivery_type: null,
                 delivery_fee: null,
@@ -459,7 +512,6 @@ export default function SacolaPage() {
 
             const address = deliveryOpt === 'entrega' ? addressInput.trim() : 'Retirada no local'
 
-            // Geocodificação (opcional — não bloqueia o pedido se falhar)
             let deliveryLat: number | null = null
             let deliveryLng: number | null = null
             if (deliveryOpt === 'entrega' && addressInput.trim()) {
@@ -481,7 +533,6 @@ export default function SacolaPage() {
                 }
             }
 
-            // Cálculo do frete (agora usando deliveryInfo tipado corretamente)
             let deliveryFee = 0
             if (deliveryOpt === 'entrega') {
                 const dtype = deliveryInfo.delivery_type
@@ -500,13 +551,11 @@ export default function SacolaPage() {
                         return
                     }
                 }
-                // 'free' mantém deliveryFee = 0
             }
 
             const finalTotal = itemsTotal + deliveryFee
             const checkout_id = crypto.randomUUID()
 
-            // 1. Inserir pedido principal em orders
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -534,7 +583,6 @@ export default function SacolaPage() {
                 return
             }
 
-            // 2. Inserir itens em order_items
             const orderItemsToInsert = items.map((item) => ({
                 order_id: orderData.id,
                 product_id: item.product.id,
@@ -550,14 +598,12 @@ export default function SacolaPage() {
 
             if (itemsError) {
                 console.error('[Checkout] Erro ao inserir order_items:', itemsError)
-                // Rollback: apaga o order criado
                 await supabase.from('orders').delete().eq('id', orderData.id)
                 toast.error(`Erro ao salvar itens: ${itemsError.message}`)
                 setCheckoutLoading(null)
                 return
             }
 
-            // 3. Atualizar endereço salvo no perfil
             if (addressInput.trim()) {
                 await supabase
                     .from('profiles')
@@ -566,12 +612,10 @@ export default function SacolaPage() {
                 setUserAddress(addressInput.trim())
             }
 
-            // 4. Limpar carrinho e recarregar dados
             clearStoreCart(slug)
             await loadUserData(currentUserId)
             await syncToSupabase(currentUserId)
 
-            // 5. Notificar lojista via WhatsApp (último item da sacola)
             const remainingSlugs = Object.keys(itemsByStore).filter(s => s !== slug)
             if (remainingSlugs.length === 0) {
                 try {
@@ -611,7 +655,6 @@ export default function SacolaPage() {
                 }
             }
 
-            // 6. Estado local imediato para exibição do card de confirmação
             setFinishedOrders(prev => [...prev, {
                 id: orderData.id,
                 checkout_id,
@@ -769,11 +812,10 @@ export default function SacolaPage() {
                 product_name: p.product_name,
                 quantity: p.quantity,
                 unit_price: p.unit_price,
-                price: p.price, // total do item
+                price: p.price,
             })
             groups[p.checkout_id].total_amount += Number(p.price || 0)
         })
-        // Adiciona o frete ao total_amount (já está no total_amount do pedido, mas estamos recalculando)
         Object.values(groups).forEach((group: any) => {
             group.total_amount = group.total_amount + group.deliveryFee
         })
@@ -794,7 +836,6 @@ export default function SacolaPage() {
         return grouped
     }, [myPurchases, filteredPurchases, searchQuery])
 
-    // Contagem de pedidos por status para as bolinhas
     const statusCounts = useMemo(() => {
         const counts = { pending: 0, preparing: 0, ready: 0 }
         myPurchases.forEach(p => {
@@ -821,6 +862,7 @@ export default function SacolaPage() {
         padding: '1.5rem',
     }
 
+    // Tabs: sempre exibe "Avaliações" quando logado, com badge vermelho na seção (não no indicador do tab)
     const tabs = useMemo(() => {
         if (!currentUserId) return []
         const tabList = [
@@ -839,17 +881,16 @@ export default function SacolaPage() {
                 indicator: statusCounts,
             },
         ]
-        if (pendingReviews.length > 0) {
-            tabList.push({
-                id: 'avaliar',
-                label: 'Avaliar',
-                icon: Star as React.ComponentType<{ size?: number; color?: string }>,
-                sectionId: 'section-avaliar',
-                indicator: null,
-            })
-        }
+        // Aba "Avaliações" sempre presente para usuários logados, indicador null (alerta visual fica na seção)
+        tabList.push({
+            id: 'avaliacoes',
+            label: 'Avaliações',
+            icon: Star as React.ComponentType<{ size?: number; color?: string }>,
+            sectionId: 'section-avaliar',
+            indicator: null,
+        })
         return tabList
-    }, [currentUserId, pendingReviews, statusCounts])
+    }, [currentUserId, statusCounts])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
@@ -939,7 +980,6 @@ export default function SacolaPage() {
         )
     }
 
-    // Função para calcular os totais incluindo a taxa de entrega (exibição na sacola)
     const getStoreTotals = (slug: string) => {
         const items = itemsByStore[slug] || []
         const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
@@ -951,10 +991,8 @@ export default function SacolaPage() {
                 if (info.delivery_type === 'fixed') {
                     deliveryFee = info.delivery_fee || 0
                 } else if (info.delivery_type === 'distance') {
-                    // Será exibido "a calcular"
                     return { itemsTotal, deliveryFee: -1, finalTotal: itemsTotal }
                 }
-                // free mantém 0
             }
         }
         const finalTotal = deliveryFee >= 0 ? itemsTotal + deliveryFee : itemsTotal
@@ -978,7 +1016,7 @@ export default function SacolaPage() {
                             const el = document.getElementById(tab.sectionId)
                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
                         },
-                        isActive: false, // não há seleção única
+                        isActive: false,
                     }))}
                     showSearch={true}
                     searchPlaceholder="Buscar pedido, produto ou loja..."
@@ -1034,7 +1072,6 @@ export default function SacolaPage() {
 
                                     return (
                                         <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
-                                            {/* Cabeçalho da loja */}
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className="flex items-center gap-2">
                                                     <Store size={18} style={{ color: colors.accent }} />
@@ -1043,7 +1080,6 @@ export default function SacolaPage() {
                                                 <span className="text-lg font-black" style={{ color: colors.accent }}>R$ {itemsTotal.toFixed(2)}</span>
                                             </div>
 
-                                            {/* Itens */}
                                             <div className="space-y-3 mb-4">
                                                 {items.map((item) => (
                                                     <div key={item.product.id} className="flex gap-3 items-center">
@@ -1075,7 +1111,6 @@ export default function SacolaPage() {
                                                 ))}
                                             </div>
 
-                                            {/* Resumo de valores */}
                                             <div className="border-t pt-3 space-y-1 text-xs" style={{ borderColor: colors.border }}>
                                                 <div className="flex justify-between">
                                                     <span style={{ color: colors.textSecondary }}>Subtotal</span>
@@ -1099,7 +1134,6 @@ export default function SacolaPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Opções de entrega/pagamento por loja */}
                                             {currentUserId && (
                                                 <div className="mt-4 space-y-3">
                                                     <div>
@@ -1267,47 +1301,140 @@ export default function SacolaPage() {
                         </section>
                     )}
 
-                    {/* Seção Avaliações Pendentes */}
-                    {currentUserId && pendingReviews.length > 0 && (
+                    {/* Seção Avaliações (pendentes + já feitas) */}
+                    {currentUserId && (
                         <section id="section-avaliar" className="scroll-mt-24">
                             <div className="flex items-center gap-2 mb-4">
                                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
                                     <Star size={16} style={{ color: colors.accentText }} />
                                 </div>
                                 <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
-                                    Avaliações Pendentes
+                                    Avaliações
                                 </h2>
-                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                    {pendingReviews.length}
-                                </span>
+                                {pendingReviews.length > 0 && (
+                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full bg-red-500 text-white">
+                                        {pendingReviews.length} pendente(s)
+                                    </span>
+                                )}
                             </div>
-                            <div className="space-y-3">
-                                {pendingReviews.map((item: any) => (
-                                    <div key={item.product_id} className="rounded-2xl p-4 flex items-center justify-between shadow-sm" style={cardStyle}>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{item.product_name}</p>
-                                            <p className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
-                                                Comprado em {new Date(item.created_at).toLocaleDateString('pt-BR')}
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() =>
-                                                setReviewOrder({
-                                                    isOpen: true,
-                                                    orderId: item.checkout_id || item.id,
-                                                    productId: item.product_id,
-                                                    productName: item.product_name,
-                                                    storeId: item.store_id,
-                                                })
-                                            }
-                                            className="px-4 py-2 rounded-full text-[10px] font-black uppercase transition-all"
-                                            style={{ background: colors.accent, color: colors.accentText }}
-                                        >
-                                            Avaliar
-                                        </button>
+                            {pendingReviews.length === 0 && userReviews.length === 0 ? (
+                                <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${colors.accent}20` }}>
+                                        <Star className="w-7 h-7" style={{ color: colors.accent }} />
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma avaliação ainda</h2>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>Após finalizar uma compra você poderá avaliar o produto</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-8">
+                                    {/* Pendentes */}
+                                    {pendingReviews.length > 0 && (
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: colors.textSecondary }}>
+                                                <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                                                Pendentes de avaliação
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {pendingReviews.map((item: any) => {
+                                                    const details = pendingProductDetails[item.product_id] || {}
+                                                    return (
+                                                        <div key={item.product_id} className="rounded-2xl p-4 flex items-center justify-between shadow-sm" style={cardStyle}>
+                                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                                                    {details.image_url ? (
+                                                                        <img src={details.image_url} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">?</div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-black truncate" style={{ color: colors.textPrimary }}>{item.product_name}</p>
+                                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                                        <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                                                                            {new Date(item.created_at).toLocaleDateString('pt-BR')}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-black" style={{ color: colors.accent }}>
+                                                                            R$ {Number(item.price).toFixed(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() =>
+                                                                    setReviewOrder({
+                                                                        isOpen: true,
+                                                                        orderId: item.checkout_id || item.id,
+                                                                        productId: item.product_id,
+                                                                        productName: item.product_name,
+                                                                        storeId: item.store_id,
+                                                                    })
+                                                                }
+                                                                className="ml-4 px-4 py-2 rounded-full text-[10px] font-black uppercase transition-all flex-shrink-0"
+                                                                style={{ background: colors.accent, color: colors.accentText }}
+                                                            >
+                                                                Avaliar
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Já avaliados */}
+                                    {userReviews.length > 0 && (
+                                        <div>
+                                            <h3 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: colors.textSecondary }}>
+                                                <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                                                Você já avaliou
+                                            </h3>
+                                            <div className="space-y-3">
+                                                {userReviews.map((review) => (
+                                                    <div key={review.id} className="rounded-2xl p-4 shadow-sm flex gap-3" style={cardStyle}>
+                                                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                                            {review.product_image_url ? (
+                                                                <img src={review.product_image_url} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">?</div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-start justify-between">
+                                                                <div>
+                                                                    <p className="text-sm font-black" style={{ color: colors.textPrimary }}>{review.product_name}</p>
+                                                                    <div className="flex items-center gap-1 mt-1">
+                                                                        {Array.from({ length: 5 }).map((_, i) => (
+                                                                            <Star
+                                                                                key={i}
+                                                                                size={12}
+                                                                                fill={i < review.rating ? '#f59e0b' : 'none'}
+                                                                                color={i < review.rating ? '#f59e0b' : colors.textSecondary}
+                                                                            />
+                                                                        ))}
+                                                                    </div>
+                                                                    {review.comment && (
+                                                                        <p className="text-[10px] mt-1 italic" style={{ color: colors.textSecondary }}>
+                                                                            &ldquo;{review.comment}&rdquo;
+                                                                        </p>
+                                                                    )}
+                                                                    <p className="text-[10px] font-bold mt-1" style={{ color: colors.accent }}>
+                                                                        R$ {Number(review.product_price).toFixed(2)}
+                                                                    </p>
+                                                                </div>
+                                                                <span className="text-[8px] font-bold flex-shrink-0" style={{ color: colors.textSecondary }}>
+                                                                    {new Date(review.created_at).toLocaleDateString('pt-BR')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </section>
                     )}
 
