@@ -12,6 +12,16 @@ export interface Tab {
     imageUrl?: string | null
     onClick: () => void
     isActive: boolean
+    indicator?: {
+        pending: number
+        preparing: number
+        ready: number
+    } | null
+    badge?: {
+        count: number
+        color?: string
+    } | null
+    statusColor?: string   // NOVA propriedade opcional (ex.: '#22c55e' para aberto, '#ef4444' para fechado)
 }
 
 interface HeaderProps {
@@ -188,42 +198,92 @@ export default function Header({
                 )}
 
                 {enhancedTabs.length > 0 && (
-                    <div className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 scrollbar-hide">
-                        {enhancedTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={tab.onClick}
-                                disabled={loading}
-                                className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
-                                style={{
-                                    background: tab.isActive ? colors.accent : `${colors.surface}88`,
-                                    backdropFilter: 'blur(10px)',
-                                    color: tab.isActive ? colors.accentText : colors.textSecondary,
-                                }}
-                            >
-                                {tab.imageUrl ? (
-                                    <img
-                                        src={tab.imageUrl}
-                                        alt=""
-                                        className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
-                                    />
-                                ) : (
-                                    <div
-                                        className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
-                                        style={{
-                                            background: tab.isActive ? colors.accent : `${colors.surface}88`,
-                                            backdropFilter: 'blur(10px)',
-                                        }}
-                                    >
-                                        <tab.icon
-                                            size={14}
-                                            color={tab.isActive ? colors.accentText : colors.textSecondary}
+                    <div
+                        className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
+                        style={{ overflowY: 'visible' }}
+                    >
+                        {enhancedTabs.map((tab) => {
+                            // Fundo da aba:
+                            // - ativo: cor de destaque
+                            // - inativo com statusColor: verde/vermelho
+                            // - padrão: superfície translúcida
+                            let backgroundColor = `${colors.surface}88`
+                            if (tab.isActive) {
+                                backgroundColor = colors.accent
+                            } else if (tab.statusColor) {
+                                backgroundColor = tab.statusColor
+                            }
+
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={tab.onClick}
+                                    disabled={loading}
+                                    className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                                    style={{
+                                        background: backgroundColor,
+                                        backdropFilter: 'blur(10px)',
+                                        color: tab.isActive ? colors.accentText : colors.textSecondary,
+                                        overflow: 'visible',
+                                    }}
+                                >
+                                    {tab.imageUrl ? (
+                                        <img
+                                            src={tab.imageUrl}
+                                            alt=""
+                                            className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
                                         />
-                                    </div>
-                                )}
-                                <span className="ml-1.5 sm:ml-2">{tab.label}</span>
-                            </button>
-                        ))}
+                                    ) : (
+                                        <div
+                                            className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                            style={{
+                                                background: tab.isActive ? colors.accent : `${colors.surface}88`,
+                                                backdropFilter: 'blur(10px)',
+                                            }}
+                                        >
+                                            <tab.icon
+                                                size={14}
+                                                color={tab.isActive ? colors.accentText : colors.textSecondary}
+                                            />
+                                        </div>
+                                    )}
+                                    <span className="ml-1.5 sm:ml-2">{tab.label}</span>
+
+                                    {/* Indicadores coloridos para pedidos ativos */}
+                                    {tab.indicator && (
+                                        <div className="absolute -top-1 -right-1 flex gap-0.5">
+                                            {tab.indicator.pending > 0 && (
+                                                <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                    {tab.indicator.pending}
+                                                </span>
+                                            )}
+                                            {tab.indicator.preparing > 0 && (
+                                                <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                    {tab.indicator.preparing}
+                                                </span>
+                                            )}
+                                            {tab.indicator.ready > 0 && (
+                                                <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                    {tab.indicator.ready}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Badge genérico */}
+                                    {tab.badge && tab.badge.count > 0 && (
+                                        <div className="absolute -top-1 -right-1">
+                                            <span
+                                                className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
+                                                style={{ backgroundColor: tab.badge.color || '#ef4444' }}
+                                            >
+                                                {tab.badge.count}
+                                            </span>
+                                        </div>
+                                    )}
+                                </button>
+                            )
+                        })}
                     </div>
                 )}
 
@@ -252,7 +312,6 @@ export default function Header({
                 )}
             </div>
 
-            {/* Estilo local para esconder scrollbar, sem exportação global */}
             <style jsx>{`
                 .scrollbar-hide::-webkit-scrollbar {
                     display: none;

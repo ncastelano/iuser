@@ -37,12 +37,12 @@ import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
 import BannerPago from './inicio/sections/BannerPago'
-import PainelDaLoja from './StoreDashboard'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
 import LocationPicker from './LocationPicker'
+import PainelDaLoja from './StoreDashboard'
 
 const DEFAULT_SECTIONS = [
     'compromissosPessoal',
@@ -62,11 +62,37 @@ const DEFAULT_SECTIONS = [
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
 const LOCATION_STORAGE_KEY = 'user_saved_location'
 
+// ---------- Funções de horário (mesma lógica da StorePage) ----------
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function getTodayKey(): string {
+    return DAY_KEYS[new Date().getDay()]
+}
+
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
+    if (!businessHours) return null
+    const todayKey = getTodayKey()
+    return businessHours[todayKey] || null
+}
+
+function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
+    if (!schedule || !schedule.open || !schedule.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = schedule.open.split(':').map(Number)
+    let [closeH, closeM] = schedule.close.split(':').map(Number)
+    if (closeH === 0 && closeM === 0) closeH = 24
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
+}
+
 export interface StoreInfo {
     id: string
     slug: string
     logoUrl: string | null
     name: string
+    business_hours?: Record<string, { open: string; close: string }> | null
 }
 
 export default function HomePage() {
@@ -120,7 +146,10 @@ export default function HomePage() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
 
-    // Callbacks estáveis para "em breve" (evita loop infinito)
+    const [storeOrderCounts, setStoreOrderCounts] = useState<
+        Record<string, { pending: number; preparing: number; ready: number }>
+    >({})
+
     const breveCallbacks = useMemo(() => ({
         transporte: (isBreve: boolean) => {
             setBreveMap(prev => ({ ...prev, transporte: isBreve }))
@@ -208,7 +237,7 @@ export default function HomePage() {
         }
     }, [totalCartItems])
 
-    // ---------- PEDIDOS ----------
+    // ---------- PEDIDOS (comprador) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -275,12 +304,12 @@ export default function HomePage() {
 
             const { data: fetchedStores } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug, logo_url')
+                .select('id, name, storeSlug, logo_url, business_hours') // 👈 busca business_hours
                 .eq('owner_id', session.user.id)
                 .order('created_at', { ascending: true })
 
             if (fetchedStores) {
-                const storesData = fetchedStores.map((s) => {
+                const storesData = fetchedStores.map((s: any) => {
                     let logoUrl: string | null = null
                     if (s.logo_url) {
                         const { data: publicUrlData } = supabase.storage
@@ -293,6 +322,7 @@ export default function HomePage() {
                         slug: s.storeSlug,
                         logoUrl,
                         name: s.name,
+                        business_hours: s.business_hours || null, // 👈 preserva
                     }
                 })
                 setStores(storesData)
@@ -304,10 +334,63 @@ export default function HomePage() {
         loadStores()
     }, [profileSlug])
 
-    // Seções exibidas com ordenação dinâmica:
-    // 1. Normais (preenchidas)
-    // 2. Agendas vazias
-    // 3. Seções "em breve"
+    // ---------- CONTAGENS DE PEDIDOS DAS LOJAS (dono) ----------
+    const fetchStoreOrderCounts = async () => {
+        if (!stores || stores.length === 0) return
+        const storeIds = stores.map(s => s.id)
+        const { data, error } = await supabase
+            .from('orders')
+            .select('store_id, status')
+            .in('store_id', storeIds)
+            .in('status', ['pending', 'preparing', 'ready'])
+
+        if (error) {
+            console.error('Erro ao buscar contagens de pedidos:', error)
+            return
+        }
+
+        const counts: Record<string, { pending: number; preparing: number; ready: number }> = {}
+        storeIds.forEach(id => {
+            counts[id] = { pending: 0, preparing: 0, ready: 0 }
+        })
+        data?.forEach(order => {
+            if (counts[order.store_id]) {
+                counts[order.store_id][order.status as 'pending' | 'preparing' | 'ready']++
+            }
+        })
+        setStoreOrderCounts(counts)
+    }
+
+    useEffect(() => {
+        if (stores.length > 0) {
+            fetchStoreOrderCounts()
+        }
+    }, [stores])
+
+    // Atualização em tempo real das contagens
+    useEffect(() => {
+        if (!stores || stores.length === 0) return
+        const storeIds = stores.map(s => s.id)
+        const channel = supabase
+            .channel('homepage-store-orders')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'orders',
+                    filter: `store_id=in.(${storeIds.join(',')})`,
+                },
+                () => fetchStoreOrderCounts()
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [stores])
+
+    // Seções exibidas com ordenação dinâmica
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
 
@@ -497,6 +580,7 @@ export default function HomePage() {
         }
     }
 
+    // Montagem das abas COM indicadores de pedidos e cor de status
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -516,6 +600,14 @@ export default function HomePage() {
 
         if (stores.length > 0) {
             stores.forEach((s) => {
+                const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
+                const hasActive = counts.pending + counts.preparing + counts.ready > 0
+
+                // Determina cor de status baseada no business_hours
+                const todaySchedule = getTodaySchedule(s.business_hours)
+                const openNow = isOpenNow(todaySchedule)
+                const statusColor = openNow ? '#22c55e' : '#ef4444' // verde / vermelho
+
                 allTabs.push({
                     id: `loja-${s.slug}-painel`,
                     label: `${s.name} · Painel`,
@@ -523,6 +615,8 @@ export default function HomePage() {
                     imageUrl: s.logoUrl,
                     onClick: () => handleStoreTabClick(s.slug),
                     isActive: activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin,
+                    indicator: hasActive ? counts : null,
+                    statusColor, // 👈 define a cor da pill
                 })
             })
         } else {
@@ -539,7 +633,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, loadingStores, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, loadingStores, storeOrderCounts, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
     const showHomeFab = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile

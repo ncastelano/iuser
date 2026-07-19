@@ -19,6 +19,7 @@ import { dadosMockados, type Store } from '@/app/(main)/inicio/dadoDeLojas'
 import { dadosDosProdutos, type Product } from '@/app/(main)/inicio/dadoDeProdutos'
 import { agendamentosMockados, type Appointment } from '@/app/(main)/inicio/dadosDeAgendamentos'
 import { supabase } from '@/lib/supabase/client'
+import { isStoreOpenNow } from '@/lib/storeHours'
 
 type BgMode = 'animated' | 'black' | 'custom'
 
@@ -93,7 +94,7 @@ export default function CategoriaPage() {
         )
     }
 
-    const isOpen = store.is_open
+    const isOpen = isStoreOpenNow((store as any).business_hours)
     const prepTimeStr =
         store.prep_time_min != null
             ? store.prep_time_max != null && store.prep_time_max > 0

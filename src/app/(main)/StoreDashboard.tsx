@@ -94,7 +94,42 @@ function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; 
     return sequence
 }
 
-export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { profileSlug: string; storeSlug: string; onBack?: () => void }) {
+// ---------- Funções de horário (mesma lógica da StorePage e HomePage) ----------
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function getTodayKey(): string {
+    return DAY_KEYS[new Date().getDay()]
+}
+
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
+    if (!businessHours) return null
+    const todayKey = getTodayKey()
+    return businessHours[todayKey] || null
+}
+
+function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
+    if (!schedule || !schedule.open || !schedule.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = schedule.open.split(':').map(Number)
+    let [closeH, closeM] = schedule.close.split(':').map(Number)
+    if (closeH === 0 && closeM === 0) closeH = 24
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
+}
+
+export default function StoreDashboard({
+    profileSlug,
+    storeSlug,
+    onBack,
+    onOrderCountsChange,
+}: {
+    profileSlug: string
+    storeSlug: string
+    onBack?: () => void
+    onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
+}) {
     const router = useRouter()
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
@@ -136,6 +171,16 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
     const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
     const intervalRef = useRef<any>(null)
+
+    const updateOrderCounts = useCallback((orders: any[]) => {
+        if (!onOrderCountsChange) return
+        const counts = {
+            pending: orders.filter(o => o.status === 'pending').length,
+            preparing: orders.filter(o => o.status === 'preparing').length,
+            ready: orders.filter(o => o.status === 'ready').length,
+        }
+        onOrderCountsChange(counts)
+    }, [onOrderCountsChange])
 
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
@@ -236,6 +281,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
         }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
         setGroupedOrders(grouped)
+        updateOrderCounts(ordersData || [])
 
         const todayStart = startOfDay()
         const dailyOrders = (ordersData || []).filter(o =>
@@ -299,7 +345,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
         setEmployees(empData || [])
 
         setLoading(false)
-    }, [storeSlug, profileSlug])
+    }, [storeSlug, profileSlug, updateOrderCounts])
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
@@ -614,7 +660,10 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
     if (loading) return <LoadingSpinner message="Carregando painel..." />
     if (!store) return null
 
-    const storeOpen = store.is_open
+    // ===== DETERMINA STATUS ABERTO/FECHADO COM BASE NO BUSINESS_HOURS =====
+    const todaySchedule = getTodaySchedule(store.business_hours)
+    const storeOpen = isOpenNow(todaySchedule)
+
     const newOrders = groupedOrders.filter(o => o.status === 'pending')
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
@@ -791,7 +840,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                                 </h3>
                                 <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                     <span>
-                                        <span className="font-bold" style={{ color: '#ef4444' }}>{newOrders.length}</span> pendentes
+                                        <span className="font-bold" style={{ color: '#3b82f6' }}>{newOrders.length}</span> pendentes
                                     </span>
                                     <span>•</span>
                                     <span>
@@ -842,7 +891,7 @@ export default function StoreDashboard({ profileSlug, storeSlug, onBack }: { pro
                         <div className="space-y-4">
                             {newOrders.length > 0 && (
                                 <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#ef4444' }}>
+                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>
                                         Novos ({newOrders.length})
                                     </h4>
                                     {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}

@@ -11,6 +11,7 @@ import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, 
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { isStoreOpenNow } from '@/lib/storeHours'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -396,7 +397,7 @@ export default function MapPage() {
                 logo_url: s.logo_url
                     ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
                     : null,
-                is_open: s.is_open ?? true
+                is_open: isStoreOpenNow(s.business_hours)
             }))
 
             const mappedProducts = (productsData || []).map(p => ({

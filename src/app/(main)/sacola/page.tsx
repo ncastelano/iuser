@@ -118,7 +118,7 @@ export default function SacolaPage() {
     const [deliveryOptionByStore, setDeliveryOptionByStore] = useState<Record<string, 'entrega' | 'retirada'>>({})
     const [paymentMethodByStore, setPaymentMethodByStore] = useState<Record<string, 'pix' | 'cartao' | 'dinheiro'>>({})
 
-    // Cache dos dados de entrega da loja (usado apenas na exibição da sacola)
+    // Cache dos dados de entrega da loja
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
 
     // ----- Funções auxiliares -----
@@ -351,7 +351,7 @@ export default function SacolaPage() {
         }
     }, [authProfileSlug, supabase])
 
-    // Listener em tempo real apenas na tabela orders
+    // Listener em tempo real
     useEffect(() => {
         if (!currentUserId) return
         const channel = supabase
@@ -396,7 +396,7 @@ export default function SacolaPage() {
         }
     }, [currentUserId, supabase, loadUserData])
 
-    // Busca configurações das lojas do carrinho e inicializa seleções
+    // Busca configurações das lojas do carrinho
     useEffect(() => {
         const storeSlugs = Object.keys(itemsByStore)
         if (storeSlugs.length === 0) {
@@ -836,12 +836,15 @@ export default function SacolaPage() {
         return grouped
     }, [myPurchases, filteredPurchases, searchQuery])
 
-    const statusCounts = useMemo(() => {
-        const counts = { pending: 0, preparing: 0, ready: 0 }
+    // Contagem de pedidos únicos por status (apenas pendente, preparando, pronto)
+    const activeOrderCounts = useMemo(() => {
+        const uniqueCheckoutIds = new Set<string>()
+        const counts: Record<string, number> = { pending: 0, preparing: 0, ready: 0 }
         myPurchases.forEach(p => {
-            if (p.status === 'pending') counts.pending++
-            else if (p.status === 'preparing') counts.preparing++
-            else if (p.status === 'ready') counts.ready++
+            if (p.status in counts && !uniqueCheckoutIds.has(p.checkout_id)) {
+                uniqueCheckoutIds.add(p.checkout_id)
+                counts[p.status]++
+            }
         })
         return counts
     }, [myPurchases])
@@ -862,7 +865,7 @@ export default function SacolaPage() {
         padding: '1.5rem',
     }
 
-    // Tabs: sempre exibe "Avaliações" quando logado, com badge vermelho na seção (não no indicador do tab)
+    // Tabs com badge no tab Pedidos (quantidade de pedidos ativos)
     const tabs = useMemo(() => {
         if (!currentUserId) return []
         const tabList = [
@@ -878,19 +881,27 @@ export default function SacolaPage() {
                 label: 'Pedidos',
                 icon: Package as React.ComponentType<{ size?: number; color?: string }>,
                 sectionId: 'section-pedidos',
-                indicator: statusCounts,
+                indicator:
+                    activeOrderCounts.pending > 0 ||
+                        activeOrderCounts.preparing > 0 ||
+                        activeOrderCounts.ready > 0
+                        ? {
+                            pending: activeOrderCounts.pending,
+                            preparing: activeOrderCounts.preparing,
+                            ready: activeOrderCounts.ready,
+                        }
+                        : null,
+            },
+            {
+                id: 'avaliacoes',
+                label: 'Avaliações',
+                icon: Star as React.ComponentType<{ size?: number; color?: string }>,
+                sectionId: 'section-avaliar',
+                indicator: null,
             },
         ]
-        // Aba "Avaliações" sempre presente para usuários logados, indicador null (alerta visual fica na seção)
-        tabList.push({
-            id: 'avaliacoes',
-            label: 'Avaliações',
-            icon: Star as React.ComponentType<{ size?: number; color?: string }>,
-            sectionId: 'section-avaliar',
-            indicator: null,
-        })
         return tabList
-    }, [currentUserId, statusCounts])
+    }, [currentUserId, activeOrderCounts])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
@@ -1070,6 +1081,11 @@ export default function SacolaPage() {
                                     const canCard = config.accepts_card
                                     const canCash = config.accepts_cash
 
+                                    const uniqueItems = items.filter(
+                                        (item: any, index: number, self: any[]) =>
+                                            index === self.findIndex((t: any) => t.product.id === item.product.id)
+                                    )
+
                                     return (
                                         <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
                                             <div className="flex items-center justify-between mb-4">
@@ -1081,7 +1097,7 @@ export default function SacolaPage() {
                                             </div>
 
                                             <div className="space-y-3 mb-4">
-                                                {items.map((item) => (
+                                                {uniqueItems.map((item) => (
                                                     <div key={item.product.id} className="flex gap-3 items-center">
                                                         <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                                                             {item.product.image_url ? (

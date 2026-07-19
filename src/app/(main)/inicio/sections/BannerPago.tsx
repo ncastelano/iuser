@@ -18,6 +18,7 @@ import {
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { getStatusIntervalText } from '@/lib/storeHours' // ajuste o path conforme necessário
 
 // ---------- Tipos ----------
 interface TopProduct {
@@ -33,9 +34,9 @@ interface StoreCard {
     description?: string
     rating?: number
     ratingCount?: number
-    isOpen?: boolean
+    isOpen: boolean
+    statusText: string // novo campo unificado
     address?: string
-    todayHours?: string
     viewCount?: number
     durationMin?: number | null
     durationMax?: number | null
@@ -47,31 +48,7 @@ interface StoreCard {
     acceptsPickup?: boolean
 }
 
-// ---------- Helpers de horário ----------
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey() {
-    return DAY_KEYS[new Date().getDay()]
-}
-
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [oh, om] = schedule.open.split(':').map(Number)
-    let [ch, cm] = schedule.close.split(':').map(Number)
-    if (ch === 0 && cm === 0) ch = 24
-    const openMin = oh * 60 + om
-    const closeMin = ch * 60 + cm
-    return currentMinutes >= openMin && currentMinutes <= closeMin
-}
-
+// ---------- Helpers (mantidos apenas os de endereço e cache) ----------
 function extractStreetAddress(fullAddress?: string): string {
     if (!fullAddress) return ''
     const parts = fullAddress.split(',').map(p => p.trim())
@@ -82,8 +59,8 @@ function extractStreetAddress(fullAddress?: string): string {
     return street
 }
 
-// Cache helpers
-const CACHE_KEY = 'banner_stores_cache'
+// Cache helpers (versão atualizada para nova estrutura)
+const CACHE_KEY = 'banner_stores_cache_v2' // invalida caches antigos
 const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
@@ -218,11 +195,8 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 const avg = ratingData ? ratingData.sum / ratingData.count : store.ratings_avg ?? 0
                 const count = ratingData ? ratingData.count : store.ratings_count ?? 0
 
-                const todaySchedule = getTodaySchedule(store.business_hours)
-                const isOpen = todaySchedule ? isOpenNow(todaySchedule) : (store.is_open ?? true)
-                const todayHours = todaySchedule
-                    ? `${todaySchedule.open.slice(0, 5)} - ${todaySchedule.close.slice(0, 5)}`
-                    : undefined
+                // NOVO: usa o helper que entende o JSON real de business_hours
+                const status = getStatusIntervalText(store.business_hours)
 
                 const prods = storeProds.get(store.id) || []
                 const durations = prods
@@ -258,9 +232,9 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                     description: store.description,
                     rating: Number(avg.toFixed(1)),
                     ratingCount: count,
-                    isOpen,
+                    isOpen: status.isOpen,
+                    statusText: status.text,
                     address: streetAddress,
-                    todayHours,
                     viewCount: store.view_count ?? 0,
                     durationMin,
                     durationMax,
@@ -283,13 +257,21 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
             setLoading(false)
         }
 
-        fetchFreshData().then((freshCards) => {
-            if (!cancelled && freshCards) {
-                setStores(freshCards)
-                saveCache(freshCards)
-                setLoading(false)
-            }
-        })
+        fetchFreshData()
+            .then((freshCards) => {
+                if (!cancelled && freshCards) {
+                    setStores(freshCards)
+                    saveCache(freshCards)
+                }
+            })
+            .catch((err) => {
+                console.error("Error fetching banner stores:", err)
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false)
+                }
+            })
 
         return () => { cancelled = true }
     }, [effectiveLocation])
@@ -546,7 +528,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
-                                        {/* Badge de status (aberto/fechado) no canto superior esquerdo */}
+                                        {/* Badge de status unificado (aberto/fechado com horário) */}
                                         <div className="absolute top-3 left-3 z-20">
                                             <div
                                                 className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
@@ -557,12 +539,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                 }}
                                             >
                                                 <Clock size={12} />
-                                                <span>{store.isOpen ? 'Aberto' : 'Fechado'}</span>
-                                                {store.isOpen && store.todayHours && (
-                                                    <span className="opacity-90 ml-0.5 text-[10px]">
-                                                        {store.todayHours}
-                                                    </span>
-                                                )}
+                                                <span>{store.statusText}</span>
                                             </div>
                                         </div>
 

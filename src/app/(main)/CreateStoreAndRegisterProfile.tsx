@@ -296,7 +296,8 @@ export default function CreateStoreAndRegisterProfile({
                 }
             }
 
-            // 5. Criar loja - AGORA COM is_open = false
+
+            // 5. Criar loja — status aberto/fechado é definido pelo business_hours (StoreOperatingDays)
             const { error: storeError } = await supabase.from('stores').insert({
                 name: storeName,
                 storeSlug,
@@ -305,8 +306,8 @@ export default function CreateStoreAndRegisterProfile({
                 owner_id: userId,
                 location: location ? `POINT(${location.lng} ${location.lat})` : null,
                 address: address,
-                is_open: false, // <-- NOVO: inicia fechada
             })
+
             if (storeError) {
                 toast.error('Loja criada, mas houve um erro: ' + storeError.message)
             }

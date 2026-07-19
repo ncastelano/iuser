@@ -32,6 +32,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import SacolaButton from '@/app/ButtonSacola'
 import StoreSchedule from '../../StoreSchedule'
+import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 
 type RatingRow = {
     id: string
@@ -77,7 +78,6 @@ type StoreType = {
     storeSlug: string
     description?: string | null
     address?: string | null
-    is_open: boolean
     logo_url?: string | null
     ratings_avg?: number | null
     ratings_count?: number | null
@@ -86,89 +86,11 @@ type StoreType = {
     whatsapp?: string | null
     category_order?: string[] | null
     allow_scheduling?: boolean
-    business_hours?: Record<string, { open: string; close: string }> | null
+    business_hours?: BusinessHours | null
     location?: any
     view_count?: number
 }
 
-const DAY_LABELS: Record<string, string> = {
-    mon: 'Segunda-feira',
-    tue: 'Terça-feira',
-    wed: 'Quarta-feira',
-    thu: 'Quinta-feira',
-    fri: 'Sexta-feira',
-    sat: 'Sábado',
-    sun: 'Domingo',
-}
-
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey(): string {
-    return DAY_KEYS[new Date().getDay()]
-}
-
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = schedule.open.split(':').map(Number)
-    let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) closeH = 24
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
-}
-
-function getNextOpeningTime(
-    businessHours: Record<string, { open: string; close: string }>,
-    now: Date
-): { date: Date; open: string } | null {
-    const today = new Date(now)
-    today.setHours(0, 0, 0, 0)
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const todayKey = DAY_KEYS[now.getDay()]
-
-    const todaySchedule = businessHours[todayKey]
-    if (todaySchedule && todaySchedule.open && todaySchedule.close) {
-        const [oh, om] = todaySchedule.open.split(':').map(Number)
-        const openMinutes = oh * 60 + om
-        if (currentMinutes < openMinutes) {
-            const nextDate = new Date(today)
-            nextDate.setHours(oh, om, 0, 0)
-            return { date: nextDate, open: todaySchedule.open }
-        }
-    }
-
-    for (let i = 1; i <= 7; i++) {
-        const nextDate = new Date(today)
-        nextDate.setDate(today.getDate() + i)
-        const dayKey = DAY_KEYS[nextDate.getDay()]
-        const daySchedule = businessHours[dayKey]
-        if (daySchedule && daySchedule.open && daySchedule.close) {
-            const [oh, om] = daySchedule.open.split(':').map(Number)
-            nextDate.setHours(oh, om, 0, 0)
-            return { date: nextDate, open: daySchedule.open }
-        }
-    }
-    return null
-}
-
-function formatTimeRemaining(ms: number): string {
-    if (ms <= 0) return '0m'
-    const totalMinutes = Math.floor(ms / 60000)
-    const hours = Math.floor(totalMinutes / 60)
-    const minutes = totalMinutes % 60
-    if (hours > 0) {
-        return `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`
-    }
-    return `${minutes}m`
-}
 
 type TabType = 'products' | 'reviews'
 
@@ -409,41 +331,21 @@ export default function StorePage() {
 
     const isStoreOpen = useMemo(() => {
         if (!store) return false
-        const todaySchedule = getTodaySchedule(store.business_hours)
-        if (todaySchedule) {
-            return isOpenNow(todaySchedule)
-        }
-        return store.is_open
+        return isStoreOpenNow(store.business_hours)
     }, [store])
 
     const statusText = useMemo(() => {
         if (!store) return ''
-        const todaySchedule = getTodaySchedule(store.business_hours)
-        if (isStoreOpen && todaySchedule) {
-            return `Aberto: ${todaySchedule.open.slice(0, 5)} - ${todaySchedule.close.slice(0, 5)}`
-        } else if (store.business_hours) {
-            const now = new Date()
-            const next = getNextOpeningTime(store.business_hours, now)
-            if (next) {
-                const diffMs = next.date.getTime() - now.getTime()
-                const remaining = formatTimeRemaining(diffMs)
-                return `Fechado · Abrirá em ${remaining}`
-            }
-            return 'Fechado'
-        }
-        return store.is_open ? 'Aberto' : 'Fechado'
-    }, [store, isStoreOpen])
+        return getStoreStatusText(store.business_hours)
+    }, [store])
 
     const nextAvailable = useMemo(() => {
         if (!store?.business_hours) return null
-        const endOfToday = new Date()
-        endOfToday.setHours(23, 59, 59, 0)
-        const next = getNextOpeningTime(store.business_hours, endOfToday)
+        const next = getNextOpeningInfo(store.business_hours)
         if (!next) return null
-        const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
         return {
-            day: days[next.date.getDay()],
-            open: next.open.slice(0, 5),
+            day: next.dayLabel,
+            open: next.time,
         }
     }, [store?.business_hours])
 
@@ -1393,23 +1295,73 @@ export default function StorePage() {
                             <button onClick={() => setShowAllHours(false)} className="text-2xl" style={{ color: colors.textSecondary }}>×</button>
                         </div>
                         <div className="space-y-2">
-                            {Object.entries(DAY_LABELS).map(([key, label]) => {
-                                const schedule = store.business_hours![key]
+                            {[
+                                { key: '1', label: 'Segunda-feira' },
+                                { key: '2', label: 'Terça-feira' },
+                                { key: '3', label: 'Quarta-feira' },
+                                { key: '4', label: 'Quinta-feira' },
+                                { key: '5', label: 'Sexta-feira' },
+                                { key: '6', label: 'Sábado' },
+                                { key: '0', label: 'Domingo' },
+                            ].map(({ key, label }) => {
+                                const weekly = (store.business_hours as any)?.weekly
+                                const dayConfig = weekly?.[key]
+                                const todayKey = String(new Date().getDay())
+                                const isToday = key === todayKey
                                 return (
-                                    <div key={key} className="flex items-center justify-between py-2 border-b last:border-0" style={{ borderColor: colors.border }}>
-                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{label}</span>
-                                        {schedule && schedule.open && schedule.close ? (
-                                            <span className="text-sm" style={{ color: colors.textSecondary }}>{schedule.open.slice(0, 5)} - {schedule.close.slice(0, 5)}</span>
+                                    <div
+                                        key={key}
+                                        className="flex items-center justify-between py-2 border-b last:border-0"
+                                        style={{ borderColor: colors.border }}
+                                    >
+                                        <span
+                                            className="text-sm font-bold"
+                                            style={{ color: isToday ? colors.accent : colors.textPrimary }}
+                                        >
+                                            {label}{isToday ? ' (hoje)' : ''}
+                                        </span>
+                                        {dayConfig?.isOpen && dayConfig.start && dayConfig.end ? (
+                                            <span className="text-sm" style={{ color: colors.textSecondary }}>
+                                                {dayConfig.start.slice(0, 5)} - {dayConfig.end.slice(0, 5)}
+                                                {dayConfig.lunchStart && dayConfig.lunchEnd ? (
+                                                    <span className="text-xs ml-2 opacity-70">
+                                                        (almoço {dayConfig.lunchStart.slice(0, 5)}-{dayConfig.lunchEnd.slice(0, 5)})
+                                                    </span>
+                                                ) : null}
+                                            </span>
                                         ) : (
                                             <span className="text-sm italic" style={{ color: colors.textSecondary }}>Fechado</span>
                                         )}
                                     </div>
                                 )
                             })}
+                            {/* Datas bloqueadas */}
+                            {((store.business_hours as any)?.blocked_dates?.length > 0) && (
+                                <div className="mt-4 pt-3 border-t" style={{ borderColor: colors.border }}>
+                                    <p className="text-xs font-bold mb-2" style={{ color: colors.textSecondary }}>
+                                        Datas fechadas:
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(store.business_hours as any).blocked_dates.map((d: string) => {
+                                            const [y, mo, day] = d.split('-')
+                                            return (
+                                                <span
+                                                    key={d}
+                                                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                                                    style={{ background: '#ef444420', color: '#ef4444' }}
+                                                >
+                                                    {day}/{mo}/{y}
+                                                </span>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
+
         </div>
     )
 }
