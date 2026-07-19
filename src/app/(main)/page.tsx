@@ -608,15 +608,18 @@ export default function HomePage() {
                 const openNow = isOpenNow(todaySchedule)
                 const statusColor = openNow ? '#22c55e' : '#ef4444' // verde / vermelho
 
+                const isActive = activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin
+
                 allTabs.push({
                     id: `loja-${s.slug}-painel`,
                     label: `${s.name} · Painel`,
                     icon: Store,
                     imageUrl: s.logoUrl,
                     onClick: () => handleStoreTabClick(s.slug),
-                    isActive: activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin,
-                    indicator: hasActive ? counts : null,
-                    statusColor, // 👈 define a cor da pill
+                    isActive,
+                    // Só mostra indicador se NÃO estiver ativo
+                    indicator: !isActive && hasActive ? counts : null,
+                    statusColor,
                 })
             })
         } else {
