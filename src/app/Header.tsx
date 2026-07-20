@@ -21,7 +21,7 @@ export interface Tab {
         count: number
         color?: string
     } | null
-    statusColor?: string   // NOVA propriedade opcional (ex.: '#22c55e' para aberto, '#ef4444' para fechado)
+    statusColor?: string
 }
 
 interface HeaderProps {
@@ -93,31 +93,23 @@ export default function Header({
 
     const enhancedTabs: Tab[] = tabs || []
 
-    // Função para determinar a cor de fundo da tab
     const getTabBackground = (tab: Tab): string => {
-        // Se a tab tem statusColor (verde/vermelho), usa ele sempre
         if (tab.statusColor) {
             return tab.statusColor
         }
-        // Se está ativa, usa accent (laranja)
         if (tab.isActive) {
             return colors.accent
         }
-        // Padrão: superfície translúcida
         return `${colors.surface}88`
     }
 
-    // Função para determinar a cor do texto da tab
     const getTabTextColor = (tab: Tab): string => {
-        // Se tem statusColor, texto branco
         if (tab.statusColor) {
             return '#ffffff'
         }
-        // Se está ativa, usa accentText
         if (tab.isActive) {
             return colors.accentText
         }
-        // Padrão
         return colors.textSecondary
     }
 
@@ -245,12 +237,10 @@ export default function Header({
                                         backdropFilter: 'blur(10px)',
                                         color: textColor,
                                         overflow: 'visible',
-                                        // Se está ativa, adiciona um leve destaque extra
                                         ...(tab.isActive && !tab.statusColor ? {
                                             boxShadow: `0 2px 8px ${colors.accent}40`,
                                             fontWeight: 'bold',
                                         } : {}),
-                                        // Se está ativa com statusColor, adiciona destaque com a mesma cor
                                         ...(tab.isActive && tab.statusColor ? {
                                             boxShadow: `0 2px 8px ${tab.statusColor}60`,
                                             fontWeight: 'bold',
@@ -282,7 +272,6 @@ export default function Header({
                                     )}
                                     <span className="ml-1.5 sm:ml-2">{tab.label}</span>
 
-                                    {/* Indicadores coloridos para pedidos ativos */}
                                     {tab.indicator && (
                                         <div className="absolute -top-1 -right-1 flex gap-0.5">
                                             {tab.indicator.pending > 0 && (
@@ -303,7 +292,6 @@ export default function Header({
                                         </div>
                                     )}
 
-                                    {/* Badge genérico */}
                                     {tab.badge && tab.badge.count > 0 && (
                                         <div className="absolute -top-1 -right-1">
                                             <span

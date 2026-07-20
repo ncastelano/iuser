@@ -18,7 +18,7 @@ import {
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { getStatusIntervalText } from '@/lib/storeHours' // ajuste o path conforme necessário
+import { getStatusIntervalText } from '@/lib/storeHours'
 
 // ---------- Tipos ----------
 interface TopProduct {
@@ -35,7 +35,7 @@ interface StoreCard {
     rating?: number
     ratingCount?: number
     isOpen: boolean
-    statusText: string // novo campo unificado
+    statusText: string
     address?: string
     viewCount?: number
     durationMin?: number | null
@@ -48,7 +48,7 @@ interface StoreCard {
     acceptsPickup?: boolean
 }
 
-// ---------- Helpers (mantidos apenas os de endereço e cache) ----------
+// ---------- Helpers ----------
 function extractStreetAddress(fullAddress?: string): string {
     if (!fullAddress) return ''
     const parts = fullAddress.split(',').map(p => p.trim())
@@ -59,8 +59,7 @@ function extractStreetAddress(fullAddress?: string): string {
     return street
 }
 
-// Cache helpers (versão atualizada para nova estrutura)
-const CACHE_KEY = 'banner_stores_cache_v2' // invalida caches antigos
+const CACHE_KEY = 'banner_stores_cache_v2'
 const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
@@ -84,6 +83,154 @@ function saveCache(stores: StoreCard[]) {
             timestamp: Date.now()
         }))
     } catch { }
+}
+
+// ---------- Componente Skeleton ----------
+function BannerSkeleton() {
+    const { colors } = useTheme()
+
+    return (
+        <div className="relative w-full">
+            <div className="flex items-center gap-2 mb-2 px-1">
+                <div className="w-4 h-4 rounded-full animate-pulse" style={{ background: colors.border }} />
+                <div className="h-5 w-40 rounded animate-pulse" style={{ background: colors.border }} />
+            </div>
+
+            <div className="relative overflow-hidden">
+                <div className="flex">
+                    {/* Card skeleton - 3 cards visíveis */}
+                    {[1, 2, 3].map((_, index) => (
+                        <div
+                            key={index}
+                            className="flex-shrink-0 px-1"
+                            style={{
+                                width: `${80}%`,
+                                transform: index === 1 ? 'scale(1)' : index === 0 ? 'scale(0.85)' : 'scale(0.85)',
+                                opacity: index === 1 ? 1 : 0.4,
+                                transition: 'transform 0.5s ease, opacity 0.5s ease',
+                            }}
+                        >
+                            <div className="relative h-72 sm:h-96 lg:h-[30rem]">
+                                <div
+                                    className="absolute inset-0 rounded-2xl overflow-hidden border"
+                                    style={{
+                                        borderColor: colors.border,
+                                        background: colors.surface,
+                                    }}
+                                >
+                                    {/* Imagem skeleton */}
+                                    <div
+                                        className="absolute inset-0 animate-pulse"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${colors.border}40, ${colors.border}20)`,
+                                        }}
+                                    />
+
+                                    {/* Badge de status skeleton */}
+                                    <div className="absolute top-3 left-3 z-20">
+                                        <div
+                                            className="flex items-center gap-1.5 px-2 py-1 rounded-full"
+                                            style={{
+                                                background: colors.border,
+                                                width: 80,
+                                                height: 26,
+                                            }}
+                                        >
+                                            <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-12 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Badge de duração skeleton */}
+                                    <div className="absolute top-12 left-3 z-20">
+                                        <div
+                                            className="flex items-center gap-2 px-2 py-1 rounded-full"
+                                            style={{
+                                                background: colors.surface,
+                                                opacity: 0.6,
+                                                height: 26,
+                                            }}
+                                        >
+                                            <div className="w-4 h-4 rounded animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-16 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-4 h-4 rounded animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-16 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                        </div>
+                                    </div>
+
+                                    {/* Conteúdo inferior skeleton */}
+                                    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 z-10">
+                                        {/* Nome */}
+                                        <div className="w-3/4 h-8 sm:h-10 rounded animate-pulse mb-1" style={{ background: colors.border }} />
+
+                                        {/* Descrição */}
+                                        <div className="flex flex-col gap-1 mb-2">
+                                            <div className="w-1/2 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                            <div className="w-1/3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                        </div>
+
+                                        {/* Endereço e distância */}
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                <div className="w-24 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                <div className="w-12 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                            </div>
+                                        </div>
+
+                                        {/* Produtos e métricas */}
+                                        <div className="flex items-center justify-between mt-2">
+                                            <div className="flex -space-x-2">
+                                                {[1, 2, 3].map((_, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden animate-pulse"
+                                                        style={{ background: colors.border }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-1">
+                                                    <div className="w-3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                    <div className="w-8 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                    <div className="w-10 h-3 rounded animate-pulse" style={{ background: colors.border }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Indicadores skeleton */}
+            <div className="flex items-center justify-center gap-3 mt-4">
+                <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: colors.border }} />
+                <div className="flex gap-2">
+                    {[1, 2, 3].map((_, idx) => (
+                        <div
+                            key={idx}
+                            className="h-2 rounded-full animate-pulse"
+                            style={{
+                                width: idx === 1 ? '1.5rem' : '0.5rem',
+                                background: colors.border,
+                            }}
+                        />
+                    ))}
+                </div>
+                <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: colors.border }} />
+            </div>
+        </div>
+    )
 }
 
 // ---------- Hook de dados ----------
@@ -195,7 +342,6 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 const avg = ratingData ? ratingData.sum / ratingData.count : store.ratings_avg ?? 0
                 const count = ratingData ? ratingData.count : store.ratings_count ?? 0
 
-                // NOVO: usa o helper que entende o JSON real de business_hours
                 const status = getStatusIntervalText(store.business_hours)
 
                 const prods = storeProds.get(store.id) || []
@@ -252,7 +398,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
         }
 
         const cached = loadCache()
-        if (cached) {
+        if (cached && cached.length > 0) {
             setStores(cached)
             setLoading(false)
         }
@@ -279,7 +425,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
     return { stores, loading }
 }
 
-// ---------- Componente ----------
+// ---------- Componente Principal ----------
 interface BannerPagoProps {
     savedLocation?: { lat: number; lng: number } | null
 }
@@ -330,7 +476,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         setActiveIndex(prev => prev - 1)
     }, [totalRealSlides, isTransitioning])
 
-    // Loop infinito sem piscar
+    // Loop infinito
     useEffect(() => {
         if (totalRealSlides <= 1) return
         if (activeIndex === 0 || activeIndex === loopingStores.length - 1) {
@@ -428,13 +574,9 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         return null
     }
 
-    if (loading && stores.length === 0) {
-        return (
-            <div className="animate-pulse space-y-4">
-                <div className="h-6 w-40 bg-gray-200 rounded mb-2" />
-                <div className="h-72 sm:h-96 lg:h-[30rem] bg-gray-200 rounded-2xl" />
-            </div>
-        )
+    // Mostra skeleton se estiver carregando
+    if (loading) {
+        return <BannerSkeleton />
     }
 
     if (!sortedStores.length) return null
@@ -528,7 +670,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
 
-                                        {/* Badge de status unificado (aberto/fechado com horário) */}
+                                        {/* Badge de status */}
                                         <div className="absolute top-3 left-3 z-20">
                                             <div
                                                 className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
@@ -543,7 +685,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                             </div>
                                         </div>
 
-                                        {/* Container de duração + entrega/retirada */}
+                                        {/* Badge de duração + entrega */}
                                         <div className="absolute top-12 left-3 z-20">
                                             <div
                                                 className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
@@ -603,7 +745,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                 )}
                                             </div>
 
-                                            {/* Linha inferior: produtos (esquerda) + visualizações e avaliação (direita) */}
+                                            {/* Produtos + métricas */}
                                             <div className="flex items-center justify-between mt-2">
                                                 {store.topProducts && store.topProducts.length > 0 && (
                                                     <div className="flex -space-x-2">

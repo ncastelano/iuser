@@ -36,18 +36,25 @@ interface ProductCard {
 // ---------- Função para obter URL pública do avatar ----------
 function getAvatarUrl(avatarPath: string | null): string | null {
     if (!avatarPath) return null
+
     try {
-        // Se o avatarPath já contém o caminho completo, extrai apenas o nome do arquivo
-        let fileName = avatarPath
-        if (avatarPath.includes('/')) {
-            fileName = avatarPath.split('/').pop() || avatarPath
-        }
-        // Se o avatarPath já tem o nome do bucket, remove
-        if (fileName.startsWith('avatars/')) {
-            fileName = fileName.replace('avatars/', '')
+        // Se já for uma URL completa (começa com http), retorna ela mesma
+        if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+            return avatarPath
         }
 
-        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName)
+        // Se for apenas o caminho, gera a URL
+        let cleanPath = avatarPath
+        // Remove 'avatars/' se existir no início
+        if (cleanPath.startsWith('avatars/')) {
+            cleanPath = cleanPath.replace('avatars/', '')
+        }
+        // Remove qualquer barra no início
+        if (cleanPath.startsWith('/')) {
+            cleanPath = cleanPath.substring(1)
+        }
+
+        const { data } = supabase.storage.from('avatars').getPublicUrl(cleanPath)
         return data.publicUrl
     } catch (error) {
         console.error('[getAvatarUrl] Erro ao gerar URL do avatar:', error)
@@ -146,7 +153,7 @@ function useProductShowcase() {
 
                 const uniqueProfileIds = [...new Set([...storeOwnerIds, ...productOwnerIds])]
 
-                // Buscar todos os perfis
+                // Buscar todos os perfis (para fallback)
                 const { data: allProfiles, error: profileErr } = await supabase
                     .from('profiles')
                     .select('id, name, profileSlug, avatar_url')
@@ -189,14 +196,20 @@ function useProductShowcase() {
                         profileSlug = profile.profileSlug || null
                     }
 
+                    // PRIORIDADE 1: Usar owner_image_url salvo no produto
+                    if (prod.owner_image_url) {
+                        storeLogoUrl = prod.owner_image_url
+                    }
+
                     if (isProfileProduct) {
                         // Produto de perfil
                         if (profile) {
                             storeName = profile.name || 'Perfil sem nome'
                             storeSlug = profile.profileSlug || '#'
                             storeAddress = null
-                            // Tenta buscar o avatar
-                            if (profile.avatar_url) {
+
+                            // Se não tiver owner_image_url, tenta buscar do perfil
+                            if (!storeLogoUrl && profile.avatar_url) {
                                 storeLogoUrl = getAvatarUrl(profile.avatar_url)
                             }
                         }
@@ -205,11 +218,13 @@ function useProductShowcase() {
                         storeName = store.name
                         storeSlug = store.storeSlug
                         storeAddress = store.address ?? null
-                        storeLogoUrl = store.logo_url
-                            ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                            : null
 
-                        // Se a loja não tem logo, tenta usar o avatar do perfil do dono
+                        // Se não tiver owner_image_url, tenta o logo da loja
+                        if (!storeLogoUrl && store.logo_url) {
+                            storeLogoUrl = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                        }
+
+                        // Se ainda não tem, tenta usar o avatar do perfil do dono
                         if (!storeLogoUrl && profile && profile.avatar_url) {
                             storeLogoUrl = getAvatarUrl(profile.avatar_url)
                         }
@@ -219,13 +234,14 @@ function useProductShowcase() {
                             storeName = profile.name || 'Perfil sem nome'
                             storeSlug = profile.profileSlug || '#'
                             storeAddress = null
-                            if (profile.avatar_url) {
+
+                            if (!storeLogoUrl && profile.avatar_url) {
                                 storeLogoUrl = getAvatarUrl(profile.avatar_url)
                             }
                         }
                     }
 
-                    // Se ainda não tem logo, tenta buscar o avatar do perfil
+                    // Último fallback: tenta buscar o avatar do perfil
                     if (!storeLogoUrl && profile && profile.avatar_url) {
                         storeLogoUrl = getAvatarUrl(profile.avatar_url)
                     }

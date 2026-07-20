@@ -800,19 +800,31 @@ export default function HomePage() {
 
                 {/* Outras telas (Config, CreateStore, Login, Profile) - apenas Home */}
                 {showFab && !activeStoreSlug && (
-                    <button
-                        onClick={showHomeSections}
-                        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                        style={{
-                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                            color: colors.accentText,
-                            border: `2px solid ${colors.border}`,
-                            boxShadow: `0 8px 24px ${colors.accent}60`,
-                        }}
-                        aria-label="Voltar ao início"
-                    >
-                        <Home size={24} />
-                    </button>
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                        <SacolaButton
+                            totalItems={totalCartItems}
+                            statusCounts={{
+                                pending: pendingCount,
+                                preparing: preparingCount,
+                                ready: readyCount,
+                                reviews: pendingReviewsCount,
+                            }}
+                            animate={cartAnimating}
+                        />
+                        <button
+                            onClick={showHomeSections}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: `2px solid ${colors.border}`,
+                                boxShadow: `0 8px 24px ${colors.accent}60`,
+                            }}
+                            aria-label="Voltar ao início"
+                        >
+                            <Home size={24} />
+                        </button>
+                    </div>
                 )}
 
                 {showLocationDialog && (

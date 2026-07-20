@@ -626,28 +626,37 @@ export default function ProfileDashboard({
             }))
         }
 
-        // Buscar produtos do perfil (vendedor)
-        const { data: productsData } = await supabase
+
+        // ===== BUSCAR PRODUTOS DO PERFIL (apenas produtos sem store_id) =====
+        const { data: productsData, error: productsError } = await supabase
             .from('products')
-            .select('id, name, price, image_url, slug')
-            .eq('store_id', profileId)
+            .select('id, name, price, image_url, slug, store_id, owner_id, owner_image_url')
+            .eq('owner_id', profileId)
+            .is('store_id', null)  // <--- SÓ PRODUTOS SEM LOJA (PERFIL)
             .order('created_at', { ascending: false })
             .limit(12)
+
+        if (productsError) {
+            console.error('[ProfileDashboard] Erro ao buscar produtos:', productsError)
+        }
 
         if (productsData && productsData.length > 0) {
             const productIds = productsData.map(p => p.id)
             const todayStartISO = startOfDay()
 
+            // Buscar visualizações de hoje
             const { data: viewsToday } = await supabase.from('product_views')
                 .select('product_id').in('product_id', productIds).gte('created_at', todayStartISO)
             const viewsTodayMap = new Map()
             viewsToday?.forEach(v => viewsTodayMap.set(v.product_id, (viewsTodayMap.get(v.product_id) || 0) + 1))
 
+            // Buscar visualizações totais
             const { data: viewsTotal } = await supabase.from('product_views')
                 .select('product_id').in('product_id', productIds)
             const viewsTotalMap = new Map()
             viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
 
+            // Buscar pedidos para contar vendas (usando store_id do perfil)
             const { data: orderIdsData } = await supabase
                 .from('orders')
                 .select('id')
@@ -665,11 +674,33 @@ export default function ProfileDashboard({
                 })
             }
 
+            // Buscar itens no carrinho (estimativa)
+            let cartMap = new Map()
+            try {
+                const { data: carts } = await supabase
+                    .from('carts')
+                    .select('items')
+                    .eq('store_id', profileId)
+
+                if (carts) {
+                    carts.forEach(cart => {
+                        if (cart.items) {
+                            const items = typeof cart.items === 'string' ? JSON.parse(cart.items) : cart.items
+                            items?.forEach((item: any) => {
+                                cartMap.set(item.product_id, (cartMap.get(item.product_id) || 0) + (item.quantity || 1))
+                            })
+                        }
+                    })
+                }
+            } catch (e) {
+                console.error('[ProfileDashboard] Erro ao buscar carrinhos:', e)
+            }
+
             const combined = productsData.map(p => ({
                 ...p,
                 viewsToday: viewsTodayMap.get(p.id) || 0,
                 viewsTotal: viewsTotalMap.get(p.id) || 0,
-                inCart: 0,
+                inCart: cartMap.get(p.id) || 0,
                 salesCount: salesCountMap.get(p.id) || 0,
             }))
             setProducts(combined)
@@ -1433,7 +1464,7 @@ export default function ProfileDashboard({
                 </div>
             </div>
 
-            {/* ===== Produtos da Loja ===== */}
+            {/* ===== Produtos do Perfil ===== */}
             <div className="mb-6 mt-4">
                 <div
                     className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
@@ -1458,7 +1489,7 @@ export default function ProfileDashboard({
                             </div>
                             <div>
                                 <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Produtos
+                                    Meus Produtos
                                 </h3>
                                 <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                     <span>{products.length} cadastrados</span>
@@ -1501,6 +1532,13 @@ export default function ProfileDashboard({
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Nenhum produto cadastrado.
                             </p>
+                            <button
+                                onClick={() => router.push(`/${profileSlug}/criar-produto`)}
+                                className="mt-3 text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 mx-auto"
+                                style={{ background: colors.accent, color: 'white' }}
+                            >
+                                <Plus size={14} /> Criar primeiro produto
+                            </button>
                         </div>
                     ) : (
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">

@@ -46,6 +46,7 @@ export default function CriarProdutoParaPerfil() {
   const [profileLat, setProfileLat] = useState<number | null>(null);
   const [profileLng, setProfileLng] = useState<number | null>(null);
   const [profileName, setProfileName] = useState<string>("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -82,6 +83,30 @@ export default function CriarProdutoParaPerfil() {
     return Number(value.replace(/\./g, "").replace(",", "."));
   };
 
+  // Função para obter URL pública do avatar
+  const getAvatarUrl = (avatarPath: string | null): string | null => {
+    if (!avatarPath) return null;
+    try {
+      // Se já for uma URL completa, retorna ela mesma
+      if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+        return avatarPath;
+      }
+      // Se for apenas o caminho, gera a URL
+      let cleanPath = avatarPath;
+      if (cleanPath.startsWith('avatars/')) {
+        cleanPath = cleanPath.replace('avatars/', '');
+      }
+      if (cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+      const { data } = supabase.storage.from('avatars').getPublicUrl(cleanPath);
+      return data.publicUrl;
+    } catch (error) {
+      console.error('[getAvatarUrl] Erro ao gerar URL do avatar:', error);
+      return null;
+    }
+  };
+
   // Buscar dados do perfil
   useEffect(() => {
     const fetchProfile = async () => {
@@ -114,6 +139,13 @@ export default function CriarProdutoParaPerfil() {
       setProfileLat(data.store_lat ?? null);
       setProfileLng(data.store_lng ?? null);
       setProfileName(data.name || "");
+
+      // Buscar e salvar o avatar do perfil
+      if (data.avatar_url) {
+        const avatarUrl = getAvatarUrl(data.avatar_url);
+        setProfileAvatarUrl(avatarUrl);
+        console.log('[CriarProduto] Avatar do perfil carregado:', avatarUrl);
+      }
     };
 
     fetchProfile();
@@ -326,7 +358,7 @@ export default function CriarProdutoParaPerfil() {
 
     const durationValue = durationMinutes.trim() ? parseInt(durationMinutes) : null;
 
-    // CORREÇÃO AQUI: Usando owner_id para produtos de perfil
+    // CORREÇÃO: Usando owner_id para produtos de perfil e salvando owner_image_url
     const { error } = await supabase.from("products").insert({
       name,
       slug,
@@ -338,6 +370,7 @@ export default function CriarProdutoParaPerfil() {
       image_url: imagePath,
       store_id: null, // IMPORTANTE: null para produtos de perfil
       owner_id: profileId, // Usando owner_id para vincular ao perfil
+      owner_image_url: profileAvatarUrl, // NOVO: salva a URL do avatar do perfil
       location: locationString,
       address: address || null,
       city: city || null,
@@ -419,8 +452,8 @@ export default function CriarProdutoParaPerfil() {
               <button
                 onClick={() => setListingType("sale")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <DollarSign className="w-4 h-4" />
@@ -429,8 +462,8 @@ export default function CriarProdutoParaPerfil() {
               <button
                 onClick={() => setListingType("publication")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
-                    ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
+                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <MessageCircle className="w-4 h-4" />
@@ -465,8 +498,8 @@ export default function CriarProdutoParaPerfil() {
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
                   className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                     }`}
                 >
                   <option.icon className="w-4 h-4" />
@@ -501,8 +534,8 @@ export default function CriarProdutoParaPerfil() {
                   <button
                     onClick={() => setPriceType("fixed")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <DollarSign className="w-3 h-3" />
@@ -511,8 +544,8 @@ export default function CriarProdutoParaPerfil() {
                   <button
                     onClick={() => setPriceType("hourly")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <Clock className="w-3 h-3" />
@@ -584,8 +617,8 @@ export default function CriarProdutoParaPerfil() {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                       }`}
                   >
                     {cat}
