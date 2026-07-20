@@ -85,9 +85,34 @@ function saveCache(stores: StoreCard[]) {
     } catch { }
 }
 
+// ---------- Hook para detectar breakpoint ----------
+function useBreakpoint() {
+    const [slidesPerView, setSlidesPerView] = useState(1)
+
+    useEffect(() => {
+        const update = () => {
+            const width = window.innerWidth
+            if (width >= 1120) {
+                setSlidesPerView(3) // xl: 3 slides
+            } else if (width >= 800) {
+                setSlidesPerView(2) // md: 2 slides
+            } else {
+                setSlidesPerView(1) // default: 1 slide
+            }
+        }
+
+        update()
+        window.addEventListener('resize', update)
+        return () => window.removeEventListener('resize', update)
+    }, [])
+
+    return slidesPerView
+}
+
 // ---------- Componente Skeleton ----------
-function BannerSkeleton() {
+function BannerSkeleton({ slidesPerView = 1 }: { slidesPerView?: number }) {
     const { colors } = useTheme()
+    const visibleSlides = Math.min(slidesPerView, 3)
 
     return (
         <div className="relative w-full">
@@ -97,17 +122,13 @@ function BannerSkeleton() {
             </div>
 
             <div className="relative overflow-hidden">
-                <div className="flex">
-                    {/* Card skeleton - 3 cards visíveis */}
-                    {[1, 2, 3].map((_, index) => (
+                <div className="flex gap-3">
+                    {Array.from({ length: visibleSlides }).map((_, index) => (
                         <div
                             key={index}
-                            className="flex-shrink-0 px-1"
+                            className="flex-shrink-0"
                             style={{
-                                width: `${80}%`,
-                                transform: index === 1 ? 'scale(1)' : index === 0 ? 'scale(0.85)' : 'scale(0.85)',
-                                opacity: index === 1 ? 1 : 0.4,
-                                transition: 'transform 0.5s ease, opacity 0.5s ease',
+                                width: `${100 / visibleSlides}%`,
                             }}
                         >
                             <div className="relative h-72 sm:h-96 lg:h-[30rem]">
@@ -118,7 +139,6 @@ function BannerSkeleton() {
                                         background: colors.surface,
                                     }}
                                 >
-                                    {/* Imagem skeleton */}
                                     <div
                                         className="absolute inset-0 animate-pulse"
                                         style={{
@@ -126,7 +146,6 @@ function BannerSkeleton() {
                                         }}
                                     />
 
-                                    {/* Badge de status skeleton */}
                                     <div className="absolute top-3 left-3 z-20">
                                         <div
                                             className="flex items-center gap-1.5 px-2 py-1 rounded-full"
@@ -141,7 +160,6 @@ function BannerSkeleton() {
                                         </div>
                                     </div>
 
-                                    {/* Badge de duração skeleton */}
                                     <div className="absolute top-12 left-3 z-20">
                                         <div
                                             className="flex items-center gap-2 px-2 py-1 rounded-full"
@@ -159,18 +177,12 @@ function BannerSkeleton() {
                                         </div>
                                     </div>
 
-                                    {/* Conteúdo inferior skeleton */}
                                     <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 z-10">
-                                        {/* Nome */}
                                         <div className="w-3/4 h-8 sm:h-10 rounded animate-pulse mb-1" style={{ background: colors.border }} />
-
-                                        {/* Descrição */}
                                         <div className="flex flex-col gap-1 mb-2">
                                             <div className="w-1/2 h-3 rounded animate-pulse" style={{ background: colors.border }} />
                                             <div className="w-1/3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
                                         </div>
-
-                                        {/* Endereço e distância */}
                                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
                                             <div className="flex items-center gap-1">
                                                 <div className="w-3 h-3 rounded animate-pulse" style={{ background: colors.border }} />
@@ -181,8 +193,6 @@ function BannerSkeleton() {
                                                 <div className="w-12 h-3 rounded animate-pulse" style={{ background: colors.border }} />
                                             </div>
                                         </div>
-
-                                        {/* Produtos e métricas */}
                                         <div className="flex items-center justify-between mt-2">
                                             <div className="flex -space-x-2">
                                                 {[1, 2, 3].map((_, i) => (
@@ -212,7 +222,6 @@ function BannerSkeleton() {
                 </div>
             </div>
 
-            {/* Indicadores skeleton */}
             <div className="flex items-center justify-center gap-3 mt-4">
                 <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: colors.border }} />
                 <div className="flex gap-2">
@@ -437,77 +446,65 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const { stores, loading } = useBannerStores(savedLocation)
+    const slidesPerView = useBreakpoint() // NOVO: hook de responsividade
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
 
-    const loopingStores =
-        totalRealSlides > 1
-            ? [sortedStores[totalRealSlides - 1], ...sortedStores, sortedStores[0]]
-            : sortedStores
+    // Divide os stores em grupos baseado no slidesPerView
+    const totalPages = Math.max(1, Math.ceil(totalRealSlides / slidesPerView))
 
-    const [activeIndex, setActiveIndex] = useState<number>(totalRealSlides > 1 ? 1 : 0)
-    const [isTransitioning, setIsTransitioning] = useState(true)
+    const [currentPage, setCurrentPage] = useState(0)
     const [isHovered, setIsHovered] = useState(false)
     const [isDragging, setIsDragging] = useState(false)
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
+    const [isTransitioning, setIsTransitioning] = useState(true)
 
-    const slideWidthPercent = 80
-    const sideSpacingPercent = 10
-    const unitPercent = slideWidthPercent
-
+    // Reset página quando mudar o breakpoint
     useEffect(() => {
-        if (totalRealSlides > 1) {
-            setActiveIndex(1)
-            setIsTransitioning(true)
-        } else if (totalRealSlides === 1) {
-            setActiveIndex(0)
-            setIsTransitioning(true)
-        }
-    }, [totalRealSlides])
+        setCurrentPage(0)
+    }, [slidesPerView])
 
     const goToNext = useCallback(() => {
-        if (totalRealSlides <= 1 || !isTransitioning) return
-        setActiveIndex(prev => prev + 1)
-    }, [totalRealSlides, isTransitioning])
+        if (totalPages <= 1) return
+        setCurrentPage(prev => (prev + 1) % totalPages)
+    }, [totalPages])
 
     const goToPrev = useCallback(() => {
-        if (totalRealSlides <= 1 || !isTransitioning) return
-        setActiveIndex(prev => prev - 1)
-    }, [totalRealSlides, isTransitioning])
+        if (totalPages <= 1) return
+        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
+    }, [totalPages])
 
-    // Loop infinito
+    // Autoplay
     useEffect(() => {
-        if (totalRealSlides <= 1) return
-        if (activeIndex === 0 || activeIndex === loopingStores.length - 1) {
-            setIsTransitioning(false)
-            const newIndex = activeIndex === 0 ? totalRealSlides : 1
-            requestAnimationFrame(() => {
-                setActiveIndex(newIndex)
-                requestAnimationFrame(() => {
-                    setIsTransitioning(true)
-                })
-            })
-        }
-    }, [activeIndex, totalRealSlides, loopingStores.length])
-
-    useEffect(() => {
-        if (isHovered || isDragging || totalRealSlides <= 1) return
+        if (isHovered || isDragging || totalPages <= 1) return
         autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
         }
-    }, [isHovered, isDragging, goToNext, totalRealSlides])
+    }, [isHovered, isDragging, goToNext, totalPages])
+
+    // Calcular os itens da página atual
+    const currentItems = useCallback(() => {
+        if (totalRealSlides === 0) return []
+        const start = currentPage * slidesPerView
+        const end = Math.min(start + slidesPerView, totalRealSlides)
+        return sortedStores.slice(start, end)
+    }, [sortedStores, currentPage, slidesPerView, totalRealSlides])
+
+    const items = currentItems()
 
     const handleDragStart = useCallback((clientX: number) => {
         setIsDragging(true)
         setDragStartX(clientX)
         setDragOffset(0)
     }, [])
+
     const handleDragMove = useCallback((clientX: number) => {
         if (!isDragging) return
         setDragOffset(clientX - dragStartX)
     }, [isDragging, dragStartX])
+
     const handleDragEnd = useCallback(() => {
         if (!isDragging) return
         setIsDragging(false)
@@ -523,17 +520,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const onTouchMove = (e: React.TouchEvent) => { if (isDragging) handleDragMove(e.touches[0].clientX) }
     const onTouchEnd = () => handleDragEnd()
 
-    const baseTranslate = -activeIndex * unitPercent + sideSpacingPercent
-    const totalTranslate = baseTranslate + dragOffset / (trackRef.current?.clientWidth || 1) * 100
-
-    const realIndex =
-        totalRealSlides > 1
-            ? activeIndex === 0
-                ? totalRealSlides - 1
-                : activeIndex === loopingStores.length - 1
-                    ? 0
-                    : activeIndex - 1
-            : 0
+    const translateX = dragOffset / (trackRef.current?.clientWidth || 1) * 100
 
     const formatDuration = (minutes: number) => {
         if (minutes < 60) return `${minutes}min`
@@ -576,10 +563,13 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
 
     // Mostra skeleton se estiver carregando
     if (loading) {
-        return <BannerSkeleton />
+        return <BannerSkeleton slidesPerView={slidesPerView} />
     }
 
     if (!sortedStores.length) return null
+
+    // Grid responsivo baseado no slidesPerView
+    const gridCols = slidesPerView === 3 ? 'grid-cols-3' : slidesPerView === 2 ? 'grid-cols-2' : 'grid-cols-1'
 
     return (
         <div
@@ -606,195 +596,169 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
             >
                 <div
                     ref={trackRef}
-                    className="flex"
+                    className={`grid ${gridCols} gap-3`}
                     style={{
-                        transform: `translateX(${totalTranslate}%)`,
-                        transition: isTransitioning && !isDragging
-                            ? 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-                            : 'none',
-                        willChange: 'transform'
+                        transform: isDragging ? `translateX(${translateX}px)` : 'none',
+                        transition: isDragging ? 'none' : 'transform 0.3s ease',
                     }}
                 >
-                    {loopingStores.map((store, index) => {
-                        const distance = index - activeIndex
-                        const isActive = distance === 0
-                        const isNear = Math.abs(distance) === 1
-
-                        const scale = isActive ? 1 : isNear ? 0.9 : 0.8
-                        const opacity = isActive ? 1 : isNear ? 0.6 : 0
-                        const zIndex = isActive ? 10 : isNear ? 5 : 1
-                        const brightness = isActive ? 'brightness(1)' : 'brightness(0.8)'
-
+                    {items.map((store) => {
                         const backgroundImage = store.coverUrl || store.logoUrl
 
                         return (
                             <div
-                                key={`${store.slug}-${index}`}
-                                className="flex-shrink-0"
-                                style={{
-                                    width: `${slideWidthPercent}%`,
-                                    transition: 'transform 0.5s ease, opacity 0.5s ease, filter 0.5s ease',
-                                    transform: `scale(${scale})`,
-                                    opacity,
-                                    zIndex,
-                                    filter: brightness,
-                                }}
+                                key={store.slug}
+                                className="relative h-72 sm:h-96 lg:h-[30rem]"
                             >
-                                <div className="relative h-72 sm:h-96 lg:h-[30rem]">
-                                    <div
-                                        onClick={() => {
-                                            if (!isDragging) router.push(`/${store.slug}`)
-                                        }}
-                                        className="group absolute inset-0 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02]"
-                                        style={{
-                                            borderColor: colors.border,
-                                            boxShadow: isActive
-                                                ? `0 20px 40px ${colors.accent}33`
-                                                : colors.shadow,
-                                        }}
-                                    >
-                                        {backgroundImage ? (
-                                            <img
-                                                src={backgroundImage}
-                                                alt={store.name}
-                                                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            />
-                                        ) : (
-                                            <div
-                                                className="absolute inset-0"
-                                                style={{
-                                                    background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
-                                                }}
-                                            />
+                                <div
+                                    onClick={() => router.push(`/${store.slug}`)}
+                                    className="group absolute inset-0 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02]"
+                                    style={{
+                                        borderColor: colors.border,
+                                        boxShadow: colors.shadow,
+                                    }}
+                                >
+                                    {backgroundImage ? (
+                                        <img
+                                            src={backgroundImage}
+                                            alt={store.name}
+                                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        />
+                                    ) : (
+                                        <div
+                                            className="absolute inset-0"
+                                            style={{
+                                                background: `linear-gradient(135deg, ${colors.accent}66, ${colors.background})`,
+                                            }}
+                                        />
+                                    )}
+
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
+
+                                    {/* Badge de status */}
+                                    <div className="absolute top-3 left-3 z-20">
+                                        <div
+                                            className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
+                                            style={{
+                                                background: store.isOpen ? '#10b981' : '#ef4444',
+                                                color: '#ffffff',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                            }}
+                                        >
+                                            <Clock size={12} />
+                                            <span>{store.statusText}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Badge de duração + entrega */}
+                                    <div className="absolute top-12 left-3 z-20">
+                                        <div
+                                            className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
+                                            style={{
+                                                background: 'rgba(0,0,0,0.75)',
+                                                color: '#ffffff',
+                                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                                            }}
+                                        >
+                                            {store.durationMin != null && store.durationMax != null && (
+                                                <span className="flex items-center gap-1">
+                                                    <Timer size={12} />
+                                                    <span>
+                                                        {formatDuration(store.durationMin)}
+                                                        {store.durationMin !== store.durationMax && ` - ${formatDuration(store.durationMax)}`}
+                                                    </span>
+                                                </span>
+                                            )}
+                                            {store.durationMin != null && store.durationMax != null && (
+                                                <span className="opacity-50 mx-0.5">•</span>
+                                            )}
+                                            {store.acceptsDelivery ? (
+                                                renderDeliveryBadge(store)
+                                            ) : store.acceptsPickup ? (
+                                                <span className="flex items-center gap-1">
+                                                    <PackageCheck size={12} />
+                                                    <span>Retirada</span>
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    {/* Conteúdo inferior */}
+                                    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-white z-10">
+                                        <h3 className="text-xl sm:text-3xl lg:text-4xl font-black drop-shadow-lg mb-0.5 leading-tight">
+                                            {store.name}
+                                        </h3>
+
+                                        {store.description && (
+                                            <p className="text-xs sm:text-sm text-white/80 line-clamp-2 mb-2 max-w-prose">
+                                                {store.description}
+                                            </p>
                                         )}
 
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
-
-                                        {/* Badge de status */}
-                                        <div className="absolute top-3 left-3 z-20">
-                                            <div
-                                                className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
-                                                style={{
-                                                    background: store.isOpen ? '#10b981' : '#ef4444',
-                                                    color: '#ffffff',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                                }}
-                                            >
-                                                <Clock size={12} />
-                                                <span>{store.statusText}</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Badge de duração + entrega */}
-                                        <div className="absolute top-12 left-3 z-20">
-                                            <div
-                                                className="flex items-center gap-2 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
-                                                style={{
-                                                    background: 'rgba(0,0,0,0.75)',
-                                                    color: '#ffffff',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                                }}
-                                            >
-                                                {store.durationMin != null && store.durationMax != null && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Timer size={12} />
-                                                        <span>
-                                                            {formatDuration(store.durationMin)}
-                                                            {store.durationMin !== store.durationMax && ` - ${formatDuration(store.durationMax)}`}
-                                                        </span>
-                                                    </span>
-                                                )}
-                                                {store.durationMin != null && store.durationMax != null && (
-                                                    <span className="opacity-50 mx-0.5">•</span>
-                                                )}
-                                                {store.acceptsDelivery ? (
-                                                    renderDeliveryBadge(store)
-                                                ) : store.acceptsPickup ? (
-                                                    <span className="flex items-center gap-1">
-                                                        <PackageCheck size={12} />
-                                                        <span>Retirada</span>
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                        </div>
-
-                                        {/* Conteúdo inferior */}
-                                        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-white z-10">
-                                            <h3 className="text-xl sm:text-3xl lg:text-4xl font-black drop-shadow-lg mb-0.5 leading-tight">
-                                                {store.name}
-                                            </h3>
-
-                                            {store.description && (
-                                                <p className="text-xs sm:text-sm text-white/80 line-clamp-2 mb-2 max-w-prose">
-                                                    {store.description}
-                                                </p>
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs mb-2">
+                                            {store.address && (
+                                                <div className="flex items-center gap-1">
+                                                    <MapPin size={14} className="text-white/70 shrink-0" />
+                                                    <span className="leading-tight opacity-90">{store.address}</span>
+                                                </div>
                                             )}
+                                            {store.distanceMeters != null && (
+                                                <div className="flex items-center gap-1">
+                                                    <Spline size={14} className="text-emerald-300" />
+                                                    <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs mb-2">
-                                                {store.address && (
-                                                    <div className="flex items-center gap-1">
-                                                        <MapPin size={14} className="text-white/70 shrink-0" />
-                                                        <span className="leading-tight opacity-90">{store.address}</span>
-                                                    </div>
-                                                )}
-                                                {store.distanceMeters != null && (
-                                                    <div className="flex items-center gap-1">
-                                                        <Spline size={14} className="text-emerald-300" />
-                                                        <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Produtos + métricas */}
-                                            <div className="flex items-center justify-between mt-2">
-                                                {store.topProducts && store.topProducts.length > 0 && (
-                                                    <div className="flex -space-x-2">
-                                                        {store.topProducts.slice(0, 3).map((product, i) => (
-                                                            <div
-                                                                key={i}
-                                                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
-                                                                title={product.name}
-                                                            >
-                                                                {product.imageUrl ? (
-                                                                    <img
-                                                                        src={product.imageUrl}
-                                                                        alt={product.name}
-                                                                        className="w-full h-full object-cover"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-white text-[10px] sm:text-sm font-black">
-                                                                        {product.name.charAt(0).toUpperCase()}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {store.topProducts.length > 3 && (
-                                                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-[10px] sm:text-sm font-bold text-white">
-                                                                +{store.topProducts.length - 3}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                <div className="flex items-center gap-3 ml-auto">
-                                                    {store.viewCount != null && store.viewCount > 0 && (
-                                                        <div className="flex items-center gap-1 text-[11px] font-bold text-white/90">
-                                                            <Eye size={12} />
-                                                            <span>{store.viewCount}</span>
-                                                        </div>
-                                                    )}
-                                                    {store.rating != null && store.rating > 0 && (
-                                                        <div className="flex items-center gap-1.5 text-xs font-bold">
-                                                            <Star size={12} className="fill-yellow-400 text-yellow-400" />
-                                                            <span className="text-white/90">{store.rating.toFixed(1)}</span>
-                                                            {store.ratingCount && (
-                                                                <span className="text-[10px] text-white/60">
-                                                                    ({store.ratingCount})
-                                                                </span>
+                                        {/* Produtos + métricas */}
+                                        <div className="flex items-center justify-between mt-2">
+                                            {store.topProducts && store.topProducts.length > 0 && (
+                                                <div className="flex -space-x-2">
+                                                    {store.topProducts.slice(0, 3).map((product, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
+                                                            title={product.name}
+                                                        >
+                                                            {product.imageUrl ? (
+                                                                <img
+                                                                    src={product.imageUrl}
+                                                                    alt={product.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-white text-[10px] sm:text-sm font-black">
+                                                                    {product.name.charAt(0).toUpperCase()}
+                                                                </div>
                                                             )}
+                                                        </div>
+                                                    ))}
+                                                    {store.topProducts.length > 3 && (
+                                                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-[10px] sm:text-sm font-bold text-white">
+                                                            +{store.topProducts.length - 3}
                                                         </div>
                                                     )}
                                                 </div>
+                                            )}
+
+                                            <div className="flex items-center gap-3 ml-auto">
+                                                {store.viewCount != null && store.viewCount > 0 && (
+                                                    <div className="flex items-center gap-1 text-[11px] font-bold text-white/90">
+                                                        <Eye size={12} />
+                                                        <span>{store.viewCount}</span>
+                                                    </div>
+                                                )}
+                                                {store.rating != null && store.rating > 0 && (
+                                                    <div className="flex items-center gap-1.5 text-xs font-bold">
+                                                        <Star size={12} className="fill-yellow-400 text-yellow-400" />
+                                                        <span className="text-white/90">{store.rating.toFixed(1)}</span>
+                                                        {store.ratingCount && (
+                                                            <span className="text-[10px] text-white/60">
+                                                                ({store.ratingCount})
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -805,7 +769,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                 </div>
             </div>
 
-            {totalRealSlides > 1 && (
+            {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-3 mt-4">
                     <button
                         onClick={goToPrev}
@@ -815,18 +779,14 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                         <ChevronLeft size={16} />
                     </button>
                     <div className="flex gap-2">
-                        {sortedStores.map((_, idx) => (
+                        {Array.from({ length: totalPages }).map((_, idx) => (
                             <button
                                 key={idx}
-                                onClick={() => {
-                                    if (totalRealSlides <= 1) return
-                                    setIsTransitioning(true)
-                                    setActiveIndex(idx + 1)
-                                }}
+                                onClick={() => setCurrentPage(idx)}
                                 className="h-2 rounded-full transition-all duration-300"
                                 style={{
-                                    width: idx === realIndex ? '1.5rem' : '0.5rem',
-                                    background: idx === realIndex ? colors.accent : colors.border,
+                                    width: idx === currentPage ? '1.5rem' : '0.5rem',
+                                    background: idx === currentPage ? colors.accent : colors.border,
                                 }}
                             />
                         ))}

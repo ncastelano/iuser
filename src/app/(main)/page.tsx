@@ -141,9 +141,6 @@ export default function HomePage() {
 
     const [loadingStores, setLoadingStores] = useState(true)
 
-    const [hasPessoalItems, setHasPessoalItems] = useState(true)
-    const [hasLojaItems, setHasLojaItems] = useState(true)
-
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
 
     const [storeOrderCounts, setStoreOrderCounts] = useState<
@@ -389,15 +386,17 @@ export default function HomePage() {
         }
     }, [stores])
 
+    // REMOVIDA a lógica de filtrar seções baseado em hasPessoalItems/hasLojaItems
+    // Agora apenas filtra por estar logado e se está em "breve"
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
 
+        // Se não estiver logado, remove as seções de compromissos
         const baseSections = !profileSlug
             ? sections.filter(s => !agendaKeys.includes(s))
             : sections
 
         const normal: string[] = []
-        const emptyAgendas: string[] = []
         const breve: string[] = []
 
         baseSections.forEach(s => {
@@ -406,22 +405,13 @@ export default function HomePage() {
                 return
             }
 
-            if (agendaKeys.includes(s)) {
-                if (s === 'compromissosPessoal' && !hasPessoalItems) {
-                    emptyAgendas.push(s)
-                } else if (s === 'compromissosLoja' && !hasLojaItems) {
-                    emptyAgendas.push(s)
-                } else {
-                    normal.push(s)
-                }
-                return
-            }
-
+            // REMOVIDA a verificação de hasPessoalItems/hasLojaItems
+            // Todas as seções vão para "normal" (não filtra mais por vazio)
             normal.push(s)
         })
 
-        return [...normal, ...emptyAgendas, ...breve]
-    }, [sections, profileSlug, hasPessoalItems, hasLojaItems, breveMap])
+        return [...normal, ...breve]
+    }, [sections, profileSlug, breveMap])
 
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
@@ -517,9 +507,11 @@ export default function HomePage() {
             case 'promocoes':
                 return <PromocoesSection />
             case 'compromissosPessoal':
-                return <AtalhoCompromissosPessoal profileSlug={profileSlug} onHasItemsChange={setHasPessoalItems} />
+                // REMOVIDO o callback onHasItemsChange
+                return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
             case 'compromissosLoja':
-                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} onHasItemsChange={setHasLojaItems} />
+                // REMOVIDO o callback onHasItemsChange
+                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
             case 'createStore':
                 return (
                     <ButtonCreateStoreHome

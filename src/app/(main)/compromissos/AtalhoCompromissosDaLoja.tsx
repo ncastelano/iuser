@@ -3,7 +3,7 @@
 
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, X, Earth, Lock, User, Store, Check, Megaphone, CalendarPlus, Eye, EyeOff } from 'lucide-react'
+import { Plus, X, Earth, Lock, User, Store, Check, Megaphone, CalendarPlus, Eye, EyeOff, Clock } from 'lucide-react'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -17,6 +17,49 @@ function hexToRgb(hex: string) {
 
 function formatTime(time: string) {
     return time.slice(0, 5)
+}
+
+/* ─── Badge de visibilidade ─── */
+function VisibilityBadge({ isPublic, textColor }: { isPublic: boolean; textColor: string }) {
+    return (
+        <span
+            style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 8,
+                backgroundColor: isPublic ? 'rgba(16,185,129,0.15)' : `${textColor}20`,
+                color: isPublic ? '#10b981' : textColor,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                whiteSpace: 'nowrap',
+            }}
+        >
+            {isPublic ? <Earth size={10} /> : <Lock size={10} />}
+            {isPublic ? 'Público' : 'Privado'}
+        </span>
+    )
+}
+
+/* ─── Badge de status ─── */
+function StatusBadge({ status }: { status: string }) {
+    const config = {
+        confirmed: { bg: 'rgba(16,185,129,0.2)', text: '#34d399', label: 'Confirmado' },
+        pending: { bg: 'rgba(234,179,8,0.2)', text: '#fbbf24', label: 'Pendente' },
+        cancelled: { bg: 'rgba(239,68,68,0.2)', text: '#f87171', label: 'Cancelado' },
+        completed: { bg: 'rgba(60, 60, 61, 0.2)', text: '#60a5fa', label: 'Concluído' },
+    }
+    const style = config[status as keyof typeof config] || config.pending
+
+    return (
+        <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+            style={{ background: style.bg, color: style.text }}
+        >
+            {style.label}
+        </span>
+    )
 }
 
 interface AtalhoCompromissosDaLojaProps {
@@ -87,7 +130,6 @@ export default function AtalhoCompromissosDaLoja({
         }))
     }, [sorted])
 
-    // Verifica se há pendentes ocultos quando o toggle está desligado
     const hasHiddenPending = !showPending && storeAppointments.some(a => a.status === 'pending')
 
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
@@ -113,23 +155,27 @@ export default function AtalhoCompromissosDaLoja({
         if (success) refetch()
     }, [deleteAppointment, refetch])
 
-    const accentColor = colors.accent
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0)`
+    const borderColor = colors.border
+    const accentColor = '#f97316'
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
-    const surfaceRgb = hexToRgb(colors.surface)
-
-    const statusConfig = {
-        confirmed: { bg: '#10b98133', text: '#6ee7b7', label: 'Confirmado' },
-        pending: { bg: '#eab30833', text: '#fde047', label: 'Pendente' },
-        cancelled: { bg: '#ef444433', text: '#fca5a5', label: 'Cancelado' },
-    }
 
     const scrollbarThumbColor = `${accentColor}40`
 
     if (loading) {
         return (
-            <section>
-                <div className="flex items-center gap-2 mb-3">
+            <div
+                className="rounded-2xl p-6 w-full"
+                style={{
+                    background: cardBg,
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                    border: `1px solid ${borderColor}`,
+                }}
+            >
+                <div className="flex items-center gap-2 mb-4">
                     {dragHandle}
                     <Store className="w-5 h-5" style={{ color: accentColor }} />
                     <h2 className="text-xl font-black" style={{ color: textPrimary }}>Carregando...</h2>
@@ -137,35 +183,46 @@ export default function AtalhoCompromissosDaLoja({
                 <div className="flex gap-3 overflow-x-auto pb-2">
                     {[1, 2, 3].map((i) => (
                         <div key={i} className="flex-shrink-0 w-[280px] h-24 rounded-xl animate-pulse"
-                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }} />
+                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.1)` }} />
                     ))}
                 </div>
-            </section>
+            </div>
         )
     }
 
     return (
-        <section>
-            {/* Cabeçalho reorganizado */}
-            <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div
+            className="rounded-2xl p-6 w-full"
+            style={{
+                background: cardBg,
+                backdropFilter: 'blur(20px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                border: `1px solid ${borderColor}`,
+            }}
+        >
+            {/* Cabeçalho */}
+            <div className="flex flex-wrap items-center gap-3 mb-4">
                 <div className="flex items-center gap-2">
                     {dragHandle}
+                    <Store className="w-5 h-5" style={{ color: accentColor }} />
+                    <h2 className="text-xl font-black" style={{ color: textPrimary }}>Agenda da Loja</h2>
                 </div>
 
-                <div className="flex items-center gap-4 flex-1 justify-between ml-6">
+                <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
                     <Link
                         href="/compromissos/agendar"
-                        className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
-                        style={{ background: colors.accentLight, color: accentColor }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-full transition-all hover:scale-105 active:scale-95 flex items-center gap-1"
+                        style={{ background: '#f97316', color: '#ffffff' }}
                     >
+                        <Plus size={14} />
                         Criar
                     </Link>
 
                     {sorted.length > 0 && (
                         <Link
                             href="/compromissos"
-                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
-                            style={{ background: colors.accentLight, color: accentColor }}
+                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-all hover:scale-105 active:scale-95"
+                            style={{ background: '#f97316', color: '#ffffff' }}
                         >
                             Ver todos
                         </Link>
@@ -179,43 +236,40 @@ export default function AtalhoCompromissosDaLoja({
                         >
                             Pendentes
                         </span>
-                        <label className="relative inline-flex items-center cursor-pointer" style={{ width: 44, height: 24 }}>
+                        <label className="relative inline-flex items-center cursor-pointer" style={{ width: 40, height: 22 }}>
                             <input type="checkbox" className="sr-only peer" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
-                            <span className="absolute inset-0 rounded-full transition-colors duration-200" style={{ background: showPending ? accentColor : colors.border }} />
-                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-5' : 'translate-x-0'}`} />
+                            <span
+                                className="absolute inset-0 rounded-full transition-colors duration-200"
+                                style={{ background: showPending ? '#f97316' : colors.border }}
+                            />
+                            <span
+                                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
+                            />
                         </label>
                     </div>
                 </div>
             </div>
 
-            {/* Conteúdo principal */}
+            {/* Conteúdo */}
             {sorted.length === 0 && !hasHiddenPending ? (
-                /* Estado vazio real: sem nenhum compromisso */
-                <div
-                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                    }}
-                >
+                /* Estado vazio */
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl" style={{ background: `${borderColor}10`, backdropFilter: 'blur(8px)' }}>
                     <div className="flex items-center gap-4">
                         <div
                             className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: `linear-gradient(135deg, #f97316, #fb923c)`,
+                                color: '#ffffff',
                             }}
                         >
                             <Store size={28} />
                         </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                Sua loja está parada?
+                                Sem compromissos na sua loja
                             </h3>
                             <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                                Divulgue seus produtos ou crie um evento para atrair clientes.
+                                Divulgue sua loja para as pessoas agendarem um horário.
                             </p>
                         </div>
                     </div>
@@ -223,9 +277,9 @@ export default function AtalhoCompromissosDaLoja({
                         <button
                             className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
                             style={{
-                                background: accentColor,
-                                color: colors.accentText,
-                                boxShadow: `0 4px 10px ${accentColor}40`,
+                                background: '#f97316',
+                                color: '#ffffff',
+                                boxShadow: `0 4px 10px #f9731640`,
                             }}
                             disabled
                             aria-disabled="true"
@@ -236,9 +290,9 @@ export default function AtalhoCompromissosDaLoja({
                         <button
                             className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md opacity-50 cursor-not-allowed"
                             style={{
-                                background: accentColor,
-                                color: colors.accentText,
-                                boxShadow: `0 4px 10px ${accentColor}40`,
+                                background: '#f97316',
+                                color: '#ffffff',
+                                boxShadow: `0 4px 10px #f9731640`,
                             }}
                             disabled
                             aria-disabled="true"
@@ -248,11 +302,11 @@ export default function AtalhoCompromissosDaLoja({
                         </button>
                         <Link
                             href="/compromissos/agendar"
-                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all shadow-md hover:scale-105"
+                            className="px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 shadow-md"
                             style={{
-                                background: colors.accentLight,
-                                color: accentColor,
-                                border: `1px solid ${accentColor}`,
+                                background: '#f97316',
+                                color: '#ffffff',
+                                boxShadow: `0 4px 14px #f9731660`,
                             }}
                         >
                             <Plus size={16} />
@@ -261,23 +315,14 @@ export default function AtalhoCompromissosDaLoja({
                     </div>
                 </div>
             ) : sorted.length === 0 && hasHiddenPending ? (
-                /* Estado com pendentes ocultos */
-                <div
-                    className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${accentColor}40`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
+                /* Pendentes ocultos */
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl" style={{ background: `#f9731610`, backdropFilter: 'blur(8px)' }}>
                     <div className="flex items-center gap-4">
                         <div
                             className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: `linear-gradient(135deg, #f97316, #fb923c)`,
+                                color: '#ffffff',
                             }}
                         >
                             <EyeOff size={28} />
@@ -293,11 +338,11 @@ export default function AtalhoCompromissosDaLoja({
                     </div>
                     <button
                         onClick={() => setShowPending(true)}
-                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                        className="px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg flex-shrink-0"
                         style={{
-                            background: accentColor,
-                            color: colors.accentText,
-                            boxShadow: `0 4px 14px ${accentColor}60`,
+                            background: '#f97316',
+                            color: '#ffffff',
+                            boxShadow: `0 4px 14px #f9731660`,
                         }}
                     >
                         <Eye size={16} />
@@ -316,8 +361,7 @@ export default function AtalhoCompromissosDaLoja({
 
                             <div className="flex gap-3 overflow-x-auto overflow-y-visible pt-3 pb-2 pl-2 pr-2 snap-x snap-mandatory scroll-container">
                                 {appointments.map((appointment) => {
-                                    const status = appointment.status as 'confirmed' | 'pending' | 'cancelled'
-                                    const statusInfo = statusConfig[status] || statusConfig.pending
+                                    const status = appointment.status as string
                                     const isPending = status === 'pending'
 
                                     const dateStr = new Date(appointment.date + 'T12:00:00').toLocaleDateString('pt-BR', {
@@ -330,113 +374,137 @@ export default function AtalhoCompromissosDaLoja({
                                     const customerSlug = appointment.customer_slug || null
                                     const duration = appointment.duration_minutes
 
+                                    const isPast = new Date(`${appointment.date}T${appointment.time}`).getTime() < Date.now()
+                                    const isToday = new Date(appointment.date).toDateString() === new Date().toDateString()
+
                                     return (
                                         <div
                                             key={appointment.id}
-                                            className="flex-shrink-0 w-[280px] snap-start flex items-center gap-3 p-3 rounded-xl border shadow-sm hover:shadow-md transition-all relative"
+                                            className="flex-shrink-0 w-[280px] snap-start rounded-xl p-4 border transition-all hover:shadow-lg hover:-translate-y-0.5"
                                             style={{
-                                                background: colors.surface,
-                                                borderColor: isPending ? '#fbbf2466' : colors.border,
+                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.1)`,
+                                                backdropFilter: 'blur(8px)',
+                                                WebkitBackdropFilter: 'blur(8px)',
+                                                borderColor: isPending ? `#f9731660` : `${borderColor}20`,
+                                                boxShadow: isPending ? `0 0 0 2px #f9731640` : 'none',
                                             }}
                                         >
                                             {isPending && (
                                                 <span
                                                     className="absolute -top-2 -right-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shadow-md"
                                                     style={{
-                                                        background: accentColor,
-                                                        color: '#000000',
-                                                        boxShadow: `0 2px 6px ${accentColor}40`,
+                                                        background: '#f97316',
+                                                        color: '#ffffff',
+                                                        boxShadow: `0 2px 6px #f9731640`,
                                                     }}
                                                 >
                                                     Novo
                                                 </span>
                                             )}
 
-                                            {customerSlug ? (
-                                                <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-                                                    {avatarUrl ? (
-                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
-                                                    ) : (
-                                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center"
-                                                            style={{ background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})` }}>
-                                                            <User size={22} style={{ color: colors.accentText }} />
-                                                        </div>
-                                                    )}
-                                                </Link>
-                                            ) : (
+                                            <Link href="/compromissos" className="flex items-start gap-3" style={{ textDecoration: 'none', color: 'inherit' }}>
+                                                {/* Avatar */}
                                                 <div className="flex-shrink-0">
-                                                    {avatarUrl ? (
-                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                                                    {customerSlug ? (
+                                                        <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()}>
+                                                            {avatarUrl ? (
+                                                                <img src={avatarUrl} alt="" className="w-12 h-12 rounded-xl object-cover" />
+                                                            ) : (
+                                                                <div
+                                                                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                                                                    style={{
+                                                                        background: `linear-gradient(135deg, #f97316, #fb923c)`,
+                                                                        color: '#ffffff',
+                                                                    }}
+                                                                >
+                                                                    <User size={20} />
+                                                                </div>
+                                                            )}
+                                                        </Link>
                                                     ) : (
-                                                        <div className="w-11 h-11 rounded-xl flex items-center justify-center"
-                                                            style={{ background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})` }}>
-                                                            <User size={22} style={{ color: colors.accentText }} />
-                                                        </div>
+                                                        <>
+                                                            {avatarUrl ? (
+                                                                <img src={avatarUrl} alt="" className="w-12 h-12 rounded-xl object-cover" />
+                                                            ) : (
+                                                                <div
+                                                                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                                                                    style={{
+                                                                        background: `linear-gradient(135deg, #f97316, #fb923c)`,
+                                                                        color: '#ffffff',
+                                                                    }}
+                                                                >
+                                                                    <User size={20} />
+                                                                </div>
+                                                            )}
+                                                        </>
                                                     )}
                                                 </div>
-                                            )}
 
-                                            <Link href="/compromissos" className="flex-1 min-w-0 flex flex-col" style={{ textDecoration: 'none', color: 'inherit' }}>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-xs font-medium" style={{ color: textSecondary }}>{dateStr}</span>
-                                                    <span
-                                                        className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
-                                                        style={{ background: statusInfo.bg, color: statusInfo.text }}
-                                                    >
-                                                        {statusInfo.label}
-                                                    </span>
-                                                </div>
-
-                                                <div className="flex items-center gap-1 mb-1">
-                                                    <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>{serviceName}</h4>
-                                                    {duration && (
-                                                        <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: textSecondary }}>
-                                                            · {duration} min
+                                                {/* Conteúdo */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <span className="text-xs font-medium" style={{ color: textSecondary }}>
+                                                            {isToday ? 'Hoje' : dateStr}
                                                         </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                        <User size={10} />@{customerName}
-                                                    </p>
-                                                    {appointment.is_public !== undefined && (
-                                                        <span
-                                                            className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold inline-flex items-center gap-1"
-                                                            style={{
-                                                                background: appointment.is_public ? 'rgba(16,185,129,0.2)' : `${textSecondary}20`,
-                                                                color: appointment.is_public ? '#10b981' : textSecondary,
-                                                            }}
-                                                        >
-                                                            {appointment.is_public ? <Earth size={10} /> : <Lock size={10} />}
-                                                            {appointment.is_public ? 'Público' : 'Privado'}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex items-center justify-between mt-2">
-                                                    <span className="text-sm font-black tabular-nums" style={{ color: accentColor }}>
-                                                        {formatTime(appointment.time)}
-                                                    </span>
-                                                    <div className="flex items-center gap-1">
-                                                        {isPending ? (
-                                                            <>
-                                                                <button onClick={(e) => handleAccept(appointment.id, e)}
-                                                                    className="p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors">
-                                                                    <Check size={12} />
-                                                                </button>
-                                                                <button onClick={(e) => handleDecline(appointment.id, e)}
-                                                                    className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors">
-                                                                    <X size={12} />
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <button onClick={(e) => handleDelete(appointment.id, e)}
-                                                                className="p-1 rounded-full transition-colors hover:bg-red-50 hover:text-red-500"
-                                                                style={{ color: textSecondary }}>
-                                                                <X size={14} />
-                                                            </button>
+                                                        <StatusBadge status={status} />
+                                                        {isPast && status !== 'cancelled' && (
+                                                            <span className="text-[10px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded-full">
+                                                                Passado
+                                                            </span>
                                                         )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1 mb-1">
+                                                        <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>{serviceName}</h4>
+                                                        {duration && (
+                                                            <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: textSecondary }}>
+                                                                · {duration} min
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                        <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
+                                                            <User size={10} />@{customerName}
+                                                        </p>
+                                                        {appointment.is_public !== undefined && (
+                                                            <VisibilityBadge isPublic={appointment.is_public} textColor={textSecondary} />
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: `${borderColor}15` }}>
+                                                        <span className="text-sm font-black flex items-center gap-1" style={{ color: '#f97316' }}>
+                                                            <Clock size={14} />
+                                                            {formatTime(appointment.time)}
+                                                        </span>
+                                                        <div className="flex items-center gap-1">
+                                                            {isPending ? (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => handleAccept(appointment.id, e)}
+                                                                        className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95"
+                                                                        style={{ background: 'rgba(16,185,129,0.2)', color: '#34d399' }}
+                                                                    >
+                                                                        <Check size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleDecline(appointment.id, e)}
+                                                                        className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95"
+                                                                        style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={(e) => handleDelete(appointment.id, e)}
+                                                                    className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 opacity-40 hover:opacity-100"
+                                                                    style={{ color: textSecondary }}
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </Link>
@@ -468,6 +536,6 @@ export default function AtalhoCompromissosDaLoja({
                     scrollbar-color: ${scrollbarThumbColor} transparent;
                 }
             `}</style>
-        </section>
+        </div>
     )
 }
