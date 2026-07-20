@@ -1,4 +1,5 @@
-// app/(main)/[profileSlug]/[storeSlug]/criar-produto/page.tsx
+// app/(main)/[profileSlug]/criar-produto/page.tsx
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -20,6 +21,7 @@ import {
   ShoppingCart,
   Timer,
   MapPin,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
@@ -28,13 +30,9 @@ type ProductType = "physical" | "digital" | "service";
 type PriceType = "fixed" | "hourly";
 type ListingType = "sale" | "publication";
 
-export default function CriarProdutoParaLoja() {
+export default function CriarProdutoParaPerfil() {
   const router = useRouter();
   const params = useParams();
-
-  const storeSlug = Array.isArray(params.storeSlug)
-    ? params.storeSlug[0]
-    : params.storeSlug;
 
   const profileSlug = Array.isArray(params.profileSlug)
     ? params.profileSlug[0]
@@ -42,11 +40,12 @@ export default function CriarProdutoParaLoja() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [storeId, setStoreId] = useState<string | null>(null);
-  const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null);
-  const [storeAddress, setStoreAddress] = useState<string>("");
-  const [storeLat, setStoreLat] = useState<number | null>(null);
-  const [storeLng, setStoreLng] = useState<number | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null);
+  const [profileAddress, setProfileAddress] = useState<string>("");
+  const [profileLat, setProfileLat] = useState<number | null>(null);
+  const [profileLng, setProfileLng] = useState<number | null>(null);
+  const [profileName, setProfileName] = useState<string>("");
 
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -83,49 +82,54 @@ export default function CriarProdutoParaLoja() {
     return Number(value.replace(/\./g, "").replace(",", "."));
   };
 
+  // Buscar dados do perfil
   useEffect(() => {
-    const fetchStore = async () => {
-      if (!storeSlug) {
-        toast.error("Link da loja ausente.");
+    const fetchProfile = async () => {
+      if (!profileSlug) {
+        toast.error("Link do perfil ausente.");
         router.push("/");
         return;
       }
 
       const { data, error } = await supabase
-        .from("stores")
+        .from("profiles")
         .select("*")
-        .ilike("storeSlug", storeSlug)
+        .ilike("profileSlug", profileSlug)
         .maybeSingle();
 
       if (error) {
-        console.error("Erro na consulta da loja:", error);
-        toast.error("Erro ao buscar dados da loja: " + error.message);
+        console.error("Erro na consulta do perfil:", error);
+        toast.error("Erro ao buscar dados do perfil: " + error.message);
         return;
       }
 
       if (!data) {
-        toast.error("Loja não encontrada. Verifique o link e tente novamente.");
+        toast.error("Perfil não encontrado. Verifique o link e tente novamente.");
         return;
       }
 
-      setStoreId(data.id);
-      const wpp = data.final_whatsapp || data.whatsapp || null;
-      setStoreWhatsapp(wpp);
-      setStoreAddress(data.address || "");
-      setStoreLat(data.store_lat ?? null);
-      setStoreLng(data.store_lng ?? null);
+      setProfileId(data.id);
+      setProfileWhatsapp(data.whatsapp || null);
+      setProfileAddress(data.address || "");
+      setProfileLat(data.store_lat ?? null);
+      setProfileLng(data.store_lng ?? null);
+      setProfileName(data.name || "");
     };
 
-    fetchStore();
-  }, [storeSlug, router]);
+    fetchProfile();
+  }, [profileSlug, router]);
 
+  // Buscar categorias existentes do perfil
   useEffect(() => {
     const fetchCategories = async () => {
-      if (!storeId) return;
+      if (!profileId) return;
+
       const { data } = await supabase
         .from("products")
         .select("category")
-        .eq("store_id", storeId);
+        .eq("owner_id", profileId)
+        .not("category", "is", null);
+
       if (data) {
         const cats = Array.from(
           new Set(data.map((p) => p.category).filter(Boolean))
@@ -134,7 +138,7 @@ export default function CriarProdutoParaLoja() {
       }
     };
     fetchCategories();
-  }, [storeId]);
+  }, [profileId]);
 
   useEffect(() => {
     if (!imageFile) return;
@@ -194,19 +198,19 @@ export default function CriarProdutoParaLoja() {
     }
   };
 
-  const useStoreAddress = () => {
-    if (storeLat != null && storeLng != null) {
-      setLocation({ lat: storeLat, lng: storeLng });
-      setAddress(storeAddress);
-      setManualAddress(storeAddress);
+  const useProfileAddress = () => {
+    if (profileLat != null && profileLng != null) {
+      setLocation({ lat: profileLat, lng: profileLng });
+      setAddress(profileAddress);
+      setManualAddress(profileAddress);
       setCity("");
-      if (!storeAddress) {
-        fetchAddressFromCoords(storeLat, storeLng);
+      if (!profileAddress) {
+        fetchAddressFromCoords(profileLat, profileLng);
       }
-    } else if (storeAddress) {
-      fetchCoordsFromAddress(storeAddress);
+    } else if (profileAddress) {
+      fetchCoordsFromAddress(profileAddress);
     } else {
-      toast.error("A loja não possui endereço cadastrado.");
+      toast.error("Seu perfil não possui endereço cadastrado.");
     }
   };
 
@@ -239,7 +243,7 @@ export default function CriarProdutoParaLoja() {
   };
 
   const handleCreate = async () => {
-    if (!name || !storeId) {
+    if (!name || !profileId) {
       toast.error("Preencha os campos obrigatórios");
       return;
     }
@@ -249,8 +253,8 @@ export default function CriarProdutoParaLoja() {
       return;
     }
 
-    if (listingType === "publication" && !storeWhatsapp) {
-      toast.error("Configure o WhatsApp da loja antes de criar publicações.");
+    if (listingType === "publication" && !profileWhatsapp) {
+      toast.error("Configure o WhatsApp do seu perfil antes de criar publicações.");
       return;
     }
 
@@ -263,14 +267,8 @@ export default function CriarProdutoParaLoja() {
       return;
     }
 
-    const { data: storeOwner } = await supabase
-      .from("stores")
-      .select("owner_id")
-      .eq("id", storeId)
-      .single();
-
-    if (!storeOwner || storeOwner.owner_id !== user.id) {
-      toast.error("Você não tem permissão para esta loja.");
+    if (profileId !== user.id) {
+      toast.error("Você não tem permissão para criar produtos neste perfil.");
       setLoading(false);
       return;
     }
@@ -298,19 +296,27 @@ export default function CriarProdutoParaLoja() {
       .replace(/(^-|-$)+/g, "");
 
     let isUnique = false;
-    while (!isUnique) {
+    let attempts = 0;
+    while (!isUnique && attempts < 10) {
       const { data: existing } = await supabase
         .from("products")
         .select("id")
         .eq("slug", slug)
-        .eq("store_id", storeId)
+        .eq("owner_id", profileId)
         .limit(1)
         .maybeSingle();
       if (existing) {
         slug = slug + "-" + Math.floor(Math.random() * 9999).toString();
+        attempts++;
       } else {
         isUnique = true;
       }
+    }
+
+    if (!isUnique) {
+      toast.error("Erro ao gerar slug único. Tente novamente.");
+      setLoading(false);
+      return;
     }
 
     let locationString: string | null = null;
@@ -318,9 +324,9 @@ export default function CriarProdutoParaLoja() {
       locationString = `SRID=4326;POINT(${location.lng} ${location.lat})`;
     }
 
-    // Agora salvamos a duração para qualquer tipo (se preenchida)
     const durationValue = durationMinutes.trim() ? parseInt(durationMinutes) : null;
 
+    // CORREÇÃO AQUI: Usando owner_id para produtos de perfil
     const { error } = await supabase.from("products").insert({
       name,
       slug,
@@ -330,8 +336,8 @@ export default function CriarProdutoParaLoja() {
       price_type: listingType === "sale" ? priceType : "fixed",
       listing_type: listingType,
       image_url: imagePath,
-      store_id: storeId,
-      owner_id: storeOwner.owner_id, // Adicione esta linha
+      store_id: null, // IMPORTANTE: null para produtos de perfil
+      owner_id: profileId, // Usando owner_id para vincular ao perfil
       location: locationString,
       address: address || null,
       city: city || null,
@@ -347,7 +353,7 @@ export default function CriarProdutoParaLoja() {
     }
 
     toast.success("Produto criado com sucesso!");
-    router.push(`/${profileSlug}/${storeSlug}`);
+    router.push(`/${profileSlug}`);
   };
 
   const typeOptions = [
@@ -371,8 +377,9 @@ export default function CriarProdutoParaLoja() {
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
               Novo Produto
             </h1>
-            <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5">
-              Adicione um item ao catálogo
+            <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5 flex items-center gap-1">
+              <User size={10} />
+              Perfil: @{profileSlug}
             </p>
           </div>
         </header>
@@ -412,8 +419,8 @@ export default function CriarProdutoParaLoja() {
               <button
                 onClick={() => setListingType("sale")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
-                  ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <DollarSign className="w-4 h-4" />
@@ -422,8 +429,8 @@ export default function CriarProdutoParaLoja() {
               <button
                 onClick={() => setListingType("publication")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
-                  ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
-                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                    ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <MessageCircle className="w-4 h-4" />
@@ -433,14 +440,14 @@ export default function CriarProdutoParaLoja() {
             {listingType === "publication" && (
               <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800 space-y-1">
                 <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
-                <p>O cliente será direcionado para o WhatsApp da loja.</p>
-                {storeWhatsapp ? (
-                  <p>📱 WhatsApp: <strong>{storeWhatsapp}</strong></p>
+                <p>O cliente será direcionado para o WhatsApp do seu perfil.</p>
+                {profileWhatsapp ? (
+                  <p>📱 WhatsApp: <strong>{profileWhatsapp}</strong></p>
                 ) : (
-                  <p className="text-red-600">⚠️ Nenhum WhatsApp configurado na loja.</p>
+                  <p className="text-red-600">⚠️ Nenhum WhatsApp configurado no perfil.</p>
                 )}
-                {(storeAddress || (storeLat != null && storeLng != null)) && (
-                  <p>📍 Localização da loja cadastrada e disponível para o produto.</p>
+                {(profileAddress || (profileLat != null && profileLng != null)) && (
+                  <p>📍 Localização do perfil cadastrada e disponível para o produto.</p>
                 )}
               </div>
             )}
@@ -458,8 +465,8 @@ export default function CriarProdutoParaLoja() {
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
                   className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                     }`}
                 >
                   <option.icon className="w-4 h-4" />
@@ -494,8 +501,8 @@ export default function CriarProdutoParaLoja() {
                   <button
                     onClick={() => setPriceType("fixed")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <DollarSign className="w-3 h-3" />
@@ -504,8 +511,8 @@ export default function CriarProdutoParaLoja() {
                   <button
                     onClick={() => setPriceType("hourly")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <Clock className="w-3 h-3" />
@@ -530,7 +537,7 @@ export default function CriarProdutoParaLoja() {
             </div>
           )}
 
-          {/* DURAÇÃO (para todos os tipos, opcional) */}
+          {/* DURAÇÃO */}
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
               <Timer className="w-3 h-3 text-orange-500" />
@@ -577,8 +584,8 @@ export default function CriarProdutoParaLoja() {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                       }`}
                   >
                     {cat}
@@ -595,13 +602,13 @@ export default function CriarProdutoParaLoja() {
               Localização (opcional)
             </label>
 
-            {(storeAddress || (storeLat != null && storeLng != null)) && !location && (
+            {(profileAddress || (profileLat != null && profileLng != null)) && !location && (
               <button
-                onClick={useStoreAddress}
+                onClick={useProfileAddress}
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border-2 border-blue-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-blue-100 transition-all"
               >
                 <MapPin size={14} />
-                Usar endereço da loja
+                Usar endereço do perfil
               </button>
             )}
 
