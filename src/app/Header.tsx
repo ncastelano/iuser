@@ -93,6 +93,34 @@ export default function Header({
 
     const enhancedTabs: Tab[] = tabs || []
 
+    // Função para determinar a cor de fundo da tab
+    const getTabBackground = (tab: Tab): string => {
+        // Se a tab tem statusColor (verde/vermelho), usa ele sempre
+        if (tab.statusColor) {
+            return tab.statusColor
+        }
+        // Se está ativa, usa accent (laranja)
+        if (tab.isActive) {
+            return colors.accent
+        }
+        // Padrão: superfície translúcida
+        return `${colors.surface}88`
+    }
+
+    // Função para determinar a cor do texto da tab
+    const getTabTextColor = (tab: Tab): string => {
+        // Se tem statusColor, texto branco
+        if (tab.statusColor) {
+            return '#ffffff'
+        }
+        // Se está ativa, usa accentText
+        if (tab.isActive) {
+            return colors.accentText
+        }
+        // Padrão
+        return colors.textSecondary
+    }
+
     return (
         <div
             style={{
@@ -203,16 +231,8 @@ export default function Header({
                         style={{ overflowY: 'visible' }}
                     >
                         {enhancedTabs.map((tab) => {
-                            // Fundo da aba:
-                            // - ativo: cor de destaque
-                            // - inativo com statusColor: verde/vermelho
-                            // - padrão: superfície translúcida
-                            let backgroundColor = `${colors.surface}88`
-                            if (tab.isActive) {
-                                backgroundColor = colors.accent
-                            } else if (tab.statusColor) {
-                                backgroundColor = tab.statusColor
-                            }
+                            const backgroundColor = getTabBackground(tab)
+                            const textColor = getTabTextColor(tab)
 
                             return (
                                 <button
@@ -223,8 +243,19 @@ export default function Header({
                                     style={{
                                         background: backgroundColor,
                                         backdropFilter: 'blur(10px)',
-                                        color: tab.isActive ? colors.accentText : colors.textSecondary,
+                                        color: textColor,
                                         overflow: 'visible',
+                                        // Se está ativa, adiciona um leve destaque extra
+                                        ...(tab.isActive && !tab.statusColor ? {
+                                            boxShadow: `0 2px 8px ${colors.accent}40`,
+                                            fontWeight: 'bold',
+                                        } : {}),
+                                        // Se está ativa com statusColor, adiciona destaque com a mesma cor
+                                        ...(tab.isActive && tab.statusColor ? {
+                                            boxShadow: `0 2px 8px ${tab.statusColor}60`,
+                                            fontWeight: 'bold',
+                                            transform: 'scale(1.05)',
+                                        } : {}),
                                     }}
                                 >
                                     {tab.imageUrl ? (
@@ -237,13 +268,15 @@ export default function Header({
                                         <div
                                             className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
                                             style={{
-                                                background: tab.isActive ? colors.accent : `${colors.surface}88`,
+                                                background: tab.isActive
+                                                    ? (tab.statusColor ? `${tab.statusColor}cc` : colors.accent)
+                                                    : `${colors.surface}88`,
                                                 backdropFilter: 'blur(10px)',
                                             }}
                                         >
                                             <tab.icon
                                                 size={14}
-                                                color={tab.isActive ? colors.accentText : colors.textSecondary}
+                                                color={textColor}
                                             />
                                         </div>
                                     )}

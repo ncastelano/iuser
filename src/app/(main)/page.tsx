@@ -304,7 +304,7 @@ export default function HomePage() {
 
             const { data: fetchedStores } = await supabase
                 .from('stores')
-                .select('id, name, storeSlug, logo_url, business_hours') // 👈 busca business_hours
+                .select('id, name, storeSlug, logo_url, business_hours')
                 .eq('owner_id', session.user.id)
                 .order('created_at', { ascending: true })
 
@@ -322,7 +322,7 @@ export default function HomePage() {
                         slug: s.storeSlug,
                         logoUrl,
                         name: s.name,
-                        business_hours: s.business_hours || null, // 👈 preserva
+                        business_hours: s.business_hours || null,
                     }
                 })
                 setStores(storesData)
@@ -367,7 +367,6 @@ export default function HomePage() {
         }
     }, [stores])
 
-    // Atualização em tempo real das contagens
     useEffect(() => {
         if (!stores || stores.length === 0) return
         const storeIds = stores.map(s => s.id)
@@ -390,7 +389,6 @@ export default function HomePage() {
         }
     }, [stores])
 
-    // Seções exibidas com ordenação dinâmica
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
 
@@ -580,7 +578,6 @@ export default function HomePage() {
         }
     }
 
-    // Montagem das abas COM indicadores de pedidos e cor de status
     const tabs = useMemo(() => {
         const isLoggedIn = !!profileSlug && !loading
         const allTabs: any[] = [
@@ -603,10 +600,9 @@ export default function HomePage() {
                 const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
                 const hasActive = counts.pending + counts.preparing + counts.ready > 0
 
-                // Determina cor de status baseada no business_hours
                 const todaySchedule = getTodaySchedule(s.business_hours)
                 const openNow = isOpenNow(todaySchedule)
-                const statusColor = openNow ? '#22c55e' : '#ef4444' // verde / vermelho
+                const statusColor = openNow ? '#22c55e' : '#ef4444'
 
                 const isActive = activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin
 
@@ -617,7 +613,6 @@ export default function HomePage() {
                     imageUrl: s.logoUrl,
                     onClick: () => handleStoreTabClick(s.slug),
                     isActive,
-                    // Só mostra indicador se NÃO estiver ativo
                     indicator: !isActive && hasActive ? counts : null,
                     statusColor,
                 })
@@ -758,6 +753,7 @@ export default function HomePage() {
                     </div>
                 )}
 
+                {/* Home - apenas SacolaButton (lado direito) */}
                 {showHomeFab && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         <SacolaButton
@@ -773,7 +769,37 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {showFab && (
+                {/* StoreDashboard - SacolaButton + Home (lado direito, agrupados) */}
+                {activeStoreSlug && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                        <SacolaButton
+                            totalItems={totalCartItems}
+                            statusCounts={{
+                                pending: pendingCount,
+                                preparing: preparingCount,
+                                ready: readyCount,
+                                reviews: pendingReviewsCount,
+                            }}
+                            animate={cartAnimating}
+                        />
+                        <button
+                            onClick={showHomeSections}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                color: colors.accentText,
+                                border: `2px solid ${colors.border}`,
+                                boxShadow: `0 8px 24px ${colors.accent}60`,
+                            }}
+                            aria-label="Voltar ao início"
+                        >
+                            <Home size={24} />
+                        </button>
+                    </div>
+                )}
+
+                {/* Outras telas (Config, CreateStore, Login, Profile) - apenas Home */}
+                {showFab && !activeStoreSlug && (
                     <button
                         onClick={showHomeSections}
                         className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"

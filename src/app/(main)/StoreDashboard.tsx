@@ -1,4 +1,4 @@
-// app/(main)/[profileSlug]/[storeSlug]/StoreDashboard.tsx
+// app/(main)/StoreDashboard.tsx
 'use client'
 
 import React, { useEffect, useState, useCallback, useRef } from 'react'

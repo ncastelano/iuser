@@ -1,3 +1,4 @@
+// components/LoadingSpinner.tsx
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -109,10 +110,10 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true, bac
 
     if (!mounted) return null
 
-    // Define o fundo: se 'background' for passado, usa-o; senão, usa o fundo do tema
+    // Define o fundo: se 'background' for passado, usa-o; senão, transparente
     const bgStyle = background
         ? { background }
-        : { background: themeBackground }
+        : { background: 'transparent' }
 
     // Cores derivadas do tema
     const primaryParticle = accent
@@ -172,7 +173,7 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true, bac
                             }}
                         />
                         <div
-                            className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-orange-50"
+                            className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
                             style={{
                                 background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
                                 boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
