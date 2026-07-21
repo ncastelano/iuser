@@ -19,11 +19,13 @@ import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { getStatusIntervalText } from '@/lib/storeHours'
+import DistanceCalculator from '../../DistanceCalculator'
 
 // ---------- Tipos ----------
 interface TopProduct {
     imageUrl: string | null
     name: string
+    price: number | null
 }
 
 interface StoreCard {
@@ -37,6 +39,9 @@ interface StoreCard {
     isOpen: boolean
     statusText: string
     address?: string
+    location?: any
+    lat?: number | null
+    lng?: number | null
     viewCount?: number
     durationMin?: number | null
     durationMax?: number | null
@@ -46,6 +51,9 @@ interface StoreCard {
     deliveryFee?: number | null
     acceptsDelivery?: boolean
     acceptsPickup?: boolean
+    minPrice?: number | null
+    maxPrice?: number | null
+    totalProducts?: number
 }
 
 // ---------- Helpers ----------
@@ -57,6 +65,57 @@ function extractStreetAddress(fullAddress?: string): string {
         street += ', ' + parts[1]
     }
     return street
+}
+
+function calculateHaversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371000
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+}
+
+function parseStoreCoords(store: any): { lat: number; lng: number } | null {
+    if (typeof store.latitude === 'number' && typeof store.longitude === 'number' && isFinite(store.latitude) && isFinite(store.longitude)) {
+        return { lat: store.latitude, lng: store.longitude }
+    }
+    if (typeof store.lat === 'number' && typeof store.lng === 'number' && isFinite(store.lat) && isFinite(store.lng)) {
+        return { lat: store.lat, lng: store.lng }
+    }
+    if (store.location) {
+        const loc = store.location
+        if (typeof loc === 'object' && loc !== null) {
+            if ('lat' in loc && 'lng' in loc) {
+                const lat = Number(loc.lat)
+                const lng = Number(loc.lng)
+                if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+            }
+            if (loc.type === 'Point' && Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+                const lng = Number(loc.coordinates[0])
+                const lat = Number(loc.coordinates[1])
+                if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+            }
+        }
+        if (typeof loc === 'string') {
+            if (loc.startsWith('{') || loc.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(loc)
+                    return parseStoreCoords({ location: parsed })
+                } catch { }
+            }
+            const match = loc.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
+            if (match) {
+                const lng = parseFloat(match[1])
+                const lat = parseFloat(match[2])
+                if (isFinite(lat) && isFinite(lng)) return { lat, lng }
+            }
+        }
+    }
+    return null
 }
 
 const CACHE_KEY = 'banner_stores_cache_v2'
@@ -93,11 +152,11 @@ function useBreakpoint() {
         const update = () => {
             const width = window.innerWidth
             if (width >= 1120) {
-                setSlidesPerView(3) // xl: 3 slides
+                setSlidesPerView(3)
             } else if (width >= 800) {
-                setSlidesPerView(2) // md: 2 slides
+                setSlidesPerView(2)
             } else {
-                setSlidesPerView(1) // default: 1 slide
+                setSlidesPerView(1)
             }
         }
 
@@ -250,21 +309,36 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
     const [locationAttempted, setLocationAttempted] = useState(false)
 
     useEffect(() => {
+        // PRIORIDADE 1: Usar a localização salva do usuário (vinda do page.tsx)
         if (savedLocation) {
+            console.log('[BannerPago] Usando localização salva:', savedLocation)
             setEffectiveLocation(savedLocation)
             setLocationAttempted(true)
-        } else if (!locationAttempted && 'geolocation' in navigator) {
+            return
+        }
+
+        // PRIORIDADE 2: Tentar obter localização do navegador
+        if (!locationAttempted && 'geolocation' in navigator) {
+            console.log('[BannerPago] Tentando obter localização do navegador')
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    setEffectiveLocation({
+                    const location = {
                         lat: pos.coords.latitude,
                         lng: pos.coords.longitude
-                    })
+                    }
+                    console.log('[BannerPago] Localização do navegador obtida:', location)
+                    setEffectiveLocation(location)
                     setLocationAttempted(true)
                 },
-                () => {
+                (err) => {
+                    console.warn('[BannerPago] Erro ao obter localização do navegador:', err)
                     setEffectiveLocation(null)
                     setLocationAttempted(true)
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
                 }
             )
         }
@@ -274,31 +348,63 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
         let cancelled = false
 
         const fetchFreshData = async () => {
+            console.log('[BannerPago] Buscando lojas com localização:', effectiveLocation)
             let storesList: any[] | null = null
-            let error: any = null
 
             if (effectiveLocation) {
-                const { data, error: rpcErr } = await supabase
-                    .rpc('get_stores_with_distance', {
-                        user_lat: effectiveLocation.lat,
-                        user_lng: effectiveLocation.lng
-                    })
-                storesList = data
-                error = rpcErr
-            } else {
-                const { data, error: queryErr } = await supabase
+                try {
+                    const { data, error: rpcErr } = await supabase
+                        .rpc('get_stores_with_distance', {
+                            user_lat: effectiveLocation.lat,
+                            user_lng: effectiveLocation.lng
+                        })
+                    if (!rpcErr && data && data.length > 0) {
+                        console.log('[BannerPago] Lojas encontradas via RPC:', data.length)
+                        storesList = data
+                    } else if (rpcErr) {
+                        console.warn('[BannerPago] Erro na RPC get_stores_with_distance:', rpcErr)
+                    }
+                } catch (e) {
+                    console.warn('[BannerPago] RPC get_stores_with_distance falhou:', e)
+                }
+            }
+
+            // Fallback: buscar lojas ativas se a RPC falhou ou não tem localização
+            if (!storesList || storesList.length === 0) {
+                console.log('[BannerPago] Buscando lojas ativas (fallback)')
+                const { data: activeStores } = await supabase
                     .from('stores')
                     .select('*')
                     .eq('is_active', true)
                     .order('ratings_avg', { ascending: false })
                     .limit(20)
-                storesList = data
-                error = queryErr
+                storesList = activeStores
+                console.log('[BannerPago] Lojas ativas encontradas:', storesList?.length || 0)
             }
 
-            if (error || cancelled) return
+            if (!storesList || storesList.length === 0) {
+                console.log('[BannerPago] Buscando todas as lojas (último fallback)')
+                const { data: allStores } = await supabase
+                    .from('stores')
+                    .select('*')
+                    .limit(20)
+                storesList = allStores
+                console.log('[BannerPago] Todas as lojas encontradas:', storesList?.length || 0)
+            }
 
-            const storeIds = storesList?.map((s: any) => s.id) || []
+            if (cancelled || !storesList) return
+
+            const storeIds = storesList.map((s: any) => s.id) || []
+
+            const { data: productsList } = await supabase
+                .from('products')
+                .select('id, name, store_id, image_url, duration_minutes, price')
+                .in('store_id', storeIds)
+                .eq('listing_type', 'sale')
+                .eq('is_active', true)
+
+            console.log('[BannerPago] Produtos encontrados:', productsList?.length || 0)
+
             let deliveryFieldsMap = new Map<string, any>()
             if (storeIds.length > 0) {
                 const { data: deliveryData } = await supabase
@@ -310,12 +416,10 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 }
             }
 
-            const { data: productsList } = await supabase
-                .from('products')
-                .select('id, name, store_id, image_url, duration_minutes')
             const { data: reviewsList } = await supabase
                 .from('product_reviews')
                 .select('store_id, rating')
+
             const { data: paidOrderItems } = await supabase
                 .from('order_items')
                 .select('product_id, orders!inner(status)')
@@ -342,7 +446,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 storeProds.get(p.store_id)!.push(p)
             })
 
-            const cards: StoreCard[] = (storesList || []).map((store: any) => {
+            const cards: StoreCard[] = storesList.map((store: any) => {
                 const logoUrl = store.logo_url
                     ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                     : null
@@ -360,18 +464,39 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 const durationMin = durations.length ? Math.min(...durations) : null
                 const durationMax = durations.length ? Math.max(...durations) : null
 
-                const topProducts: TopProduct[] = prods
+                const prices = prods
+                    .map(p => p.price)
+                    .filter((p): p is number => p != null && p > 0)
+                const minPrice = prices.length ? Math.min(...prices) : null
+                const maxPrice = prices.length ? Math.max(...prices) : null
+
+                const productsWithImages = prods
+                    .filter(p => p.image_url)
                     .sort((a, b) => (salesCount.get(b.id) || 0) - (salesCount.get(a.id) || 0))
                     .slice(0, 3)
                     .map(p => ({
                         imageUrl: p.image_url
                             ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
                             : null,
-                        name: p.name
+                        name: p.name,
+                        price: p.price
                     }))
 
-                const distanceMeters = store.distance_meters ?? null
-                const streetAddress = extractStreetAddress(store.address)
+                const storeCoords = parseStoreCoords(store)
+
+                // PEGA A DISTÂNCIA DO BANCO (vem da RPC get_stores_with_distance)
+                let distanceMeters = store.distance_meters ?? null
+
+                // Se não veio distância da RPC, mas temos localização do usuário e coordenadas da loja, calculamos
+                if (!distanceMeters && effectiveLocation && storeCoords) {
+                    distanceMeters = calculateHaversineDistanceMeters(
+                        effectiveLocation.lat,
+                        effectiveLocation.lng,
+                        storeCoords.lat,
+                        storeCoords.lng
+                    )
+                    console.log(`[BannerPago] Distância calculada para ${store.name}:`, distanceMeters)
+                }
 
                 const deliveryFields = deliveryFieldsMap.get(store.id) || {}
                 const acceptsDelivery = deliveryFields.accepts_delivery ?? store.accepts_delivery ?? false
@@ -389,18 +514,28 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                     ratingCount: count,
                     isOpen: status.isOpen,
                     statusText: status.text,
-                    address: streetAddress,
+                    address: store.address,
+                    location: store.location,
+                    lat: storeCoords?.lat ?? store.latitude ?? store.lat ?? null,
+                    lng: storeCoords?.lng ?? store.longitude ?? store.lng ?? null,
                     viewCount: store.view_count ?? 0,
                     durationMin,
                     durationMax,
-                    topProducts,
-                    distanceMeters,
+                    topProducts: productsWithImages,
+                    distanceMeters: distanceMeters,
                     deliveryType,
                     deliveryFee,
                     acceptsDelivery,
                     acceptsPickup,
+                    minPrice: minPrice ?? null,
+                    maxPrice: maxPrice ?? null,
+                    totalProducts: prods.length,
                 }
             })
+
+            if (!cards || cards.length === 0) {
+                return []
+            }
 
             cards.sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
             return cards
@@ -408,6 +543,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
 
         const cached = loadCache()
         if (cached && cached.length > 0) {
+            console.log('[BannerPago] Usando cache com', cached.length, 'lojas')
             setStores(cached)
             setLoading(false)
         }
@@ -415,12 +551,13 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
         fetchFreshData()
             .then((freshCards) => {
                 if (!cancelled && freshCards) {
+                    console.log('[BannerPago] Dados frescos obtidos:', freshCards.length, 'lojas')
                     setStores(freshCards)
                     saveCache(freshCards)
                 }
             })
             .catch((err) => {
-                console.error("Error fetching banner stores:", err)
+                console.error("[BannerPago] Error fetching banner stores:", err)
             })
             .finally(() => {
                 if (!cancelled) {
@@ -431,7 +568,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
         return () => { cancelled = true }
     }, [effectiveLocation])
 
-    return { stores, loading }
+    return { stores, loading, effectiveLocation }
 }
 
 // ---------- Componente Principal ----------
@@ -445,12 +582,11 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    const { stores, loading } = useBannerStores(savedLocation)
-    const slidesPerView = useBreakpoint() // NOVO: hook de responsividade
+    const { stores, loading, effectiveLocation } = useBannerStores(savedLocation)
+    const slidesPerView = useBreakpoint()
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
 
-    // Divide os stores em grupos baseado no slidesPerView
     const totalPages = Math.max(1, Math.ceil(totalRealSlides / slidesPerView))
 
     const [currentPage, setCurrentPage] = useState(0)
@@ -458,9 +594,7 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
     const [isDragging, setIsDragging] = useState(false)
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
-    const [isTransitioning, setIsTransitioning] = useState(true)
 
-    // Reset página quando mudar o breakpoint
     useEffect(() => {
         setCurrentPage(0)
     }, [slidesPerView])
@@ -475,7 +609,6 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
     }, [totalPages])
 
-    // Autoplay
     useEffect(() => {
         if (isHovered || isDragging || totalPages <= 1) return
         autoPlayRef.current = setInterval(goToNext, 5000)
@@ -484,7 +617,6 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         }
     }, [isHovered, isDragging, goToNext, totalPages])
 
-    // Calcular os itens da página atual
     const currentItems = useCallback(() => {
         if (totalRealSlides === 0) return []
         const start = currentPage * slidesPerView
@@ -529,10 +661,13 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         return m > 0 ? `${h}h ${m}min` : `${h}h`
     }
 
-    const formatDistance = (meters: number) =>
-        meters < 1000
-            ? `${Math.round(meters)} m`
-            : `${(meters / 1000).toFixed(1)} km`
+    const formatPrice = (price: number | null | undefined): string | null => {
+        if (price == null) return null
+        return price.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        })
+    }
 
     const renderDeliveryBadge = (store: StoreCard) => {
         if (!store.acceptsDelivery) return null
@@ -561,14 +696,14 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
         return null
     }
 
-    // Mostra skeleton se estiver carregando
     if (loading) {
         return <BannerSkeleton slidesPerView={slidesPerView} />
     }
 
-    if (!sortedStores.length) return null
+    if (!sortedStores.length) {
+        return null
+    }
 
-    // Grid responsivo baseado no slidesPerView
     const gridCols = slidesPerView === 3 ? 'grid-cols-3' : slidesPerView === 2 ? 'grid-cols-2' : 'grid-cols-1'
 
     return (
@@ -604,6 +739,9 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                 >
                     {items.map((store) => {
                         const backgroundImage = store.coverUrl || store.logoUrl
+                        const productsWithImages = store.topProducts?.filter(p => p.imageUrl) || []
+                        const minPriceFormatted = formatPrice(store.minPrice ?? null)
+                        const maxPriceFormatted = formatPrice(store.maxPrice ?? null)
 
                         return (
                             <div
@@ -689,32 +827,42 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                             {store.name}
                                         </h3>
 
-                                        {store.description && (
-                                            <p className="text-xs sm:text-sm text-white/80 line-clamp-2 mb-2 max-w-prose">
-                                                {store.description}
-                                            </p>
+                                        {/* Faixa de preços - sem container, apenas texto verde */}
+                                        {minPriceFormatted && maxPriceFormatted && (
+                                            <div className="text-xs sm:text-sm font-bold text-emerald-300 mb-2">
+                                                {minPriceFormatted === maxPriceFormatted
+                                                    ? minPriceFormatted
+                                                    : `${minPriceFormatted} - ${maxPriceFormatted}`}
+                                            </div>
                                         )}
 
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs mb-2">
-                                            {store.address && (
-                                                <div className="flex items-center gap-1">
-                                                    <MapPin size={14} className="text-white/70 shrink-0" />
-                                                    <span className="leading-tight opacity-90">{store.address}</span>
-                                                </div>
-                                            )}
-                                            {store.distanceMeters != null && (
-                                                <div className="flex items-center gap-1">
-                                                    <Spline size={14} className="text-emerald-300" />
-                                                    <span className="font-bold">{formatDistance(store.distanceMeters)}</span>
-                                                </div>
-                                            )}
-                                        </div>
+                                        {((store.address && store.address !== 'Endereço não informado') || store.location || (store.lat != null && store.lng != null)) && (
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs mb-2">
+                                                <DistanceCalculator
+                                                    coords={store.location || (store.lat != null && store.lng != null ? { lat: store.lat, lng: store.lng } : null)}
+                                                    lat={store.lat}
+                                                    lng={store.lng}
+                                                    address={store.address}
+                                                    storeName={store.name}
+                                                    userLocation={effectiveLocation}
+                                                    distanceMeters={store.distanceMeters}
+                                                    showDistance={true}
+                                                    showAddress={true}
+                                                    isButton={false}
+                                                    className="text-white/90"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.push(`/${store.slug}`);
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Produtos + métricas */}
                                         <div className="flex items-center justify-between mt-2">
-                                            {store.topProducts && store.topProducts.length > 0 && (
+                                            {productsWithImages.length > 0 && (
                                                 <div className="flex -space-x-2">
-                                                    {store.topProducts.slice(0, 3).map((product, i) => (
+                                                    {productsWithImages.slice(0, 3).map((product, i) => (
                                                         <div
                                                             key={i}
                                                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40 backdrop-blur-sm"
@@ -726,16 +874,12 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                                                                     alt={product.name}
                                                                     className="w-full h-full object-cover"
                                                                 />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-white text-[10px] sm:text-sm font-black">
-                                                                    {product.name.charAt(0).toUpperCase()}
-                                                                </div>
-                                                            )}
+                                                            ) : null}
                                                         </div>
                                                     ))}
-                                                    {store.topProducts.length > 3 && (
+                                                    {productsWithImages.length > 3 && (
                                                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 backdrop-blur-sm flex items-center justify-center text-[10px] sm:text-sm font-bold text-white">
-                                                            +{store.topProducts.length - 3}
+                                                            +{productsWithImages.length - 3}
                                                         </div>
                                                     )}
                                                 </div>

@@ -1,7 +1,7 @@
 // components/OrderSection.tsx
 'use client'
 
-import { ReactNode } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { Settings2, Save, RotateCcw, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
@@ -33,11 +33,31 @@ export default function OrderSection({
     disabled,
 }: OrderSectionProps) {
     const { colors } = useTheme()
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
-    // Estilo do botão primário (igual ao das seções Criar Loja, Configurações, etc.)
+    // Fallback colors for server-side rendering
+    const fallbackAccent = '#6b7280'
+    const fallbackTextPrimary = '#000000'
+    const fallbackTextSecondary = '#6b7280'
+    const fallbackBorder = '#d1d5db'
+
+    // Usar cores fixas no servidor e dinâmicas no cliente
+    const accentColor = mounted ? colors.accent : fallbackAccent
+    const textPrimaryColor = mounted ? colors.textPrimary : fallbackTextPrimary
+    const textSecondaryColor = mounted ? colors.textSecondary : fallbackTextSecondary
+    const borderColor = mounted ? colors.border : fallbackBorder
+    const shadowColor = mounted ? colors.shadow : '0 8px 32px rgba(0,0,0,0.08)'
+    const backgroundColor = mounted ? cardBg : 'rgba(249, 250, 251, 0.6)'
+    const accentTextColor = mounted ? colors.accentText : '#ffffff'
+
+    // Estilo do botão primário
     const primaryButtonStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -49,14 +69,14 @@ export default function OrderSection({
         fontSize: '0.875rem',
         fontWeight: 700,
         transition: 'all 0.2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 12px ${colors.accent}40`,
+        background: accentColor,
+        color: accentTextColor,
+        border: `1px solid ${accentColor}`,
+        boxShadow: mounted ? `0 4px 12px ${colors.accent}40` : `0 4px 12px ${fallbackAccent}40`,
         cursor: 'pointer',
     }
 
-    // Estilo para botão secundário (outlined)
+    // Estilo para botão secundário
     const secondaryButtonStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -69,34 +89,50 @@ export default function OrderSection({
         fontWeight: 600,
         transition: 'all 0.2s',
         background: 'transparent',
-        color: colors.textSecondary,
-        border: `1px solid ${colors.border}`,
+        color: textSecondaryColor,
+        border: `1px solid ${borderColor}`,
         cursor: 'pointer',
     }
 
+    // Renderização consistente - SEMPRE mostra Settings2 + h2, independente de mounted
     return (
         <section>
             <div
                 className="rounded-2xl p-5 flex flex-col gap-1"
                 style={{
-                    background: cardBg,
+                    background: backgroundColor,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
+                    border: `1px solid ${borderColor}`,
+                    boxShadow: shadowColor,
                 }}
             >
                 {/* Título com ícone e dragHandle */}
                 <div className="flex items-center gap-2 mb-1">
-                    {dragHandle}
-                    <Settings2 size={24} style={{ color: colors.accent }} />
-                    <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
+                    {mounted && dragHandle}
+                    <Settings2
+                        size={24}
+                        style={{
+                            color: accentColor
+                        }}
+                    />
+                    <h2
+                        className="text-xl font-black"
+                        style={{
+                            color: textPrimaryColor
+                        }}
+                    >
                         Organizar Página
                     </h2>
                 </div>
 
                 {/* Descrição */}
-                <p className="text-sm mb-3" style={{ color: colors.textSecondary }}>
+                <p
+                    className="text-sm mb-3"
+                    style={{
+                        color: textSecondaryColor
+                    }}
+                >
                     Personalize a ordem das seções na sua página inicial.
                 </p>
 
@@ -108,10 +144,10 @@ export default function OrderSection({
                         className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200 disabled:opacity-50"
                         style={primaryButtonStyle}
                         onMouseEnter={(e) => {
-                            if (!disabled) e.currentTarget.style.filter = 'brightness(0.95)'
+                            if (!disabled && mounted) e.currentTarget.style.filter = 'brightness(0.95)'
                         }}
                         onMouseLeave={(e) => {
-                            if (!disabled) e.currentTarget.style.filter = 'brightness(1)'
+                            if (!disabled && mounted) e.currentTarget.style.filter = 'brightness(1)'
                         }}
                     >
                         <Settings2 size={18} />
@@ -124,8 +160,12 @@ export default function OrderSection({
                             onClick={onSave}
                             className="group flex items-center justify-center gap-2 w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200"
                             style={primaryButtonStyle}
-                            onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(0.95)'}
-                            onMouseLeave={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+                            onMouseEnter={(e) => {
+                                if (mounted) e.currentTarget.style.filter = 'brightness(0.95)'
+                            }}
+                            onMouseLeave={(e) => {
+                                if (mounted) e.currentTarget.style.filter = 'brightness(1)'
+                            }}
                         >
                             <Save size={18} />
                             Salvar Ordem
@@ -138,14 +178,18 @@ export default function OrderSection({
                                 className="group flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
                                 style={secondaryButtonStyle}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = colors.accent
-                                    e.currentTarget.style.color = colors.accentText
-                                    e.currentTarget.style.borderColor = colors.accent
+                                    if (mounted) {
+                                        e.currentTarget.style.background = colors.accent
+                                        e.currentTarget.style.color = colors.accentText
+                                        e.currentTarget.style.borderColor = colors.accent
+                                    }
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'transparent'
-                                    e.currentTarget.style.color = colors.textSecondary
-                                    e.currentTarget.style.borderColor = colors.border
+                                    if (mounted) {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = colors.textSecondary
+                                        e.currentTarget.style.borderColor = colors.border
+                                    }
                                 }}
                             >
                                 <X size={16} />
@@ -157,14 +201,18 @@ export default function OrderSection({
                                 className="group flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
                                 style={secondaryButtonStyle}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = colors.accent
-                                    e.currentTarget.style.color = colors.accentText
-                                    e.currentTarget.style.borderColor = colors.accent
+                                    if (mounted) {
+                                        e.currentTarget.style.background = colors.accent
+                                        e.currentTarget.style.color = colors.accentText
+                                        e.currentTarget.style.borderColor = colors.accent
+                                    }
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'transparent'
-                                    e.currentTarget.style.color = colors.textSecondary
-                                    e.currentTarget.style.borderColor = colors.border
+                                    if (mounted) {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = colors.textSecondary
+                                        e.currentTarget.style.borderColor = colors.border
+                                    }
                                 }}
                             >
                                 <RotateCcw size={16} />
@@ -175,9 +223,16 @@ export default function OrderSection({
                 )}
 
                 {isEditing && (
-                    <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>
+                    <p
+                        className="text-xs mt-2"
+                        style={{
+                            color: textSecondaryColor
+                        }}
+                    >
                         Arraste as seções para reordenar. Depois clique em{' '}
-                        <strong style={{ color: colors.accent }}>Salvar Ordem</strong>.
+                        <strong style={{ color: accentColor }}>
+                            Salvar Ordem
+                        </strong>.
                     </p>
                 )}
             </div>

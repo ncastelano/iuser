@@ -116,8 +116,9 @@ export default function HomePage() {
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved)
-                    if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTIONS.length) {
-                        return parsed
+                    if (Array.isArray(parsed)) {
+                        const missing = DEFAULT_SECTIONS.filter(s => !parsed.includes(s))
+                        return [...parsed, ...missing]
                     }
                 } catch { }
             }
