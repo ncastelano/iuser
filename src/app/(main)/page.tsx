@@ -63,21 +63,19 @@ const ORDER_STORAGE_KEY = 'homepage_sections_order'
 const LOCATION_STORAGE_KEY = 'user_saved_location'
 
 // ---------- Função para formatar endereço (rua e número) ----------
-function formatAddress(address: string): string {
+function formatAddress(address: string, addressNumber?: string): string {
     if (!address) return 'Definir local'
 
-    // Remove CEP e tudo depois da primeira vírgula
-    const firstPart = address.split(',')[0].trim()
+    // Se tem número separado, adiciona ao endereço
+    const displayAddress = addressNumber ? `${address.split(',')[0]}, ${addressNumber}` : address
 
-    // Procura por padrões comuns de endereço brasileiro
-    // Ex: "Rua das Orquídeas, 123" ou "Avenida Paulista, 1000"
+    const firstPart = displayAddress.split(',')[0].trim()
+
     const match = firstPart.match(/^(.+?)(\s+\d+)/)
 
     if (match) {
-        // Tem rua e número
         let result = match[0].trim()
 
-        // Abrevia palavras longas para caber
         result = result
             .replace(/^Avenida\s/, 'Av. ')
             .replace(/^Rua\s/, 'R. ')
@@ -93,7 +91,6 @@ function formatAddress(address: string): string {
         return result
     }
 
-    // Se não encontrou padrão rua+número, mostra o começo
     if (firstPart.length > 28) {
         return firstPart.substring(0, 25) + '...'
     }
@@ -486,14 +483,25 @@ export default function HomePage() {
     }
 
     // ---------- SALVAR LOCALIZAÇÃO (COM LOG DETALHADO PARA DEBUG) ----------
-    const handleLocationSave = async (location: { lat: number; lng: number; address: string }) => {
+    const handleLocationSave = async (location: {
+        lat: number;
+        lng: number;
+        address: string;
+        addressNumber?: string;
+        addressComplement?: string;
+    }) => {
         setIsSavingLocation(true)
         console.log('🔵 INICIANDO SALVAMENTO')
 
         try {
             // 1. Salvar no estado e localStorage
-            setSavedLocation(location)
-            localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
+            const locationData = {
+                lat: location.lat,
+                lng: location.lng,
+                address: location.address,
+            }
+            setSavedLocation(locationData)
+            localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
             console.log('✅ localStorage OK')
 
             // 2. Verificar autenticação
@@ -507,20 +515,22 @@ export default function HomePage() {
                 return
             }
 
-            // 3. Fazer update direto (sem verificar existência)
+            // 3. Fazer upsert com todos os campos
             console.log('🔵 Tentando upsert...')
             const { data, error } = await supabase
                 .from('profiles')
                 .upsert({
                     id: user.id,
                     address: location.address,
+                    address_number: location.addressNumber || null,
+                    address_complement: location.addressComplement || null,
                     store_lat: location.lat,
                     store_lng: location.lng,
                 }, {
                     onConflict: 'id',
                     ignoreDuplicates: false
                 })
-                .select('address, store_lat, store_lng')
+                .select('address, address_number, address_complement, store_lat, store_lng')
                 .single()
 
             console.log('🔵 Resultado:', { data, error })
@@ -889,8 +899,65 @@ export default function HomePage() {
 
                 {showLocationDialog && (
                     <LocationPicker
-                        initialLocation={savedLocation}
-                        onSave={handleLocationSave}
+                        initialLocation={savedLocation ? {
+                            lat: savedLocation.lat,
+                            lng: savedLocation.lng,
+                            address: savedLocation.address,
+                            addressNumber: '',
+                            addressComplement: ''
+                        } : null}
+                        onSave={async (location) => {
+                            setIsSavingLocation(true)
+
+                            try {
+                                // 1. Salvar no estado local e localStorage
+                                const locationData = {
+                                    lat: location.lat,
+                                    lng: location.lng,
+                                    address: location.address,
+                                }
+                                setSavedLocation(locationData)
+                                localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
+
+                                // 2. Verificar autenticação
+                                const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+                                if (!user) {
+                                    console.log('⚠️ Usuário não autenticado. Salvando apenas localmente.')
+                                    setShowLocationDialog(false)
+                                    setIsSavingLocation(false)
+                                    return
+                                }
+
+                                // 3. Salvar no Supabase
+                                const { error } = await supabase
+                                    .from('profiles')
+                                    .upsert({
+                                        id: user.id,
+                                        address: location.address,
+                                        address_number: location.addressNumber,
+                                        address_complement: location.addressComplement,
+                                        store_lat: location.lat,
+                                        store_lng: location.lng,
+                                    }, {
+                                        onConflict: 'id',
+                                        ignoreDuplicates: false
+                                    })
+
+                                if (error) {
+                                    console.error('❌ Erro ao salvar no perfil:', error)
+                                    alert('Erro ao salvar: ' + error.message)
+                                } else {
+                                    console.log('✅ Localização salva com sucesso!')
+                                }
+                            } catch (err) {
+                                console.error('❌ Erro inesperado:', err)
+                                alert('Erro: ' + (err as Error).message)
+                            } finally {
+                                setIsSavingLocation(false)
+                                setShowLocationDialog(false)
+                            }
+                        }}
                         onClose={() => setShowLocationDialog(false)}
                     />
                 )}
