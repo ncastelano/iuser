@@ -27,7 +27,7 @@ interface TopProduct {
 }
 
 interface StoreCard {
-    slug: string
+    storeSlug: string
     profileSlug: string
     name: string
     logoUrl: string | null
@@ -127,7 +127,7 @@ function parseStoreCoords(store: any): { lat: number; lng: number } | null {
     return null
 }
 
-const CACHE_KEY = 'banner_stores_cache_v7'
+const CACHE_KEY = 'banner_stores_cache_v8'
 const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
@@ -206,7 +206,6 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
         const newKey = userLocation ? `${userLocation.lat.toFixed(5)},${userLocation.lng.toFixed(5)}` : ''
 
         if (userLocation && newKey !== lastLocationKey.current) {
-            console.log('[BannerPago] 🔄 Nova localização:', userLocation)
             lastLocationKey.current = newKey
             setEffectiveLocation({ ...userLocation })
             setStores([])
@@ -259,7 +258,7 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
                     distanceMeters = calculateHaversineDistanceMeters(location.lat, location.lng, storeCoords.lat, storeCoords.lng)
 
                 return {
-                    slug: store.storeSlug,
+                    storeSlug: store.storeSlug || '',
                     profileSlug: store.profileSlug || '',
                     name: store.name,
                     logoUrl,
@@ -299,7 +298,6 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
         const fetchFreshData = async () => {
             let storesList: any[] = []
 
-            // Tentar RPC primeiro se tem localização
             if (effectiveLocation) {
                 try {
                     const { data: rpcData, error: rpcErr } = await supabase.rpc('get_stores_with_distance', {
@@ -309,16 +307,13 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
                     })
                     if (!rpcErr && rpcData?.length > 0) {
                         storesList = rpcData
-                        console.log('[BannerPago] ✅ RPC retornou', storesList.length, 'lojas')
                     }
                 } catch (e) {
                     console.warn('[BannerPago] RPC falhou:', e)
                 }
             }
 
-            // Fallback: query normal
             if (storesList.length === 0) {
-                console.log('[BannerPago] 🔍 Buscando todas as lojas ativas...')
                 const { data, error } = await supabase
                     .from('stores')
                     .select('*')
@@ -326,60 +321,39 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
                     .order('ratings_avg', { ascending: false })
                     .limit(20)
 
-                if (error) {
-                    console.error('[BannerPago] Erro na query:', error)
-                } else if (data) {
+                if (!error && data) {
                     storesList = data
-                    console.log('[BannerPago] ✅ Query retornou', storesList.length, 'lojas')
                 }
             }
 
             if (cancelled || storesList.length === 0) {
-                if (!cancelled) {
-                    console.log('[BannerPago] Nenhuma loja encontrada')
-                    setLoading(false)
-                }
+                if (!cancelled) setLoading(false)
                 return
             }
 
-            // Buscar profileSlug dos owners SEPARADAMENTE
+            // Buscar profileSlug dos owners
             const ownerIds = [...new Set(storesList.map((s: any) => s.owner_id).filter(Boolean))]
-            console.log('[BannerPago] Owner IDs:', ownerIds)
-
             let profileMap = new Map<string, string>()
 
             if (ownerIds.length > 0) {
-                const { data: profiles, error: profileError } = await supabase
+                const { data: profiles } = await supabase
                     .from('profiles')
                     .select('id, profileSlug')
                     .in('id', ownerIds)
 
-                if (profileError) {
-                    console.error('[BannerPago] Erro ao buscar profiles:', profileError)
-                } else if (profiles) {
-                    console.log('[BannerPago] Profiles encontrados:', profiles.length)
-                    profiles.forEach((p: any) => {
-                        console.log(`[BannerPago]   Profile: id=${p.id}, profileSlug=${p.profileSlug}`)
-                        if (p.profileSlug) {
-                            profileMap.set(p.id, p.profileSlug)
-                        }
-                    })
-                }
+                profiles?.forEach((p: any) => {
+                    if (p.profileSlug) profileMap.set(p.id, p.profileSlug)
+                })
             }
 
             // Adicionar profileSlug aos stores
-            const storesWithProfile = storesList.map((s: any) => {
-                const profileSlug = profileMap.get(s.owner_id) || null
-                console.log(`[BannerPago] Store: ${s.name} (id=${s.id}), owner_id=${s.owner_id}, profileSlug=${profileSlug}, storeSlug=${s.storeSlug}`)
-                return {
-                    ...s,
-                    profileSlug
-                }
-            })
+            const storesWithProfile = storesList.map((s: any) => ({
+                ...s,
+                profileSlug: profileMap.get(s.owner_id) || null
+            }))
 
             const cards = await buildStoreCards(storesWithProfile, effectiveLocation)
             if (!cancelled && cards.length > 0) {
-                console.log('[BannerPago] ✅ Cards construídos:', cards.length)
                 setStores(cards)
                 saveCache(cards)
                 setLoading(false)
@@ -391,7 +365,6 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
         // Tentar cache primeiro
         const cached = loadCache()
         if (cached?.length) {
-            console.log('[BannerPago] 📦 Cache carregado:', cached.length, 'lojas')
             setStores(cached)
             setLoading(false)
         }
@@ -416,7 +389,7 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const locationToUse = userLocation || savedLocation
-    const { stores, loading, effectiveLocation } = useBannerStores(locationToUse)
+    const { stores, loading } = useBannerStores(locationToUse)
     const slidesPerView = useBreakpoint()
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
@@ -427,6 +400,8 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
     const [isDragging, setIsDragging] = useState(false)
     const [dragStartX, setDragStartX] = useState(0)
     const [dragOffset, setDragOffset] = useState(0)
+    const dragDistance = useRef(0)
+    const clickTarget = useRef<StoreCard | null>(null)
 
     useEffect(() => { setCurrentPage(0) }, [slidesPerView])
 
@@ -445,35 +420,37 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
         return sortedStores.slice(start, Math.min(start + slidesPerView, totalRealSlides))
     }, [sortedStores, currentPage, slidesPerView, totalRealSlides])
 
-    const handleDragStart = (clientX: number) => { setIsDragging(true); setDragStartX(clientX); setDragOffset(0) }
-    const handleDragMove = (clientX: number) => { if (isDragging) setDragOffset(clientX - dragStartX) }
+    // Handlers de drag simplificados
+    const handleDragStart = (clientX: number) => {
+        setIsDragging(true)
+        setDragStartX(clientX)
+        setDragOffset(0)
+        dragDistance.current = 0
+    }
+
+    const handleDragMove = (clientX: number) => {
+        if (isDragging) {
+            const offset = clientX - dragStartX
+            setDragOffset(offset)
+            dragDistance.current = Math.abs(offset)
+        }
+    }
+
     const handleDragEnd = () => {
         if (!isDragging) return
         setIsDragging(false)
-        if (dragOffset > 50) goToPrev()
-        else if (dragOffset < -50) goToNext()
+
+        if (dragDistance.current > 50) {
+            if (dragOffset > 0) goToPrev()
+            else goToNext()
+        }
         setDragOffset(0)
     }
 
-    // Função para navegar para a loja
+    // Navegação simplificada - usa storeSlug diretamente
     const navigateToStore = (store: StoreCard) => {
-        console.log('[BannerPago] 🖱️ Clicou na loja:', {
-            name: store.name,
-            profileSlug: store.profileSlug,
-            slug: store.slug
-        })
-
-        if (store.profileSlug && store.slug) {
-            const url = `/${store.profileSlug}/${store.slug}`
-            console.log('[BannerPago] ➡️ Navegando para:', url)
-            router.push(url)
-        } else if (store.slug) {
-            // Fallback: tenta navegar só com o slug
-            const url = `/${store.slug}`
-            console.warn('[BannerPago] ⚠️ profileSlug não encontrado, tentando:', url)
-            router.push(url)
-        } else {
-            console.warn('[BannerPago] ❌ Store sem slug:', store)
+        if (store.storeSlug) {
+            router.push(`/${store.storeSlug}`)
         }
     }
 
@@ -486,7 +463,10 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
     const gridCols = slidesPerView === 3 ? 'grid-cols-3' : slidesPerView === 2 ? 'grid-cols-2' : 'grid-cols-1'
 
     return (
-        <div className="relative w-full" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <div className="relative w-full" onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => {
+            setIsHovered(false)
+            handleDragEnd()
+        }}>
             <div className="flex items-center gap-2 mb-2 px-1">
                 <ShoppingBag size={18} style={{ color: colors.accent }} />
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>Lojas em destaque</h2>
@@ -528,9 +508,15 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
                         const showAddressBadge = hasAddress && streetText
 
                         return (
-                            <div key={`card-${store.slug}-${storeIndex}`} className="relative h-72 sm:h-96 lg:h-[30rem]">
+                            <div key={`card-${store.storeSlug}-${storeIndex}`} className="relative h-72 sm:h-96 lg:h-[30rem]">
                                 <div
-                                    onClick={() => navigateToStore(store)}
+                                    onClick={(e) => {
+                                        // Só navega se não arrastou
+                                        if (dragDistance.current < 10) {
+                                            e.stopPropagation()
+                                            navigateToStore(store)
+                                        }
+                                    }}
                                     className="group absolute inset-0 rounded-2xl overflow-hidden border transition-all duration-300 transform hover:scale-[1.02] cursor-pointer"
                                     style={{ borderColor: colors.border, boxShadow: colors.shadow }}
                                 >
@@ -597,12 +583,12 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
                                             {productsWithImages.length > 0 && (
                                                 <div className="flex -space-x-2">
                                                     {productsWithImages.slice(0, 3).map((p, i) => (
-                                                        <div key={`prod-${store.slug}-${i}`} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40" title={p.name}>
+                                                        <div key={`prod-${store.storeSlug}-${i}`} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 overflow-hidden bg-black/40" title={p.name}>
                                                             {p.imageUrl && <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />}
                                                         </div>
                                                     ))}
                                                     {productsWithImages.length > 3 && (
-                                                        <div key={`prod-${store.slug}-extra`} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 flex items-center justify-center text-[10px] sm:text-sm font-bold">
+                                                        <div key={`prod-${store.storeSlug}-extra`} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white/30 bg-black/60 flex items-center justify-center text-[10px] sm:text-sm font-bold">
                                                             +{productsWithImages.length - 3}
                                                         </div>
                                                     )}
