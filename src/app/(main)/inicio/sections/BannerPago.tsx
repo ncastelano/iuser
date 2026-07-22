@@ -118,7 +118,7 @@ function parseStoreCoords(store: any): { lat: number; lng: number } | null {
     return null
 }
 
-const CACHE_KEY = 'banner_stores_cache_v2'
+const CACHE_KEY = 'banner_stores_cache_v3'
 const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
@@ -302,23 +302,23 @@ function BannerSkeleton({ slidesPerView = 1 }: { slidesPerView?: number }) {
 }
 
 // ---------- Hook de dados ----------
-function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
+function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
     const [stores, setStores] = useState<StoreCard[]>([])
     const [loading, setLoading] = useState(true)
     const [effectiveLocation, setEffectiveLocation] = useState<{ lat: number; lng: number } | null>(null)
     const [locationAttempted, setLocationAttempted] = useState(false)
 
     useEffect(() => {
-        // PRIORIDADE 1: Usar a localização salva do usuário (vinda do page.tsx)
-        if (savedLocation) {
-            console.log('[BannerPago] Usando localização salva:', savedLocation)
-            setEffectiveLocation(savedLocation)
+        // PRIORIDADE 1: Usar a localização passada como prop (vinda do page.tsx)
+        if (userLocation) {
+            console.log('[BannerPago] Usando localização do usuário:', userLocation)
+            setEffectiveLocation(userLocation)
             setLocationAttempted(true)
             return
         }
 
         // PRIORIDADE 2: Tentar obter localização do navegador
-        if (!locationAttempted && 'geolocation' in navigator) {
+        if (!locationAttempted && typeof window !== 'undefined' && 'geolocation' in navigator) {
             console.log('[BannerPago] Tentando obter localização do navegador')
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -342,7 +342,7 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
                 }
             )
         }
-    }, [savedLocation, locationAttempted])
+    }, [userLocation, locationAttempted])
 
     useEffect(() => {
         let cancelled = false
@@ -573,16 +573,20 @@ function useBannerStores(savedLocation?: { lat: number; lng: number } | null) {
 
 // ---------- Componente Principal ----------
 interface BannerPagoProps {
-    savedLocation?: { lat: number; lng: number } | null
+    savedLocation?: { lat: number; lng: number; address?: string } | null
+    userLocation?: { lat: number; lng: number } | null
 }
 
-export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
+export default function BannerPago({ savedLocation = null, userLocation = null }: BannerPagoProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const trackRef = useRef<HTMLDivElement>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    const { stores, loading, effectiveLocation } = useBannerStores(savedLocation)
+    // Usa userLocation como prioridade, depois savedLocation
+    const locationToUse = userLocation || savedLocation
+
+    const { stores, loading, effectiveLocation } = useBannerStores(locationToUse)
     const slidesPerView = useBreakpoint()
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
@@ -717,6 +721,11 @@ export default function BannerPago({ savedLocation = null }: BannerPagoProps) {
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Lojas em destaque
                 </h2>
+                {!locationToUse && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: colors.border, color: colors.textSecondary }}>
+                        Ative sua localização para ver distâncias
+                    </span>
+                )}
             </div>
 
             <div

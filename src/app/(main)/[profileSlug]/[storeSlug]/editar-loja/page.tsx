@@ -287,9 +287,9 @@ export default function EditarLoja() {
             delivery_base_distance: savedBaseDistance,
             delivery_base_fee: savedBaseFee,
             business_hours: businessHours,
-            // Campos antigos removidos — não são mais utilizados
-            store_lat: null,
-            store_lng: null,
+            // ✅ Salvar também nos campos simples para facilitar consultas
+            store_lat: location ? location.lat : null,
+            store_lng: location ? location.lng : null,
         }
 
         if (logoPath) updateData.logo_url = logoPath

@@ -28,7 +28,7 @@ import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import OrderSection from '@/components/OrderSection'
 import SearchResultsSection from '@/app/SearchResultsSection'
-import LastSearched, { getRecentClicks } from '@/components/LastSearched'
+import LastSearched from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
@@ -62,7 +62,46 @@ const DEFAULT_SECTIONS = [
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
 const LOCATION_STORAGE_KEY = 'user_saved_location'
 
-// ---------- Funções de horário (mesma lógica da StorePage) ----------
+// ---------- Função para formatar endereço (rua e número) ----------
+function formatAddress(address: string): string {
+    if (!address) return 'Definir local'
+
+    // Remove CEP e tudo depois da primeira vírgula
+    const firstPart = address.split(',')[0].trim()
+
+    // Procura por padrões comuns de endereço brasileiro
+    // Ex: "Rua das Orquídeas, 123" ou "Avenida Paulista, 1000"
+    const match = firstPart.match(/^(.+?)(\s+\d+)/)
+
+    if (match) {
+        // Tem rua e número
+        let result = match[0].trim()
+
+        // Abrevia palavras longas para caber
+        result = result
+            .replace(/^Avenida\s/, 'Av. ')
+            .replace(/^Rua\s/, 'R. ')
+            .replace(/^Travessa\s/, 'Tv. ')
+            .replace(/^Praça\s/, 'Pç. ')
+            .replace(/^Alameda\s/, 'Al. ')
+            .replace(/^Rodovia\s/, 'Rod. ')
+            .replace(/^Estrada\s/, 'Estr. ')
+
+        if (result.length > 28) {
+            return result.substring(0, 25) + '...'
+        }
+        return result
+    }
+
+    // Se não encontrou padrão rua+número, mostra o começo
+    if (firstPart.length > 28) {
+        return firstPart.substring(0, 25) + '...'
+    }
+
+    return firstPart
+}
+
+// ---------- Funções de horário ----------
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
 function getTodayKey(): string {
@@ -110,22 +149,7 @@ export default function HomePage() {
     const { colors } = useTheme()
     const { itemsByStore } = useCartStore()
 
-    const [sections, setSections] = useState<string[]>(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(ORDER_STORAGE_KEY)
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved)
-                    if (Array.isArray(parsed)) {
-                        const missing = DEFAULT_SECTIONS.filter(s => !parsed.includes(s))
-                        return [...parsed, ...missing]
-                    }
-                } catch { }
-            }
-        }
-        return DEFAULT_SECTIONS
-    })
-
+    const [sections, setSections] = useState<string[]>(DEFAULT_SECTIONS)
     const [showConfig, setShowConfig] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -139,6 +163,7 @@ export default function HomePage() {
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
+    const [isSavingLocation, setIsSavingLocation] = useState(false)
 
     const [loadingStores, setLoadingStores] = useState(true)
 
@@ -168,65 +193,78 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
-    // ---------- LOCALIZAÇÃO ----------
+    // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
-        const stored = localStorage.getItem(LOCATION_STORAGE_KEY)
-        if (stored) {
+        const saved = localStorage.getItem(ORDER_STORAGE_KEY)
+        if (saved) {
             try {
-                setSavedLocation(JSON.parse(stored))
-            } catch { }
+                const parsed = JSON.parse(saved)
+                if (Array.isArray(parsed)) {
+                    const missing = DEFAULT_SECTIONS.filter(s => !parsed.includes(s))
+                    setSections([...parsed, ...missing])
+                }
+            } catch {
+                // Ignora erros de parse
+            }
+        }
+    }, [])
+
+    // ---------- CARREGAR LOCALIZAÇÃO SALVA ----------
+    useEffect(() => {
+        // Primeiro, carrega do localStorage (mais rápido)
+        try {
+            const saved = localStorage.getItem(LOCATION_STORAGE_KEY)
+            if (saved) {
+                const parsed = JSON.parse(saved)
+                if (parsed && parsed.lat && parsed.lng) {
+                    setSavedLocation(parsed)
+                    console.log('[HomePage] ✅ Localização carregada do localStorage:', parsed.address)
+                }
+            }
+        } catch (e) {
+            console.warn('[HomePage] localStorage inválido, ignorando')
         }
 
-        const syncWithProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
+        // Depois, busca do perfil (apenas campos simples)
+        const fetchLocationFromProfile = async () => {
             try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
+
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('address, location')
+                    .select('address, store_lat, store_lng')
                     .eq('id', user.id)
                     .maybeSingle()
 
-                if (!error && profile?.location) {
-                    let lat: number | null = null
-                    let lng: number | null = null
-                    const loc = profile.location
-                    if (
-                        typeof loc === 'object' &&
-                        loc !== null &&
-                        'type' in loc &&
-                        loc.type === 'Point' &&
-                        Array.isArray(loc.coordinates)
-                    ) {
-                        lng = loc.coordinates[0]
-                        lat = loc.coordinates[1]
-                    } else if (typeof loc === 'string') {
-                        const match = loc.match(
-                            /POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i
-                        )
-                        if (match) {
-                            lng = parseFloat(match[1])
-                            lat = parseFloat(match[2])
-                        }
+                if (error) {
+                    if (error.code !== 'PGRST116') {
+                        console.warn('[HomePage] Erro ao buscar perfil:', error.message)
                     }
-
-                    if (lat !== null && lng !== null) {
-                        const newLocation = {
-                            lat,
-                            lng,
-                            address: profile.address || 'Localização salva',
-                        }
-                        setSavedLocation(newLocation)
-                        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(newLocation))
-                    }
+                    return
                 }
-            } catch { }
+
+                if (profile?.store_lat && profile?.store_lng) {
+                    const locationData = {
+                        lat: profile.store_lat,
+                        lng: profile.store_lng,
+                        address: profile.address || 'Local salvo'
+                    }
+                    setSavedLocation(locationData)
+                    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
+                    console.log('[HomePage] ✅ Localização atualizada do perfil:', locationData.address)
+                }
+            } catch (err) {
+                console.warn('[HomePage] Não foi possível buscar perfil:', err)
+            }
         }
 
-        syncWithProfile()
-    }, [])
+        if (profileSlug) {
+            fetchLocationFromProfile()
+        }
+    }, [profileSlug])
 
+    // ---------- ANIMAÇÃO DO CARRINHO ----------
     useEffect(() => {
         if (totalCartItems > 0) {
             setCartAnimating(true)
@@ -387,12 +425,10 @@ export default function HomePage() {
         }
     }, [stores])
 
-    // REMOVIDA a lógica de filtrar seções baseado em hasPessoalItems/hasLojaItems
-    // Agora apenas filtra por estar logado e se está em "breve"
+    // ---------- SEÇÕES EXIBIDAS ----------
     const displayedSections = useMemo(() => {
         const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
 
-        // Se não estiver logado, remove as seções de compromissos
         const baseSections = !profileSlug
             ? sections.filter(s => !agendaKeys.includes(s))
             : sections
@@ -405,15 +441,13 @@ export default function HomePage() {
                 breve.push(s)
                 return
             }
-
-            // REMOVIDA a verificação de hasPessoalItems/hasLojaItems
-            // Todas as seções vão para "normal" (não filtra mais por vazio)
             normal.push(s)
         })
 
         return [...normal, ...breve]
     }, [sections, profileSlug, breveMap])
 
+    // ---------- DRAG AND DROP ----------
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
         if (!over || active.id === over.id) return
@@ -439,7 +473,9 @@ export default function HomePage() {
                     setEditMode(false)
                     return
                 }
-            } catch { }
+            } catch {
+                // Ignora erros
+            }
         }
         setSections(DEFAULT_SECTIONS)
         setEditMode(false)
@@ -449,42 +485,69 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
+    // ---------- SALVAR LOCALIZAÇÃO (COM LOG DETALHADO PARA DEBUG) ----------
     const handleLocationSave = async (location: { lat: number; lng: number; address: string }) => {
-        setSavedLocation(location)
-        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
+        setIsSavingLocation(true)
+        console.log('🔵 INICIANDO SALVAMENTO')
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-            const point = `SRID=4326;POINT(${location.lng} ${location.lat})`
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({
-                    location: point,
-                    address: location.address,
-                })
-                .eq('id', user.id)
+        try {
+            // 1. Salvar no estado e localStorage
+            setSavedLocation(location)
+            localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location))
+            console.log('✅ localStorage OK')
 
-            if (updateError) {
-                const { error: insertError } = await supabase
-                    .from('profiles')
-                    .insert({
-                        id: user.id,
-                        location: point,
-                        address: location.address,
-                    })
-                if (insertError) console.error('Erro ao salvar localização no perfil:', insertError)
+            // 2. Verificar autenticação
+            const { data: { user }, error: authError } = await supabase.auth.getUser()
+            console.log('🔵 Auth:', user?.id || 'NÃO LOGADO', authError || '')
+
+            if (!user) {
+                console.log('⚠️ Não autenticado')
+                setShowLocationDialog(false)
+                setIsSavingLocation(false)
+                return
             }
-        }
 
-        setShowLocationDialog(false)
+            // 3. Fazer update direto (sem verificar existência)
+            console.log('🔵 Tentando upsert...')
+            const { data, error } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    address: location.address,
+                    store_lat: location.lat,
+                    store_lng: location.lng,
+                }, {
+                    onConflict: 'id',
+                    ignoreDuplicates: false
+                })
+                .select('address, store_lat, store_lng')
+                .single()
+
+            console.log('🔵 Resultado:', { data, error })
+
+            if (error) {
+                console.error('❌ Erro no upsert:', error)
+                alert('Erro ao salvar: ' + error.message)
+            } else {
+                console.log('✅ Salvo com sucesso:', data)
+                alert('Localização salva!')
+            }
+        } catch (err) {
+            console.error('❌ Erro inesperado:', err)
+            alert('Erro: ' + (err as Error).message)
+        } finally {
+            setIsSavingLocation(false)
+            setShowLocationDialog(false)
+        }
     }
 
     const isSearchVisible = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
 
+    // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
             case 'bannerPago':
-                return <BannerPago savedLocation={savedLocation} />
+                return <BannerPago savedLocation={savedLocation} userLocation={savedLocation} />
             case 'orderSection':
                 return (
                     <OrderSection
@@ -508,10 +571,8 @@ export default function HomePage() {
             case 'promocoes':
                 return <PromocoesSection />
             case 'compromissosPessoal':
-                // REMOVIDO o callback onHasItemsChange
                 return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
             case 'compromissosLoja':
-                // REMOVIDO o callback onHasItemsChange
                 return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
             case 'createStore':
                 return (
@@ -657,11 +718,17 @@ export default function HomePage() {
                     locationElement={
                         <button
                             onClick={() => setShowLocationDialog(true)}
-                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition"
+                            disabled={isSavingLocation}
+                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
                             style={{ color: colors.textPrimary }}
                         >
                             <MapPin size={14} />
-                            {savedLocation ? savedLocation.address.slice(0, 20) : 'Definir local'}
+                            {isSavingLocation
+                                ? 'Salvando...'
+                                : savedLocation
+                                    ? formatAddress(savedLocation.address)
+                                    : 'Definir local'
+                            }
                         </button>
                     }
                 />
@@ -791,7 +858,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* Outras telas (Config, CreateStore, Login, Profile) - apenas Home */}
+                {/* Outras telas (Config, CreateStore, Login, Profile) - SacolaButton + Home */}
                 {showFab && !activeStoreSlug && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                         <SacolaButton

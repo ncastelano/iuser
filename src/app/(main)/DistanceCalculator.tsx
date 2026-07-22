@@ -1,9 +1,8 @@
-// src/app/(main)/DistanceCalculator.tsx
+// src/app/(main)/DistanceCalculator.tsx - Versão SEM geocodificação externa
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { MapPin, ExternalLink, Navigation } from 'lucide-react'
-import { useTheme } from '@/app/theme'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { MapPin, ExternalLink } from 'lucide-react'
 
 export interface DistanceCalculatorProps {
     coords?: { lat: number; lng: number } | [number, number] | string | null
@@ -23,7 +22,6 @@ export interface DistanceCalculatorProps {
 interface LocationData {
     lat: number
     lng: number
-    address?: string
 }
 
 // Helper para parsear coordenadas em diferentes formatos
@@ -32,33 +30,33 @@ function parseCoordinates(
     latProp?: number | null,
     lngProp?: number | null
 ): LocationData | null {
+    // Se temos lat/lng diretos
     if (typeof latProp === 'number' && typeof lngProp === 'number' && isFinite(latProp) && isFinite(lngProp)) {
         return { lat: latProp, lng: lngProp }
     }
 
     if (!coordsProp) return null
 
-    if (typeof coordsProp === 'object') {
+    // Objeto com lat/lng
+    if (typeof coordsProp === 'object' && coordsProp !== null) {
         if ('lat' in coordsProp && 'lng' in coordsProp) {
             const lat = Number(coordsProp.lat)
             const lng = Number(coordsProp.lng)
             if (isFinite(lat) && isFinite(lng)) return { lat, lng }
         }
-        if ('latitude' in coordsProp && 'longitude' in coordsProp) {
-            const lat = Number(coordsProp.latitude)
-            const lng = Number(coordsProp.longitude)
-            if (isFinite(lat) && isFinite(lng)) return { lat, lng }
-        }
+        // Array [lat, lng] ou [lng, lat]
         if (Array.isArray(coordsProp) && coordsProp.length >= 2) {
             const first = Number(coordsProp[0])
             const second = Number(coordsProp[1])
             if (isFinite(first) && isFinite(second)) {
+                // Se primeiro valor > 90, provavelmente é [lng, lat]
                 if (Math.abs(first) > 90 && Math.abs(second) <= 90) {
                     return { lat: second, lng: first }
                 }
                 return { lat: first, lng: second }
             }
         }
+        // PostGIS Point
         if (coordsProp.type === 'Point' && Array.isArray(coordsProp.coordinates)) {
             const lng = Number(coordsProp.coordinates[0])
             const lat = Number(coordsProp.coordinates[1])
@@ -66,13 +64,17 @@ function parseCoordinates(
         }
     }
 
+    // String JSON
     if (typeof coordsProp === 'string') {
         if (coordsProp.startsWith('{') || coordsProp.startsWith('[')) {
             try {
                 const parsed = JSON.parse(coordsProp)
                 return parseCoordinates(parsed)
-            } catch { }
+            } catch {
+                // Ignora erro de parse
+            }
         }
+        // WKT Point
         const match = coordsProp.match(/POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)/i)
         if (match) {
             const lng = parseFloat(match[1])
@@ -84,45 +86,39 @@ function parseCoordinates(
     return null
 }
 
-// Extrair nome da rua e número da casa do endereço
-function extractStreetAndNumber(fullAddress?: string): { street: string; number: string; formatted: string } {
-    if (!fullAddress || fullAddress.trim() === '' || fullAddress === 'Endereço não informado') {
-        return { street: '', number: '', formatted: '' }
-    }
+// Extrair nome da rua e número do endereço
+function extractStreetAndNumber(fullAddress?: string): string {
+    if (!fullAddress || fullAddress === 'Endereço não informado') return ''
 
     const parts = fullAddress.split(',').map(p => p.trim())
     const firstPart = parts[0] || ''
-    const secondPart = parts[1] || ''
 
     let street = firstPart
     let number = ''
 
-    if (secondPart && (/^\d+$/i.test(secondPart) || /^(n[º°]?\s*\d+|s\/n|sn)$/i.test(secondPart))) {
-        street = firstPart
-        number = secondPart.replace(/^n[º°]?\s*/i, '').trim()
-    } else {
-        const numberMatch = firstPart.match(/(?:,\s*|\s+)(?:n[º°]?\s*)?(\d+|s\/n|sn)$/i)
-        if (numberMatch) {
-            number = numberMatch[1]
-            street = firstPart.substring(0, numberMatch.index).trim()
-        } else {
-            const isolatedNumMatch = firstPart.match(/\b(\d+)\b/)
-            if (isolatedNumMatch) {
-                number = isolatedNumMatch[1]
-                street = firstPart.replace(/\b\d+\b/, '').trim()
-            }
-        }
+    // Tenta encontrar número no final (ex: "Rua X, 123")
+    const numberMatch = firstPart.match(/\b(\d+)\b/)
+    if (numberMatch) {
+        number = numberMatch[1]
+        street = firstPart.replace(/\b\d+\b/, '').trim().replace(/,\s*$/, '')
     }
 
-    if (!street) street = firstPart
+    // Abrevia tipos de logradouro para caber melhor
+    street = street
+        .replace(/^Avenida\s/, 'Av. ')
+        .replace(/^Rua\s/, 'R. ')
+        .replace(/^Travessa\s/, 'Tv. ')
+        .replace(/^Praça\s/, 'Pç. ')
+        .replace(/^Alameda\s/, 'Al. ')
+        .replace(/^Rodovia\s/, 'Rod. ')
+        .replace(/^Estrada\s/, 'Estr. ')
 
-    const formatted = number ? `${street}, ${number}` : street
-    return { street, number, formatted }
+    return number ? `${street}, ${number}` : street
 }
 
 // Calcular distância em metros usando fórmula de Haversine
 function calculateHaversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371000
+    const R = 6371000 // Raio da Terra em metros
     const dLat = (lat2 - lat1) * Math.PI / 180
     const dLon = (lon2 - lon1) * Math.PI / 180
     const a =
@@ -133,6 +129,7 @@ function calculateHaversineDistanceMeters(lat1: number, lon1: number, lat2: numb
     return R * c
 }
 
+// Formatar distância para exibição
 function formatDistanceText(meters: number): string {
     if (meters < 1000) {
         return `${Math.round(meters)} m`
@@ -145,7 +142,6 @@ export default function DistanceCalculator({
     lat,
     lng,
     address,
-    storeName,
     showDistance = true,
     showAddress = true,
     isButton = false,
@@ -154,20 +150,37 @@ export default function DistanceCalculator({
     className = '',
     onClick
 }: DistanceCalculatorProps) {
-    const { colors } = useTheme()
-    const [userLoc, setUserLoc] = useState<LocationData | null>(
-        propUserLocation ? { lat: propUserLocation.lat, lng: propUserLocation.lng } : null
-    )
-    const [geocodedLoc, setGeocodedLoc] = useState<LocationData | null>(null)
-    const [loadingGeocode, setLoadingGeocode] = useState(false)
-    const [geocodeAttempted, setGeocodeAttempted] = useState(false)
+    // Estado para localização do usuário
+    const [userLoc, setUserLoc] = useState<LocationData | null>(() => {
+        if (propUserLocation?.lat && propUserLocation?.lng) {
+            return { lat: propUserLocation.lat, lng: propUserLocation.lng }
+        }
+        return null
+    })
 
+    const browserLocationAttempted = useRef(false)
+
+    // Parsear coordenadas da loja
     const directStoreLoc = useMemo(() => parseCoordinates(coords, lat, lng), [coords, lat, lng])
 
+    // Atualizar userLoc quando propUserLocation mudar
     useEffect(() => {
-        if (propUserLocation) {
+        if (propUserLocation?.lat && propUserLocation?.lng) {
             setUserLoc({ lat: propUserLocation.lat, lng: propUserLocation.lng })
-        } else if (!userLoc && typeof window !== 'undefined' && 'geolocation' in navigator) {
+        }
+    }, [propUserLocation])
+
+    // Tentar geolocalização do navegador (apenas uma vez, sem API externa)
+    useEffect(() => {
+        if (
+            !propUserLocation &&
+            !userLoc &&
+            !browserLocationAttempted.current &&
+            typeof window !== 'undefined' &&
+            'geolocation' in navigator
+        ) {
+            browserLocationAttempted.current = true
+
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
                     setUserLoc({
@@ -175,75 +188,42 @@ export default function DistanceCalculator({
                         lng: pos.coords.longitude
                     })
                 },
-                () => { }
+                () => {
+                    // Silencioso - não faz nada se falhar
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
+                }
             )
         }
-    }, [propUserLocation])
+    }, [propUserLocation, userLoc])
 
-    // Geocodificação de fallback - apenas se necessário
-    useEffect(() => {
-        // Se já temos coordenadas diretas ou já tentamos geocodificar, não faz nada
-        if (directStoreLoc || !address || address === 'Endereço não informado' || geocodeAttempted) {
-            return
-        }
-
-        let cancelled = false
-        const fetchCoordsFromAddress = async () => {
-            try {
-                setLoadingGeocode(true)
-                // Tenta buscar coordenadas
-                const res = await fetch(
-                    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-                    {
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                        }
-                    }
-                )
-                if (!res.ok) {
-                    throw new Error('Erro na requisição')
-                }
-                const data = await res.json()
-                if (!cancelled && data && data.length > 0) {
-                    setGeocodedLoc({
-                        lat: parseFloat(data[0].lat),
-                        lng: parseFloat(data[0].lon)
-                    })
-                }
-            } catch (err) {
-                // Silenciosamente ignora o erro
-                console.debug('[DistanceCalculator] Geocodificação indisponível para:', address)
-            } finally {
-                if (!cancelled) {
-                    setLoadingGeocode(false)
-                    setGeocodeAttempted(true)
-                }
-            }
-        }
-
-        fetchCoordsFromAddress()
-        return () => { cancelled = true }
-    }, [directStoreLoc, address, geocodeAttempted])
-
-    const storeLoc = directStoreLoc || geocodedLoc
-
-    // Calcular distância - prioriza o valor do banco
+    // Calcular distância
     const calculatedDistanceMeters = useMemo(() => {
-        if (propDistanceMeters != null) {
-            console.log('[DistanceCalculator] Usando distância do banco:', propDistanceMeters)
+        // Prioridade 1: Distância vinda do banco (RPC get_stores_with_distance)
+        if (propDistanceMeters != null && propDistanceMeters > 0) {
             return propDistanceMeters
         }
-        if (userLoc && storeLoc) {
-            const dist = calculateHaversineDistanceMeters(userLoc.lat, userLoc.lng, storeLoc.lat, storeLoc.lng)
-            console.log('[DistanceCalculator] Distância calculada:', dist)
-            return dist
+
+        // Prioridade 2: Calcular se tiver coordenadas do usuário E da loja
+        if (userLoc && directStoreLoc) {
+            return calculateHaversineDistanceMeters(
+                userLoc.lat,
+                userLoc.lng,
+                directStoreLoc.lat,
+                directStoreLoc.lng
+            )
         }
-        console.log('[DistanceCalculator] Sem distância disponível')
+
         return null
-    }, [propDistanceMeters, userLoc, storeLoc])
+    }, [propDistanceMeters, userLoc, directStoreLoc])
 
-    const { formatted: formattedAddress } = extractStreetAndNumber(address)
+    // Formatar endereço para exibição
+    const formattedAddress = extractStreetAndNumber(address)
 
+    // Handler para abrir no Google Maps
     const handleOpenMaps = (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
@@ -254,8 +234,8 @@ export default function DistanceCalculator({
         }
 
         let mapsUrl = ''
-        if (storeLoc) {
-            mapsUrl = `https://www.google.com/maps/search/?api=1&query=${storeLoc.lat},${storeLoc.lng}`
+        if (directStoreLoc) {
+            mapsUrl = `https://www.google.com/maps/search/?api=1&query=${directStoreLoc.lat},${directStoreLoc.lng}`
         } else if (address) {
             mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
         }
@@ -265,70 +245,100 @@ export default function DistanceCalculator({
         }
     }
 
-    const hasDataToShow = (showAddress && formattedAddress) || (showDistance && calculatedDistanceMeters != null)
+    // Determinar o que mostrar
+    const hasAddress = showAddress && !!formattedAddress
+    const hasDistance = showDistance && calculatedDistanceMeters != null && calculatedDistanceMeters > 0
+    const hasDataToShow = hasAddress || hasDistance
 
-    if (!hasDataToShow && !loadingGeocode) {
+    // Se não tem nada para mostrar, mas tem endereço
+    if (!hasDataToShow) {
+        if (showAddress && address && address !== 'Endereço não informado') {
+            return (
+                <div
+                    className={`inline-flex items-center gap-1.5 min-w-0 px-2 py-1 rounded-full text-xs font-bold backdrop-blur-md cursor-pointer ${className}`}
+                    style={{
+                        background: 'rgba(0, 0, 0, 0.75)',
+                        color: '#ffffff',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                    }}
+                    onClick={handleOpenMaps}
+                >
+                    <MapPin size={14} className="flex-shrink-0 text-orange-400" />
+                    <span className="truncate font-medium text-white/90" title={address}>
+                        {formattedAddress || address}
+                    </span>
+                </div>
+            )
+        }
         return null
     }
 
-    // Versão sem container (padrão) - apenas texto
+    // Versão inline (não botão) - apenas texto com glassmorfismo
     if (!isButton) {
         return (
             <div
-                className={`flex items-center gap-1.5 min-w-0 ${className}`}
+                className={`inline-flex items-center gap-1.5 min-w-0 px-2 py-1 rounded-full text-xs font-bold cursor-pointer backdrop-blur-md ${className}`}
+                style={{
+                    background: 'rgba(0, 0, 0, 0.75)',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+                }}
                 onClick={handleOpenMaps}
             >
                 <MapPin size={14} className="flex-shrink-0 text-orange-400" />
-                {showAddress && formattedAddress && (
-                    <span className="truncate text-xs font-medium text-white/90" title={formattedAddress}>
+
+                {hasAddress && (
+                    <span className="truncate font-medium text-white/90" title={address}>
                         {formattedAddress}
                     </span>
                 )}
-                {showAddress && showDistance && calculatedDistanceMeters != null && (
-                    <span className="opacity-40 text-xs text-white">•</span>
+
+                {hasAddress && hasDistance && (
+                    <span className="opacity-50 text-white">•</span>
                 )}
-                {showDistance && calculatedDistanceMeters != null && (
-                    <span className="flex-shrink-0 text-xs font-bold text-amber-300">
-                        {formatDistanceText(calculatedDistanceMeters)}
-                    </span>
-                )}
-                {showDistance && calculatedDistanceMeters == null && (
-                    <span className="flex-shrink-0 text-xs text-white/50">
-                        distância indisponível
+
+                {hasDistance && (
+                    <span className="flex-shrink-0 font-bold text-white">
+                        {formatDistanceText(calculatedDistanceMeters!)}
                     </span>
                 )}
             </div>
         )
     }
 
-    // Versão com container (botão) - para outros usos
+    // Versão botão - com efeito hover e ícone de link externo
     return (
         <button
             type="button"
             onClick={handleOpenMaps}
             title={onClick ? "Clique para ver a loja" : "Clique para ver no Google Maps"}
-            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs transition-all duration-200 bg-black/50 hover:bg-black/80 hover:scale-[1.02] active:scale-95 border border-white/20 shadow-md cursor-pointer backdrop-blur-md ${className}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 hover:scale-[1.02] active:scale-95 cursor-pointer backdrop-blur-md ${className}`}
+            style={{
+                background: 'rgba(0, 0, 0, 0.75)',
+                color: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            }}
         >
             <div className="flex items-center gap-1.5 min-w-0">
                 <MapPin size={14} className="flex-shrink-0 text-orange-400" />
-                {showAddress && formattedAddress && (
-                    <span className="truncate text-xs font-medium text-white/90" title={formattedAddress}>
+
+                {hasAddress && (
+                    <span className="truncate font-medium text-white/90" title={address}>
                         {formattedAddress}
                     </span>
                 )}
-                {showAddress && showDistance && calculatedDistanceMeters != null && (
-                    <span className="opacity-40 text-xs text-white">•</span>
+
+                {hasAddress && hasDistance && (
+                    <span className="opacity-50 text-white">•</span>
                 )}
-                {showDistance && calculatedDistanceMeters != null && (
-                    <span className="flex-shrink-0 text-xs font-bold text-amber-300">
-                        {formatDistanceText(calculatedDistanceMeters)}
+
+                {hasDistance && (
+                    <span className="flex-shrink-0 font-bold text-white">
+                        {formatDistanceText(calculatedDistanceMeters!)}
                     </span>
                 )}
-                {showDistance && calculatedDistanceMeters == null && (
-                    <span className="flex-shrink-0 text-xs text-white/50">
-                        distância indisponível
-                    </span>
-                )}
+
                 <ExternalLink size={11} className="flex-shrink-0 text-white/70 ml-0.5" />
             </div>
         </button>
