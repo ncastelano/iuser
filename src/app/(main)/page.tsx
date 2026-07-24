@@ -36,18 +36,19 @@ import LoginScreen from './LoginScreen'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
-import BannerPago from './inicio/sections/BannerPago'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
 import LocationPicker from './LocationPicker'
-import PainelDaLoja from './StoreDashboard'
+import PainelDaLoja from './StoreDashboard'  // ✅ IMPORT CORRETO
+import StoreList from './inicio/sections/StoresBanner'
 
-const DEFAULT_SECTIONS = [
+const DEFAULT_SECTIONS = ['storeList',
+
     'compromissosPessoal',
     'compromissosLoja',
-    'bannerPago',
+
     'productShowcase',
     'publicationShowcase',
     'categorias',
@@ -62,20 +63,16 @@ const DEFAULT_SECTIONS = [
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
 const LOCATION_STORAGE_KEY = 'user_saved_location'
 
-// ---------- Função para formatar endereço (rua e número) ----------
+// ---------- Função para formatar endereço ----------
 function formatAddress(address: string, addressNumber?: string): string {
     if (!address) return 'Definir local'
 
-    // Se tem número separado, adiciona ao endereço
     const displayAddress = addressNumber ? `${address.split(',')[0]}, ${addressNumber}` : address
-
     const firstPart = displayAddress.split(',')[0].trim()
-
     const match = firstPart.match(/^(.+?)(\s+\d+)/)
 
     if (match) {
         let result = match[0].trim()
-
         result = result
             .replace(/^Avenida\s/, 'Av. ')
             .replace(/^Rua\s/, 'R. ')
@@ -94,7 +91,6 @@ function formatAddress(address: string, addressNumber?: string): string {
     if (firstPart.length > 28) {
         return firstPart.substring(0, 25) + '...'
     }
-
     return firstPart
 }
 
@@ -208,7 +204,6 @@ export default function HomePage() {
 
     // ---------- CARREGAR LOCALIZAÇÃO SALVA ----------
     useEffect(() => {
-        // Primeiro, carrega do localStorage (mais rápido)
         try {
             const saved = localStorage.getItem(LOCATION_STORAGE_KEY)
             if (saved) {
@@ -222,7 +217,6 @@ export default function HomePage() {
             console.warn('[HomePage] localStorage inválido, ignorando')
         }
 
-        // Depois, busca do perfil (apenas campos simples)
         const fetchLocationFromProfile = async () => {
             try {
                 const { data: { user } } = await supabase.auth.getUser()
@@ -482,7 +476,7 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
-    // ---------- SALVAR LOCALIZAÇÃO (COM LOG DETALHADO PARA DEBUG) ----------
+    // ---------- SALVAR LOCALIZAÇÃO ----------
     const handleLocationSave = async (location: {
         lat: number;
         lng: number;
@@ -494,7 +488,6 @@ export default function HomePage() {
         console.log('🔵 INICIANDO SALVAMENTO')
 
         try {
-            // 1. Salvar no estado e localStorage
             const locationData = {
                 lat: location.lat,
                 lng: location.lng,
@@ -504,7 +497,6 @@ export default function HomePage() {
             localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
             console.log('✅ localStorage OK')
 
-            // 2. Verificar autenticação
             const { data: { user }, error: authError } = await supabase.auth.getUser()
             console.log('🔵 Auth:', user?.id || 'NÃO LOGADO', authError || '')
 
@@ -515,7 +507,6 @@ export default function HomePage() {
                 return
             }
 
-            // 3. Fazer upsert com todos os campos
             console.log('🔵 Tentando upsert...')
             const { data, error } = await supabase
                 .from('profiles')
@@ -556,8 +547,17 @@ export default function HomePage() {
     // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
-            case 'bannerPago':
-                return <BannerPago savedLocation={savedLocation} userLocation={savedLocation} />
+            case 'storeList':
+                return (
+                    <StoreList
+                        title="Lojas em Destaque"
+                        maxItems={8}
+                        showArrows={true}
+                        onStoreClick={(storeSlug) => {
+                            router.push(`/${storeSlug}`)
+                        }}
+                    />
+                )
             case 'orderSection':
                 return (
                     <OrderSection
@@ -910,7 +910,6 @@ export default function HomePage() {
                             setIsSavingLocation(true)
 
                             try {
-                                // 1. Salvar no estado local e localStorage
                                 const locationData = {
                                     lat: location.lat,
                                     lng: location.lng,
@@ -919,7 +918,6 @@ export default function HomePage() {
                                 setSavedLocation(locationData)
                                 localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
 
-                                // 2. Verificar autenticação
                                 const { data: { user }, error: authError } = await supabase.auth.getUser()
 
                                 if (!user) {
@@ -929,7 +927,6 @@ export default function HomePage() {
                                     return
                                 }
 
-                                // 3. Salvar no Supabase
                                 const { error } = await supabase
                                     .from('profiles')
                                     .upsert({

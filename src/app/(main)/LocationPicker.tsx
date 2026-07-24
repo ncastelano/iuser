@@ -4,6 +4,51 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/theme'
 import { MapPin, X, Check, Navigation, Loader2, Search, Home, MoveVertical, Hash, FileText } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+// Hook de autenticação - você precisa criar este contexto
+// Se já tiver um, importe ele no lugar
+function useAuth() {
+    const [user, setUser] = useState<any | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        // Verifica se o usuário está logado
+        const checkAuth = async () => {
+            try {
+                // Ajuste conforme sua implementação de autenticação
+                const token = localStorage.getItem('token')
+                if (token) {
+                    // Se tiver token, busca dados do usuário
+                    // const response = await fetch('/api/me', {
+                    //     headers: { Authorization: `Bearer ${token}` }
+                    // })
+                    // if (response.ok) {
+                    //     const userData = await response.json()
+                    //     setUser(userData)
+                    // } else {
+                    //     localStorage.removeItem('token')
+                    //     setUser(null)
+                    // }
+
+                    // Exemplo simples - substitua pela sua lógica
+                    setUser({ id: 1, name: 'Usuário' })
+                } else {
+                    setUser(null)
+                }
+            } catch (error) {
+                console.error('Erro ao verificar autenticação:', error)
+                setUser(null)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        checkAuth()
+    }, [])
+
+    return { user, isLoading }
+}
 
 interface LocationPickerProps {
     initialLocation: {
@@ -80,7 +125,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<{
             const city = addr.city || addr.town || addr.municipality || ''
             const state = addr.state || ''
 
-            // Extrair número do endereço
             extractedNumber = number
 
             const parts = []
@@ -102,7 +146,6 @@ async function reverseGeocode(lat: number, lng: number): Promise<{
             formatted = `Local (${lat.toFixed(4)}, ${lng.toFixed(4)})`
         }
 
-        // Cache apenas o endereço formatado
         reverseGeocodeCache.set(key, formatted)
 
         return {
@@ -125,6 +168,9 @@ function extractStreetDisplay(fullAddress: string): string {
 
 export default function LocationPicker({ initialLocation, onSave, onClose }: LocationPickerProps) {
     const { colors } = useTheme()
+    const router = useRouter()
+    const { user, isLoading: authLoading } = useAuth()
+
     const mapContainerRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<any>(null)
     const savedMarkerRef = useRef<any>(null)
@@ -154,6 +200,42 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [numberError, setNumberError] = useState('')
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
+
+    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO - Redireciona para login se não estiver logado
+    useEffect(() => {
+        if (!authLoading && !user) {
+            // Redireciona para a página de login
+            router.push('/login')
+            return
+        }
+    }, [user, authLoading, router])
+
+    // Mostra loading enquanto verifica autenticação
+    if (authLoading) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
+                <div
+                    className="rounded-2xl p-6 sm:p-8 w-full max-w-sm shadow-2xl flex flex-col items-center gap-4"
+                    style={{
+                        background: `${colors.surface}ee`,
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
+                    }}
+                >
+                    <Loader2 size={32} className="animate-spin" style={{ color: colors.accent }} />
+                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                        Verificando autenticação...
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    // Se não estiver autenticado, não renderiza nada (o useEffect vai redirecionar)
+    if (!user) {
+        return null
+    }
 
     // Resolver endereço salvo se necessário
     useEffect(() => {
@@ -241,7 +323,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 setError('')
                 reverseGeocode(newPos.lat, newPos.lng).then(result => {
                     setNewAddress(result.fullAddress)
-                    // Se veio número do geocode, preenche automaticamente
                     if (result.extractedNumber && !newNumber) {
                         setNewNumber(result.extractedNumber)
                     }
@@ -448,7 +529,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
         // Adicionar número se não estiver no endereço
         if (newNumber && !newAddress.includes(newNumber)) {
-            // Substitui a primeira vírgula por ", número"
             const firstCommaIndex = fullAddressWithDetails.indexOf(',')
             if (firstCommaIndex !== -1) {
                 fullAddressWithDetails = fullAddressWithDetails.slice(0, firstCommaIndex) +

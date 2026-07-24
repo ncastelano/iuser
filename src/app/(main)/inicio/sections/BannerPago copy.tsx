@@ -17,9 +17,25 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
-import { getStatusIntervalText, type BusinessHours } from '@/lib/storeHours'
 
 // ---------- Tipos ----------
+interface DaySchedule {
+    isOpen: boolean
+    start: string
+    end: string
+    lunchStart?: string
+    lunchEnd?: string
+}
+
+interface WeeklySchedule {
+    [key: string]: DaySchedule
+}
+
+interface BusinessHoursConfig {
+    weekly?: WeeklySchedule
+    blocked_dates?: string[]
+}
+
 interface TopProduct {
     imageUrl: string | null
     name: string
@@ -53,7 +69,7 @@ interface StoreCard {
     minPrice?: number | null
     maxPrice?: number | null
     totalProducts?: number
-    business_hours?: BusinessHours | null
+    business_hours?: BusinessHoursConfig | null
 }
 
 // ---------- Helpers ----------
@@ -128,22 +144,86 @@ function parseStoreCoords(store: any): { lat: number; lng: number } | null {
     return null
 }
 
-function parseBusinessHours(businessHours: any): BusinessHours | null {
+// NOVA FUNÇÃO: Converte o formato do banco para calcular status
+function getStoreStatus(businessHours: BusinessHoursConfig | null): { isOpen: boolean; text: string } {
+    if (!businessHours || !businessHours.weekly) {
+        return { isOpen: false, text: 'Horário indisponível' }
+    }
+
+    const now = new Date()
+    const today = now.getDay().toString() // 0 = Domingo, 1 = Segunda, etc.
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
+
+    // Verificar se hoje é uma data bloqueada
+    if (businessHours.blocked_dates) {
+        const todayStr = now.toISOString().split('T')[0] // Formato YYYY-MM-DD
+        if (businessHours.blocked_dates.includes(todayStr)) {
+            return { isOpen: false, text: 'Fechado hoje' }
+        }
+    }
+
+    // Verificar horário do dia
+    const todaySchedule = businessHours.weekly[today]
+
+    if (!todaySchedule || !todaySchedule.isOpen) {
+        return { isOpen: false, text: 'Fechado' }
+    }
+
+    // Verificar se está dentro do horário de funcionamento
+    const { start, end, lunchStart, lunchEnd } = todaySchedule
+
+    // Verificar se está no intervalo de almoço
+    if (lunchStart && lunchEnd && currentTime >= lunchStart && currentTime < lunchEnd) {
+        return { isOpen: false, text: `Fechado para almoço (Volta ${lunchEnd})` }
+    }
+
+    // Verificar se está fora do horário
+    if (currentTime < start) {
+        return { isOpen: false, text: `Abre às ${start}` }
+    }
+
+    if (currentTime >= end) {
+        // Verificar se é depois do expediente
+        const endHour = parseInt(end.split(':')[0])
+        if (endHour < 4) {
+            // Se fecha de madrugada (ex: 02:00), ainda pode estar aberto
+            if (currentTime >= end && currentTime < '04:00') {
+                return { isOpen: true, text: `Aberto até ${end}` }
+            }
+        }
+        return { isOpen: false, text: `Fechado` }
+    }
+
+    // Está aberto
+    return { isOpen: true, text: `Aberto até ${end}` }
+}
+
+// Função para parse do business_hours do banco
+function parseBusinessHours(businessHours: any): BusinessHoursConfig | null {
     if (!businessHours) return null
+
+    // Se for string, tenta parse JSON
     if (typeof businessHours === 'string') {
         try {
-            return JSON.parse(businessHours)
+            const parsed = JSON.parse(businessHours)
+            return parsed as BusinessHoursConfig
         } catch {
             return null
         }
     }
+
+    // Se for objeto, retorna diretamente
     if (typeof businessHours === 'object' && businessHours !== null) {
-        return businessHours as BusinessHours
+        // Verifica se tem a estrutura weekly
+        if (businessHours.weekly) {
+            return businessHours as BusinessHoursConfig
+        }
     }
+
     return null
 }
 
-const CACHE_KEY = 'banner_stores_cache_v21'
+const CACHE_KEY = 'banner_stores_cache_v22' // Incrementado para invalidar cache antigo
 const CACHE_TTL = 5 * 60 * 1000
 
 function loadCache(): StoreCard[] | null {
@@ -178,6 +258,31 @@ function useBreakpoint() {
         return () => window.removeEventListener('resize', update)
     }, [])
     return slidesPerView
+}
+
+// Hook para gerenciar status das lojas com atualização em tempo real
+function useStoreStatuses(stores: StoreCard[]) {
+    const [statuses, setStatuses] = useState<Map<string, { isOpen: boolean; text: string }>>(new Map())
+
+    useEffect(() => {
+        const updateStatuses = () => {
+            const newStatuses = new Map<string, { isOpen: boolean; text: string }>()
+            stores.forEach(store => {
+                const status = getStoreStatus(store.business_hours || null)
+                newStatuses.set(store.storeSlug, status)
+            })
+            setStatuses(newStatuses)
+        }
+
+        updateStatuses()
+
+        // Atualiza a cada 30 segundos
+        const interval = setInterval(updateStatuses, 30000)
+
+        return () => clearInterval(interval)
+    }, [stores])
+
+    return statuses
 }
 
 function BannerSkeleton({ slidesPerView = 1 }: { slidesPerView?: number }) {
@@ -315,9 +420,11 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
                     ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                     : null
 
-                // Status do horário de funcionamento
+                // Parse do business_hours
                 const businessHours = parseBusinessHours(store.business_hours)
-                const status = getStatusIntervalText(businessHours)
+
+                // Calcular status
+                const status = getStoreStatus(businessHours)
 
                 // Produtos
                 const prods = storeProds.get(store.id) || []
@@ -421,6 +528,10 @@ function useBannerStores(userLocation?: { lat: number; lng: number } | null) {
 
             if (!cancelled && cards.length > 0) {
                 console.log(`[BannerPago] ${cards.length} lojas com profileSlug válido`)
+                // Debug: mostrar status de cada loja
+                cards.forEach(card => {
+                    console.log(`[BannerPago] ${card.name}: ${card.statusText} (aberto: ${card.isOpen})`)
+                })
                 setStores(cards)
                 saveCache(cards)
                 setLoading(false)
@@ -459,6 +570,8 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
     const locationToUse = userLocation || savedLocation
     const { stores, loading } = useBannerStores(locationToUse)
     const slidesPerView = useBreakpoint()
+    const storeStatuses = useStoreStatuses(stores)
+
     const sortedStores = stores
     const totalRealSlides = sortedStores.length
     const totalPages = Math.max(1, Math.ceil(totalRealSlides / slidesPerView))
@@ -485,7 +598,15 @@ export default function BannerPago({ savedLocation = null, userLocation = null }
         if (totalRealSlides === 0) return []
         const start = currentPage * slidesPerView
         return sortedStores.slice(start, Math.min(start + slidesPerView, totalRealSlides))
-    }, [sortedStores, currentPage, slidesPerView, totalRealSlides])
+            .map(store => {
+                const memoizedStatus = storeStatuses.get(store.storeSlug)
+                return {
+                    ...store,
+                    isOpen: memoizedStatus?.isOpen ?? store.isOpen,
+                    statusText: memoizedStatus?.text ?? store.statusText,
+                }
+            })
+    }, [sortedStores, currentPage, slidesPerView, totalRealSlides, storeStatuses])
 
     const handleDragStart = (clientX: number) => {
         setIsDragging(true)

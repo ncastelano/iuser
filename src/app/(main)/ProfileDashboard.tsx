@@ -37,11 +37,11 @@ import {
 import { OrderModal } from '../../components/OrderModal'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Employee from './Employee'
-import SchedulesAndAvailability from './SchedulesAndAvailability'
 import Publication from './Publication'
 import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
+import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -1599,8 +1599,11 @@ export default function ProfileDashboard({
             {/* ===== Informações do Perfil ===== */}
             <StoreAddress address={profile.address} whatsapp={profile.whatsapp} />
 
-            {/* ===== Agendamentos ===== */}
-            <SchedulesAndAvailability storeId={profile?.id || ''} />
+            {/* ===== Agendamentos (AtalhoCompromissosPessoal) ===== */}
+            <AtalhoCompromissosPessoal
+                profileSlug={profileSlug}
+                userAvatarUrl={profile.avatar_url}
+            />
 
             {/* ===== Dias de funcionamento ===== */}
             <StoreOperatingDays storeId={profile?.id || ''} />

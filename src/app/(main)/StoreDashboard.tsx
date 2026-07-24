@@ -29,12 +29,12 @@ import {
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
-import SchedulesAndAvailability from './SchedulesAndAvailability'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Publication from './Publication'
 import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
+import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -1099,8 +1099,10 @@ export default function StoreDashboard({
             {/* ===== Informações da Loja ===== */}
             <StoreAddress address={store.address} whatsapp={store.whatsapp} />
 
-            {/* ===== Agendamentos ===== */}
-            <SchedulesAndAvailability storeId={store.id} />
+            {/* ===== Agendamentos (AtalhoCompromissosDaLoja) ===== */}
+            <AtalhoCompromissosDaLoja
+                profileSlug={profileSlug}
+            />
 
             {/* ===== Dias de funcionamento ===== */}
             <StoreOperatingDays storeId={store.id} />

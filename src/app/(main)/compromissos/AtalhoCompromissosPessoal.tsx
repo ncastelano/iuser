@@ -1,14 +1,14 @@
-// components/AtalhoCompromissosPessoal.tsx
+// src/components/AtalhoCompromissosPessoal.tsx
 'use client'
 
 import { ReactNode, useMemo, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Plus, Check, X, Calendar, User, Lock, Earth, Search, Star, Eye, EyeOff, Clock } from 'lucide-react'
+import { Plus, Check, X, Calendar, User, Lock, Earth, Eye, EyeOff, Clock } from 'lucide-react'
 import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos/dadosDoCompromisso'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 
-/* ─── Auxiliar para converter hex em RGB (para usar em rgba) ─── */
+/* ─── Auxiliar para converter hex em RGB ─── */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
@@ -98,6 +98,7 @@ export default function AtalhoCompromissosPessoal({
         })
     }, [])
 
+    // Filtra apenas compromissos pessoais (sem store_id)
     const personalAppointments = useMemo(() => {
         if (!userId) return []
         return appointments.filter(a => a.customer_id === userId && !a.store_id)
@@ -107,17 +108,29 @@ export default function AtalhoCompromissosPessoal({
         onHasItemsChange?.(personalAppointments.length > 0)
     }, [personalAppointments, onHasItemsChange])
 
+    // Filtro por pendentes
     const filtered = useMemo(() => {
         if (!showPending) return personalAppointments.filter(a => a.status !== 'pending')
         return personalAppointments
     }, [personalAppointments, showPending])
 
+    // Ordenar: pendentes primeiro, depois por data mais recente
     const sorted = useMemo(() => {
-        return [...filtered].sort((a, b) => parseDateTime(b.date, b.time) - parseDateTime(a.date, a.time))
+        return [...filtered].sort((a, b) => {
+            // Pendentes primeiro
+            if (a.status === 'pending' && b.status !== 'pending') return -1
+            if (b.status === 'pending' && a.status !== 'pending') return 1
+
+            // Depois por data (mais recente primeiro)
+            return parseDateTime(b.date, b.time) - parseDateTime(a.date, a.time)
+        })
     }, [filtered])
 
-    const hasHiddenPending = !showPending && personalAppointments.some(a => a.status === 'pending')
+    const pendingCount = personalAppointments.filter(a => a.status === 'pending').length
+    const confirmedCount = personalAppointments.filter(a => a.status === 'confirmed').length
+    const hasHiddenPending = !showPending && pendingCount > 0
 
+    // Ações
     const handleAccept = useCallback(async (id: string, e: React.MouseEvent) => {
         e.stopPropagation()
         e.preventDefault()
@@ -163,24 +176,22 @@ export default function AtalhoCompromissosPessoal({
     const title = profileSlug ? `Agenda de @${profileSlug}` : 'Agenda Pessoal'
 
     const surfaceRgb = hexToRgb(colors.surface)
-
-    // Fundo totalmente transparente - igual à última parte do gradiente do header
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0)`
-    const borderColor = colors.border
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
+    const borderColor = colors.border
 
     // Skeleton
     if (loading) {
         return (
             <div
-                className="rounded-2xl p-6 w-full"
+                className="rounded-2xl p-6 pt-7 w-full"
                 style={{
-                    background: cardBg,
-                    backdropFilter: 'blur(20px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
                     border: `1px solid ${borderColor}`,
+                    boxShadow: colors.shadow,
                 }}
             >
                 <div className="flex items-center gap-2 mb-4">
@@ -188,12 +199,12 @@ export default function AtalhoCompromissosPessoal({
                     <Calendar className="w-5 h-5" style={{ color: accentColor }} />
                     <h2 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h2>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="flex gap-3 overflow-x-auto pb-2">
                     {[1, 2, 3].map(i => (
                         <div
                             key={i}
-                            className="h-28 rounded-xl animate-pulse"
-                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.1)` }}
+                            className="flex-shrink-0 w-[280px] h-24 rounded-xl animate-pulse"
+                            style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)` }}
                         />
                     ))}
                 </div>
@@ -203,26 +214,54 @@ export default function AtalhoCompromissosPessoal({
 
     return (
         <div
-            className="rounded-2xl p-6 w-full"
+            className="rounded-2xl p-6 pt-7 w-full flex flex-col gap-5"
             style={{
-                background: cardBg,
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
                 border: `1px solid ${borderColor}`,
+                boxShadow: colors.shadow,
             }}
         >
-            {/* Cabeçalho */}
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-                <div className="flex items-center gap-2">
+            {/* Cabeçalho: título + contagens + botões */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
                     {dragHandle}
-                    <h2 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h2>
+                    <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                            color: colors.accentText,
+                        }}
+                    >
+                        <Calendar size={24} />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-black" style={{ color: textPrimary }}>
+                            {title}
+                        </h2>
+                        <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
+                            <span>
+                                <span className="font-bold" style={{ color: accentColor }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
+                            </span>
+                            <span>•</span>
+                            <span>
+                                <span className="font-bold" style={{ color: '#10b981' }}>{confirmedCount}</span> confirmado{confirmedCount !== 1 ? 's' : ''}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-3 flex-1 justify-end flex-wrap">
+                {/* Botões de ação */}
+                <div className="flex items-center gap-2">
                     <Link
                         href="/compromissos/agendar"
-                        className="text-xs font-bold px-3 py-1.5 rounded-full transition-all hover:scale-105 active:scale-95 flex items-center gap-1"
-                        style={{ background: colors.accentLight, color: accentColor }}
+                        className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-md"
+                        style={{
+                            background: accentColor,
+                            color: colors.accentText,
+                            boxShadow: `0 4px 12px ${accentColor}40`,
+                        }}
                     >
                         <Plus size={14} />
                         Criar
@@ -231,61 +270,101 @@ export default function AtalhoCompromissosPessoal({
                     {sorted.length > 0 && (
                         <Link
                             href="/compromissos"
-                            className="text-xs font-bold px-3 py-1.5 rounded-full transition-all hover:scale-105 active:scale-95"
-                            style={{ background: colors.accentLight, color: accentColor }}
+                            className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:bg-white/10 flex items-center gap-1.5"
+                            style={{
+                                border: `1px solid ${borderColor}`,
+                                color: textSecondary,
+                            }}
                         >
-                            Ver todos
+                            <Calendar size={14} />
+                            Ver agenda
                         </Link>
                     )}
-
-                    <div className="flex items-center gap-2">
-                        <span
-                            className="text-xs font-medium select-none cursor-pointer"
-                            style={{ color: textSecondary }}
-                            onClick={() => setShowPending(prev => !prev)}
-                        >
-                            Pendentes
-                        </span>
-                        <label className="relative inline-flex items-center cursor-pointer" style={{ width: 40, height: 22 }}>
-                            <input type="checkbox" className="sr-only peer" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
-                            <span
-                                className="absolute inset-0 rounded-full transition-colors duration-200"
-                                style={{ background: showPending ? accentColor : colors.border }}
-                            />
-                            <span
-                                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
-                            />
-                        </label>
-                    </div>
                 </div>
             </div>
 
-            {/* Conteúdo */}
+            {/* Toggle "Mostrar pendentes" */}
+            <div
+                className="rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                    border: `1px solid ${borderColor}`,
+                }}
+            >
+                <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold" style={{ color: textPrimary }}>
+                        Mostrar pendentes
+                    </span>
+                    <label className="relative inline-flex cursor-pointer" style={{ width: 48, height: 26 }}>
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={showPending}
+                            onChange={() => setShowPending(prev => !prev)}
+                        />
+                        <span
+                            className="absolute inset-0 rounded-full transition-colors duration-200"
+                            style={{ background: showPending ? accentColor : borderColor }}
+                        />
+                        <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[22px]' : 'translate-x-0'}`}
+                        />
+                    </label>
+                    {!showPending && pendingCount > 0 && (
+                        <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
+                            style={{ background: '#ef444420', color: '#ef4444' }}
+                        >
+                            {pendingCount} oculto{pendingCount > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </div>
+
+                {!showPending && pendingCount > 0 && (
+                    <button
+                        onClick={() => setShowPending(true)}
+                        className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:scale-105 flex items-center gap-1.5"
+                        style={{
+                            background: accentColor,
+                            color: colors.accentText,
+                        }}
+                    >
+                        <Eye size={14} />
+                        Mostrar pendentes
+                    </button>
+                )}
+            </div>
+
+            {/* Lista de compromissos */}
             {sorted.length === 0 && !hasHiddenPending ? (
                 /* Estado vazio */
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl" style={{ background: `${borderColor}10`, backdropFilter: 'blur(8px)' }}>
-                    <div className="flex items-center gap-4">
-                        <div
-                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
-                            }}
-                        >
-                            <Calendar size={28} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                Sua agenda está livre
-                            </h3>
-                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                                Que tal agendar um serviço ou compromisso?
-                            </p>
-                        </div>
+                <div
+                    className="rounded-xl p-6 text-center flex flex-col items-center gap-3"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                        border: `1px dashed ${borderColor}`,
+                    }}
+                >
+                    <div
+                        className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                            color: colors.accentText,
+                        }}
+                    >
+                        <Calendar size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                            Sua agenda está livre
+                        </h3>
+                        <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                            Que tal agendar um serviço ou compromisso?
+                        </p>
                     </div>
                     <Link
                         href="/compromissos/agendar"
-                        className="px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg flex-shrink-0"
+                        className="text-xs font-bold px-6 py-3 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-lg"
                         style={{
                             background: accentColor,
                             color: colors.accentText,
@@ -298,29 +377,33 @@ export default function AtalhoCompromissosPessoal({
                 </div>
             ) : sorted.length === 0 && hasHiddenPending ? (
                 /* Pendentes ocultos */
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-xl" style={{ background: `${accentColor}10`, backdropFilter: 'blur(8px)' }}>
-                    <div className="flex items-center gap-4">
-                        <div
-                            className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
-                            }}
-                        >
-                            <EyeOff size={28} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                Compromissos pendentes ocultos
-                            </h3>
-                            <p className="text-sm mt-1" style={{ color: textSecondary }}>
-                                Ative a exibição de pendentes para gerenciar convites.
-                            </p>
-                        </div>
+                <div
+                    className="rounded-xl p-6 text-center flex flex-col items-center gap-3"
+                    style={{
+                        background: `rgba(${accentColor}10, 0.3)`,
+                        border: `1px dashed ${accentColor}40`,
+                    }}
+                >
+                    <div
+                        className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                            color: colors.accentText,
+                        }}
+                    >
+                        <EyeOff size={32} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-black" style={{ color: textPrimary }}>
+                            Compromissos pendentes ocultos
+                        </h3>
+                        <p className="text-sm mt-1" style={{ color: textSecondary }}>
+                            Ative a exibição de pendentes para gerenciar convites.
+                        </p>
                     </div>
                     <button
                         onClick={() => setShowPending(true)}
-                        className="px-5 py-2.5 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg flex-shrink-0"
+                        className="text-xs font-bold px-6 py-3 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-lg"
                         style={{
                             background: accentColor,
                             color: colors.accentText,
@@ -328,133 +411,174 @@ export default function AtalhoCompromissosPessoal({
                         }}
                     >
                         <Eye size={16} />
-                        Ativar pendentes
+                        Mostrar pendentes
                     </button>
                 </div>
             ) : (
-                /* Grid de compromissos */
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {sorted.map(appointment => {
+                /* Lista horizontal com scroll */
+                <div className="flex gap-3 overflow-x-auto overflow-y-visible pt-1 pb-2 pl-2 pr-2 snap-x snap-mandatory scroll-container">
+                    {sorted.map((appointment) => {
                         const isIncomingPending = appointment.direction === 'incoming' && appointment.status === 'pending'
                         const avatarUrl = getAvatarUrl(appointment)
                         const profileSlugTarget = getProfileSlugFromAppointment(appointment)
-
                         const isPast = parseDateTime(appointment.date, appointment.time) < Date.now()
                         const isToday = new Date(appointment.date).toDateString() === new Date().toDateString()
+                        const status = appointment.status as 'confirmed' | 'pending' | 'cancelled' | 'completed'
+
+                        const statusConfig = {
+                            confirmed: { bg: 'rgba(16,185,129,0.2)', text: '#34d399', label: 'Confirmado' },
+                            pending: { bg: 'rgba(234,179,8,0.2)', text: '#fbbf24', label: 'Pendente' },
+                            cancelled: { bg: 'rgba(239,68,68,0.2)', text: '#f87171', label: 'Cancelado' },
+                            completed: { bg: 'rgba(60, 60, 61, 0.2)', text: '#60a5fa', label: 'Concluído' },
+                        }
+                        const statusInfo = statusConfig[status] || statusConfig.pending
+                        const isPending = status === 'pending'
+
+                        const dateStr = new Date(appointment.date + 'T12:00:00').toLocaleDateString('pt-BR', {
+                            day: '2-digit', month: 'short'
+                        })
+
+                        const customerName = appointment.customer_slug || 'Cliente'
+                        const serviceName = appointment.service_name
+                        const duration = appointment.duration_minutes
 
                         return (
                             <div
                                 key={appointment.id}
-                                className="rounded-xl p-4 border transition-all hover:shadow-lg hover:-translate-y-0.5"
+                                className="flex-shrink-0 w-[280px] snap-start flex items-center gap-3 p-3 rounded-xl border shadow-sm hover:shadow-md transition-all relative"
                                 style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.1)`,
-                                    backdropFilter: 'blur(8px)',
-                                    WebkitBackdropFilter: 'blur(8px)',
-                                    borderColor: isIncomingPending ? `${accentColor}60` : `${borderColor}20`,
-                                    boxShadow: isIncomingPending ? `0 0 0 2px ${accentColor}40` : 'none',
+                                    background: colors.surface,
+                                    borderColor: isPending ? `${accentColor}60` : borderColor,
+                                    boxShadow: isPending ? `0 0 0 2px ${accentColor}40` : 'none',
                                 }}
                             >
-                                <Link
-                                    href={profileSlugTarget ? `/${profileSlugTarget}` : '/compromissos'}
-                                    className="flex items-start gap-3"
-                                >
-                                    {/* Avatar */}
-                                    <div className="flex-shrink-0">
+                                {isPending && (
+                                    <span
+                                        className="absolute -top-2 -right-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shadow-md"
+                                        style={{
+                                            background: accentColor,
+                                            color: '#000000',
+                                            boxShadow: `0 2px 6px ${accentColor}40`,
+                                        }}
+                                    >
+                                        Novo
+                                    </span>
+                                )}
+
+                                {profileSlugTarget ? (
+                                    <Link href={`/${profileSlugTarget}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                                         {avatarUrl ? (
-                                            <img
-                                                src={avatarUrl}
-                                                alt=""
-                                                className="w-12 h-12 rounded-xl object-cover border-2"
-                                                style={{ borderColor: colors.border }}
-                                            />
+                                            <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
                                         ) : (
                                             <div
-                                                className="w-12 h-12 rounded-xl flex items-center justify-center"
+                                                className="w-11 h-11 rounded-xl flex items-center justify-center"
                                                 style={{
                                                     background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                                    color: colors.accentText,
                                                 }}
                                             >
-                                                <Calendar size={20} />
+                                                <User size={22} style={{ color: colors.accentText }} />
+                                            </div>
+                                        )}
+                                    </Link>
+                                ) : (
+                                    <div className="flex-shrink-0">
+                                        {avatarUrl ? (
+                                            <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                                        ) : (
+                                            <div
+                                                className="w-11 h-11 rounded-xl flex items-center justify-center"
+                                                style={{
+                                                    background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                                }}
+                                            >
+                                                <User size={22} style={{ color: colors.accentText }} />
                                             </div>
                                         )}
                                     </div>
+                                )}
 
-                                    {/* Conteúdo */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                            <span className="text-xs font-medium" style={{ color: textSecondary }}>
-                                                {isToday ? 'Hoje' : new Date(appointment.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                <Link
+                                    href="/compromissos"
+                                    className="flex-1 min-w-0 flex flex-col"
+                                    style={{ textDecoration: 'none', color: 'inherit' }}
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-medium" style={{ color: textSecondary }}>
+                                            {isToday ? 'Hoje' : dateStr}
+                                        </span>
+                                        <span
+                                            className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                                            style={{ background: statusInfo.bg, color: statusInfo.text }}
+                                        >
+                                            {statusInfo.label}
+                                        </span>
+                                        {isPast && status !== 'cancelled' && (
+                                            <span className="text-[10px] font-bold text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded-full">
+                                                Passado
                                             </span>
-                                            <StatusBadge status={appointment.status} />
-                                            {isIncomingPending && (
-                                                <span className="text-[10px] font-bold text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full">
-                                                    Convite
-                                                </span>
-                                            )}
-                                            {isPast && appointment.status !== 'cancelled' && (
-                                                <span className="text-[10px] font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded-full">
-                                                    Passado
-                                                </span>
-                                            )}
-                                        </div>
+                                        )}
+                                    </div>
 
+                                    <div className="flex items-center gap-1 mb-1">
                                         <h4 className="font-bold text-sm truncate" style={{ color: textPrimary }}>
-                                            {appointment.service_name}
+                                            {serviceName}
                                         </h4>
-
-                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                            {appointment.direction === 'incoming' ? (
-                                                <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                    <User size={10} /> @{appointment.owner_slug}
-                                                </p>
-                                            ) : appointment.direction === 'outgoing' ? (
-                                                <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                    <User size={10} /> @{appointment.customer_slug}
-                                                </p>
-                                            ) : (
-                                                <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
-                                                    <User size={10} /> Pessoal
-                                                </p>
-                                            )}
-                                            {appointment.is_public !== undefined && (
-                                                <VisibilityBadge isPublic={appointment.is_public} textColor={textSecondary} />
-                                            )}
-                                        </div>
-
-                                        <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: `${borderColor}15` }}>
-                                            <span className="text-sm font-black flex items-center gap-1" style={{ color: accentColor }}>
-                                                <Clock size={14} />
-                                                {formatTime(appointment.time)}
+                                        {duration && (
+                                            <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: textSecondary }}>
+                                                · {duration} min
                                             </span>
-                                            <div className="flex items-center gap-1">
-                                                {isIncomingPending ? (
-                                                    <>
-                                                        <button
-                                                            onClick={e => handleAccept(appointment.id, e)}
-                                                            className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95"
-                                                            style={{ background: 'rgba(16,185,129,0.2)', color: '#34d399' }}
-                                                        >
-                                                            <Check size={14} />
-                                                        </button>
-                                                        <button
-                                                            onClick={e => handleDecline(appointment.id, e)}
-                                                            className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95"
-                                                            style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171' }}
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    </>
-                                                ) : (
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        {appointment.direction === 'incoming' ? (
+                                            <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
+                                                <User size={10} /> @{appointment.owner_slug}
+                                            </p>
+                                        ) : appointment.direction === 'outgoing' ? (
+                                            <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
+                                                <User size={10} /> @{appointment.customer_slug}
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs flex items-center gap-1" style={{ color: textSecondary }}>
+                                                <User size={10} /> Pessoal
+                                            </p>
+                                        )}
+                                        {appointment.is_public !== undefined && (
+                                            <VisibilityBadge isPublic={appointment.is_public} textColor={textSecondary} />
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: `${borderColor}15` }}>
+                                        <span className="text-sm font-black tabular-nums flex items-center gap-1" style={{ color: accentColor }}>
+                                            <Clock size={14} />
+                                            {formatTime(appointment.time)}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            {isIncomingPending ? (
+                                                <>
                                                     <button
-                                                        onClick={e => handleDelete(appointment.id, e)}
-                                                        className="p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 opacity-40 hover:opacity-100"
-                                                        style={{ color: textSecondary }}
+                                                        onClick={(e) => handleAccept(appointment.id, e)}
+                                                        className="p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
                                                     >
-                                                        <X size={14} />
+                                                        <Check size={12} />
                                                     </button>
-                                                )}
-                                            </div>
+                                                    <button
+                                                        onClick={(e) => handleDecline(appointment.id, e)}
+                                                        className="p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => handleDelete(appointment.id, e)}
+                                                    className="p-1 rounded-full transition-colors hover:bg-red-50 hover:text-red-500"
+                                                    style={{ color: textSecondary }}
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </Link>
@@ -463,6 +587,76 @@ export default function AtalhoCompromissosPessoal({
                     })}
                 </div>
             )}
+
+            {/* Rodapé com toggle e contagem */}
+            <div
+                className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t"
+                style={{ borderColor: borderColor }}
+            >
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium" style={{ color: textSecondary }}>
+                        Mostrar pendentes
+                    </span>
+                    <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={showPending}
+                            onChange={() => setShowPending(prev => !prev)}
+                        />
+                        <span
+                            className="absolute inset-0 rounded-full transition-colors duration-200"
+                            style={{ background: showPending ? accentColor : borderColor }}
+                        />
+                        <span
+                            className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
+                        />
+                    </label>
+                    {!showPending && pendingCount > 0 && (
+                        <span
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
+                            style={{ background: '#ef444420', color: '#ef4444' }}
+                        >
+                            {pendingCount} oculto{pendingCount > 1 ? 's' : ''}
+                        </span>
+                    )}
+                </div>
+
+                {sorted.length > 0 && (
+                    <Link
+                        href="/compromissos"
+                        className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:bg-white/10 flex items-center gap-1.5"
+                        style={{
+                            border: `1px solid ${borderColor}`,
+                            color: textSecondary,
+                        }}
+                    >
+                        <Calendar size={14} />
+                        Ver agenda
+                    </Link>
+                )}
+            </div>
+
+            {/* Estilos do scroll */}
+            <style jsx>{`
+                .scroll-container::-webkit-scrollbar {
+                    height: 6px;
+                }
+                .scroll-container::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .scroll-container::-webkit-scrollbar-thumb {
+                    background-color: ${`${accentColor}40`};
+                    border-radius: 9999px;
+                }
+                .scroll-container::-webkit-scrollbar-thumb:hover {
+                    background-color: ${accentColor};
+                }
+                .scroll-container {
+                    scrollbar-width: thin;
+                    scrollbar-color: ${`${accentColor}40`} transparent;
+                }
+            `}</style>
         </div>
     )
 }
