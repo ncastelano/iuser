@@ -1,43 +1,44 @@
-// src/app/(app)/[profileSlug]/page.tsx
+// app/(main)/[profileSlug]/page.tsx
+
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
-    AlertTriangle,
-    ArrowLeft,
-    Calendar,
-    Search,
-    Clock,
-    ExternalLink,
+    Store as StoreIcon,
     Star,
-    X,
-    Plus,
-    Shield,
+    ArrowLeft,
     ShoppingBag,
+    MapPin,
+    MapPinned,
+    X,
+    Pencil,
+    Clock,
+    CalendarDays,
+    Calendar,
+    Camera,
+    Search,
+    User,
+    Plus,
+    ExternalLink,
+    MessageCircle,
     Home,
     Store,
-    MapPin,
-    MessageCircle,
-    Camera,
-    User,
-    Pencil,
-    MapPinned,
-    CalendarDays,
+    ShieldAlert,
 } from 'lucide-react'
-import { toast } from 'sonner'
-import { getAvatarUrl } from '@/lib/avatar'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import EditarPerfil from './EditarPerfil'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { useTheme } from '@/app/theme'
+import Header from '@/app/Header'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
-import { useTheme } from '@/app/theme'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
-import { useProfile } from '@/app/contexts/ProfileContext'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
 import SacolaButton from '@/app/ButtonSacola'
-import Header from '@/app/Header'
-import EditarPerfil from './EditarPerfil'
 import type { Tab } from '@/app/Header'
+import ProfileVisitors from '../ProfileVisitors'
+
+type ProfileTab = 'compras' | 'agenda' | 'produtos' | 'avaliacoes' | 'visitantes'
 
 type RatingRow = {
     id: string
@@ -57,44 +58,13 @@ type RatingRow = {
     } | null
 }
 
-type ProfileTab = 'produtos' | 'avaliacoes' | 'compras' | 'agenda'
-
-// Helpers para identificar visitantes
-function getOrCreateAnonymousId(): string {
-    const key = 'iuser_anon_id'
-    let id = localStorage.getItem(key)
-    if (!id) {
-        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-        localStorage.setItem(key, id)
-    }
-    return id
-}
-
-function getOrCreateSessionId(): string {
-    const key = 'iuser_sid'
-    let id = sessionStorage.getItem(key)
-    if (!id) {
-        id = crypto.randomUUID?.() || Math.random().toString(36).substring(2)
-        sessionStorage.setItem(key, id)
-    }
-    return id
-}
-
-function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
-    const ua = navigator.userAgent
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'tablet'
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'mobile'
-    return 'desktop'
-}
-
 export default function ProfilePage() {
     const params = useParams()
-    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
+    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const visitRegisteredRef = useRef(false) // Para evitar registrar visita múltiplas vezes
-
     const { colors } = useTheme()
+
     const {
         avatarUrl: loggedUserAvatarUrl,
         profileSlug: loggedUserSlug,
@@ -187,72 +157,6 @@ export default function ProfilePage() {
         [profileSlug, removeItem]
     )
 
-    // ========== VISIT CAPTURE MELHORADO ==========
-    const registerVisit = useCallback(async (profileId: string, userId: string | null) => {
-        // Evitar registrar múltiplas vezes na mesma sessão
-        if (visitRegisteredRef.current) {
-            console.log('[ProfilePage] Visita já registrada nesta sessão')
-            return
-        }
-
-        try {
-            const sessionId = getOrCreateSessionId()
-            const anonymousId = userId ? null : getOrCreateAnonymousId()
-            const device = getDeviceType()
-            const referrer = document.referrer || null
-            const userAgent = navigator.userAgent || null
-
-            console.log('[ProfilePage] Registrando visita:', { profileId, userId: userId || 'anon', device })
-
-            // Tentar primeiro a RPC
-            const { data, error } = await supabase.rpc('record_profile_visit', {
-                p_profile_id: profileId,
-                p_session_id: sessionId,
-                p_viewer_id: userId,
-                p_anonymous_id: anonymousId,
-                p_device_type: device,
-                p_referrer: referrer,
-                p_user_agent: userAgent,
-            })
-
-            if (error) {
-                console.warn('[ProfilePage] RPC falhou, usando fallback:', error.message)
-                // Fallback: inserção direta
-                const { error: insertError } = await supabase.from('profile_visits').insert({
-                    profile_id: profileId,
-                    viewer_id: userId || null,
-                    anonymous_id: anonymousId,
-                    session_id: sessionId,
-                    device_type: device,
-                    referrer: referrer,
-                    user_agent: userAgent,
-                })
-
-                if (insertError) {
-                    console.error('[ProfilePage] Fallback também falhou:', insertError.message)
-                    return
-                }
-
-                // Incrementar contador
-                await supabase.rpc('increment_profile_view_count', { profile_id_param: profileId })
-                setTotalProfileVisitors(prev => prev + 1)
-                visitRegisteredRef.current = true
-                console.log('[ProfilePage] Visita registrada via fallback')
-                return
-            }
-
-            if (data === true) {
-                setTotalProfileVisitors(prev => prev + 1)
-                visitRegisteredRef.current = true
-                console.log('[ProfilePage] Visita registrada com sucesso via RPC')
-            } else {
-                console.log('[ProfilePage] Visita ignorada (cooldown)')
-            }
-        } catch (err) {
-            console.error('[ProfilePage] Erro ao registrar visita:', err)
-        }
-    }, [])
-
     const loadProfileData = useCallback(async () => {
         if (!profileSlug) {
             setLoading(false)
@@ -278,6 +182,40 @@ export default function ProfilePage() {
         setProfile(profileData)
         setIsOwner(user?.id === profileData.id)
         setTotalProfileVisitors(profileData.view_count || 0)
+
+        // Registrar visita no perfil
+        if (user?.id !== profileData.id) {
+            const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+
+            // Verificar se já registrou visita nos últimos 60 segundos
+            const { data: recentVisit } = await supabase
+                .from('profile_visits')
+                .select('id')
+                .eq('profile_id', profileData.id)
+                .eq('viewer_id', user?.id || null)
+                .gte('created_at', oneMinuteAgo)
+                .maybeSingle()
+
+            if (!recentVisit) {
+                // Registrar nova visita
+                const deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile'
+                    : /iPad|Tablet/i.test(navigator.userAgent) ? 'tablet'
+                        : 'desktop'
+
+                await supabase.from('profile_visits').insert({
+                    profile_id: profileData.id,
+                    viewer_id: user?.id || null,
+                    anonymous_id: user?.id ? null : crypto.randomUUID(),
+                    device_type: deviceType,
+                    referrer: document.referrer || null,
+                })
+
+                // Atualizar contador no perfil
+                await supabase.rpc('increment_profile_view_count', {
+                    profile_id_param: profileData.id
+                })
+            }
+        }
 
         const [storesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
             supabase.from('stores').select('*').eq('owner_id', profileData.id),
@@ -371,44 +309,11 @@ export default function ProfilePage() {
 
         setLoading(false)
         setProfileNotFound(false)
-
-        // Registrar visita IMEDIATAMENTE após carregar (não usa mais setTimeout)
-        if (profileData && user?.id !== profileData.id) {
-            registerVisit(profileData.id, user?.id || null)
-        }
-    }, [profileSlug, registerVisit])
+    }, [profileSlug])
 
     useEffect(() => {
         loadProfileData()
     }, [loadProfileData])
-
-    // Realtime: atualizar contador quando view_count mudar
-    useEffect(() => {
-        if (!profile) return
-
-        const channel = supabase
-            .channel(`profile-${profile.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'profiles',
-                    filter: `id=eq.${profile.id}`,
-                },
-                (payload) => {
-                    const newCount = payload.new.view_count as number
-                    if (typeof newCount === 'number') {
-                        setTotalProfileVisitors(newCount)
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
-    }, [profile?.id])
 
     useEffect(() => {
         const fetchOrderStatuses = async () => {
@@ -520,7 +425,7 @@ export default function ProfilePage() {
                 allTabs.push({
                     id: `loja-${store.slug}`,
                     label: store.name,
-                    icon: Store as any,
+                    icon: StoreIcon as any,
                     imageUrl: store.logoUrl,
                     onClick: () => router.push(`/${loggedUserSlug}/${store.slug}`),
                     isActive: false,
@@ -530,7 +435,7 @@ export default function ProfilePage() {
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',
-                icon: Store as any,
+                icon: StoreIcon as any,
                 imageUrl: null,
                 onClick: () => router.push('/criar-loja'),
                 isActive: false,
@@ -539,7 +444,7 @@ export default function ProfilePage() {
             allTabs.push({
                 id: 'criar-loja',
                 label: 'Criar loja',
-                icon: Store as any,
+                icon: StoreIcon as any,
                 imageUrl: null,
                 onClick: () => router.push('/criar-loja-com-cadastro'),
                 isActive: false,
@@ -582,7 +487,7 @@ export default function ProfilePage() {
             if (updateError) throw updateError
             setProfile({ ...profile, avatar_url: publicUrl })
         } catch (err: any) {
-            toast.error('Erro ao enviar foto: ' + err.message)
+            alert('Erro ao enviar foto: ' + err.message)
         } finally {
             setUploadingAvatar(false)
             if (fileInputRef.current) fileInputRef.current.value = ''
@@ -625,9 +530,6 @@ export default function ProfilePage() {
         if (!error) {
             setProfile({ ...profile, address: tempAddress, show_location: true })
             setShowLocationModal(false)
-            toast.success('Localização atualizada!')
-        } else {
-            toast.error('Erro ao salvar localização')
         }
     }
 
@@ -636,6 +538,17 @@ export default function ProfilePage() {
         const next = !profile.show_location
         setProfile({ ...profile, show_location: next })
         await supabase.from('profiles').update({ show_location: next }).eq('id', profile.id)
+    }
+
+    const getAvatarUrl = (path: string | null) => {
+        if (!path) return undefined
+        if (path.startsWith('http')) return path
+        return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
+    }
+
+    const getLogoUrl = (path: string | null) => {
+        if (!path) return null
+        return supabase.storage.from('store-logos').getPublicUrl(path).data.publicUrl
     }
 
     const formatShortAddress = (addr: string) => {
@@ -704,10 +617,12 @@ export default function ProfilePage() {
 
     // ===== ESTILOS CONSISTENTES =====
     const glassBg = 'rgba(255, 255, 255, 0.08)'
+    const glassBgHover = 'rgba(255, 255, 255, 0.12)'
     const glassBgLight = 'rgba(255, 255, 255, 0.06)'
     const glassBorder = 'rgba(255, 255, 255, 0.12)'
     const glassBorderDashed = 'rgba(255, 255, 255, 0.1)'
     const textBlack = '#000000'
+    const textGray = '#666666'
     const blurAmount = 'blur(20px)'
 
     const inputSearchStyle: React.CSSProperties = {
@@ -718,24 +633,6 @@ export default function ProfilePage() {
         color: textBlack,
     }
 
-    if (loading) return <LoadingSpinner message="Carregando perfil..." />
-
-    if (profileNotFound) {
-        return (
-            <div className="min-h-screen flex items-center justify-center px-4 text-center" style={{ background: colors.background }}>
-                <div className="flex flex-col gap-4 max-w-sm items-center">
-                    <AlertTriangle className="w-12 h-12" style={{ color: colors.accent }} />
-                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Perfil não encontrado</h2>
-                    <button onClick={() => router.push('/')} className="flex items-center gap-2 mt-4 font-bold hover:underline" style={{ color: colors.accent }}>
-                        <ArrowLeft className="w-5 h-5" /> Voltar para o Início
-                    </button>
-                </div>
-            </div>
-        )
-    }
-
-    if (!profile) return null
-
     return (
         <main className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -743,51 +640,52 @@ export default function ProfilePage() {
             </div>
 
             <style jsx global>{`
-                @keyframes float {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-15px) rotate(5deg); }
-                }
-                @keyframes pulse-glow {
-                    0%, 100% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4), 0 0 0 6px rgba(139, 92, 246, 0.1); }
-                    50% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.6), 0 0 0 12px rgba(139, 92, 246, 0); }
-                }
-                @keyframes pulse-status {
-                    0%, 100% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.03); opacity: 0.85; }
-                }
-                .animate-pulse-glow {
-                    animation: pulse-glow 2s ease-in-out infinite;
-                }
-                .animate-pulse-status {
-                    animation: pulse-status 2s ease-in-out infinite;
-                }
-                
-                input::placeholder,
-                textarea::placeholder {
-                    color: #000000 !important;
-                    -webkit-text-fill-color: #000000 !important;
-                    opacity: 1 !important;
-                }
-                input::-webkit-input-placeholder,
-                textarea::-webkit-input-placeholder {
-                    color: #000000 !important;
-                    -webkit-text-fill-color: #000000 !important;
-                }
-                input::-moz-placeholder,
-                textarea::-moz-placeholder {
-                    color: #000000 !important;
-                    opacity: 1 !important;
-                }
-                input:-ms-input-placeholder,
-                textarea:-ms-input-placeholder {
-                    color: #000000 !important;
-                }
-                input:-moz-placeholder,
-                textarea:-moz-placeholder {
-                    color: #000000 !important;
-                    opacity: 1 !important;
-                }
-            `}</style>
+    @keyframes float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-15px) rotate(5deg); }
+    }
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4), 0 0 0 6px rgba(139, 92, 246, 0.1); }
+        50% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.6), 0 0 0 12px rgba(139, 92, 246, 0); }
+    }
+    @keyframes pulse-status {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.03); opacity: 0.85; }
+    }
+    .animate-pulse-glow {
+        animation: pulse-glow 2s ease-in-out infinite;
+    }
+    .animate-pulse-status {
+        animation: pulse-status 2s ease-in-out infinite;
+    }
+    
+    /* Todos os placeholders pretos */
+    input::placeholder,
+    textarea::placeholder {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        opacity: 1 !important;
+    }
+    input::-webkit-input-placeholder,
+    textarea::-webkit-input-placeholder {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+    input::-moz-placeholder,
+    textarea::-moz-placeholder {
+        color: #000000 !important;
+        opacity: 1 !important;
+    }
+    input:-ms-input-placeholder,
+    textarea:-ms-input-placeholder {
+        color: #000000 !important;
+    }
+    input:-moz-placeholder,
+    textarea:-moz-placeholder {
+        color: #000000 !important;
+        opacity: 1 !important;
+    }
+`}</style>
 
             <Header
                 title="iUser"
@@ -803,9 +701,27 @@ export default function ProfilePage() {
             />
 
             <div className="relative z-10 max-w-5xl mx-auto px-4 pt-8 pb-24">
-                {!editMode && (
+                {loading && (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="w-10 h-10 border-3 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                        <p className="text-sm font-bold mt-4 animate-pulse" style={{ color: colors.textSecondary }}>
+                            Carregando...
+                        </p>
+                    </div>
+                )}
+
+                {!loading && profileNotFound && (
+                    <div className="flex flex-col items-center text-center py-20">
+                        <h1 className="text-2xl font-black" style={{ color: colors.textPrimary }}>Perfil não encontrado</h1>
+                        <button onClick={() => router.push('/')} className="flex items-center gap-2 mt-4 font-bold hover:underline" style={{ color: colors.accent }}>
+                            <ArrowLeft className="w-5 h-5" /> Voltar para o Início
+                        </button>
+                    </div>
+                )}
+
+                {!loading && profile && !editMode && (
                     <>
-                        {/* Card do perfil - MANTIDO IGUAL */}
+                        {/* Card do perfil */}
                         <div className="flex flex-col md:flex-row items-center gap-8 mb-8 p-6 rounded-3xl"
                             style={{
                                 background: glassBg,
@@ -817,7 +733,7 @@ export default function ProfilePage() {
                                 <div className="w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden p-1 shadow-xl animate-pulse-glow"
                                     style={{ background: glassBgLight }}>
                                     {profile.avatar_url ? (
-                                        <img src={getAvatarUrl(supabase, profile.avatar_url)!} className="w-full h-full object-cover rounded-full" alt={profile.name} />
+                                        <img src={getAvatarUrl(profile.avatar_url)!} className="w-full h-full object-cover rounded-full" alt={profile.name} />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: colors.textSecondary }}>
                                             {profile.name?.charAt(0)}
@@ -930,11 +846,16 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
+                        {/* Componente de Visitantes - Visível para o dono do perfil */}
+                        {isOwner && (
+                            <ProfileVisitors profileId={profile.id} />
+                        )}
+
                         {/* Lojas do perfil visitado */}
                         {stores.length > 0 && (
                             <div className="mb-8">
                                 <h3 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: colors.accent }}>
-                                    <Store size={16} /> Lojas
+                                    <StoreIcon size={16} /> Lojas
                                 </h3>
                                 <div className="flex overflow-x-auto gap-3 pb-4 snap-x snap-mandatory">
                                     {stores.map((store) => (
@@ -948,7 +869,7 @@ export default function ProfilePage() {
                                             }}>
                                             <div className="w-12 h-12 rounded-full overflow-hidden" style={{ background: glassBgLight }}>
                                                 {store.logo_url ? (
-                                                    <img src={supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl} className="w-full h-full object-cover" alt={store.name} />
+                                                    <img src={getLogoUrl(store.logo_url)!} className="w-full h-full object-cover" alt={store.name} />
                                                 ) : (
                                                     <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.textSecondary }}>
                                                         {store.name?.charAt(0)}
@@ -988,7 +909,7 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
-                        {/* Conteúdo das abas - MANTIDO IGUAL */}
+                        {/* Conteúdo das abas */}
                         <div className="space-y-12">
                             {/* TAB PRODUTOS */}
                             {activeTab === 'produtos' && (
@@ -1321,7 +1242,7 @@ export default function ProfilePage() {
                                     ) : (
                                         <div className="space-y-3">
                                             {profileRatings.map((rating: any) => {
-                                                const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
+                                                const avatarUrl = getAvatarUrl(rating.profiles?.avatar_url)
                                                 return (
                                                     <div key={rating.id} className="flex gap-3 p-4 rounded-2xl"
                                                         style={{
@@ -1350,7 +1271,7 @@ export default function ProfilePage() {
                                                                     </p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: glassBg, color: colors.accent }}>
-                                                                    <Shield className="w-3 h-3" />
+                                                                    <ShieldAlert className="w-3 h-3" />
                                                                     <span className="text-[9px] font-black uppercase">Verificada</span>
                                                                 </div>
                                                             </div>
@@ -1401,7 +1322,7 @@ export default function ProfilePage() {
                                                 }}>
                                                 <div className="w-16 h-16 rounded-2xl overflow-hidden" style={{ background: glassBgLight }}>
                                                     {purchase.stores?.logo_url ? (
-                                                        <img src={supabase.storage.from('store-logos').getPublicUrl(purchase.stores.logo_url).data.publicUrl} className="w-full h-full object-cover" alt="" />
+                                                        <img src={getLogoUrl(purchase.stores.logo_url)!} className="w-full h-full object-cover" alt="" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-xl font-black" style={{ color: colors.textSecondary }}>
                                                             {purchase.stores?.name?.charAt(0)}
@@ -1444,7 +1365,7 @@ export default function ProfilePage() {
                                                         }}>
                                                         <div className="w-12 h-12 rounded-2xl overflow-hidden" style={{ background: glassBgLight }}>
                                                             {appt.profiles?.avatar_url ? (
-                                                                <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                                <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-xs font-black" style={{ color: colors.accent }}>
                                                                     {appt.profiles?.name?.charAt(0) || 'U'}
@@ -1513,7 +1434,7 @@ export default function ProfilePage() {
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <div className="w-5 h-5 rounded-full overflow-hidden" style={{ background: glassBgLight }}>
                                                                 {appt.profiles?.avatar_url ? (
-                                                                    <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
+                                                                    <img src={getAvatarUrl(appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                                                 ) : (
                                                                     <div className="w-full h-full flex items-center justify-center text-[8px] font-black" style={{ color: colors.textSecondary }}>
                                                                         {appt.profiles?.name?.charAt(0) || 'C'}
@@ -1534,7 +1455,7 @@ export default function ProfilePage() {
                 )}
 
                 {/* Modo Edição */}
-                {editMode && (
+                {!loading && profile && editMode && (
                     <EditarPerfil
                         profile={profile}
                         onUpdate={(updated: any) => {

@@ -14,9 +14,11 @@ import {
     Monitor,
     Tablet,
     BarChart3,
+    ExternalLink,
 } from 'lucide-react'
 import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
+import { useRouter } from 'next/navigation'
 
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
@@ -33,6 +35,7 @@ type Period = 'today' | '7days' | '30days'
 export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
+    const router = useRouter()
 
     const [loading, setLoading] = useState(true)
     const [period, setPeriod] = useState<Period>('7days')
@@ -133,7 +136,6 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                 .limit(50)
 
             if (visits) {
-                // Buscar perfis dos visitantes logados (viewer_id)
                 const userIds = visits
                     .map(v => v.viewer_id)
                     .filter(id => id !== null) as string[]
@@ -206,16 +208,29 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                 supabase.removeChannel(channelRef.current)
             }
         }
-    }, [profileId, period])
+    }, [profileId, period, fetchVisitorData])
 
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
+    const accentLight = colors.accentLight || `${accentColor}30`
 
     const getDeviceIcon = (type: string | null) => {
         if (type === 'mobile') return <Smartphone size={14} />
         if (type === 'tablet') return <Tablet size={14} />
         return <Monitor size={14} />
+    }
+
+    const getAvatarUrl = (path: string | null) => {
+        if (!path) return null
+        if (path.startsWith('http')) return path
+        return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
+    }
+
+    const handleVisitorClick = (visitor: any) => {
+        if (visitor.profile?.profileSlug) {
+            router.push(`/${visitor.profile.profileSlug}`)
+        }
     }
 
     const cardStyle = {
@@ -227,6 +242,8 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
     }
 
     const maxCount = Math.max(...dailyData.map(d => d.count), 1)
+
+    if (!profileId) return null
 
     return (
         <div className="mb-6 mt-4">
@@ -240,7 +257,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho com ícone e contador */}
+                {/* Cabeçalho */}
                 <div className="flex items-center gap-3">
                     <div
                         className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -387,6 +404,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                             const isAnonymous = visit.isAnonymous
                             const profile = visit.profile
                             const deviceIcon = getDeviceIcon(visit.device_type)
+                            const avatarUrl = getAvatarUrl(profile?.avatar_url)
                             const timeAgo = formatDistanceToNow(new Date(visit.created_at), {
                                 addSuffix: true,
                                 locale: ptBRLocale,
@@ -398,11 +416,9 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                             return (
                                 <div
                                     key={visit.id}
-                                    className="flex items-center gap-3 p-3 rounded-xl border"
-                                    style={{
-                                        background: cardStyle.background,
-                                        borderColor: colors.border,
-                                    }}
+                                    onClick={() => handleVisitorClick(visit)}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-md ${!isAnonymous && profile?.profileSlug ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+                                    style={{ background: cardStyle.background, borderColor: colors.border }}
                                 >
                                     <div
                                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
@@ -412,9 +428,9 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                     >
                                         {isAnonymous ? (
                                             <User size={16} style={{ color: '#ef4444' }} />
-                                        ) : profile?.avatar_url ? (
+                                        ) : avatarUrl ? (
                                             <img
-                                                src={profile.avatar_url}
+                                                src={avatarUrl}
                                                 alt=""
                                                 className="w-full h-full rounded-full object-cover"
                                             />
@@ -439,6 +455,9 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                             >
                                                 {isAnonymous ? 'Anônimo' : 'Logado'}
                                             </span>
+                                            {!isAnonymous && profile?.profileSlug && (
+                                                <ExternalLink size={10} style={{ color: textSecondary }} />
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
                                             <span>{fullDate}</span>

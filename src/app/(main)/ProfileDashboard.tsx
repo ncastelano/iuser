@@ -1622,8 +1622,8 @@ export default function ProfileDashboard({
             <Publication storeId={profile?.id || ''} />
 
             {/* ===== Visitantes ===== */}
-            <ProfileVisitors profileId={profileSlug || ''} />
 
+            <ProfileVisitors key={profile.id} profileId={profile.id} />
             {/* ===== Pedidos Recentes (Comprador) ===== */}
             <div className="mb-6 mt-4">
                 <div
