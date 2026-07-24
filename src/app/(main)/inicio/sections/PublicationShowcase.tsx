@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { ChevronUp, ChevronDown, FileText, Store } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
+import { ChevronUp, ChevronDown, Store } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
@@ -13,6 +13,11 @@ interface PublicationCard {
     storeName: string
     storeSlug: string
     storeLogoUrl: string | null
+}
+
+// ---------- Props ----------
+interface PublicationShowcaseProps {
+    dragHandle?: ReactNode // <-- NOVA PROP PARA DRAG HANDLE
 }
 
 // ---------- Hook de dados ----------
@@ -79,17 +84,19 @@ function usePublicationShowcase() {
 
 // ---------- Hook para detectar breakpoint ----------
 function useBreakpoint() {
-    const [itemsPerPage, setItemsPerPage] = useState(12)
+    const [itemsPerPage, setItemsPerPage] = useState(6)
 
     useEffect(() => {
         const update = () => {
             const width = window.innerWidth
             if (width >= 1120) {
-                setItemsPerPage(20) // 5 colunas x 4 linhas
-            } else if (width >= 800) {
                 setItemsPerPage(12) // 4 colunas x 3 linhas
+            } else if (width >= 800) {
+                setItemsPerPage(8) // 4 colunas x 2 linhas
+            } else if (width >= 500) {
+                setItemsPerPage(4) // 2 colunas x 2 linhas
             } else {
-                setItemsPerPage(6) // 3 colunas x 2 linhas
+                setItemsPerPage(2) // 2 colunas x 1 linha
             }
         }
 
@@ -102,7 +109,7 @@ function useBreakpoint() {
 }
 
 // ---------- Componente ----------
-export default function PublicationShowcase() {
+export default function PublicationShowcase({ dragHandle }: PublicationShowcaseProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
@@ -153,15 +160,18 @@ export default function PublicationShowcase() {
     }, [publications, currentPage, itemsPerPage, total])
 
     // Define o número de colunas baseado no itemsPerPage
-    const gridCols = itemsPerPage >= 20 ? 'grid-cols-5' : itemsPerPage >= 12 ? 'grid-cols-4' : 'grid-cols-3'
+    const gridCols = itemsPerPage >= 12 ? 'grid-cols-4'
+        : itemsPerPage >= 8 ? 'grid-cols-4'
+            : itemsPerPage >= 4 ? 'grid-cols-2'
+                : 'grid-cols-2'
 
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
-                <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
-                <div className={`grid ${gridCols} gap-2`}>
+                <div className="h-6 w-48 bg-gray-200 rounded mb-4" />
+                <div className={`grid ${gridCols} gap-3`}>
                     {Array.from({ length: itemsPerPage }).map((_, i) => (
-                        <div key={i} className="aspect-square bg-gray-200 rounded-2xl" style={{ height: '80px' }} />
+                        <div key={i} className="aspect-[9/16] bg-gray-200 rounded-2xl" />
                     ))}
                 </div>
             </div>
@@ -176,46 +186,66 @@ export default function PublicationShowcase() {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
+            {/* Título com dragHandle - SEM ÍCONE */}
             <div className="flex items-center gap-2 mb-3 px-1">
-                <FileText size={16} style={{ color: colors.accent }} />
+                {dragHandle}
                 <h2 className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Publicações em destaque
                 </h2>
             </div>
 
             <div className="flex gap-2">
-                <div className={`flex-1 grid ${gridCols} gap-2`}>
+                <div className={`flex-1 grid ${gridCols} gap-3`}>
                     {currentItems.map((pub, idx) => (
                         <div
                             key={`${pub.id}-${idx}`}
                             onClick={() => router.push(`/${pub.storeSlug}?produto=${pub.id}`)}
-                            className="group relative aspect-square rounded-2xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
-                            style={{ borderColor: colors.border, background: colors.background }}
+                            className="group relative aspect-[9/16] rounded-2xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+                            style={{
+                                borderColor: colors.border,
+                                background: colors.background,
+                            }}
                         >
                             {pub.imageUrl ? (
-                                <img
-                                    src={pub.imageUrl}
-                                    alt={pub.storeName}
-                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                />
+                                <>
+                                    <img
+                                        src={pub.imageUrl}
+                                        alt={pub.storeName}
+                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                    />
+                                    {/* Overlay escuro no fundo */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                                </>
                             ) : (
                                 <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
                             )}
-                            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
-                            <div className="absolute bottom-0 left-0 right-0 p-1.5 z-10 flex items-center gap-1">
-                                <div className="w-3.5 h-3.5 rounded-full border border-white/40 overflow-hidden bg-black/50 flex-shrink-0">
-                                    {pub.storeLogoUrl ? (
-                                        <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-white/80">
-                                            <Store size={8} />
-                                        </div>
-                                    )}
+
+                            {/* Conteúdo na parte inferior - estilo shorts */}
+                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
+                                {/* Nome da loja com logo */}
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0 shadow-lg">
+                                        {pub.storeLogoUrl ? (
+                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Store size={12} className="text-white/80" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <h3 className="text-white font-bold text-xs leading-tight truncate drop-shadow-lg">
+                                        {pub.storeName}
+                                    </h3>
                                 </div>
-                                <h3 className="text-white font-bold text-[8px] leading-tight truncate">
-                                    {pub.storeName}
-                                </h3>
                             </div>
+
+                            {/* Efeito de brilho no hover */}
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                                style={{
+                                    boxShadow: `inset 0 0 40px ${colors.accent}30`,
+                                    border: `2px solid ${colors.accent}40`,
+                                }}
+                            />
                         </div>
                     ))}
                 </div>
@@ -226,8 +256,13 @@ export default function PublicationShowcase() {
                         <>
                             <button
                                 onClick={goToPrev}
-                                className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: colors.accent, color: colors.accentText }}
+                                className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
+                                style={{
+                                    background: `${colors.accent}15`,
+                                    color: colors.accent,
+                                    border: `1px solid ${colors.accent}30`,
+                                    backdropFilter: 'blur(8px)',
+                                }}
                                 aria-label="Anterior"
                             >
                                 <ChevronUp size={12} />
@@ -243,6 +278,7 @@ export default function PublicationShowcase() {
                                             width: '0.4rem',
                                             height: idx === currentPage ? '1rem' : '0.4rem',
                                             background: idx === currentPage ? colors.accent : colors.border,
+                                            boxShadow: idx === currentPage ? `0 0 10px ${colors.accent}50` : 'none',
                                         }}
                                         aria-label={`Ir para página ${idx + 1}`}
                                     />
@@ -255,8 +291,13 @@ export default function PublicationShowcase() {
 
                             <button
                                 onClick={goToNext}
-                                className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: colors.accent, color: colors.accentText }}
+                                className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
+                                style={{
+                                    background: `${colors.accent}15`,
+                                    color: colors.accent,
+                                    border: `1px solid ${colors.accent}30`,
+                                    backdropFilter: 'blur(8px)',
+                                }}
                                 aria-label="Próximo"
                             >
                                 <ChevronDown size={12} />

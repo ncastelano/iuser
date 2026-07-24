@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
 import {
     ChevronUp,
     ChevronDown,
@@ -31,6 +31,11 @@ interface ProductCard {
     storeLogoUrl: string | null
     profileSlug?: string | null
     isProfileProduct: boolean
+}
+
+// ---------- Props ----------
+interface ProductShowcaseProps {
+    dragHandle?: ReactNode // <-- NOVA PROP PARA DRAG HANDLE
 }
 
 // ---------- Função para obter URL pública do avatar ----------
@@ -325,7 +330,7 @@ function useBreakpoint() {
 }
 
 // ---------- Componente ----------
-export default function ProductShowcase() {
+export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
@@ -408,8 +413,9 @@ export default function ProductShowcase() {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
+            {/* Título com dragHandle - SEM ÍCONE */}
             <div className="flex items-center gap-2 mb-4 px-1">
-                <Package size={18} style={{ color: colors.accent }} />
+                {dragHandle}
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Produtos em destaque
                 </h2>

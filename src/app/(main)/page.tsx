@@ -18,10 +18,7 @@ import {
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
-import PromocoesSection from './inicio/sections/PromocoesSection'
 import SortableSection from './inicio/sections/SortableSection'
-import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
-import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ConfiguracoesContent from './ButtonSettingsHeader'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
@@ -41,21 +38,14 @@ import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
 import LocationPicker from './LocationPicker'
-import PainelDaLoja from './StoreDashboard'  // ✅ IMPORT CORRETO
-import StoreList from './inicio/sections/StoresBanner'
+import PainelDaLoja from './StoreDashboard'
+import StoreList from './inicio/sections/StoreList'
 
-const DEFAULT_SECTIONS = ['storeList',
-
-    'compromissosPessoal',
-    'compromissosLoja',
-
+const DEFAULT_SECTIONS = [
+    'storeList',
     'productShowcase',
     'publicationShowcase',
     'categorias',
-    'promocoes',
-    'motorista',
-    'transporte',
-    'createStore',
     'settingsSection',
     'orderSection',
 ]
@@ -418,16 +408,10 @@ export default function HomePage() {
 
     // ---------- SEÇÕES EXIBIDAS ----------
     const displayedSections = useMemo(() => {
-        const agendaKeys = ['compromissosPessoal', 'compromissosLoja']
-
-        const baseSections = !profileSlug
-            ? sections.filter(s => !agendaKeys.includes(s))
-            : sections
-
         const normal: string[] = []
         const breve: string[] = []
 
-        baseSections.forEach(s => {
+        sections.forEach(s => {
             if (breveMap[s]) {
                 breve.push(s)
                 return
@@ -436,7 +420,7 @@ export default function HomePage() {
         })
 
         return [...normal, ...breve]
-    }, [sections, profileSlug, breveMap])
+    }, [sections, breveMap])
 
     // ---------- DRAG AND DROP ----------
     function handleDragEnd(event: DragEndEvent) {
@@ -578,22 +562,6 @@ export default function HomePage() {
                 return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
-            case 'promocoes':
-                return <PromocoesSection />
-            case 'compromissosPessoal':
-                return <AtalhoCompromissosPessoal profileSlug={profileSlug} />
-            case 'compromissosLoja':
-                return <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
-            case 'createStore':
-                return (
-                    <ButtonCreateStoreHome
-                        profileSlug={profileSlug}
-                        loading={loading}
-                        onClick={() => {
-                            if (!profileSlug || loading) setShowCreateStore(true)
-                        }}
-                    />
-                )
             case 'settingsSection':
                 return <ButtonSettingsHome onClick={() => setShowConfig(true)} />
             default:

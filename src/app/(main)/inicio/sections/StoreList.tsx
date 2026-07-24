@@ -1,7 +1,6 @@
-// src/components/StoreList/StoreList.tsx
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -60,7 +59,7 @@ type StoreListProps = {
     maxItems?: number
     className?: string
     title?: string
-    showArrows?: boolean
+    dragHandle?: ReactNode
 }
 
 // ========== COMPONENTE DE STATUS ==========
@@ -115,9 +114,7 @@ function StoreCard({
             onClick={onClick}
             className="group flex-shrink-0 w-[280px] rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
             style={{
-                background: `rgba(0,0,0,0.03)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
+                background: colors.surface,
                 borderColor: colors.border,
             }}
         >
@@ -141,7 +138,7 @@ function StoreCard({
 
                 {/* Badge de status */}
                 <div
-                    className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[10px] font-black uppercase backdrop-blur-md shadow-lg flex items-center gap-1.5"
+                    className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg flex items-center gap-1.5"
                     style={{
                         background: isOpen ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)',
                         color: '#fff',
@@ -156,7 +153,7 @@ function StoreCard({
 
                 {/* Visitantes */}
                 {store.view_count && store.view_count > 0 && (
-                    <div className="absolute bottom-3 left-3 px-2 py-1 rounded-full text-[9px] font-bold backdrop-blur-md flex items-center gap-1"
+                    <div className="absolute bottom-3 left-3 px-2 py-1 rounded-full text-[9px] font-bold shadow-md flex items-center gap-1"
                         style={{
                             background: 'rgba(0,0,0,0.5)',
                             color: '#fff',
@@ -277,6 +274,48 @@ function StoreCard({
     )
 }
 
+// ========== SKELETON CARD ==========
+function StoreCardSkeleton({ colors }: { colors: any }) {
+    return (
+        <div className="flex-shrink-0 w-[280px] rounded-2xl overflow-hidden border animate-pulse"
+            style={{
+                borderColor: colors.border,
+                background: colors.surface,
+            }}
+        >
+            {/* Imagem skeleton */}
+            <div className="relative w-full h-40 overflow-hidden"
+                style={{ background: colors.accentLight }}
+            >
+                <div className="w-full h-full" style={{ background: `${colors.border}60` }} />
+
+                {/* Badge de status skeleton */}
+                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full w-20 h-6"
+                    style={{ background: `${colors.border}80` }}
+                />
+            </div>
+
+            {/* Conteúdo skeleton */}
+            <div className="p-4 space-y-3">
+                <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}60` }} />
+                <div className="h-3 rounded w-1/2" style={{ background: `${colors.border}40` }} />
+                <div className="flex items-center gap-2">
+                    <div className="h-3 rounded w-20" style={{ background: `${colors.border}40` }} />
+                    <div className="h-2 rounded w-10" style={{ background: `${colors.border}30` }} />
+                </div>
+                <div className="h-3 rounded w-24" style={{ background: `${colors.border}40` }} />
+                <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
+                    <div className="h-3 rounded w-16 mb-1.5" style={{ background: `${colors.border}40` }} />
+                    <div className="flex gap-1.5">
+                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}30` }} />
+                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}30` }} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ========== COMPONENTE PRINCIPAL ==========
 export function StoreList({
     initialStores,
@@ -284,7 +323,7 @@ export function StoreList({
     maxItems,
     className = '',
     title,
-    showArrows = true,
+    dragHandle,
 }: StoreListProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -296,6 +335,10 @@ export function StoreList({
     const [error, setError] = useState<string | null>(null)
     const [canScrollLeft, setCanScrollLeft] = useState(false)
     const [canScrollRight, setCanScrollRight] = useState(false)
+    const [isDragging, setIsDragging] = useState(false)
+    const [dragStartX, setDragStartX] = useState(0)
+    const [dragOffset, setDragOffset] = useState(0)
+    const dragDistance = useRef(0)
 
     // Carregar lojas se não foram passadas como prop
     useEffect(() => {
@@ -337,10 +380,8 @@ export function StoreList({
                     return
                 }
 
-                // Buscar detalhes adicionais para cada loja
                 const storesWithDetails = await Promise.all(
                     storesData.map(async (store) => {
-                        // Produtos (top 2)
                         const { data: products } = await supabase
                             .from('products')
                             .select('id, name, image_url, price')
@@ -348,7 +389,6 @@ export function StoreList({
                             .order('created_at', { ascending: false })
                             .limit(2)
 
-                        // Reviews recentes (2)
                         const { data: reviews } = await supabase
                             .from('product_reviews')
                             .select(`
@@ -409,17 +449,14 @@ export function StoreList({
             const aOpen = isStoreOpenNow(a.business_hours)
             const bOpen = isStoreOpenNow(b.business_hours)
 
-            // Abertos vêm primeiro
             if (aOpen && !bOpen) return -1
             if (!aOpen && bOpen) return 1
 
-            // Se ambos abertos ou ambos fechados, ordenar por avaliação
             const aRating = a.ratings_avg || 0
             const bRating = b.ratings_avg || 0
             return bRating - aRating
         })
 
-        // Limitar quantidade
         if (maxItems && sorted.length > maxItems) {
             setFilteredStores(sorted.slice(0, maxItems))
         } else {
@@ -467,6 +504,32 @@ export function StoreList({
         })
     }
 
+    // Drag handlers
+    const handleDragStart = (clientX: number) => {
+        setIsDragging(true)
+        setDragStartX(clientX)
+        setDragOffset(0)
+        dragDistance.current = 0
+    }
+
+    const handleDragMove = (clientX: number) => {
+        if (isDragging) {
+            const offset = clientX - dragStartX
+            setDragOffset(offset)
+            dragDistance.current = Math.abs(offset)
+        }
+    }
+
+    const handleDragEnd = () => {
+        if (!isDragging) return
+        setIsDragging(false)
+        if (dragDistance.current > 50) {
+            if (dragOffset > 0) scroll('left')
+            else scroll('right')
+        }
+        setDragOffset(0)
+    }
+
     const handleStoreClick = (storeSlug: string) => {
         if (onStoreClick) {
             onStoreClick(storeSlug)
@@ -475,14 +538,28 @@ export function StoreList({
         }
     }
 
-    // ========== RENDER ==========
+    // ========== RENDER SKELETON ==========
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
-                <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                    Carregando lojas...
-                </p>
+            <div className={`w-full ${className}`}>
+                <div className="flex items-center gap-2 mb-4">
+                    {dragHandle}
+                    <div className="h-7 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
+                </div>
+
+                <div className="relative">
+                    <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <StoreCardSkeleton key={`skeleton-${i}`} colors={colors} />
+                        ))}
+                    </div>
+                </div>
+
+                <style jsx>{`
+                    .hide-scrollbar::-webkit-scrollbar {
+                        display: none;
+                    }
+                `}</style>
             </div>
         )
     }
@@ -521,25 +598,35 @@ export function StoreList({
 
     return (
         <div className={`w-full ${className}`}>
-            {/* Título */}
-            {title && (
-                <h2 className="text-lg font-bold mb-4" style={{ color: colors.textPrimary }}>
-                    {title}
+            {/* Título com dragHandle */}
+            <div className="flex items-center gap-2 mb-4">
+                {dragHandle}
+                <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                    {title || 'Lojas em Destaque'}
                 </h2>
-            )}
+            </div>
 
-            {/* Lista horizontal com scroll */}
-            <div className="relative">
+            {/* Lista horizontal com scroll - estilo BannerPago */}
+            <div
+                className="relative"
+                onMouseDown={e => { e.preventDefault(); handleDragStart(e.clientX) }}
+                onMouseMove={e => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+                onTouchStart={e => handleDragStart(e.touches[0].clientX)}
+                onTouchMove={e => { if (isDragging) handleDragMove(e.touches[0].clientX) }}
+                onTouchEnd={handleDragEnd}
+            >
                 {/* Seta esquerda */}
-                {showArrows && canScrollLeft && (
+                {canScrollLeft && (
                     <button
                         onClick={() => scroll('left')}
                         className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
                         style={{
-                            background: colors.surface,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                            boxShadow: colors.shadow,
+                            background: `${colors.accent}15`,
+                            color: colors.accent,
+                            border: `1px solid ${colors.accent}30`,
+                            backdropFilter: 'blur(8px)',
                         }}
                     >
                         <ChevronLeft className="w-4 h-4" />
@@ -553,6 +640,9 @@ export function StoreList({
                     style={{
                         scrollbarWidth: 'none',
                         msOverflowStyle: 'none',
+                        transform: isDragging ? `translateX(${dragOffset / (scrollContainerRef.current?.clientWidth || 1) * 100}px)` : 'none',
+                        transition: isDragging ? 'none' : 'transform 0.3s ease',
+                        cursor: isDragging ? 'grabbing' : 'grab',
                     }}
                 >
                     {filteredStores.map((store) => (
@@ -560,29 +650,30 @@ export function StoreList({
                             key={store.id}
                             store={store}
                             colors={colors}
-                            onClick={() => handleStoreClick(store.storeSlug)}
+                            onClick={() => {
+                                if (dragDistance.current < 10) handleStoreClick(store.storeSlug)
+                            }}
                         />
                     ))}
                 </div>
 
                 {/* Seta direita */}
-                {showArrows && canScrollRight && (
+                {canScrollRight && (
                     <button
                         onClick={() => scroll('right')}
                         className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
                         style={{
-                            background: colors.surface,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                            boxShadow: colors.shadow,
+                            background: `${colors.accent}15`,
+                            color: colors.accent,
+                            border: `1px solid ${colors.accent}30`,
+                            backdropFilter: 'blur(8px)',
                         }}
                     >
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronLeft className="w-4 h-4 rotate-180" />
                     </button>
                 )}
             </div>
 
-            {/* Estilo para esconder scrollbar */}
             <style jsx>{`
                 .hide-scrollbar::-webkit-scrollbar {
                     display: none;
