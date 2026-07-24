@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, ReactNode } from 'react'
+import { useEffect, useState, useCallback, useRef, ReactNode, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -16,6 +16,7 @@ import {
     Loader2,
     AlertCircle,
     ChevronLeft,
+    ChevronRight as ChevronRightIcon,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -60,6 +61,32 @@ type StoreListProps = {
     className?: string
     title?: string
     dragHandle?: ReactNode
+}
+
+// ========== HOOK PARA BREAKPOINT ==========
+function useBreakpoint() {
+    const [itemsPerPage, setItemsPerPage] = useState(1)
+
+    useEffect(() => {
+        const update = () => {
+            const width = window.innerWidth
+            if (width >= 1200) {
+                setItemsPerPage(4)
+            } else if (width >= 800) {
+                setItemsPerPage(3)
+            } else if (width >= 400) {
+                setItemsPerPage(2)
+            } else {
+                setItemsPerPage(1)
+            }
+        }
+
+        update()
+        window.addEventListener('resize', update)
+        return () => window.removeEventListener('resize', update)
+    }, [])
+
+    return itemsPerPage
 }
 
 // ========== COMPONENTE DE STATUS ==========
@@ -112,7 +139,7 @@ function StoreCard({
     return (
         <div
             onClick={onClick}
-            className="group flex-shrink-0 w-[280px] rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
+            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
             style={{
                 background: colors.surface,
                 borderColor: colors.border,
@@ -277,25 +304,21 @@ function StoreCard({
 // ========== SKELETON CARD ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="flex-shrink-0 w-[280px] rounded-2xl overflow-hidden border animate-pulse"
+        <div className="w-full rounded-2xl overflow-hidden border animate-pulse"
             style={{
                 borderColor: colors.border,
                 background: colors.surface,
             }}
         >
-            {/* Imagem skeleton */}
             <div className="relative w-full h-40 overflow-hidden"
                 style={{ background: colors.accentLight }}
             >
                 <div className="w-full h-full" style={{ background: `${colors.border}60` }} />
-
-                {/* Badge de status skeleton */}
                 <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full w-20 h-6"
                     style={{ background: `${colors.border}80` }}
                 />
             </div>
 
-            {/* Conteúdo skeleton */}
             <div className="p-4 space-y-3">
                 <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}60` }} />
                 <div className="h-3 rounded w-1/2" style={{ background: `${colors.border}40` }} />
@@ -327,18 +350,16 @@ export function StoreList({
 }: StoreListProps) {
     const router = useRouter()
     const { colors } = useTheme()
-    const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
     const [loading, setLoading] = useState(!initialStores)
     const [error, setError] = useState<string | null>(null)
-    const [canScrollLeft, setCanScrollLeft] = useState(false)
-    const [canScrollRight, setCanScrollRight] = useState(false)
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragStartX, setDragStartX] = useState(0)
-    const [dragOffset, setDragOffset] = useState(0)
-    const dragDistance = useRef(0)
+
+    const itemsPerPage = useBreakpoint()
+    const [currentPage, setCurrentPage] = useState(0)
+    const [isHovered, setIsHovered] = useState(false)
 
     // Carregar lojas se não foram passadas como prop
     useEffect(() => {
@@ -464,71 +485,51 @@ export function StoreList({
         }
     }, [stores, maxItems])
 
-    // Verificar scroll
-    const checkScroll = useCallback(() => {
-        const container = scrollContainerRef.current
-        if (!container) return
+    // Paginação
+    const total = filteredStores.length
+    const totalPages = Math.max(1, Math.ceil(total / itemsPerPage))
 
-        setCanScrollLeft(container.scrollLeft > 10)
-        setCanScrollRight(
-            container.scrollLeft < container.scrollWidth - container.clientWidth - 10
-        )
-    }, [])
+    const goToNext = useCallback(() => {
+        setCurrentPage(prev => (prev + 1) % totalPages)
+    }, [totalPages])
+
+    const goToPrev = useCallback(() => {
+        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
+    }, [totalPages])
 
     useEffect(() => {
-        const container = scrollContainerRef.current
-        if (!container) return
+        setCurrentPage(0)
+    }, [itemsPerPage])
 
-        checkScroll()
-        container.addEventListener('scroll', checkScroll)
-        window.addEventListener('resize', checkScroll)
-
+    // Auto-play de 5 segundos
+    useEffect(() => {
+        if (isHovered || totalPages <= 1) return
+        autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
-            container.removeEventListener('scroll', checkScroll)
-            window.removeEventListener('resize', checkScroll)
+            if (autoPlayRef.current) clearInterval(autoPlayRef.current)
         }
-    }, [checkScroll])
+    }, [isHovered, goToNext, totalPages])
 
-    const scroll = (direction: 'left' | 'right') => {
-        const container = scrollContainerRef.current
-        if (!container) return
+    // ========== ITEMS COM LOOP INFINITO ==========
+    const currentItems = useMemo(() => {
+        if (total === 0) return []
 
-        const scrollAmount = container.clientWidth * 0.8
-        const target = direction === 'left'
-            ? container.scrollLeft - scrollAmount
-            : container.scrollLeft + scrollAmount
+        const start = currentPage * itemsPerPage
+        const items: StoreCardData[] = []
 
-        container.scrollTo({
-            left: target,
-            behavior: 'smooth',
-        })
-    }
-
-    // Drag handlers
-    const handleDragStart = (clientX: number) => {
-        setIsDragging(true)
-        setDragStartX(clientX)
-        setDragOffset(0)
-        dragDistance.current = 0
-    }
-
-    const handleDragMove = (clientX: number) => {
-        if (isDragging) {
-            const offset = clientX - dragStartX
-            setDragOffset(offset)
-            dragDistance.current = Math.abs(offset)
+        for (let i = 0; i < itemsPerPage; i++) {
+            const index = (start + i) % total
+            items.push(filteredStores[index])
         }
-    }
 
-    const handleDragEnd = () => {
-        if (!isDragging) return
-        setIsDragging(false)
-        if (dragDistance.current > 50) {
-            if (dragOffset > 0) scroll('left')
-            else scroll('right')
-        }
-        setDragOffset(0)
-    }
+        return items
+    }, [filteredStores, currentPage, itemsPerPage, total])
+
+    // Define o grid baseado no itemsPerPage
+    const gridCols = itemsPerPage >= 4 ? 'grid-cols-4'
+        : itemsPerPage >= 3 ? 'grid-cols-3'
+            : itemsPerPage >= 2 ? 'grid-cols-2'
+                : 'grid-cols-1'
 
     const handleStoreClick = (storeSlug: string) => {
         if (onStoreClick) {
@@ -547,19 +548,22 @@ export function StoreList({
                     <div className="h-7 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
                 </div>
 
-                <div className="relative">
-                    <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                            <StoreCardSkeleton key={`skeleton-${i}`} colors={colors} />
-                        ))}
-                    </div>
+                <div className={`grid ${gridCols} gap-4`}>
+                    {Array.from({ length: itemsPerPage }).map((_, i) => (
+                        <StoreCardSkeleton key={`skeleton-${i}`} colors={colors} />
+                    ))}
                 </div>
 
-                <style jsx>{`
-                    .hide-scrollbar::-webkit-scrollbar {
-                        display: none;
-                    }
-                `}</style>
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 mt-6">
+                        <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
+                        <div className="flex gap-2">
+                            <div className="h-1.5 w-6 rounded-full animate-pulse" style={{ background: colors.accent }} />
+                            <div className="h-1.5 w-2 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
+                        </div>
+                        <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
+                    </div>
+                )}
             </div>
         )
     }
@@ -597,7 +601,11 @@ export function StoreList({
     }
 
     return (
-        <div className={`w-full ${className}`}>
+        <div
+            className={`w-full ${className}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* Título com dragHandle */}
             <div className="flex items-center gap-2 mb-4">
                 {dragHandle}
@@ -606,71 +614,61 @@ export function StoreList({
                 </h2>
             </div>
 
-            {/* Lista horizontal com scroll - estilo BannerPago */}
-            <div
-                className="relative"
-                onMouseDown={e => { e.preventDefault(); handleDragStart(e.clientX) }}
-                onMouseMove={e => { if (isDragging) { e.preventDefault(); handleDragMove(e.clientX) } }}
-                onMouseUp={handleDragEnd}
-                onMouseLeave={handleDragEnd}
-                onTouchStart={e => handleDragStart(e.touches[0].clientX)}
-                onTouchMove={e => { if (isDragging) handleDragMove(e.touches[0].clientX) }}
-                onTouchEnd={handleDragEnd}
-            >
-                {/* Seta esquerda */}
-                {canScrollLeft && (
-                    <button
-                        onClick={() => scroll('left')}
-                        className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
-                        style={{
-                            background: `${colors.accent}15`,
-                            color: colors.accent,
-                            border: `1px solid ${colors.accent}30`,
-                            backdropFilter: 'blur(8px)',
-                        }}
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </button>
-                )}
-
-                {/* Container scroll */}
-                <div
-                    ref={scrollContainerRef}
-                    className="flex gap-4 overflow-x-auto pb-4 scroll-smooth hide-scrollbar"
-                    style={{
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none',
-                        transform: isDragging ? `translateX(${dragOffset / (scrollContainerRef.current?.clientWidth || 1) * 100}px)` : 'none',
-                        transition: isDragging ? 'none' : 'transform 0.3s ease',
-                        cursor: isDragging ? 'grabbing' : 'grab',
-                    }}
-                >
-                    {filteredStores.map((store) => (
+            {/* Grid com paginação */}
+            <div className="relative">
+                <div className={`grid ${gridCols} gap-4`}>
+                    {currentItems.map((store, index) => (
                         <StoreCard
-                            key={store.id}
+                            key={`${store.id}-${index}`}
                             store={store}
                             colors={colors}
-                            onClick={() => {
-                                if (dragDistance.current < 10) handleStoreClick(store.storeSlug)
-                            }}
+                            onClick={() => handleStoreClick(store.storeSlug)}
                         />
                     ))}
                 </div>
 
-                {/* Seta direita */}
-                {canScrollRight && (
-                    <button
-                        onClick={() => scroll('right')}
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
-                        style={{
-                            background: `${colors.accent}15`,
-                            color: colors.accent,
-                            border: `1px solid ${colors.accent}30`,
-                            backdropFilter: 'blur(8px)',
-                        }}
-                    >
-                        <ChevronLeft className="w-4 h-4 rotate-180" />
-                    </button>
+                {/* Paginação melhorada - sem pontos esticados */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 mt-6">
+                        <button
+                            onClick={goToPrev}
+                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{ background: colors.accent, color: colors.accentText }}
+                            aria-label="Anterior"
+                        >
+                            <ChevronLeft size={16} />
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                            {Array.from({ length: totalPages }).map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setCurrentPage(idx)}
+                                    className="rounded-full transition-all duration-300"
+                                    style={{
+                                        width: idx === currentPage ? '1.2rem' : '0.5rem',
+                                        height: '0.5rem',
+                                        background: idx === currentPage ? colors.accent : colors.border,
+                                        boxShadow: idx === currentPage ? `0 0 8px ${colors.accent}50` : 'none',
+                                    }}
+                                    aria-label={`Ir para página ${idx + 1}`}
+                                />
+                            ))}
+                        </div>
+
+                        <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
+                            {currentPage + 1}/{totalPages}
+                        </span>
+
+                        <button
+                            onClick={goToNext}
+                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{ background: colors.accent, color: colors.accentText }}
+                            aria-label="Próximo"
+                        >
+                            <ChevronRightIcon size={16} />
+                        </button>
+                    </div>
                 )}
             </div>
 

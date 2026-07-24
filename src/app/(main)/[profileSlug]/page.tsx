@@ -23,13 +23,10 @@ import {
     Plus,
     ExternalLink,
     MessageCircle,
-    Eye,
-    Shield,
     Home,
     Store,
-    AlertTriangle,
+    ShieldAlert,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import EditarPerfil from './EditarPerfil'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -39,8 +36,9 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '@/app/ButtonSacola'
 import type { Tab } from '@/app/Header'
+import ProfileVisitors from '../ProfileVisitors'
 
-type ProfileTab = 'compras' | 'agenda' | 'produtos' | 'avaliacoes'
+type ProfileTab = 'compras' | 'agenda' | 'produtos' | 'avaliacoes' | 'visitantes'
 
 type RatingRow = {
     id: string
@@ -184,6 +182,40 @@ export default function ProfilePage() {
         setProfile(profileData)
         setIsOwner(user?.id === profileData.id)
         setTotalProfileVisitors(profileData.view_count || 0)
+
+        // Registrar visita no perfil
+        if (user?.id !== profileData.id) {
+            const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString()
+
+            // Verificar se já registrou visita nos últimos 60 segundos
+            const { data: recentVisit } = await supabase
+                .from('profile_visits')
+                .select('id')
+                .eq('profile_id', profileData.id)
+                .eq('viewer_id', user?.id || null)
+                .gte('created_at', oneMinuteAgo)
+                .maybeSingle()
+
+            if (!recentVisit) {
+                // Registrar nova visita
+                const deviceType = /Mobi|Android/i.test(navigator.userAgent) ? 'mobile'
+                    : /iPad|Tablet/i.test(navigator.userAgent) ? 'tablet'
+                        : 'desktop'
+
+                await supabase.from('profile_visits').insert({
+                    profile_id: profileData.id,
+                    viewer_id: user?.id || null,
+                    anonymous_id: user?.id ? null : crypto.randomUUID(),
+                    device_type: deviceType,
+                    referrer: document.referrer || null,
+                })
+
+                // Atualizar contador no perfil
+                await supabase.rpc('increment_profile_view_count', {
+                    profile_id_param: profileData.id
+                })
+            }
+        }
 
         const [storesRes, followersRes, followingRes, checkFollowRes] = await Promise.all([
             supabase.from('stores').select('*').eq('owner_id', profileData.id),
@@ -372,7 +404,6 @@ export default function ProfilePage() {
     const finalTabs: Tab[] = useMemo(() => {
         const isLoggedIn = !!loggedUserSlug && !profileLoading
         const allTabs: Tab[] = [
-
             {
                 id: 'perfil',
                 label: isLoggedIn ? `@${loggedUserSlug}` : 'Entrar',
@@ -508,17 +539,6 @@ export default function ProfilePage() {
         setProfile({ ...profile, show_location: next })
         await supabase.from('profiles').update({ show_location: next }).eq('id', profile.id)
     }
-
-    useEffect(() => {
-        if (profile?.id) {
-            const recordView = async () => {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (user?.id === profile.id) return
-                await supabase.from('profile_views').insert({ profile_id: profile.id, visitor_id: user?.id || null })
-            }
-            recordView()
-        }
-    }, [profile?.id])
 
     const getAvatarUrl = (path: string | null) => {
         if (!path) return undefined
@@ -826,6 +846,11 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
+                        {/* Componente de Visitantes - Visível para o dono do perfil */}
+                        {isOwner && (
+                            <ProfileVisitors profileId={profile.id} />
+                        )}
+
                         {/* Lojas do perfil visitado */}
                         {stores.length > 0 && (
                             <div className="mb-8">
@@ -971,7 +996,6 @@ export default function ProfilePage() {
                                                             : '#'
                                                         const hasImage = !!product.image_url
 
-                                                        // Estilo base do card
                                                         const cardBaseStyle: React.CSSProperties = {
                                                             background: glassBg,
                                                             backdropFilter: blurAmount,
@@ -1247,7 +1271,7 @@ export default function ProfilePage() {
                                                                     </p>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: glassBg, color: colors.accent }}>
-                                                                    <Shield className="w-3 h-3" />
+                                                                    <ShieldAlert className="w-3 h-3" />
                                                                     <span className="text-[9px] font-black uppercase">Verificada</span>
                                                                 </div>
                                                             </div>

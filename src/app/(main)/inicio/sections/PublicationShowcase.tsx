@@ -17,7 +17,7 @@ interface PublicationCard {
 
 // ---------- Props ----------
 interface PublicationShowcaseProps {
-    dragHandle?: ReactNode // <-- NOVA PROP PARA DRAG HANDLE
+    dragHandle?: ReactNode
 }
 
 // ---------- Hook de dados ----------
@@ -90,7 +90,7 @@ function useBreakpoint() {
         const update = () => {
             const width = window.innerWidth
             if (width >= 1120) {
-                setItemsPerPage(12) // 4 colunas x 3 linhas
+                setItemsPerPage(30) // 6 colunas x 5 linhas (aumentado para 30)
             } else if (width >= 800) {
                 setItemsPerPage(8) // 4 colunas x 2 linhas
             } else if (width >= 500) {
@@ -160,18 +160,20 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
     }, [publications, currentPage, itemsPerPage, total])
 
     // Define o número de colunas baseado no itemsPerPage
-    const gridCols = itemsPerPage >= 12 ? 'grid-cols-4'
-        : itemsPerPage >= 8 ? 'grid-cols-4'
-            : itemsPerPage >= 4 ? 'grid-cols-2'
-                : 'grid-cols-2'
+    const gridCols = itemsPerPage >= 30 ? 'grid-cols-6'
+        : itemsPerPage >= 20 ? 'grid-cols-5'
+            : itemsPerPage >= 12 ? 'grid-cols-4'
+                : itemsPerPage >= 8 ? 'grid-cols-4'
+                    : itemsPerPage >= 4 ? 'grid-cols-2'
+                        : 'grid-cols-2'
 
     if (loading) {
         return (
             <div className="animate-pulse space-y-4">
                 <div className="h-6 w-48 bg-gray-200 rounded mb-4" />
-                <div className={`grid ${gridCols} gap-3`}>
+                <div className={`grid ${gridCols} gap-2`}>
                     {Array.from({ length: itemsPerPage }).map((_, i) => (
-                        <div key={i} className="aspect-[9/16] bg-gray-200 rounded-2xl" />
+                        <div key={i} className="aspect-[9/10] bg-gray-200 rounded-2xl" />
                     ))}
                 </div>
             </div>
@@ -195,15 +197,16 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
             </div>
 
             <div className="flex gap-2">
-                <div className={`flex-1 grid ${gridCols} gap-3`}>
+                <div className={`flex-1 grid ${gridCols} gap-2`}>
                     {currentItems.map((pub, idx) => (
                         <div
                             key={`${pub.id}-${idx}`}
                             onClick={() => router.push(`/${pub.storeSlug}?produto=${pub.id}`)}
-                            className="group relative aspect-[9/16] rounded-2xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+                            className="group relative rounded-xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
                             style={{
                                 borderColor: colors.border,
                                 background: colors.background,
+                                aspectRatio: window.innerWidth >= 1120 ? '9/10' : '9/16',
                             }}
                         >
                             {pub.imageUrl ? (
@@ -213,27 +216,25 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
                                         alt={pub.storeName}
                                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                     />
-                                    {/* Overlay escuro no fundo */}
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                                 </>
                             ) : (
                                 <div className="absolute inset-0 bg-gradient-to-br from-accent/40 to-background" />
                             )}
 
-                            {/* Conteúdo na parte inferior - estilo shorts */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-                                {/* Nome da loja com logo */}
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0 shadow-lg">
+                            {/* Conteúdo na parte inferior */}
+                            <div className="absolute bottom-0 left-0 right-0 p-2 z-10">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-5 h-5 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0 shadow-lg">
                                         {pub.storeLogoUrl ? (
                                             <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <Store size={12} className="text-white/80" />
+                                                <Store size={10} className="text-white/80" />
                                             </div>
                                         )}
                                     </div>
-                                    <h3 className="text-white font-bold text-xs leading-tight truncate drop-shadow-lg">
+                                    <h3 className="text-white font-bold text-[10px] leading-tight truncate drop-shadow-lg">
                                         {pub.storeName}
                                     </h3>
                                 </div>
@@ -258,10 +259,8 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
                                 onClick={goToPrev}
                                 className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
                                 style={{
-                                    background: `${colors.accent}15`,
-                                    color: colors.accent,
-                                    border: `1px solid ${colors.accent}30`,
-                                    backdropFilter: 'blur(8px)',
+                                    background: colors.accent,
+                                    color: colors.accentText,
                                 }}
                                 aria-label="Anterior"
                             >
@@ -278,7 +277,6 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
                                             width: '0.4rem',
                                             height: idx === currentPage ? '1rem' : '0.4rem',
                                             background: idx === currentPage ? colors.accent : colors.border,
-                                            boxShadow: idx === currentPage ? `0 0 10px ${colors.accent}50` : 'none',
                                         }}
                                         aria-label={`Ir para página ${idx + 1}`}
                                     />
@@ -293,10 +291,8 @@ export default function PublicationShowcase({ dragHandle }: PublicationShowcaseP
                                 onClick={goToNext}
                                 className="w-6 h-6 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shadow-lg"
                                 style={{
-                                    background: `${colors.accent}15`,
-                                    color: colors.accent,
-                                    border: `1px solid ${colors.accent}30`,
-                                    backdropFilter: 'blur(8px)',
+                                    background: colors.accent,
+                                    color: colors.accentText,
                                 }}
                                 aria-label="Próximo"
                             >

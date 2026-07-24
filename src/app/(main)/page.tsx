@@ -536,7 +536,7 @@ export default function HomePage() {
                     <StoreList
                         title="Lojas em Destaque"
                         maxItems={8}
-                        showArrows={true}
+
                         onStoreClick={(storeSlug) => {
                             router.push(`/${storeSlug}`)
                         }}
@@ -734,6 +734,7 @@ export default function HomePage() {
                     <ProfileDashboard
                         profileSlug={profileSlug}
                         onBack={() => setShowProfile(false)}
+                        avatarUrl={avatarUrl} // <-- PASSA O avatarUrl
                     />
                 ) : activeStoreSlug ? (
                     <PainelDaLoja

@@ -15,7 +15,6 @@ import {
     Settings,
     Plus,
     Users,
-    RefreshCw,
     X,
     Send,
     DollarSign,
@@ -33,6 +32,7 @@ import {
     Star,
     Truck,
     Home,
+    UserCircle,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import ButtonInPersonSale from './ButtonInPersonSale'
@@ -42,6 +42,7 @@ import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
+import ProfileVisitors from './ProfileVisitors'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -130,9 +131,11 @@ function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; 
 export default function ProfileDashboard({
     profileSlug,
     onBack,
+    avatarUrl,
 }: {
     profileSlug: string | null
     onBack?: () => void
+    avatarUrl?: string | null
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -276,11 +279,12 @@ export default function ProfileDashboard({
             return
         }
 
-        const avatarUrl = profileData.avatar_url
+        // USAR O avatarUrl PASSADO COMO PROP
+        const finalAvatarUrl = avatarUrl || (profileData.avatar_url
             ? supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
-            : null
+            : null)
 
-        setProfile({ ...profileData, avatar_url: avatarUrl })
+        setProfile({ ...profileData, avatar_url: finalAvatarUrl })
         setInitialBusinessHours(profileData.business_hours || {})
 
         // Carregar configurações do perfil para funções de vendedor
@@ -632,7 +636,7 @@ export default function ProfileDashboard({
             .from('products')
             .select('id, name, price, image_url, slug, store_id, owner_id, owner_image_url')
             .eq('owner_id', profileId)
-            .is('store_id', null)  // <--- SÓ PRODUTOS SEM LOJA (PERFIL)
+            .is('store_id', null)
             .order('created_at', { ascending: false })
             .limit(12)
 
@@ -713,7 +717,7 @@ export default function ProfileDashboard({
         setEmployees(empData || [])
 
         setLoading(false)
-    }, [profileSlug])
+    }, [profileSlug, avatarUrl])
 
     // Buscar rotas de entrega
     const fetchEmployeeRoutes = useCallback(async () => {
@@ -849,9 +853,10 @@ export default function ProfileDashboard({
 
     useEffect(() => { loadDashboard() }, [loadDashboard])
 
-    const handleRefresh = () => {
-        setRefreshing(true)
-        loadDashboard().finally(() => setRefreshing(false))
+    const goToPublicProfile = () => {
+        if (profileSlug) {
+            router.push(`/${profileSlug}`)
+        }
     }
 
     const formatStatus = (status: string) => {
@@ -1116,20 +1121,20 @@ export default function ProfileDashboard({
 
     return (
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
-            {/* Header */}
+            {/* Header - Avatar e Nome clicáveis */}
             <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={goToPublicProfile}>
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
                         {profile.avatar_url ? (
-                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xl font-bold">
+                            <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: colors.textPrimary }}>
                                 {profile.name?.charAt(0) || '@'}
                             </div>
                         )}
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                        <h2 className="text-2xl font-black hover:underline transition-all" style={{ color: colors.textPrimary }}>
                             {profile.name || `@${profileSlug}`}
                         </h2>
                         <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
@@ -1148,11 +1153,16 @@ export default function ProfileDashboard({
                     </div>
                 </div>
                 <button
-                    onClick={handleRefresh}
-                    className="p-2 rounded-full"
-                    style={{ background: 'transparent', border: `1px solid ${colors.border}` }}
+                    onClick={goToPublicProfile}
+                    className="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all hover:scale-105"
+                    style={{
+                        background: colors.accent,
+                        color: colors.accentText,
+                        boxShadow: `0 4px 12px ${colors.accent}40`,
+                    }}
                 >
-                    <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+                    <UserCircle size={16} />
+                    Meu Perfil
                 </button>
             </div>
 
@@ -1612,7 +1622,7 @@ export default function ProfileDashboard({
             <Publication storeId={profile?.id || ''} />
 
             {/* ===== Visitantes ===== */}
-            <StoreVisitors storeId={profile?.id || ''} />
+            <ProfileVisitors profileId={profileSlug || ''} />
 
             {/* ===== Pedidos Recentes (Comprador) ===== */}
             <div className="mb-6 mt-4">
@@ -1984,7 +1994,7 @@ export default function ProfileDashboard({
             {/* ===== Ações rápidas ===== */}
             <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
-                    onClick={() => router.push(`/${profileSlug}`)}
+                    onClick={goToPublicProfile}
                     className="p-3 rounded-2xl border flex items-center gap-2"
                     style={{
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
