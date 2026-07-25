@@ -351,6 +351,8 @@ export function StoreList({
     const router = useRouter()
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+    const isMountedRef = useRef(true)
+    const abortControllerRef = useRef<AbortController | null>(null)
 
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
@@ -361,78 +363,101 @@ export function StoreList({
     const [currentPage, setCurrentPage] = useState(0)
     const [isHovered, setIsHovered] = useState(false)
 
-    // Carregar lojas se não foram passadas como prop
-    useEffect(() => {
-        if (initialStores) {
-            setStores(initialStores)
-            setFilteredStores(initialStores)
-            setLoading(false)
-            return
+    // Função para carregar lojas com controle de abort
+    const loadStores = useCallback(async () => {
+        // Cancela requisição anterior se existir
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort()
         }
 
-        const loadStores = async () => {
-            setLoading(true)
-            setError(null)
+        const abortController = new AbortController()
+        abortControllerRef.current = abortController
 
-            try {
-                const { data: storesData, error: storesError } = await supabase
-                    .from('stores')
-                    .select(`
-                        id,
-                        name,
-                        storeSlug,
-                        description,
-                        address,
-                        logo_url,
-                        ratings_avg,
-                        ratings_count,
-                        owner_id,
-                        business_hours,
-                        view_count
-                    `)
-                    .order('created_at', { ascending: false })
+        setLoading(true)
+        setError(null)
 
-                if (storesError) throw storesError
+        try {
+            // Buscar lojas com timeout
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Timeout na requisição')), 15000)
+            })
 
-                if (!storesData || storesData.length === 0) {
+            const storesPromise = supabase
+                .from('stores')
+                .select(`
+                    id,
+                    name,
+                    storeSlug,
+                    description,
+                    address,
+                    logo_url,
+                    ratings_avg,
+                    ratings_count,
+                    owner_id,
+                    business_hours,
+                    view_count
+                `)
+                .order('created_at', { ascending: false })
+                .limit(50) // Limitar para evitar sobrecarga
+
+            const { data: storesData, error: storesError } = await Promise.race([
+                storesPromise,
+                timeoutPromise.then(() => { throw new Error('Timeout') })
+            ]) as any
+
+            if (abortController.signal.aborted) return
+
+            if (storesError) throw storesError
+
+            if (!storesData || storesData.length === 0) {
+                if (isMountedRef.current) {
                     setStores([])
                     setFilteredStores([])
                     setLoading(false)
-                    return
                 }
+                return
+            }
 
-                const storesWithDetails = await Promise.all(
-                    storesData.map(async (store) => {
-                        const { data: products } = await supabase
-                            .from('products')
-                            .select('id, name, image_url, price')
-                            .eq('store_id', store.id)
-                            .order('created_at', { ascending: false })
-                            .limit(2)
+            // Buscar produtos e reviews em paralelo com limite
+            const storesWithDetails = await Promise.all(
+                storesData.map(async (store: any) => {
+                    if (abortController.signal.aborted) return null
 
-                        const { data: reviews } = await supabase
-                            .from('product_reviews')
-                            .select(`
-                                id,
-                                rating,
-                                comment,
-                                is_anonymous,
-                                profiles!inner (
-                                    name
-                                )
-                            `)
-                            .eq('store_id', store.id)
-                            .order('created_at', { ascending: false })
-                            .limit(2)
+                    try {
+                        // Buscar produtos em paralelo
+                        const [productsResult, reviewsResult] = await Promise.all([
+                            supabase
+                                .from('products')
+                                .select('id, name, image_url, price')
+                                .eq('store_id', store.id)
+                                .order('created_at', { ascending: false })
+                                .limit(2),
+                            supabase
+                                .from('product_reviews')
+                                .select(`
+                                    id,
+                                    rating,
+                                    comment,
+                                    is_anonymous,
+                                    profiles!inner (
+                                        name
+                                    )
+                                `)
+                                .eq('store_id', store.id)
+                                .order('created_at', { ascending: false })
+                                .limit(2)
+                        ])
 
-                        const mappedReviews = (reviews || []).map((review: any) => ({
+                        if (abortController.signal.aborted) return null
+
+                        const mappedReviews = (reviewsResult.data || []).map((review: any) => ({
                             ...review,
                             profile_name: review.is_anonymous
                                 ? 'Anônimo'
                                 : review.profiles?.[0]?.name || 'Usuário',
                         }))
 
-                        const mappedProducts = (products || []).map((p: any) => ({
+                        const mappedProducts = (productsResult.data || []).map((p: any) => ({
                             ...p,
                             image_url: p.image_url
                                 ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
@@ -447,22 +472,65 @@ export function StoreList({
                             top_products: mappedProducts,
                             recent_reviews: mappedReviews,
                         }
-                    })
-                )
+                    } catch (err) {
+                        console.error(`Erro ao carregar detalhes da loja ${store.id}:`, err)
+                        // Retorna a loja sem os detalhes em caso de erro
+                        return {
+                            ...store,
+                            top_products: [],
+                            recent_reviews: [],
+                        }
+                    }
+                })
+            )
 
-                setStores(storesWithDetails)
-                setFilteredStores(storesWithDetails)
-            } catch (err: any) {
-                console.error('Erro ao carregar lojas:', err)
+            if (abortController.signal.aborted) return
+
+            const validStores = storesWithDetails.filter((store): store is StoreCardData => store !== null)
+
+            if (isMountedRef.current) {
+                setStores(validStores)
+                setFilteredStores(validStores)
+                setLoading(false)
+            }
+        } catch (err: any) {
+            if (err.name === 'AbortError' || err.message === 'Aborted') {
+                console.log('Requisição cancelada')
+                return
+            }
+
+            console.error('Erro ao carregar lojas:', err)
+            if (isMountedRef.current) {
                 setError(err.message || 'Erro ao carregar lojas')
                 toast.error('Erro ao carregar lojas')
-            } finally {
                 setLoading(false)
             }
         }
+    }, [])
+
+    // Carregar lojas se não foram passadas como prop
+    useEffect(() => {
+        isMountedRef.current = true
+
+        if (initialStores) {
+            setStores(initialStores)
+            setFilteredStores(initialStores)
+            setLoading(false)
+            return
+        }
 
         loadStores()
-    }, [initialStores])
+
+        return () => {
+            isMountedRef.current = false
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort()
+            }
+            if (autoPlayRef.current) {
+                clearInterval(autoPlayRef.current)
+            }
+        }
+    }, [initialStores, loadStores])
 
     // Ordenar: abertos primeiro, depois fechados
     useEffect(() => {
@@ -504,6 +572,7 @@ export function StoreList({
     // Auto-play de 5 segundos
     useEffect(() => {
         if (isHovered || totalPages <= 1) return
+
         autoPlayRef.current = setInterval(goToNext, 5000)
         return () => {
             if (autoPlayRef.current) clearInterval(autoPlayRef.current)
@@ -576,7 +645,11 @@ export function StoreList({
                     {error}
                 </p>
                 <button
-                    onClick={() => window.location.reload()}
+                    onClick={() => {
+                        setError(null)
+                        setLoading(true)
+                        loadStores()
+                    }}
                     className="px-4 py-2 rounded-xl text-sm font-bold transition hover:scale-105"
                     style={{
                         background: colors.accent,
