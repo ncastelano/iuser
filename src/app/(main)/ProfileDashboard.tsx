@@ -1164,18 +1164,7 @@ export default function ProfileDashboard({
                         </div>
                     </div>
                 </div>
-                <button
-                    onClick={goToPublicProfile}
-                    className="px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all hover:scale-105"
-                    style={{
-                        background: colors.accent,
-                        color: colors.accentText,
-                        boxShadow: `0 4px 12px ${colors.accent}40`,
-                    }}
-                >
-                    <UserCircle size={16} />
-                    Meu Perfil
-                </button>
+
             </div>
 
             {/* ===== Botões da Loja ===== */}
@@ -1191,7 +1180,7 @@ export default function ProfileDashboard({
                         }}
                     >
                         <ExternalLink size={18} />
-                        Página da Loja
+                        Página do Perfil
                     </button>
                     <button
                         onClick={copyStoreLink}
