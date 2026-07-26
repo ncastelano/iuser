@@ -165,7 +165,7 @@ export default function Header({
                 ) : (
                     <img
                         src="/logotransparente.png"
-                        alt="Logo"
+                        alt="headerimage"
                         style={{ width: 60, height: 60, objectFit: 'contain' }}
                     />
                 )}

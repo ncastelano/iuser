@@ -33,6 +33,8 @@ import {
     Truck,
     Home,
     UserCircle,
+    Copy,
+    ExternalLink,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import ButtonInPersonSale from './ButtonInPersonSale'
@@ -859,6 +861,14 @@ export default function ProfileDashboard({
         }
     }
 
+    const copyStoreLink = () => {
+        if (profileSlug) {
+            const url = `${window.location.origin}/${profileSlug}`
+            navigator.clipboard.writeText(url)
+            toast.success('Link copiado!')
+        }
+    }
+
     const formatStatus = (status: string) => {
         const statusMap: Record<string, { label: string; color: string }> = {
             pending: { label: 'Pendente', color: '#3b82f6' },
@@ -1164,6 +1174,48 @@ export default function ProfileDashboard({
                     <UserCircle size={16} />
                     Meu Perfil
                 </button>
+            </div>
+
+            {/* ===== Botões da Loja ===== */}
+            <div className="mb-6 mt-4">
+                <div className="flex gap-3">
+                    <button
+                        onClick={goToPublicProfile}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <ExternalLink size={18} />
+                        Página da Loja
+                    </button>
+                    <button
+                        onClick={copyStoreLink}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <Copy size={18} />
+                        Copiar Link
+                    </button>
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: colors.accent,
+                            color: colors.accentText,
+                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                        }}
+                    >
+                        <Pencil size={18} />
+                        Editar Loja
+                    </button>
+                </div>
             </div>
 
             {/* ===== Métricas (Comprador) ===== */}
@@ -1521,13 +1573,6 @@ export default function ProfileDashboard({
                                     <option value="cheapest">Mais barato</option>
                                 </select>
                             </div>
-                            <button
-                                onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                                className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1"
-                                style={{ background: colors.accent, color: 'white' }}
-                            >
-                                <Plus size={14} /> Adicionar
-                            </button>
                         </div>
                     </div>
 
@@ -1542,13 +1587,6 @@ export default function ProfileDashboard({
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Nenhum produto cadastrado.
                             </p>
-                            <button
-                                onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                                className="mt-3 text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 mx-auto"
-                                style={{ background: colors.accent, color: 'white' }}
-                            >
-                                <Plus size={14} /> Criar primeiro produto
-                            </button>
                         </div>
                     ) : (
                         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
@@ -2012,16 +2050,6 @@ export default function ProfileDashboard({
                     }}
                 >
                     <Settings size={18} /> Configurações
-                </button>
-                <button
-                    onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        borderColor: colors.border,
-                    }}
-                >
-                    <Plus size={18} /> Adicionar produto
                 </button>
                 <button
                     onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
