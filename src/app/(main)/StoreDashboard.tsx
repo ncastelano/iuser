@@ -26,6 +26,10 @@ import {
     MapPin,
     Phone,
     Store,
+    Copy,
+    ExternalLink,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
@@ -169,6 +173,10 @@ export default function StoreDashboard({
     const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
 
     const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
+
+    // Estados para expand/colapsar
+    const [isOrdersExpanded, setIsOrdersExpanded] = useState(false)
+    const [isProductsExpanded, setIsProductsExpanded] = useState(false)
 
     const intervalRef = useRef<any>(null)
 
@@ -489,6 +497,20 @@ export default function StoreDashboard({
 
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
+    const goToPublicStore = () => {
+        if (profileSlug && storeSlug) {
+            router.push(`/${profileSlug}/${storeSlug}`)
+        }
+    }
+
+    const copyStoreLink = () => {
+        if (profileSlug && storeSlug) {
+            const url = `${window.location.origin}/${profileSlug}/${storeSlug}`
+            navigator.clipboard.writeText(url)
+            toast.success('Link copiado!')
+        }
+    }
+
     const ensureOwnerEmployee = async (): Promise<string | null> => {
         if (!store?.id || !store?.owner_id || !ownerProfile) return null
 
@@ -757,6 +779,48 @@ export default function StoreDashboard({
                 </button>
             </div>
 
+            {/* ===== Botões da Loja ===== */}
+            <div className="mb-6 mt-4">
+                <div className="flex gap-3">
+                    <button
+                        onClick={goToPublicStore}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <ExternalLink size={18} />
+                        Página da Loja
+                    </button>
+                    <button
+                        onClick={copyStoreLink}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <Copy size={18} />
+                        Copiar Link
+                    </button>
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
+                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
+                        style={{
+                            background: colors.accent,
+                            color: colors.accentText,
+                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                        }}
+                    >
+                        <Pencil size={18} />
+                        Editar Loja
+                    </button>
+                </div>
+            </div>
+
             {/* ===== Vendas do dia ===== */}
             <div className="mb-6 mt-4">
                 <div
@@ -823,7 +887,11 @@ export default function StoreDashboard({
                         boxShadow: colors.shadow,
                     }}
                 >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Cabeçalho com toggle */}
+                    <button
+                        onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                        className="w-full flex items-center justify-between text-left"
+                    >
                         <div className="flex items-center gap-3">
                             <div
                                 className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -857,116 +925,134 @@ export default function StoreDashboard({
                                 </div>
                             </div>
                         </div>
-
-                        {selectedOrderIds.size > 0 && (
-                            <button
-                                onClick={() => setShowAssignModal(true)}
-                                className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
-                                style={{
-                                    background: colors.accent,
-                                    color: colors.accentText,
-                                    boxShadow: `0 4px 12px ${colors.accent}40`,
-                                }}
-                            >
-                                <Send size={14} />
-                                Atribuir {selectedOrderIds.size}
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Lista de pedidos */}
-                    {groupedOrders.length === 0 ? (
-                        <div
-                            className="rounded-xl p-6 text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido ainda.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {newOrders.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>
-                                        Novos ({newOrders.length})
-                                    </h4>
-                                    {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}
-                                </div>
+                        <div className="flex items-center gap-2">
+                            {groupedOrders.length > 0 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                    {groupedOrders.length}
+                                </span>
                             )}
-
-                            {preparing.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#f59e0b' }}>
-                                        Em Preparo ({preparing.length})
-                                    </h4>
-                                    {preparing.map(order => {
-                                        const isAssigned = assignmentMap.has(order.checkout_id)
-                                        return (
-                                            <div key={order.checkout_id} className="mb-1">
-                                                <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
-                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => setSingleAssignOpen({ order })}
-                                                            className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: colors.accent, color: 'white' }}
-                                                        >
-                                                            Trocar entregador
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            {ready.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>
-                                        Prontos ({ready.length})
-                                    </h4>
-                                    {ready.map(order => {
-                                        const isAssigned = assignmentMap.has(order.checkout_id)
-                                        return (
-                                            <div key={order.checkout_id} className="mb-1">
-                                                <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
-                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => setSingleAssignOpen({ order })}
-                                                            className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: colors.accent, color: 'white' }}
-                                                        >
-                                                            Trocar entregador
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            {finished.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>
-                                        Finalizados ({finished.length})
-                                    </h4>
-                                    {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
-                                </div>
+                            {isOrdersExpanded ? (
+                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                            ) : (
+                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
                             )}
                         </div>
+                    </button>
+
+                    {isOrdersExpanded && (
+                        <>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                {selectedOrderIds.size > 0 && (
+                                    <button
+                                        onClick={() => setShowAssignModal(true)}
+                                        className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                                        style={{
+                                            background: colors.accent,
+                                            color: colors.accentText,
+                                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                                        }}
+                                    >
+                                        <Send size={14} />
+                                        Atribuir {selectedOrderIds.size}
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Lista de pedidos */}
+                            {groupedOrders.length === 0 ? (
+                                <div
+                                    className="rounded-xl p-6 text-center"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        border: `1px dashed ${colors.border}`,
+                                    }}
+                                >
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                        Nenhum pedido ainda.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {newOrders.length > 0 && (
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>
+                                                Novos ({newOrders.length})
+                                            </h4>
+                                            {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}
+                                        </div>
+                                    )}
+
+                                    {preparing.length > 0 && (
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#f59e0b' }}>
+                                                Em Preparo ({preparing.length})
+                                            </h4>
+                                            {preparing.map(order => {
+                                                const isAssigned = assignmentMap.has(order.checkout_id)
+                                                return (
+                                                    <div key={order.checkout_id} className="mb-1">
+                                                        <OrderItem order={order} showAssignButton={!isAssigned} />
+                                                        {isAssigned && (
+                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
+                                                                <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                                    🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => setSingleAssignOpen({ order })}
+                                                                    className="px-3 py-1 rounded-full text-xs font-bold"
+                                                                    style={{ background: colors.accent, color: 'white' }}
+                                                                >
+                                                                    Trocar entregador
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {ready.length > 0 && (
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>
+                                                Prontos ({ready.length})
+                                            </h4>
+                                            {ready.map(order => {
+                                                const isAssigned = assignmentMap.has(order.checkout_id)
+                                                return (
+                                                    <div key={order.checkout_id} className="mb-1">
+                                                        <OrderItem order={order} showAssignButton={!isAssigned} />
+                                                        {isAssigned && (
+                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
+                                                                <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                                    🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => setSingleAssignOpen({ order })}
+                                                                    className="px-3 py-1 rounded-full text-xs font-bold"
+                                                                    style={{ background: colors.accent, color: 'white' }}
+                                                                >
+                                                                    Trocar entregador
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {finished.length > 0 && (
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>
+                                                Finalizados ({finished.length})
+                                            </h4>
+                                            {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
@@ -983,7 +1069,11 @@ export default function StoreDashboard({
                         boxShadow: colors.shadow,
                     }}
                 >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    {/* Cabeçalho com toggle */}
+                    <button
+                        onClick={() => setIsProductsExpanded(!isProductsExpanded)}
+                        className="w-full flex items-center justify-between text-left"
+                    >
                         <div className="flex items-center gap-3">
                             <div
                                 className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -1004,81 +1094,111 @@ export default function StoreDashboard({
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
-                                <ArrowUpDown size={14} />
-                                <select
-                                    value={sortBy}
-                                    onChange={e => setSortBy(e.target.value as any)}
-                                    className="bg-transparent border rounded px-2 py-1 text-xs"
-                                    style={{ borderColor: colors.border, color: colors.textPrimary }}
-                                >
-                                    <option value="mostSold">Mais vendidos</option>
-                                    <option value="leastSold">Menos vendidos</option>
-                                    <option value="mostExpensive">Mais caro</option>
-                                    <option value="cheapest">Mais barato</option>
-                                </select>
-                            </div>
-                            <button
-                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                                className="text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1"
-                                style={{ background: colors.accent, color: 'white' }}
-                            >
-                                <Plus size={14} /> Adicionar
-                            </button>
+                            {products.length > 0 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                    {products.length}
+                                </span>
+                            )}
+                            {isProductsExpanded ? (
+                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                            ) : (
+                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
+                            )}
                         </div>
-                    </div>
+                    </button>
 
-                    {products.length === 0 ? (
-                        <div
-                            className="rounded-xl p-6 text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum produto cadastrado.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
-                            {sortedProducts.map(prod => {
-                                const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
-                                return (
-                                    <div
-                                        key={prod.id}
-                                        className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
-                                        style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
-                                    >
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
-                                            }}
-                                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
-                                            title="Editar produto"
+                    {isProductsExpanded && (
+                        <>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
+                                        <ArrowUpDown size={14} />
+                                        <select
+                                            value={sortBy}
+                                            onChange={e => setSortBy(e.target.value as any)}
+                                            className="bg-transparent border rounded px-2 py-1 text-xs"
+                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
                                         >
-                                            <Pencil size={14} color="white" />
-                                        </button>
-
-                                        <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
-                                            {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                            <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
-                                            <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
-                                                <span>👁 {prod.viewsToday} hoje</span>
-                                                <span>🛒 {prod.inCart} na sacola</span>
-                                                <span>📊 {prod.viewsTotal} views</span>
-                                                <span>💰 {prod.salesCount} vendas</span>
-                                            </div>
-                                        </div>
+                                            <option value="mostSold">Mais vendidos</option>
+                                            <option value="leastSold">Menos vendidos</option>
+                                            <option value="mostExpensive">Mais caro</option>
+                                            <option value="cheapest">Mais barato</option>
+                                        </select>
                                     </div>
-                                )
-                            })}
-                        </div>
+                                </div>
+                                <button
+                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                    className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
+                                    style={{
+                                        background: colors.accent,
+                                        color: colors.accentText,
+                                        boxShadow: `0 4px 12px ${colors.accent}40`,
+                                    }}
+                                >
+                                    <Plus size={14} /> Adicionar
+                                </button>
+                            </div>
+
+                            {products.length === 0 ? (
+                                <div
+                                    className="rounded-xl p-6 text-center"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        border: `1px dashed ${colors.border}`,
+                                    }}
+                                >
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                        Nenhum produto cadastrado.
+                                    </p>
+                                    <button
+                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                        className="mt-3 text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 mx-auto"
+                                        style={{ background: colors.accent, color: 'white' }}
+                                    >
+                                        <Plus size={14} /> Criar primeiro produto
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
+                                    {sortedProducts.map(prod => {
+                                        const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
+                                        return (
+                                            <div
+                                                key={prod.id}
+                                                className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
+                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
+                                            >
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
+                                                    }}
+                                                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
+                                                    title="Editar produto"
+                                                >
+                                                    <Pencil size={14} color="white" />
+                                                </button>
+
+                                                <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
+                                                    {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
+                                                    <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                                    <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
+                                                        <span>👁 {prod.viewsToday} hoje</span>
+                                                        <span>🛒 {prod.inCart} na sacola</span>
+                                                        <span>📊 {prod.viewsTotal} views</span>
+                                                        <span>💰 {prod.salesCount} vendas</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

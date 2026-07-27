@@ -1,7 +1,7 @@
 // app/(main)/ProfileDashboard.tsx
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -47,6 +47,9 @@ import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
+import PublicationProfile from './PublicationProfile'
+import ProfileOperatingDays from './ProfileOperatingDays'
+import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -198,6 +201,17 @@ export default function ProfileDashboard({
     const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
     const intervalRef = useRef<any>(null)
+
+    // ===== STATUS ABERTO/FECHADO =====
+    const isProfileOpen = useMemo(() => {
+        if (!profile) return false
+        return isProfileOpenNow(profile.business_hours)
+    }, [profile])
+
+    const profileStatusText = useMemo(() => {
+        if (!profile) return ''
+        return getProfileStatusText(profile.business_hours)
+    }, [profile])
 
     const totalCartItems = React.useMemo(() => {
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
@@ -1054,7 +1068,7 @@ export default function ProfileDashboard({
         }
     })
 
-    // ===== DETERMINA STATUS ABERTO/FECHADO =====
+    // ===== DETERMINA STATUS ABERTO/FECHADO (fallback) =====
     const todaySchedule = getTodaySchedule(profile?.business_hours)
     const storeOpen = isOpenNow(todaySchedule)
 
@@ -1149,9 +1163,13 @@ export default function ProfileDashboard({
                         <h2 className="text-2xl font-black hover:underline transition-all" style={{ color: colors.textPrimary }}>
                             {profile.name || `@${profileSlug}`}
                         </h2>
-                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                            <span className={`w-2 h-2 rounded-full ${storeOpen ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span>{storeOpen ? 'Aberto' : 'Fechado'}</span>
+                        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                            <span className={`w-2 h-2 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
+                                {isProfileOpen ? 'Aberto' : 'Fechado'}
+                            </span>
+                            <span>•</span>
+                            <span className="font-medium">{profileStatusText}</span>
                             <span>•</span>
                             <span>@{profileSlug}</span>
                             {profile.whatsapp && (
@@ -1164,10 +1182,9 @@ export default function ProfileDashboard({
                         </div>
                     </div>
                 </div>
-
             </div>
 
-            {/* ===== Botões da Loja ===== */}
+            {/* ===== Botões do Perfil ===== */}
             <div className="mb-6 mt-4">
                 <div className="flex gap-3">
                     <button
@@ -1204,7 +1221,7 @@ export default function ProfileDashboard({
                         }}
                     >
                         <Pencil size={18} />
-                        Editar Loja
+                        Editar Perfil
                     </button>
                 </div>
             </div>
@@ -1264,7 +1281,7 @@ export default function ProfileDashboard({
                                 {metrics.total.orders}
                             </p>
                             <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                Total de pedidos
+                                Total de compras
                             </p>
                         </div>
                         <div
@@ -1686,14 +1703,17 @@ export default function ProfileDashboard({
             />
 
             {/* ===== Dias de funcionamento ===== */}
-            <StoreOperatingDays storeId={profile?.id || ''} />
+            <ProfileOperatingDays profileId={profile.id} />
 
             {/* ===== Publicações ===== */}
-            <Publication storeId={profile?.id || ''} />
+            <PublicationProfile
+                profileId={profile.id}
+                profileSlug={profileSlug || ''}
+            />
 
             {/* ===== Visitantes ===== */}
-
             <ProfileVisitors key={profile.id} profileId={profile.id} />
+
             {/* ===== Pedidos Recentes (Comprador) ===== */}
             <div className="mb-6 mt-4">
                 <div

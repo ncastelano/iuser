@@ -17,28 +17,110 @@ import {
   Sparkles,
   Clock,
   DollarSign,
-  MessageCircle,
   ShoppingCart,
   Timer,
   MapPin,
   User,
+  Eye,
+  Video,
+  Camera,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
+import { useTheme } from "@/app/theme";
 
 type ProductType = "physical" | "digital" | "service";
 type PriceType = "fixed" | "hourly";
-type ListingType = "sale" | "publication";
+type MediaType = "image" | "video" | null;
+
+// Helper para hexToRgb
+function hexToRgb(hex: string) {
+  const clean = hex.replace('#', '');
+  const bigint = parseInt(clean, 16);
+  return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 };
+}
+
+// Função para comprimir imagem
+async function compressImage(file: File, maxSizeMB: number = 20): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        let quality = 0.9;
+        let width = img.width;
+        let height = img.height;
+
+        const maxDimension = 2048;
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        let compressedFile: File | null = null;
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        const tryCompress = () => {
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          const byteString = atob(dataUrl.split(',')[1]);
+          const size = byteString.length;
+
+          if (size / (1024 * 1024) <= maxSizeMB || attempts >= maxAttempts) {
+            const blob = dataURLToBlob(dataUrl);
+            compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+            });
+            resolve(compressedFile);
+          } else {
+            quality -= 0.05;
+            attempts++;
+            tryCompress();
+          }
+        };
+        tryCompress();
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+}
+
+function dataURLToBlob(dataURL: string): Blob {
+  const parts = dataURL.split(',');
+  const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const byteString = atob(parts[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const uint8Array = new Uint8Array(arrayBuffer);
+  for (let i = 0; i < byteString.length; i++) {
+    uint8Array[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([arrayBuffer], { type: mime });
+}
 
 export default function CriarProdutoParaPerfil() {
   const router = useRouter();
   const params = useParams();
+  const { colors } = useTheme();
+  const surfaceRgb = hexToRgb(colors.surface);
 
   const profileSlug = Array.isArray(params.profileSlug)
     ? params.profileSlug[0]
     : params.profileSlug;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null);
@@ -50,6 +132,8 @@ export default function CriarProdutoParaPerfil() {
 
   const [loading, setLoading] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -60,7 +144,10 @@ export default function CriarProdutoParaPerfil() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
-  const [listingType, setListingType] = useState<ListingType>("sale");
+  const [mediaType, setMediaType] = useState<MediaType>(null);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
 
   const [durationMinutes, setDurationMinutes] = useState<string>("");
 
@@ -83,15 +170,12 @@ export default function CriarProdutoParaPerfil() {
     return Number(value.replace(/\./g, "").replace(",", "."));
   };
 
-  // Função para obter URL pública do avatar
   const getAvatarUrl = (avatarPath: string | null): string | null => {
     if (!avatarPath) return null;
     try {
-      // Se já for uma URL completa, retorna ela mesma
       if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
         return avatarPath;
       }
-      // Se for apenas o caminho, gera a URL
       let cleanPath = avatarPath;
       if (cleanPath.startsWith('avatars/')) {
         cleanPath = cleanPath.replace('avatars/', '');
@@ -107,7 +191,85 @@ export default function CriarProdutoParaPerfil() {
     }
   };
 
-  // Buscar dados do perfil
+  const handleMediaSelection = (type: 'image' | 'video') => {
+    setShowMediaPicker(false);
+    if (type === 'image') {
+      fileInputRef.current?.click();
+    } else {
+      videoInputRef.current?.click();
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 300) {
+      toast.error('Arquivo muito grande! Máximo 300MB.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      let processedFile = file;
+      if (sizeMB > 20) {
+        toast.info('Comprimindo imagem...');
+        processedFile = await compressImage(file, 20);
+        toast.success('Imagem comprimida com sucesso!');
+      }
+
+      setImageFile(processedFile);
+      const url = URL.createObjectURL(processedFile);
+      setPreview(url);
+      setMediaType('image');
+      toast.success('Imagem selecionada!');
+    } catch (error) {
+      console.error('Erro ao processar imagem:', error);
+      toast.error('Erro ao processar imagem. Tente novamente.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > 300) {
+      toast.error('Arquivo muito grande! Máximo 300MB.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      let processedFile = file;
+      if (sizeMB > 20) {
+        toast.info('Comprimindo vídeo... (pode levar alguns segundos)');
+        processedFile = file;
+        toast.success('Vídeo selecionado!');
+      }
+
+      setVideoFile(processedFile);
+      const url = URL.createObjectURL(processedFile);
+      setVideoPreview(url);
+      setMediaType('video');
+      toast.success('Vídeo selecionado!');
+    } catch (error) {
+      console.error('Erro ao processar vídeo:', error);
+      toast.error('Erro ao processar vídeo. Tente novamente.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (!profileSlug) {
@@ -140,18 +302,15 @@ export default function CriarProdutoParaPerfil() {
       setProfileLng(data.store_lng ?? null);
       setProfileName(data.name || "");
 
-      // Buscar e salvar o avatar do perfil
       if (data.avatar_url) {
         const avatarUrl = getAvatarUrl(data.avatar_url);
         setProfileAvatarUrl(avatarUrl);
-        console.log('[CriarProduto] Avatar do perfil carregado:', avatarUrl);
       }
     };
 
     fetchProfile();
   }, [profileSlug, router]);
 
-  // Buscar categorias existentes do perfil
   useEffect(() => {
     const fetchCategories = async () => {
       if (!profileId) return;
@@ -171,13 +330,6 @@ export default function CriarProdutoParaPerfil() {
     };
     fetchCategories();
   }, [profileId]);
-
-  useEffect(() => {
-    if (!imageFile) return;
-    const url = URL.createObjectURL(imageFile);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [imageFile]);
 
   useEffect(() => {
     const delay = setTimeout(() => {
@@ -280,13 +432,8 @@ export default function CriarProdutoParaPerfil() {
       return;
     }
 
-    if (listingType === "sale" && parseCurrencyToNumber(price) <= 0) {
+    if (parseCurrencyToNumber(price) <= 0) {
       toast.error("Informe um preço válido");
-      return;
-    }
-
-    if (listingType === "publication" && !profileWhatsapp) {
-      toast.error("Configure o WhatsApp do seu perfil antes de criar publicações.");
       return;
     }
 
@@ -318,6 +465,21 @@ export default function CriarProdutoParaPerfil() {
         return;
       }
       if (data) imagePath = data.path;
+    }
+
+    let videoPath: string | null = null;
+    if (videoFile && mediaType === 'video') {
+      const fileExt = videoFile.name.split(".").pop();
+      const fileName = `${Date.now()}-video.${fileExt}`;
+      const { data, error: uploadError } = await supabase.storage
+        .from("product-videos")
+        .upload(fileName, videoFile);
+      if (uploadError) {
+        toast.error("Erro ao enviar vídeo: " + uploadError.message);
+        setLoading(false);
+        return;
+      }
+      if (data) videoPath = data.path;
     }
 
     let slug = name
@@ -358,19 +520,20 @@ export default function CriarProdutoParaPerfil() {
 
     const durationValue = durationMinutes.trim() ? parseInt(durationMinutes) : null;
 
-    // CORREÇÃO: Usando owner_id para produtos de perfil e salvando owner_image_url
     const { error } = await supabase.from("products").insert({
       name,
       slug,
       description,
-      price: listingType === "sale" ? parseCurrencyToNumber(price) : 0,
+      price: parseCurrencyToNumber(price),
       type,
-      price_type: listingType === "sale" ? priceType : "fixed",
-      listing_type: listingType,
-      image_url: imagePath,
-      store_id: null, // IMPORTANTE: null para produtos de perfil
-      owner_id: profileId, // Usando owner_id para vincular ao perfil
-      owner_image_url: profileAvatarUrl, // NOVO: salva a URL do avatar do perfil
+      price_type: priceType,
+      listing_type: "sale",
+      image_url: mediaType === 'image' ? imagePath : (imagePath || null),
+      video_url: mediaType === 'video' ? videoPath : null,
+      media_type: mediaType,
+      store_id: null,
+      owner_id: profileId,
+      owner_image_url: profileAvatarUrl,
       location: locationString,
       address: address || null,
       city: city || null,
@@ -395,6 +558,13 @@ export default function CriarProdutoParaPerfil() {
     { label: "Serviço", value: "service", icon: Briefcase },
   ];
 
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+    };
+  }, [preview, videoPreview]);
+
   return (
     <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
       <AnimatedBackground />
@@ -408,7 +578,7 @@ export default function CriarProdutoParaPerfil() {
           </button>
           <div>
             <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent tracking-tighter">
-              Novo Produto
+              Criar Produto
             </h1>
             <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5 flex items-center gap-1">
               <User size={10} />
@@ -417,73 +587,174 @@ export default function CriarProdutoParaPerfil() {
           </div>
         </header>
 
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
-          {/* IMAGEM */}
-          <div className="space-y-3">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 text-center">
-              Imagem do Produto
-            </label>
+        {/* ===== EXEMPLO DE PRODUTO ===== */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <Eye className="w-3 h-3" />
+              Exemplo de Produto
+            </span>
+            <span className="text-[7px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">
+              🛒 Venda
+            </span>
+          </div>
+
+          <div
+            className="relative rounded-xl overflow-hidden border transition-all max-w-[200px]"
+            style={{
+              background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderColor: colors.border,
+              boxShadow: colors.shadow,
+            }}
+          >
             <div
-              onClick={() => fileInputRef.current?.click()}
-              className="w-40 h-40 mx-auto rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group shadow-sm"
+              className="aspect-square relative overflow-hidden"
+              style={{ background: colors.accentLight }}
             >
-              {preview ? (
+              {mediaType === 'video' && videoPreview ? (
+                <video src={videoPreview} className="w-full h-full object-cover" />
+              ) : preview ? (
                 <img src={preview} className="w-full h-full object-cover" alt="Preview" />
               ) : (
-                <ImageIcon className="text-orange-500 group-hover:scale-110 transition-transform" size={40} />
+                <div className="w-full h-full flex items-center justify-center text-3xl font-black" style={{ color: colors.accent }}>
+                  ?
+                </div>
               )}
+
+              {mediaType === 'video' && (
+                <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
+                  <Video className="w-3 h-3" />
+                  Vídeo
+                </span>
+              )}
+
+              <span
+                className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full text-[7px] font-black uppercase backdrop-blur-md"
+                style={{ background: 'rgba(0,0,0,0.3)', color: '#fff' }}
+              >
+                {typeOptions.find(t => t.value === type)?.label || type}
+              </span>
             </div>
+
+            <div className="p-2.5">
+              <h4 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                {name || "Nome do Produto"}
+              </h4>
+
+              <p className="text-[9px] truncate mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
+                {description || "Sem descrição"}
+              </p>
+
+              <div className="mt-1.5">
+                <div className="flex items-center">
+                  <span className="text-xs font-extrabold" style={{ color: colors.accent }}>
+                    R$ {price || "0,00"}
+                  </span>
+                  {priceType === "hourly" && <span className="text-[8px] ml-0.5 opacity-75">/h</span>}
+                </div>
+              </div>
+
+              <div className="mt-2 flex justify-end">
+                <button
+                  className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                  style={{ background: colors.accent }}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[8px] text-gray-400 text-center mt-2">
+            🛒 Modo Venda: cliente adiciona ao carrinho e finaliza compra
+          </p>
+        </div>
+
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
+          {/* CAPA - IMAGEM/VIDEO */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                Capa
+              </label>
+              <span className="text-[8px] text-gray-400">Máx. 20MB</span>
+            </div>
+
+            {!preview && !videoPreview ? (
+              <button
+                onClick={() => setShowMediaPicker(true)}
+                className="w-full h-48 rounded-xl border-2 border-dashed border-orange-300 hover:border-orange-500 flex flex-col items-center justify-center gap-3 transition-all group"
+                style={{ background: 'rgba(251, 146, 60, 0.05)' }}
+              >
+                {uploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm font-bold text-orange-600">{uploadProgress}%</span>
+                    <span className="text-xs text-gray-500">Processando...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <ImageIcon className="w-8 h-8 text-orange-500" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-gray-700">Adicionar capa</p>
+                      <p className="text-xs text-gray-400">Imagem ou vídeo (máx. 20MB)</p>
+                      <p className="text-[10px] text-gray-400 mt-1">Arquivos acima de 20MB serão comprimidos automaticamente</p>
+                    </div>
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="relative rounded-xl overflow-hidden border-2 border-orange-300">
+                {mediaType === 'video' && videoPreview ? (
+                  <video src={videoPreview} className="w-full max-h-80 object-contain" controls />
+                ) : (
+                  <img src={preview || ''} className="w-full max-h-80 object-contain" alt="Preview" />
+                )}
+                <button
+                  onClick={() => {
+                    setImageFile(null);
+                    setPreview(null);
+                    setVideoFile(null);
+                    setVideoPreview(null);
+                    setMediaType(null);
+                  }}
+                  className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full hover:bg-black/90 transition-colors"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+                {mediaType === 'video' && (
+                  <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                    <Video className="w-3 h-3" />
+                    Vídeo
+                  </span>
+                )}
+                {mediaType === 'image' && imageFile && (
+                  <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                    <Camera className="w-3 h-3" />
+                    {(imageFile.size / (1024 * 1024)).toFixed(1)}MB
+                  </span>
+                )}
+              </div>
+            )}
+
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => e.target.files && setImageFile(e.target.files[0])}
+              onChange={handleImageUpload}
             />
-          </div>
-
-          {/* MODO DE LISTAGEM */}
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-              <ShoppingCart className="w-3 h-3 text-orange-500" />
-              Modo de Listagem
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setListingType("sale")}
-                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
-                  ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
-                  }`}
-              >
-                <DollarSign className="w-4 h-4" />
-                Vender
-              </button>
-              <button
-                onClick={() => setListingType("publication")}
-                className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
-                  ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
-                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
-                  }`}
-              >
-                <MessageCircle className="w-4 h-4" />
-                Divulgar
-              </button>
-            </div>
-            {listingType === "publication" && (
-              <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800 space-y-1">
-                <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
-                <p>O cliente será direcionado para o WhatsApp do seu perfil.</p>
-                {profileWhatsapp ? (
-                  <p>📱 WhatsApp: <strong>{profileWhatsapp}</strong></p>
-                ) : (
-                  <p className="text-red-600">⚠️ Nenhum WhatsApp configurado no perfil.</p>
-                )}
-                {(profileAddress || (profileLat != null && profileLng != null)) && (
-                  <p>📍 Localização do perfil cadastrada e disponível para o produto.</p>
-                )}
-              </div>
-            )}
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handleVideoUpload}
+            />
           </div>
 
           {/* TIPO DE PRODUTO */}
@@ -523,52 +794,50 @@ export default function CriarProdutoParaPerfil() {
             />
           </div>
 
-          {/* PREÇO (apenas venda) */}
-          {listingType === "sale" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
-                  {priceType === "fixed" ? "Preço" : "Preço por Hora"}
-                </label>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setPriceType("fixed")}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                      }`}
-                  >
-                    <DollarSign className="w-3 h-3" />
-                    Fixo
-                  </button>
-                  <button
-                    onClick={() => setPriceType("hourly")}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
-                      }`}
-                  >
-                    <Clock className="w-3 h-3" />
-                    Por Hora
-                  </button>
-                </div>
-              </div>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">R$</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="0,00"
-                  value={price}
-                  onChange={(e) => setPrice(formatCurrencyInput(e.target.value))}
-                  className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
-                />
-                {priceType === "hourly" && (
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">/h</span>
-                )}
+          {/* PREÇO */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                {priceType === "fixed" ? "Preço" : "Preço por Hora"}
+              </label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setPriceType("fixed")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                    }`}
+                >
+                  <DollarSign className="w-3 h-3" />
+                  Fixo
+                </button>
+                <button
+                  onClick={() => setPriceType("hourly")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                    : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                    }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  Por Hora
+                </button>
               </div>
             </div>
-          )}
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-black text-sm">R$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="0,00"
+                value={price}
+                onChange={(e) => setPrice(formatCurrencyInput(e.target.value))}
+                className="w-full bg-white border-2 border-orange-200 rounded-xl pl-12 pr-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold focus:outline-none focus:border-orange-500 transition-all"
+              />
+              {priceType === "hourly" && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-bold">/h</span>
+              )}
+            </div>
+          </div>
 
           {/* DURAÇÃO */}
           <div className="space-y-2">
@@ -720,12 +989,51 @@ export default function CriarProdutoParaPerfil() {
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                {listingType === "sale" ? "Criar Produto" : "Criar Publicação"}
+                Criar Produto
               </>
             )}
           </button>
         </div>
       </div>
+
+      {/* Media Picker Modal */}
+      {showMediaPicker && (
+        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black text-gray-800">Escolher mídia</h3>
+              <button onClick={() => setShowMediaPicker(false)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleMediaSelection('image')}
+                className="p-6 rounded-xl border-2 border-orange-200 hover:border-orange-500 hover:bg-orange-50 transition-all flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center">
+                  <Camera className="w-7 h-7 text-orange-600" />
+                </div>
+                <span className="font-bold text-gray-700 text-sm">Foto</span>
+                <span className="text-[10px] text-gray-400">JPG, PNG, WEBP</span>
+              </button>
+              <button
+                onClick={() => handleMediaSelection('video')}
+                className="p-6 rounded-xl border-2 border-green-200 hover:border-green-500 hover:bg-green-50 transition-all flex flex-col items-center gap-2"
+              >
+                <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+                  <Video className="w-7 h-7 text-green-600" />
+                </div>
+                <span className="font-bold text-gray-700 text-sm">Vídeo</span>
+                <span className="text-[10px] text-gray-400">MP4, WEBM, MOV</span>
+              </button>
+            </div>
+            <p className="text-center text-[10px] text-gray-400 mt-4">
+              Arquivos acima de 20MB serão comprimidos automaticamente
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

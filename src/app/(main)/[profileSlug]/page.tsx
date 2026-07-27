@@ -25,6 +25,8 @@ import {
     Pencil,
     MapPinned,
     CalendarDays,
+    Megaphone,
+    Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -38,6 +40,7 @@ import SacolaButton from '@/app/ButtonSacola'
 import Header from '@/app/Header'
 import EditarPerfil from './EditarPerfil'
 import type { Tab } from '@/app/Header'
+import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
 
 type RatingRow = {
     id: string
@@ -57,7 +60,7 @@ type RatingRow = {
     } | null
 }
 
-type ProfileTab = 'produtos' | 'avaliacoes' | 'compras' | 'agenda'
+type ProfileTab = 'produtos' | 'publicacoes' | 'avaliacoes' | 'compras' | 'agenda'
 
 // Helpers para identificar visitantes
 function getOrCreateAnonymousId(): string {
@@ -92,7 +95,7 @@ export default function ProfilePage() {
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const visitRegisteredRef = useRef(false) // Para evitar registrar visita múltiplas vezes
+    const visitRegisteredRef = useRef(false)
 
     const { colors } = useTheme()
     const {
@@ -127,6 +130,7 @@ export default function ProfilePage() {
     const [tempAddress, setTempAddress] = useState('')
 
     const [profileProducts, setProfileProducts] = useState<any[]>([])
+    const [profilePublications, setProfilePublications] = useState<any[]>([])
     const [profileRatings, setProfileRatings] = useState<RatingRow[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cartAnimating, setCartAnimating] = useState(false)
@@ -151,6 +155,17 @@ export default function ProfilePage() {
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
+
+    // ===== STATUS ABERTO/FECHADO =====
+    const isProfileOpen = useMemo(() => {
+        if (!profile) return false
+        return isProfileOpenNow(profile.business_hours)
+    }, [profile])
+
+    const profileStatusText = useMemo(() => {
+        if (!profile) return ''
+        return getProfileStatusText(profile.business_hours)
+    }, [profile])
 
     useEffect(() => {
         setMounted(true)
@@ -189,7 +204,6 @@ export default function ProfilePage() {
 
     // ========== VISIT CAPTURE MELHORADO ==========
     const registerVisit = useCallback(async (profileId: string, userId: string | null) => {
-        // Evitar registrar múltiplas vezes na mesma sessão
         if (visitRegisteredRef.current) {
             console.log('[ProfilePage] Visita já registrada nesta sessão')
             return
@@ -204,7 +218,6 @@ export default function ProfilePage() {
 
             console.log('[ProfilePage] Registrando visita:', { profileId, userId: userId || 'anon', device })
 
-            // Tentar primeiro a RPC
             const { data, error } = await supabase.rpc('record_profile_visit', {
                 p_profile_id: profileId,
                 p_session_id: sessionId,
@@ -217,7 +230,6 @@ export default function ProfilePage() {
 
             if (error) {
                 console.warn('[ProfilePage] RPC falhou, usando fallback:', error.message)
-                // Fallback: inserção direta
                 const { error: insertError } = await supabase.from('profile_visits').insert({
                     profile_id: profileId,
                     viewer_id: userId || null,
@@ -233,7 +245,6 @@ export default function ProfilePage() {
                     return
                 }
 
-                // Incrementar contador
                 await supabase.rpc('increment_profile_view_count', { profile_id_param: profileId })
                 setTotalProfileVisitors(prev => prev + 1)
                 visitRegisteredRef.current = true
@@ -314,11 +325,13 @@ export default function ProfilePage() {
             setPurchases(uniqueStorePurchases)
         }
 
+        // Buscar PRODUTOS (apenas sale)
         const { data: productsData } = await supabase
             .from('products')
             .select('*')
             .eq('owner_id', profileData.id)
             .is('store_id', null)
+            .eq('listing_type', 'sale')
             .order('created_at', { ascending: false })
 
         const mappedProducts = (productsData || []).map((product: any) => ({
@@ -328,6 +341,23 @@ export default function ProfilePage() {
                 : null,
         }))
         setProfileProducts(mappedProducts)
+
+        // Buscar PUBLICAÇÕES (apenas publication)
+        const { data: publicationsData } = await supabase
+            .from('products')
+            .select('*')
+            .eq('owner_id', profileData.id)
+            .is('store_id', null)
+            .eq('listing_type', 'publication')
+            .order('created_at', { ascending: false })
+
+        const mappedPublications = (publicationsData || []).map((pub: any) => ({
+            ...pub,
+            image_url: pub.image_url
+                ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
+                : null,
+        }))
+        setProfilePublications(mappedPublications)
 
         const { data: ratingsData } = await supabase
             .from('product_reviews')
@@ -372,7 +402,6 @@ export default function ProfilePage() {
         setLoading(false)
         setProfileNotFound(false)
 
-        // Registrar visita IMEDIATAMENTE após carregar (não usa mais setTimeout)
         if (profileData && user?.id !== profileData.id) {
             registerVisit(profileData.id, user?.id || null)
         }
@@ -677,11 +706,6 @@ export default function ProfilePage() {
             router.push(`/${profileSlug}/editar-produto/${product.slug || product.id}`)
             return
         }
-        const isPublication = product.listing_type === 'publication'
-        if (isPublication) {
-            router.push(`/${profileSlug}/produto/${product.slug || product.id}`)
-            return
-        }
         const alreadyInCart = cartItems.some((item: any) => item.product.id === product.id)
         if (alreadyInCart) return
 
@@ -805,7 +829,7 @@ export default function ProfilePage() {
             <div className="relative z-10 max-w-5xl mx-auto px-4 pt-8 pb-24">
                 {!editMode && (
                     <>
-                        {/* Card do perfil - MANTIDO IGUAL */}
+                        {/* Card do perfil */}
                         <div className="flex flex-col md:flex-row items-center gap-8 mb-8 p-6 rounded-3xl"
                             style={{
                                 background: glassBg,
@@ -848,6 +872,16 @@ export default function ProfilePage() {
                                         style={{ background: `${colors.accent}22`, color: colors.accent }}>Verificado iUser</span>
                                     <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
                                         style={{ background: glassBg, color: colors.textSecondary }}>/{profile.profileSlug}</span>
+                                </div>
+
+                                {/* ===== STATUS ABERTO/FECHADO ===== */}
+                                <div className="flex justify-center md:justify-start items-center gap-2 mt-1">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
+                                    <span className="text-xs font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
+                                        {isProfileOpen ? 'Aberto' : 'Fechado'}
+                                    </span>
+                                    <span className="text-xs" style={{ color: colors.textSecondary }}>•</span>
+                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>{profileStatusText}</span>
                                 </div>
 
                                 <div className="flex justify-center md:justify-start gap-8 pt-2">
@@ -973,6 +1007,7 @@ export default function ProfilePage() {
                                 }}>
                                 {[
                                     { id: 'produtos', label: 'Produtos', icon: ShoppingBag, count: profileProducts.length },
+                                    { id: 'publicacoes', label: 'Publicações', icon: Megaphone, count: profilePublications.length },
                                     { id: 'avaliacoes', label: 'Avaliações', icon: Star, count: profileRatings.length },
                                     { id: 'compras', label: 'Compras', icon: ShoppingBag, count: purchases.length },
                                     { id: 'agenda', label: 'Agenda', icon: CalendarDays, count: allAppointments.length },
@@ -988,7 +1023,7 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
-                        {/* Conteúdo das abas - MANTIDO IGUAL */}
+                        {/* Conteúdo das abas */}
                         <div className="space-y-12">
                             {/* TAB PRODUTOS */}
                             {activeTab === 'produtos' && (
@@ -1068,18 +1103,13 @@ export default function ProfilePage() {
                                                         const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                                         const quantity = getProductQuantity(product.id)
                                                         const isHourly = product.price_type === 'hourly'
-                                                        const isPublication = product.listing_type === 'publication'
-                                                        const profileWhatsapp = profile?.whatsapp || null
-                                                        const productWhatsappLink = isPublication && profileWhatsapp
-                                                            ? `https://wa.me/${profileWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no item "${product.name}" do seu perfil.`)}`
-                                                            : '#'
                                                         const hasImage = !!product.image_url
 
                                                         const cardBaseStyle: React.CSSProperties = {
                                                             background: glassBg,
                                                             backdropFilter: blurAmount,
                                                             WebkitBackdropFilter: blurAmount,
-                                                            borderColor: isSelected && !isPublication ? '#22c55e' : isPublication ? '#10b981' : glassBorder,
+                                                            borderColor: isSelected ? '#22c55e' : glassBorder,
                                                         }
 
                                                         if (!hasImage) {
@@ -1087,7 +1117,7 @@ export default function ProfilePage() {
                                                                 <div
                                                                     key={product.id}
                                                                     onClick={() => handleProductClick(product)}
-                                                                    className={`col-span-2 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                                    className={`col-span-2 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                                     style={cardBaseStyle}
                                                                 >
                                                                     <div className="p-4 flex flex-col justify-center min-w-0">
@@ -1098,16 +1128,12 @@ export default function ProfilePage() {
                                                                             {product.description || 'Sem descrição'}
                                                                         </p>
                                                                         <div className="mt-2">
-                                                                            {isPublication ? (
-                                                                                <p className="text-sm font-black text-green-600">Sob consulta</p>
-                                                                            ) : (
-                                                                                <div className="flex items-center">
-                                                                                    <span className="text-base font-extrabold" style={{ color: colors.accent }}>
-                                                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                                    </span>
-                                                                                    {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                                                </div>
-                                                                            )}
+                                                                            <div className="flex items-center">
+                                                                                <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                                </span>
+                                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                                            </div>
                                                                         </div>
                                                                         <div className="mt-3 flex justify-end items-center">
                                                                             {isOwner ? (
@@ -1118,17 +1144,6 @@ export default function ProfilePage() {
                                                                                 >
                                                                                     <ExternalLink className="w-4 h-4" />
                                                                                 </button>
-                                                                            ) : isPublication ? (
-                                                                                <a
-                                                                                    href={productWhatsappLink}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    onClick={(e) => e.stopPropagation()}
-                                                                                    className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
-                                                                                >
-                                                                                    <MessageCircle size={14} />
-                                                                                    Saber mais
-                                                                                </a>
                                                                             ) : isSelected ? (
                                                                                 <div className="flex items-center gap-2">
                                                                                     <button
@@ -1184,7 +1199,7 @@ export default function ProfilePage() {
                                                             <div
                                                                 key={product.id}
                                                                 onClick={() => handleProductClick(product)}
-                                                                className={`relative rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                                className={`relative rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                                 style={cardBaseStyle}
                                                             >
                                                                 <div className="aspect-square relative overflow-hidden" style={{ background: glassBgLight }}>
@@ -1201,11 +1216,6 @@ export default function ProfilePage() {
                                                                             {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                                         </span>
                                                                     )}
-                                                                    {isPublication && (
-                                                                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-green-500 text-white shadow-md">
-                                                                            Divulgação
-                                                                        </span>
-                                                                    )}
                                                                 </div>
                                                                 <div className="p-3">
                                                                     <h4 className="text-sm font-bold line-clamp-1" style={{ color: colors.textPrimary }}>
@@ -1215,16 +1225,12 @@ export default function ProfilePage() {
                                                                         {product.description || 'Sem descrição'}
                                                                     </p>
                                                                     <div className="mt-2">
-                                                                        {isPublication ? (
-                                                                            <p className="text-sm font-black text-green-600">Sob consulta</p>
-                                                                        ) : (
-                                                                            <div className="flex items-center">
-                                                                                <span className="text-base font-extrabold" style={{ color: colors.accent }}>
-                                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                                </span>
-                                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                                            </div>
-                                                                        )}
+                                                                        <div className="flex items-center">
+                                                                            <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                            </span>
+                                                                            {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                                        </div>
                                                                     </div>
                                                                     <div className="mt-3 flex justify-end items-center">
                                                                         {isOwner ? (
@@ -1235,17 +1241,6 @@ export default function ProfilePage() {
                                                                             >
                                                                                 <ExternalLink className="w-4 h-4" />
                                                                             </button>
-                                                                        ) : isPublication ? (
-                                                                            <a
-                                                                                href={productWhatsappLink}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                onClick={(e) => e.stopPropagation()}
-                                                                                className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
-                                                                            >
-                                                                                <MessageCircle size={14} />
-                                                                                Saber mais
-                                                                            </a>
                                                                         ) : isSelected ? (
                                                                             <div className="flex items-center gap-2">
                                                                                 <button
@@ -1301,6 +1296,101 @@ export default function ProfilePage() {
                                         ))
                                     )}
                                 </>
+                            )}
+
+                            {/* TAB PUBLICAÇÕES */}
+                            {activeTab === 'publicacoes' && (
+                                <div className="space-y-4">
+                                    {profilePublications.length === 0 ? (
+                                        <div className="py-16 text-center rounded-2xl border border-dashed flex flex-col items-center gap-3"
+                                            style={{
+                                                background: glassBg,
+                                                backdropFilter: blurAmount,
+                                                WebkitBackdropFilter: blurAmount,
+                                                borderColor: glassBorderDashed,
+                                            }}>
+                                            <Megaphone className="w-12 h-12" style={{ color: colors.textSecondary }} />
+                                            <p className="font-bold text-base" style={{ color: colors.textPrimary }}>Nenhuma publicação ainda</p>
+                                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                                {isOwner ? 'Crie sua primeira publicação para divulgar seus produtos ou serviços.' : 'Este perfil ainda não fez nenhuma publicação.'}
+                                            </p>
+                                            {isOwner && (
+                                                <button
+                                                    onClick={() => router.push(`/${profileSlug}/fazer-divulgacao`)}
+                                                    className="mt-2 px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:scale-105 transition flex items-center gap-2"
+                                                    style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}
+                                                >
+                                                    <Plus size={16} />
+                                                    Fazer Publicação
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {profilePublications.map((pub) => {
+                                                const imgUrl = pub.image_url
+                                                return (
+                                                    <div
+                                                        key={pub.id}
+                                                        className="rounded-xl border p-3 flex flex-col gap-2 relative group"
+                                                        style={{
+                                                            background: glassBg,
+                                                            backdropFilter: blurAmount,
+                                                            WebkitBackdropFilter: blurAmount,
+                                                            borderColor: glassBorder,
+                                                        }}
+                                                    >
+                                                        <div
+                                                            className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                                                            onClick={() => router.push(`/${profileSlug}/${pub.slug}`)}
+                                                        >
+                                                            {imgUrl ? (
+                                                                <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-4xl" style={{ color: colors.textSecondary }}>
+                                                                    <Megaphone size={32} />
+                                                                </div>
+                                                            )}
+                                                            <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-green-500 text-white shadow-md">
+                                                                Divulgação
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                            {pub.name}
+                                                        </p>
+                                                        {isOwner && (
+                                                            <div className="flex items-center justify-between mt-auto">
+                                                                <button
+                                                                    onClick={() => router.push(`/${profileSlug}/${pub.slug}/editar-produto`)}
+                                                                    className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                                                                    title="Editar"
+                                                                >
+                                                                    <ExternalLink size={14} style={{ color: colors.textSecondary }} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!confirm('Deletar esta publicação?')) return
+                                                                        const { error } = await supabase.from('products').delete().eq('id', pub.id)
+                                                                        if (!error) {
+                                                                            setProfilePublications(prev => prev.filter(p => p.id !== pub.id))
+                                                                            toast.success('Publicação removida')
+                                                                        } else {
+                                                                            toast.error('Erro ao remover')
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                                    title="Excluir"
+                                                                >
+                                                                    <Trash2 size={14} style={{ color: '#ef4444' }} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             {/* TAB AVALIAÇÕES */}
