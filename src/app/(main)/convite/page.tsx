@@ -1,23 +1,38 @@
-// app/(main)/[profileSlug]/convite/page.tsx
+// app/(main)/convite/page.tsx
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Users, Link as LinkIcon, CheckCircle, ArrowRight, UserPlus, Copy, Check } from 'lucide-react'
+import {
+    Users,
+    Link as LinkIcon,
+    CheckCircle,
+    ArrowRight,
+    UserPlus,
+    Copy,
+    Check,
+    Loader2,
+    AlertTriangle,
+    Home,
+    Send
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function ConvitePage() {
-    const params = useParams()
     const router = useRouter()
-    const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
+    const searchParams = useSearchParams()
+
+    // Pega o profileSlug da URL: /convite?ref=joaosilva
+    const profileSlug = searchParams.get('ref')
 
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
     const [inviter, setInviter] = useState<any>(null)
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [copied, setCopied] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         const loadPageData = async () => {
@@ -27,7 +42,7 @@ export default function ConvitePage() {
             }
 
             try {
-                // 1. Buscar perfil do convidante (NÃO loja!)
+                // 1. Buscar perfil do convidante
                 const { data: inviterData, error: inviterError } = await supabase
                     .from('profiles')
                     .select('id, name, avatar_url, "profileSlug"')
@@ -35,7 +50,7 @@ export default function ConvitePage() {
                     .maybeSingle()
 
                 if (inviterError || !inviterData) {
-                    console.error('Erro ao buscar convidante:', inviterError)
+                    setError('Perfil não encontrado')
                     setLoading(false)
                     return
                 }
@@ -54,6 +69,7 @@ export default function ConvitePage() {
                 }
             } catch (error) {
                 console.error('Erro ao carregar página:', error)
+                setError('Erro ao carregar convite')
             } finally {
                 setLoading(false)
             }
@@ -83,15 +99,14 @@ export default function ConvitePage() {
         setActionLoading(true)
 
         try {
-            // Opção 1: Usar a função RPC com nome corrigido
+            // Tentar usar a função RPC
             const { error } = await supabase.rpc('vincular_upline', {
                 p_user_id: currentUser.id,
                 p_upline_id: inviter.id
             })
 
-            // Se a função não existir, tenta atualizar diretamente
             if (error) {
-                // Opção 2: Atualizar diretamente sem RPC
+                // Fallback: atualizar diretamente
                 const { error: updateError } = await supabase
                     .from('profiles')
                     .update({ upline_id: inviter.id })
@@ -105,7 +120,7 @@ export default function ConvitePage() {
                 }
             }
 
-            toast.success(`Bem-vindo! Você agora faz parte da rede de ${inviter.name}! 🎉`)
+            toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
 
             // Redirecionar para o dashboard
             setTimeout(() => {
@@ -131,27 +146,60 @@ export default function ConvitePage() {
         }
     }
 
+    // Estado de loading
     if (loading) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
                 <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
+                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
                     <p className="text-neutral-400">Carregando convite...</p>
                 </div>
             </div>
         )
     }
 
-    if (!inviter) {
+    // Se não tem profileSlug na URL
+    if (!profileSlug) {
         return (
             <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
-                <Users className="w-16 h-16 text-neutral-600 mb-4" />
+                <div className="w-20 h-20 rounded-full bg-neutral-800 flex items-center justify-center mb-6">
+                    <Send className="w-10 h-10 text-neutral-600" />
+                </div>
+                <h1 className="text-2xl font-bold mb-3">Link de Convite</h1>
+                <p className="text-neutral-400 max-w-sm mb-8">
+                    Para aceitar um convite, você precisa de um link válido com o nome de quem te convidou.
+                </p>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <div className="bg-neutral-800/50 border border-neutral-700 rounded-xl p-4 text-left">
+                        <p className="text-xs text-neutral-500 mb-1">Exemplo:</p>
+                        <code className="text-sm text-blue-400 font-mono">
+                            iuser.com.br/convite?ref=joaosilva
+                        </code>
+                    </div>
+                    <button
+                        onClick={() => router.push('/')}
+                        className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition-colors"
+                    >
+                        <Home className="w-4 h-4" />
+                        Voltar ao Início
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Se o convite é inválido
+    if (error || !inviter) {
+        return (
+            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
+                <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
                 <h1 className="text-2xl font-bold mb-2">Convite Inválido</h1>
                 <p className="text-neutral-400">Este link de convite não existe ou expirou.</p>
                 <button
                     onClick={() => router.push('/')}
-                    className="mt-8 text-white underline hover:text-neutral-300"
+                    className="mt-8 px-6 py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-colors flex items-center gap-2"
                 >
+                    <Home className="w-4 h-4" />
                     Voltar ao Início
                 </button>
             </div>
@@ -167,8 +215,15 @@ export default function ConvitePage() {
                 <div className="absolute top-0 w-full h-32 bg-gradient-to-b from-blue-900/20 to-transparent" />
                 <div className="absolute bottom-0 w-full h-32 bg-gradient-to-t from-purple-900/10 to-transparent" />
 
-                <h2 className="text-sm font-extrabold text-blue-400 uppercase tracking-widest mb-6 relative z-10 flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4" /> Convite Exclusivo
+                {/* Ícone do convite */}
+                <div className="relative z-10 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto border border-blue-500/30">
+                        <LinkIcon className="w-8 h-8 text-blue-400" />
+                    </div>
+                </div>
+
+                <h2 className="text-sm font-extrabold text-blue-400 uppercase tracking-widest mb-6 relative z-10">
+                    Convite Exclusivo
                 </h2>
 
                 {/* Avatar do convidante */}
@@ -187,11 +242,14 @@ export default function ConvitePage() {
                 </div>
 
                 <h1 className="text-2xl font-bold text-white mb-2 relative z-10">
-                    Você foi convidado(a) por <br />
-                    <span className="text-blue-400">{inviter.name}</span>!
+                    Você foi convidado(a) por
                 </h1>
-                <p className="text-neutral-400 text-sm mb-8 relative z-10">
-                    Junte-se ao iUser e comece a construir sua própria rede de comissões.
+                <p className="text-2xl font-bold text-blue-400 mb-6 relative z-10">
+                    {inviter.name}
+                </p>
+
+                <p className="text-neutral-400 text-sm mb-8 relative z-10 max-w-xs">
+                    Junte-se ao iUser e comece a construir sua própria rede de comissões. 🚀
                 </p>
 
                 {/* CASO 1: NÃO LOGADO */}
@@ -203,7 +261,7 @@ export default function ConvitePage() {
                     >
                         {actionLoading ? (
                             <>
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <Loader2 className="w-5 h-5 animate-spin" />
                                 Processando...
                             </>
                         ) : (
@@ -267,7 +325,7 @@ export default function ConvitePage() {
                             >
                                 {actionLoading ? (
                                     <>
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <Loader2 className="w-5 h-5 animate-spin" />
                                         Conectando...
                                     </>
                                 ) : (

@@ -21,9 +21,7 @@ import {
     Send,
     MessageCircle,
     Link2,
-    Smartphone,
     Image,
-    Globe,
     Music2,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -39,7 +37,7 @@ function hexToRgb(hex: string) {
 
 interface CommissionProps {
     userId: string
-    profileSlug?: string | null // Adicionado profileSlug como prop
+    profileSlug?: string | null
 }
 
 interface CommissionMember {
@@ -134,11 +132,12 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
         setLoading(true)
         try {
+            // Busca direta dos indicados
             const { data: downlineData, error } = await supabase
-                .rpc('get_downline_with_commissions', {
-                    user_id: userId,
-                    max_depth: 10,
-                })
+                .from('profiles')
+                .select('*')
+                .eq('upline_id', userId)
+                .order('created_at', { ascending: false })
 
             if (error) {
                 console.error('Erro ao buscar dados:', error)
@@ -147,28 +146,28 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
             }
 
             const members: CommissionMember[] = (downlineData || [])
-                .filter((item: any) => item.level > 0)
                 .map((item: any) => {
-                    const percentage = getCommissionPercentage(item.level || 0)
-                    const baseCommission = (item.monthly_volume || 0) * percentage
-                    const totalEarnings = baseCommission + (item.is_leader ? (item.total_volume || 0) * 0.03 : 0)
+                    const level = 1
+                    const percentage = getCommissionPercentage(level)
+                    const baseCommission = (item.view_count || 0) * percentage
+                    const totalEarnings = baseCommission
 
                     return {
                         id: item.id,
                         name: item.name || 'Usuário',
                         email: item.email || '',
                         avatar_url: item.avatar_url || null,
-                        user_type: item.user_type || 'person',
-                        is_leader: item.is_leader || false,
-                        level: item.level || 0,
-                        monthly_volume: item.monthly_volume || 0,
+                        user_type: 'person',
+                        is_leader: false,
+                        level: level,
+                        monthly_volume: item.view_count || 0,
                         commission_value: baseCommission,
                         total_earnings: totalEarnings,
                         created_at: item.created_at || new Date().toISOString(),
                         profileSlug: item.profileSlug || null,
-                        store_name: item.store_name || null,
-                        store_avatar: item.store_avatar || null,
-                        downline_count: item.total_downline || 0,
+                        store_name: null,
+                        store_avatar: null,
+                        downline_count: 0,
                     }
                 })
 
@@ -205,13 +204,11 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
         }).format(value)
     }
 
+    // 🔥 LINK ATUALIZADO: /convite?ref={profileSlug}
     const handleInvite = () => {
-        // Gerar link de convite usando profileSlug
         const slug = userProfileSlug || 'convidar'
-        const link = `${window.location.origin}/convite/${slug}`
-
-        // Mensagem personalizada com o nome do usuário
-        const userName = members.length > 0 ? members[0]?.name || 'um amigo' : 'um amigo'
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
+        const link = `${baseUrl}/convite?ref=${slug}`
 
         setShareLink(link)
         setShareMessage(`🎉 Oi! Estou usando o iUser e amando! 🚀\n\nVem comigo também, é incrível! Use meu link de convite e vamos juntos construir uma rede incrível:\n\n${link}\n\nTe espero lá! 🙌`)
@@ -526,7 +523,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                             </button>
                         </div>
 
-                        {/* Link de convite - agora com URL amigável */}
+                        {/* Link de convite - novo formato */}
                         <div
                             className="flex items-center gap-2 p-3 rounded-xl mb-6"
                             style={{
