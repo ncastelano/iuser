@@ -41,15 +41,14 @@ import {
 import { OrderModal } from '../../components/OrderModal'
 import ButtonInPersonSale from './ButtonInPersonSale'
 import Employee from './Employee'
-import Publication from './Publication'
-import StoreVisitors from './StoreVisitors'
-import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './PublicationProfile'
 import ProfileOperatingDays from './ProfileOperatingDays'
+
 import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
+import Commission from './Commission'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -297,7 +296,7 @@ export default function ProfileDashboard({
             return
         }
 
-        // USAR O avatarUrl PASSADO COMO PROP
+        // USAR o avatarUrl PASSADO COMO PROP
         const finalAvatarUrl = avatarUrl || (profileData.avatar_url
             ? supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
             : null)
@@ -647,7 +646,6 @@ export default function ProfileDashboard({
                 revenue: { daily: dailyRev, orders: dailyOrders.length }
             }))
         }
-
 
         // ===== BUSCAR PRODUTOS DO PERFIL (apenas produtos sem store_id) =====
         const { data: productsData, error: productsError } = await supabase
@@ -1710,6 +1708,13 @@ export default function ProfileDashboard({
                 profileId={profile.id}
                 profileSlug={profileSlug || ''}
             />
+
+            {/* ===== SISTEMA DE COMISSÕES (BREAKAWAY) ===== */}
+            {profile && (
+                <div className="mb-6 mt-4">
+                    <Commission userId={profile.id} />
+                </div>
+            )}
 
             {/* ===== Visitantes ===== */}
             <ProfileVisitors key={profile.id} profileId={profile.id} />
