@@ -1,284 +1,449 @@
-// app/(auth)/register/page.tsx
+// app/(main)/convite/page.tsx
 
 'use client'
 
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Loader2, UserPlus, Mail, Lock, User, ArrowRight, AlertCircle } from 'lucide-react'
+import {
+    User,
+    Link as LinkIcon,
+    ArrowRight,
+    CheckCircle2,
+    Store,
+    Zap,
+    Sparkles,
+    Users,
+    Copy,
+    Check,
+    Loader2,
+    AlertTriangle,
+    Home,
+    Send,
+    Mail,
+    Crown
+} from 'lucide-react'
+import { BottomNav } from '@/components/BottomNav'
+import AnimatedBackground from '@/components/AnimatedBackground'
 import { toast } from 'sonner'
 
-function RegisterContent() {
+function ConviteContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const ref = searchParams.get('ref') // Pega o profileSlug do convite
+    const profileSlug = searchParams.get('ref')
 
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [actionLoading, setActionLoading] = useState(false)
+    const [inviter, setInviter] = useState<any>(null)
+    const [currentUser, setCurrentUser] = useState<any>(null)
+    const [copied, setCopied] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [inviterName, setInviterName] = useState<string | null>(null)
 
-    const [name, setName] = useState('')
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-    const [confirmPassword, setConfirmPassword] = useState('')
-
-    // Buscar nome do convidante
     useEffect(() => {
-        const fetchInviter = async () => {
-            if (!ref) return
+        const loadPageData = async () => {
+            if (!profileSlug) {
+                setLoading(false)
+                return
+            }
 
             try {
-                const { data, error } = await supabase
+                const { data: inviterData, error: inviterError } = await supabase
                     .from('profiles')
-                    .select('name')
-                    .eq('profileSlug', ref)
+                    .select('id, name, avatar_url, "profileSlug"')
+                    .eq('profileSlug', profileSlug)
                     .maybeSingle()
 
-                if (data && !error) {
-                    setInviterName(data.name)
+                if (inviterError || !inviterData) {
+                    setError('Perfil não encontrado')
+                    setLoading(false)
+                    return
+                }
+                setInviter(inviterData)
+
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    const { data: currentProfile } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single()
+
+                    setCurrentUser(currentProfile)
                 }
             } catch (error) {
-                console.error('Erro ao buscar convidante:', error)
+                console.error('Erro ao carregar página:', error)
+                setError('Erro ao carregar convite')
+            } finally {
+                setLoading(false)
             }
         }
 
-        fetchInviter()
-    }, [ref])
+        loadPageData()
+    }, [profileSlug])
 
-    const handleRegister = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setLoading(true)
-        setError(null)
-
-        if (password !== confirmPassword) {
-            setError('As senhas não coincidem')
-            setLoading(false)
-            return
-        }
-
-        if (password.length < 6) {
-            setError('A senha deve ter pelo menos 6 caracteres')
-            setLoading(false)
-            return
-        }
-
+    const handleJoinNotLogged = async () => {
+        setActionLoading(true)
         try {
-            // 1. Criar usuário no Supabase Auth
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: {
-                        name: name,
-                    },
-                },
+            // 🔥 Redireciona para /register com o ref
+            const params = new URLSearchParams({
+                ref: inviter.profileSlug
             })
-
-            if (authError) {
-                setError(authError.message)
-                setLoading(false)
-                return
-            }
-
-            if (!authData.user) {
-                setError('Erro ao criar usuário')
-                setLoading(false)
-                return
-            }
-
-            // 2. Buscar ID do convidante se tiver ref
-            let uplineId = null
-            if (ref) {
-                const { data: uplineData, error: uplineError } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('profileSlug', ref)
-                    .maybeSingle()
-
-                if (!uplineError && uplineData) {
-                    uplineId = uplineData.id
-                }
-            }
-
-            // 3. Criar perfil
-            const profileSlug = name.toLowerCase().replace(/\s/g, '') + Math.random().toString(36).slice(2, 6)
-
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                    id: authData.user.id,
-                    name: name,
-                    email: email,
-                    profileSlug: profileSlug,
-                    upline_id: uplineId, // 🔥 Salva quem convidou
-                })
-
-            if (profileError) {
-                console.error('Erro ao criar perfil:', profileError)
-                await supabase.auth.admin.deleteUser(authData.user.id)
-                setError('Erro ao criar perfil. Tente novamente.')
-                setLoading(false)
-                return
-            }
-
-            toast.success('🎉 Conta criada com sucesso!')
-
-            setTimeout(() => {
-                router.push('/dashboard')
-            }, 1000)
-
-        } catch (error: any) {
-            console.error('Erro no registro:', error)
-            setError(error.message || 'Erro ao criar conta')
+            router.push(`/register?${params.toString()}`)
+        } catch (error) {
+            console.error('Erro ao redirecionar:', error)
+            toast.error('Erro ao processar convite')
         } finally {
-            setLoading(false)
+            setActionLoading(false)
         }
     }
 
-    return (
-        <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-3xl p-8 shadow-2xl">
-                <div className="text-center mb-8">
-                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
-                        <UserPlus className="w-8 h-8 text-blue-400" />
+    const handleBindNetwork = async () => {
+        if (!currentUser || !inviter) return
+        setActionLoading(true)
+
+        try {
+            const { error } = await supabase.rpc('vincular_upline', {
+                p_user_id: currentUser.id,
+                p_upline_id: inviter.id
+            })
+
+            if (error) {
+                const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({ upline_id: inviter.id })
+                    .eq('id', currentUser.id)
+
+                if (updateError) {
+                    console.error('Erro ao vincular:', updateError)
+                    toast.error('Não foi possível entrar na rede: ' + updateError.message)
+                    setActionLoading(false)
+                    return
+                }
+            }
+
+            toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
+
+            setTimeout(() => {
+                router.push('/dashboard')
+            }, 1500)
+        } catch (error) {
+            console.error('Erro ao vincular:', error)
+            toast.error('Erro ao processar convite')
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const handleCopyLink = async () => {
+        try {
+            const link = window.location.href
+            await navigator.clipboard.writeText(link)
+            setCopied(true)
+            toast.success('Link copiado!')
+            setTimeout(() => setCopied(false), 3000)
+        } catch {
+            toast.error('Erro ao copiar link')
+        }
+    }
+
+    // Carregando
+    if (loading) {
+        return (
+            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+                <AnimatedBackground />
+                <div className="relative z-10 flex-1 flex items-center justify-center px-4">
+                    <div className="text-center">
+                        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                        <p className="text-sm text-gray-600">Carregando convite...</p>
                     </div>
-                    <h1 className="text-2xl font-bold">Criar Conta</h1>
-                    {inviterName && (
-                        <p className="text-sm text-blue-400 mt-1">
-                            Convidado por <span className="font-bold">{inviterName}</span>
+                </div>
+                <BottomNav />
+            </div>
+        )
+    }
+
+    // Sem profileSlug na URL
+    if (!profileSlug) {
+        return (
+            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+                <AnimatedBackground />
+                <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+                    <div className="w-full max-w-md text-center">
+                        <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mb-6">
+                            <Send className="w-10 h-10 text-white" />
+                        </div>
+                        <h1 className="text-2xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-3">
+                            Link de Convite
+                        </h1>
+                        <p className="text-sm text-gray-600 max-w-sm mx-auto mb-8">
+                            Para aceitar um convite, você precisa de um link válido com o nome de quem te convidou.
                         </p>
-                    )}
-                    {ref && !inviterName && (
-                        <p className="text-sm text-yellow-400 mt-1">
+                        <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50 mb-6 text-left">
+                            <p className="text-xs text-gray-500 mb-1">Exemplo:</p>
+                            <code className="text-sm text-orange-600 font-mono">
+                                iuser.com.br/convite?ref=joaosilva
+                            </code>
+                        </div>
+                        <button
+                            onClick={() => router.push('/')}
+                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Home className="w-4 h-4" />
+                            Voltar ao Início
+                        </button>
+                    </div>
+                </div>
+                <BottomNav />
+            </div>
+        )
+    }
+
+    // Convite inválido
+    if (error || !inviter) {
+        return (
+            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+                <AnimatedBackground />
+                <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+                    <div className="w-full max-w-md text-center">
+                        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                        <h1 className="text-2xl font-black bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent mb-2">
+                            Convite Inválido
+                        </h1>
+                        <p className="text-sm text-gray-600 mb-8">
+                            Este link de convite não existe ou expirou.
+                        </p>
+                        <button
+                            onClick={() => router.push('/')}
+                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        >
+                            <Home className="w-4 h-4" />
+                            Voltar ao Início
+                        </button>
+                    </div>
+                </div>
+                <BottomNav />
+            </div>
+        )
+    }
+
+    const isSameUser = currentUser?.id === inviter.id
+
+    return (
+        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+            <AnimatedBackground />
+
+            <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
+                <div className="w-full max-w-md">
+                    {/* Logo */}
+                    <div className="text-center mb-8">
+                        <div className="flex justify-center mb-4">
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mx-auto">
+                                <Users className="w-10 h-10 text-white" />
+                            </div>
+                        </div>
+
+                        <h1 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
+                            Convite Exclusivo
+                        </h1>
+                        <p className="text-sm text-gray-600">
                             Você foi convidado(a) para o iUser!
                         </p>
+
+                        {/* Feature badges */}
+                        <div className="flex items-center justify-center gap-4 mt-4">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                                <Store className="w-3 h-3" />
+                                <span>Sua loja</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
+                                <Zap className="w-3 h-3" />
+                                <span>Venda em tempo real</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
+                                <Sparkles className="w-3 h-3" />
+                                <span>Grátis</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Card do convidante */}
+                    <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center mb-6">
+                        <div className="w-20 h-20 rounded-full border-4 border-orange-200 bg-orange-100 flex items-center justify-center overflow-hidden mx-auto mb-3 shadow-lg">
+                            {inviter.avatar_url ? (
+                                <img
+                                    src={inviter.avatar_url}
+                                    className="w-full h-full object-cover"
+                                    alt={inviter.name}
+                                />
+                            ) : (
+                                <span className="text-3xl font-bold text-orange-500">
+                                    {inviter.name?.charAt(0) || '?'}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                            <h2 className="text-xl font-bold text-gray-800">
+                                {inviter.name}
+                            </h2>
+                            <Crown className="w-4 h-4 text-orange-500" />
+                        </div>
+
+                        <p className="text-sm text-gray-500">
+                            @{inviter.profileSlug}
+                        </p>
+
+                        <div className="mt-3 pt-3 border-t border-orange-200/30">
+                            <p className="text-xs text-gray-500">
+                                <span className="font-bold text-orange-600">🔗 Convite exclusivo</span> — junte-se à rede de {inviter.name}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* CASO 1: NÃO LOGADO */}
+                    {!currentUser && (
+                        <button
+                            onClick={handleJoinNotLogged}
+                            disabled={actionLoading}
+                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {actionLoading ? (
+                                <div className="flex items-center justify-center gap-2">
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    Processando...
+                                </div>
+                            ) : (
+                                <span className="flex items-center justify-center gap-2">
+                                    Criar Conta e Entrar
+                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                </span>
+                            )}
+                        </button>
                     )}
+
+                    {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
+                    {isSameUser && (
+                        <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center">
+                            <CheckCircle2 className="w-12 h-12 text-orange-500 mx-auto mb-3" />
+                            <h3 className="text-lg font-bold text-gray-800 mb-1">
+                                Este é o seu link de convite!
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-4">
+                                Copie esta URL e envie para novos parceiros.
+                            </p>
+                            <button
+                                onClick={handleCopyLink}
+                                className="flex items-center justify-center gap-2 w-full py-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold rounded-xl transition-colors"
+                            >
+                                {copied ? (
+                                    <>
+                                        <Check className="w-4 h-4 text-green-500" />
+                                        <span className="text-green-500">Copiado!</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Copy className="w-4 h-4" />
+                                        Copiar Link
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* CASO 3: LOGADO MAS CONTA DIFERENTE */}
+                    {currentUser && !isSameUser && (
+                        <div className="space-y-4">
+                            {currentUser.upline_id ? (
+                                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center">
+                                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                    <h3 className="text-lg font-bold text-gray-800 mb-1">
+                                        Você já tem uma rede
+                                    </h3>
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        Sua conta atual já está conectada a um líder.
+                                        Apenas contas isoladas podem aceitar convites.
+                                    </p>
+                                    <button
+                                        onClick={() => router.push('/dashboard')}
+                                        className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
+                                    >
+                                        Ir para meu Painel
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleBindNetwork}
+                                    disabled={actionLoading}
+                                    className="group w-full bg-gradient-to-r from-purple-500 to-orange-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {actionLoading ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Conectando...
+                                        </div>
+                                    ) : (
+                                        <span className="flex items-center justify-center gap-2">
+                                            <Users className="w-4 h-4" />
+                                            Vincular minha conta
+                                        </span>
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Divisor e mensagem adicional */}
+                    <div className="mt-6 pt-4 border-t border-orange-200/30">
+                        <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/30">
+                            <p className="text-[11px] text-gray-600 text-center leading-relaxed">
+                                ✨ <span className="font-black text-orange-600">Construa sua rede</span> de indicações<br />
+                                e ganhe comissões com cada novo membro.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Botão voltar */}
+                    <button
+                        onClick={() => router.push('/')}
+                        className="mt-4 w-full py-3 bg-white/50 backdrop-blur-sm border border-orange-200/50 text-gray-600 rounded-xl font-bold text-sm transition-all hover:bg-white/80 flex items-center justify-center gap-2"
+                    >
+                        <Home className="w-4 h-4" />
+                        Voltar ao Início
+                    </button>
+
+                    {/* Rodapé */}
+                    <div className="mt-6 text-center">
+                        <p className="text-[10px] text-gray-500">
+                            Ao entrar, você concorda com os{' '}
+                            <a href="/termos" className="font-bold text-orange-600 hover:underline">
+                                Termos de Uso
+                            </a>
+                        </p>
+                    </div>
                 </div>
-
-                <form onSubmit={handleRegister} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-300 mb-1">
-                            Nome completo
-                        </label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="Seu nome"
-                                required
-                                className="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-neutral-500 focus:border-blue-500 focus:outline-none transition-colors"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-300 mb-1">
-                            E-mail
-                        </label>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="seu@email.com"
-                                required
-                                className="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-neutral-500 focus:border-blue-500 focus:outline-none transition-colors"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-300 mb-1">
-                            Senha
-                        </label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Mínimo 6 caracteres"
-                                required
-                                minLength={6}
-                                className="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-neutral-500 focus:border-blue-500 focus:outline-none transition-colors"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-300 mb-1">
-                            Confirmar senha
-                        </label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                            <input
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="Confirme sua senha"
-                                required
-                                className="w-full bg-neutral-800/50 border border-neutral-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-neutral-500 focus:border-blue-500 focus:outline-none transition-colors"
-                            />
-                        </div>
-                    </div>
-
-                    {error && (
-                        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-sm text-red-400">{error}</p>
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-bold text-lg hover:from-blue-500 hover:to-blue-400 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Criando conta...
-                            </>
-                        ) : (
-                            <>
-                                Criar Conta <ArrowRight className="w-5 h-5" />
-                            </>
-                        )}
-                    </button>
-                </form>
-
-                <p className="text-center text-sm text-neutral-400 mt-6">
-                    Já tem uma conta?{' '}
-                    <button
-                        onClick={() => router.push('/login')}
-                        className="text-blue-400 hover:text-blue-300 font-bold transition-colors"
-                    >
-                        Fazer login
-                    </button>
-                </p>
-
-                <p className="text-xs text-neutral-600 text-center mt-6">
-                    Ao criar uma conta, você concorda com os Termos de Uso e Política de Privacidade.
-                </p>
             </div>
+
+            <BottomNav />
         </div>
     )
 }
 
-export default function RegisterPage() {
+// 🔥 Página principal com Suspense
+export default function ConvitePage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                    <p className="text-neutral-400">Carregando...</p>
+            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
+                <AnimatedBackground />
+                <div className="relative z-10 flex-1 flex items-center justify-center px-4">
+                    <div className="text-center">
+                        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
+                        <p className="text-sm text-gray-600">Carregando convite...</p>
+                    </div>
                 </div>
+                <BottomNav />
             </div>
         }>
-            <RegisterContent />
+            <ConviteContent />
         </Suspense>
     )
 }
