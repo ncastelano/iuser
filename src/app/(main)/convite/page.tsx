@@ -17,7 +17,6 @@ function RegisterContent() {
     const [error, setError] = useState<string | null>(null)
     const [inviterName, setInviterName] = useState<string | null>(null)
 
-    // Estados do formulário
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
@@ -51,7 +50,6 @@ function RegisterContent() {
         setLoading(true)
         setError(null)
 
-        // Validações básicas
         if (password !== confirmPassword) {
             setError('As senhas não coincidem')
             setLoading(false)
@@ -88,7 +86,21 @@ function RegisterContent() {
                 return
             }
 
-            // 2. Criar perfil no Supabase
+            // 2. Buscar ID do convidante se tiver ref
+            let uplineId = null
+            if (ref) {
+                const { data: uplineData, error: uplineError } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('profileSlug', ref)
+                    .maybeSingle()
+
+                if (!uplineError && uplineData) {
+                    uplineId = uplineData.id
+                }
+            }
+
+            // 3. Criar perfil
             const profileSlug = name.toLowerCase().replace(/\s/g, '') + Math.random().toString(36).slice(2, 6)
 
             const { error: profileError } = await supabase
@@ -98,12 +110,11 @@ function RegisterContent() {
                     name: name,
                     email: email,
                     profileSlug: profileSlug,
-                    upline_id: ref ? await getUplineId(ref) : null,
+                    upline_id: uplineId, // 🔥 Salva quem convidou
                 })
 
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
-                // Tentar excluir o usuário criado
                 await supabase.auth.admin.deleteUser(authData.user.id)
                 setError('Erro ao criar perfil. Tente novamente.')
                 setLoading(false)
@@ -112,7 +123,6 @@ function RegisterContent() {
 
             toast.success('🎉 Conta criada com sucesso!')
 
-            // Redirecionar para o dashboard
             setTimeout(() => {
                 router.push('/dashboard')
             }, 1000)
@@ -125,22 +135,9 @@ function RegisterContent() {
         }
     }
 
-    // Função auxiliar para buscar o ID do upline
-    const getUplineId = async (profileSlug: string): Promise<string | null> => {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('profileSlug', profileSlug)
-            .maybeSingle()
-
-        if (error || !data) return null
-        return data.id
-    }
-
     return (
         <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-3xl p-8 shadow-2xl">
-                {/* Cabeçalho */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
                         <UserPlus className="w-8 h-8 text-blue-400" />
@@ -158,9 +155,7 @@ function RegisterContent() {
                     )}
                 </div>
 
-                {/* Formulário */}
                 <form onSubmit={handleRegister} className="space-y-4">
-                    {/* Nome */}
                     <div>
                         <label className="block text-sm font-medium text-neutral-300 mb-1">
                             Nome completo
@@ -178,7 +173,6 @@ function RegisterContent() {
                         </div>
                     </div>
 
-                    {/* Email */}
                     <div>
                         <label className="block text-sm font-medium text-neutral-300 mb-1">
                             E-mail
@@ -196,7 +190,6 @@ function RegisterContent() {
                         </div>
                     </div>
 
-                    {/* Senha */}
                     <div>
                         <label className="block text-sm font-medium text-neutral-300 mb-1">
                             Senha
@@ -215,7 +208,6 @@ function RegisterContent() {
                         </div>
                     </div>
 
-                    {/* Confirmar Senha */}
                     <div>
                         <label className="block text-sm font-medium text-neutral-300 mb-1">
                             Confirmar senha
@@ -233,7 +225,6 @@ function RegisterContent() {
                         </div>
                     </div>
 
-                    {/* Erro */}
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex items-start gap-2">
                             <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -241,7 +232,6 @@ function RegisterContent() {
                         </div>
                     )}
 
-                    {/* Botão */}
                     <button
                         type="submit"
                         disabled={loading}
@@ -260,7 +250,6 @@ function RegisterContent() {
                     </button>
                 </form>
 
-                {/* Link para login */}
                 <p className="text-center text-sm text-neutral-400 mt-6">
                     Já tem uma conta?{' '}
                     <button
@@ -271,7 +260,6 @@ function RegisterContent() {
                     </button>
                 </p>
 
-                {/* Rodapé */}
                 <p className="text-xs text-neutral-600 text-center mt-6">
                     Ao criar uma conta, você concorda com os Termos de Uso e Política de Privacidade.
                 </p>
@@ -280,7 +268,6 @@ function RegisterContent() {
     )
 }
 
-// 🔥 Página principal com Suspense
 export default function RegisterPage() {
     return (
         <Suspense fallback={
