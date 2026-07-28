@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -20,11 +20,10 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-export default function ConvitePage() {
+// 🔥 Componente que usa useSearchParams (precisa estar dentro de Suspense)
+function ConviteContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
-
-    // Pega o profileSlug da URL: /convite?ref=joaosilva
     const profileSlug = searchParams.get('ref')
 
     const [loading, setLoading] = useState(true)
@@ -42,7 +41,6 @@ export default function ConvitePage() {
             }
 
             try {
-                // 1. Buscar perfil do convidante
                 const { data: inviterData, error: inviterError } = await supabase
                     .from('profiles')
                     .select('id, name, avatar_url, "profileSlug"')
@@ -56,7 +54,6 @@ export default function ConvitePage() {
                 }
                 setInviter(inviterData)
 
-                // 2. Buscar usuário logado
                 const { data: { user } } = await supabase.auth.getUser()
                 if (user) {
                     const { data: currentProfile } = await supabase
@@ -81,7 +78,6 @@ export default function ConvitePage() {
     const handleJoinNotLogged = async () => {
         setActionLoading(true)
         try {
-            // Redirecionar para registro com o perfil do convidante
             const params = new URLSearchParams({
                 ref: inviter.profileSlug
             })
@@ -99,14 +95,12 @@ export default function ConvitePage() {
         setActionLoading(true)
 
         try {
-            // Tentar usar a função RPC
             const { error } = await supabase.rpc('vincular_upline', {
                 p_user_id: currentUser.id,
                 p_upline_id: inviter.id
             })
 
             if (error) {
-                // Fallback: atualizar diretamente
                 const { error: updateError } = await supabase
                     .from('profiles')
                     .update({ upline_id: inviter.id })
@@ -122,7 +116,6 @@ export default function ConvitePage() {
 
             toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
 
-            // Redirecionar para o dashboard
             setTimeout(() => {
                 router.push('/dashboard')
             }, 1500)
@@ -135,8 +128,8 @@ export default function ConvitePage() {
     }
 
     const handleCopyLink = async () => {
-        const link = window.location.href
         try {
+            const link = window.location.href
             await navigator.clipboard.writeText(link)
             setCopied(true)
             toast.success('Link copiado!')
@@ -146,7 +139,6 @@ export default function ConvitePage() {
         }
     }
 
-    // Estado de loading
     if (loading) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -158,7 +150,6 @@ export default function ConvitePage() {
         )
     }
 
-    // Se não tem profileSlug na URL
     if (!profileSlug) {
         return (
             <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
@@ -188,7 +179,6 @@ export default function ConvitePage() {
         )
     }
 
-    // Se o convite é inválido
     if (error || !inviter) {
         return (
             <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center text-center p-4">
@@ -211,11 +201,9 @@ export default function ConvitePage() {
     return (
         <div className="min-h-screen bg-black text-white p-4 flex justify-center items-center">
             <div className="w-full max-w-md bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-3xl p-8 relative overflow-hidden shadow-2xl flex flex-col items-center text-center">
-                {/* Fundo decorativo */}
                 <div className="absolute top-0 w-full h-32 bg-gradient-to-b from-blue-900/20 to-transparent" />
                 <div className="absolute bottom-0 w-full h-32 bg-gradient-to-t from-purple-900/10 to-transparent" />
 
-                {/* Ícone do convite */}
                 <div className="relative z-10 mb-4">
                     <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto border border-blue-500/30">
                         <LinkIcon className="w-8 h-8 text-blue-400" />
@@ -226,7 +214,6 @@ export default function ConvitePage() {
                     Convite Exclusivo
                 </h2>
 
-                {/* Avatar do convidante */}
                 <div className="w-24 h-24 rounded-full border-4 border-neutral-800 bg-neutral-800 flex items-center justify-center overflow-hidden mb-4 relative z-10 shadow-xl shadow-black">
                     {inviter.avatar_url ? (
                         <img
@@ -252,7 +239,6 @@ export default function ConvitePage() {
                     Junte-se ao iUser e comece a construir sua própria rede de comissões. 🚀
                 </p>
 
-                {/* CASO 1: NÃO LOGADO */}
                 {!currentUser && (
                     <button
                         onClick={handleJoinNotLogged}
@@ -272,7 +258,6 @@ export default function ConvitePage() {
                     </button>
                 )}
 
-                {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
                 {isSameUser && (
                     <div className="w-full bg-blue-500/10 border border-blue-500/20 p-5 rounded-xl flex flex-col items-center gap-3 relative z-10">
                         <CheckCircle className="w-8 h-8 text-blue-400" />
@@ -299,7 +284,6 @@ export default function ConvitePage() {
                     </div>
                 )}
 
-                {/* CASO 3: LOGADO MAS CONTA DIFERENTE */}
                 {currentUser && !isSameUser && (
                     <div className="w-full relative z-10">
                         {currentUser.upline_id ? (
@@ -338,11 +322,26 @@ export default function ConvitePage() {
                     </div>
                 )}
 
-                {/* Rodapé */}
                 <p className="text-xs text-neutral-600 mt-6 relative z-10">
                     Ao entrar, você concorda com os Termos de Uso e Política de Privacidade.
                 </p>
             </div>
         </div>
+    )
+}
+
+// 🔥 Página principal com Suspense
+export default function ConvitePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                    <p className="text-neutral-400">Carregando convite...</p>
+                </div>
+            </div>
+        }>
+            <ConviteContent />
+        </Suspense>
     )
 }
