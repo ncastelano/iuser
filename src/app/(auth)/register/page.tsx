@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -44,6 +44,9 @@ function RegisterContent() {
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  // ✅ USAR REF PARA ARMAZENAR O profileSlug (não é resetado)
+  const profileSlugRef = useRef<string>('')
 
   const accentColor = colors.accent
   const textPrimary = colors.textPrimary
@@ -91,13 +94,11 @@ function RegisterContent() {
       // 2. Buscar referral (URL ou cookie)
       let referralSlug = null
 
-      // Tenta ler da URL primeiro
       const refParam = searchParams.get('ref')
       if (refParam) {
         referralSlug = refParam
         console.log('🔗 Ref da URL:', referralSlug)
       } else {
-        // Tenta ler do cookie
         try {
           const res = await fetch('/api/get-referral-cookie')
           const data = await res.json()
@@ -108,7 +109,7 @@ function RegisterContent() {
         }
       }
 
-      // 3. Buscar o upline_id (se tiver referral)
+      // 3. Buscar o upline_id
       let uplineId = null
       if (referralSlug) {
         const { data: upline } = await supabase
@@ -148,7 +149,11 @@ function RegisterContent() {
 
       console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-      // 5. 🔥 USAR UPSERT EM VEZ DE INSERT (corrige erro de chave duplicada)
+      // 5. ✅ SALVAR O profileSlug NO REF ANTES DE QUALQUER COISA
+      profileSlugRef.current = profileSlug
+      console.log('📝 ProfileSlug salvo no ref:', profileSlugRef.current)
+
+      // 6. Criar perfil com UPSERT
       console.log('📝 Criando/atualizando perfil (UPSERT)...')
 
       const profileData = {
@@ -164,11 +169,10 @@ function RegisterContent() {
 
       console.log('📝 Dados do perfil:', profileData)
 
-      // 🔥 UPSERT: se o ID já existir, atualiza; se não, insere
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, {
-          onConflict: 'id'  // Se o ID já existir, atualiza
+          onConflict: 'id'
         })
 
       if (profileError) {
@@ -178,7 +182,7 @@ function RegisterContent() {
 
       console.log('✅ Perfil criado/atualizado com sucesso!')
 
-      // 6. Limpar o cookie (se existir)
+      // 7. Limpar o cookie
       try {
         await fetch('/api/clear-referral-cookie', { method: 'POST' })
         console.log('✅ Cookie removido')
@@ -198,20 +202,23 @@ function RegisterContent() {
     }
   }
 
-  // ✅ Tela de sucesso - REDIRECIONA PARA A PÁGINA INICIAL
-  // Tela de sucesso - redireciona para o perfil do usuário
+  // ✅ Tela de sucesso - USANDO O REF PARA REDIRECIONAR
   if (registered) {
     useEffect(() => {
       const timer = setTimeout(() => {
-        if (profileSlug) {
-          window.location.href = `/${profileSlug}`
+        // ✅ USAR O VALOR DO REF (não é resetado)
+        const slug = profileSlugRef.current
+        console.log('🔀 Redirecionando com slug do ref:', slug)
+
+        if (slug) {
+          window.location.href = `/${slug}`
         } else {
           window.location.href = '/'
         }
       }, 2000)
 
       return () => clearTimeout(timer)
-    }, [router, profileSlug])
+    }, []) // ✅ SEM DEPENDÊNCIAS - executa apenas uma vez
 
     return (
       <div
@@ -248,8 +255,10 @@ function RegisterContent() {
 
             <button
               onClick={() => {
-                if (profileSlug) {
-                  window.location.href = `/${profileSlug}`
+                const slug = profileSlugRef.current
+                console.log('🔀 Botão: Redirecionando com slug:', slug)
+                if (slug) {
+                  window.location.href = `/${slug}`
                 } else {
                   window.location.href = '/'
                 }
