@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation' // ✅ Adicionar useSearchParams
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import {
@@ -31,6 +31,7 @@ function hexToRgb(hex: string) {
 
 function RegisterContent() {
   const router = useRouter()
+  const searchParams = useSearchParams() // ✅ Para ler o ref da URL
   const { colors } = useTheme()
   const surfaceRgb = hexToRgb(colors.surface)
 
@@ -87,21 +88,48 @@ function RegisterContent() {
         return
       }
 
-      // 2. Ler cookie de indicação
+      // ========================================
+      // 2. 🔥 LER REF DA URL OU COOKIE
+      // ========================================
       let referralSlug = null
-      try {
-        const res = await fetch('/api/get-referral-cookie')
-        const data = await res.json()
-        referralSlug = data.referralSlug || null
-        console.log('🔗 Cookie lido:', referralSlug)
-      } catch (error) {
-        console.error('Erro ao ler cookie:', error)
+
+      // 2a. Primeiro, tenta ler da URL (ex: /register?ref=natanparintintin)
+      const refParam = searchParams.get('ref')
+
+      if (refParam) {
+        referralSlug = refParam
+        console.log('🔗 Ref da URL:', referralSlug)
+
+        // Salva o cookie também para manter consistência
+        try {
+          await fetch('/api/set-referral-cookie', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referralSlug })
+          })
+          console.log('✅ Cookie salvo a partir da URL')
+        } catch (error) {
+          console.error('Erro ao salvar cookie da URL:', error)
+        }
+      } else {
+        // 2b. Se não tem na URL, tenta ler do cookie
+        try {
+          const res = await fetch('/api/get-referral-cookie')
+          const data = await res.json()
+          referralSlug = data.referralSlug || null
+          console.log('🔗 Cookie lido:', referralSlug)
+        } catch (error) {
+          console.error('Erro ao ler cookie:', error)
+        }
       }
 
       // 3. Buscar o upline_id
       let uplineId = null
       let uplineName = null
+
       if (referralSlug) {
+        console.log('🔍 Buscando upline para o slug:', referralSlug)
+
         const { data: upline, error: uplineError } = await supabase
           .from('profiles')
           .select('id, name, profileSlug')
@@ -148,6 +176,13 @@ function RegisterContent() {
 
       // 5. 🔥 USAR A FUNÇÃO create_profile
       console.log('📝 Criando perfil via função SQL...')
+      console.log('📝 Dados:', {
+        p_user_id: authData.user.id,
+        p_name: name,
+        p_profile_slug: profileSlug,
+        p_upline_id: uplineId,
+        p_is_active: true
+      })
 
       const { data: profileResult, error: profileError } = await supabase.rpc('create_profile', {
         p_user_id: authData.user.id,
@@ -159,16 +194,33 @@ function RegisterContent() {
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil:', profileError)
-        throw new Error(`Erro ao criar perfil: ${profileError.message}`)
-      }
 
-      console.log('✅ Resultado da função:', profileResult)
+        // Fallback: tentar insert direto
+        console.log('🔄 Tentando fallback com insert direto...')
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            name: name,
+            profileSlug: profileSlug,
+            upline_id: uplineId,
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
 
-      if (!profileResult || !profileResult.success) {
+        if (insertError) {
+          console.error('❌ Fallback também falhou:', insertError)
+          throw new Error(`Erro ao criar perfil: ${insertError.message}`)
+        }
+
+        console.log('✅ Perfil criado via fallback!')
+      } else if (!profileResult || !profileResult.success) {
         throw new Error(profileResult?.error || 'Erro ao criar perfil')
+      } else {
+        console.log('✅ Perfil criado com sucesso via RPC!')
+        console.log('📝 Resultado:', profileResult)
       }
-
-      console.log('✅ Perfil criado com sucesso!')
 
       // 6. Limpar o cookie
       try {

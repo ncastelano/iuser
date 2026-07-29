@@ -1,4 +1,5 @@
 // src/components/Commission.tsx
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -112,7 +113,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                 .from('profiles')
                 .select('profileSlug')
                 .eq('id', userId)
-                .single()
+                .maybeSingle() // Mudado de .single() para .maybeSingle()
 
             if (error) {
                 console.error('Erro ao buscar profileSlug:', error)
@@ -121,6 +122,23 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
             if (data?.profileSlug) {
                 setUserProfileSlug(data.profileSlug)
+                console.log('✅ ProfileSlug encontrado:', data.profileSlug)
+            } else {
+                console.warn('⚠️ Usuário não tem profileSlug definido')
+                // Tentar buscar pelo email como fallback
+                const { data: userData } = await supabase.auth.getUser()
+                if (userData?.user?.email) {
+                    const { data: profileByEmail } = await supabase
+                        .from('profiles')
+                        .select('profileSlug')
+                        .eq('email', userData.user.email)
+                        .maybeSingle()
+
+                    if (profileByEmail?.profileSlug) {
+                        setUserProfileSlug(profileByEmail.profileSlug)
+                        console.log('✅ ProfileSlug encontrado por email:', profileByEmail.profileSlug)
+                    }
+                }
             }
         } catch (error) {
             console.error('Erro ao buscar profileSlug:', error)
@@ -204,11 +222,16 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
         }).format(value)
     }
 
-    // 🔥 LINK ATUALIZADO: /convite?ref={profileSlug}
+    // 🔥 LINK ATUALIZADO: usa o profileSlug ou fallback
     const handleInvite = () => {
         const slug = userProfileSlug || 'convidar'
         const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://iuser.com.br'
+
+        // 🔥 Link no formato correto: /convite?ref={slug}
         const link = `${baseUrl}/convite?ref=${slug}`
+
+        console.log('🔗 Link de convite gerado:', link)
+        console.log('📝 ProfileSlug usado:', slug)
 
         setShareLink(link)
         setShareMessage(`🎉 Oi! Estou usando o iUser e amando! 🚀\n\nVem comigo também, é incrível! Use meu link de convite e vamos juntos construir uma rede incrível:\n\n${link}\n\nTe espero lá! 🙌`)
@@ -523,7 +546,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                             </button>
                         </div>
 
-                        {/* Link de convite - novo formato */}
+                        {/* Link de convite */}
                         <div
                             className="flex items-center gap-2 p-3 rounded-xl mb-6"
                             style={{

@@ -61,37 +61,71 @@ function ConviteContent() {
 
     useEffect(() => {
         const loadPageData = async () => {
+            console.log('🔍 Carregando página de convite...')
+            console.log('📝 ProfileSlug da URL:', profileSlug)
+
             if (!profileSlug) {
+                console.log('ℹ️ Nenhum profileSlug na URL')
                 setLoading(false)
                 return
             }
 
             try {
+                // Buscar informações do convidante
+                console.log('🔍 Buscando convidante para o slug:', profileSlug)
+
                 const { data: inviterData, error: inviterError } = await supabase
                     .from('profiles')
                     .select('id, name, avatar_url, "profileSlug"')
                     .eq('profileSlug', profileSlug)
                     .maybeSingle()
 
-                if (inviterError || !inviterData) {
+                if (inviterError) {
+                    console.error('❌ Erro ao buscar convidante:', inviterError)
+                    setError('Erro ao carregar convite')
+                    setLoading(false)
+                    return
+                }
+
+                if (!inviterData) {
+                    console.warn('⚠️ Convidante não encontrado para o slug:', profileSlug)
                     setError('Perfil não encontrado')
                     setLoading(false)
                     return
                 }
+
+                console.log('✅ Convidante encontrado:', inviterData.name, inviterData.id)
                 setInviter(inviterData)
 
+                // Verificar se o usuário está logado
                 const { data: { user } } = await supabase.auth.getUser()
+
                 if (user) {
-                    const { data: currentProfile } = await supabase
+                    console.log('👤 Usuário logado:', user.id)
+
+                    const { data: currentProfile, error: profileError } = await supabase
                         .from('profiles')
                         .select('*')
                         .eq('id', user.id)
-                        .single()
+                        .maybeSingle()
 
-                    setCurrentUser(currentProfile)
+                    if (profileError) {
+                        console.error('❌ Erro ao buscar perfil do usuário:', profileError)
+                    }
+
+                    if (currentProfile) {
+                        console.log('✅ Perfil do usuário encontrado:', currentProfile.name)
+                        setCurrentUser(currentProfile)
+                    } else {
+                        console.warn('⚠️ Perfil do usuário não encontrado para o ID:', user.id)
+                        setCurrentUser(null)
+                    }
+                } else {
+                    console.log('ℹ️ Usuário não está logado')
                 }
+
             } catch (error) {
-                console.error('Erro ao carregar página:', error)
+                console.error('❌ Erro ao carregar página:', error)
                 setError('Erro ao carregar convite')
             } finally {
                 setLoading(false)
@@ -103,10 +137,14 @@ function ConviteContent() {
 
     // 🔥 FUNÇÃO ATUALIZADA: Salvar cookie antes de redirecionar
     const handleJoinNotLogged = async () => {
+        console.log('🚀 handleJoinNotLogged iniciado')
         setActionLoading(true)
+
         try {
             // 1. Salvar o cookie com o slug do convite
             if (inviter?.profileSlug) {
+                console.log('📝 Salvando cookie para o slug:', inviter.profileSlug)
+
                 const response = await fetch('/api/set-referral-cookie', {
                     method: 'POST',
                     headers: {
@@ -118,22 +156,28 @@ function ConviteContent() {
                 })
 
                 if (!response.ok) {
-                    console.error('Erro ao salvar cookie')
+                    const errorData = await response.json()
+                    console.error('❌ Erro ao salvar cookie:', errorData)
                     toast.error('Erro ao processar convite')
                     setActionLoading(false)
                     return
                 }
 
-                console.log('✅ Cookie salvo:', inviter.profileSlug)
+                console.log('✅ Cookie salvo com sucesso:', inviter.profileSlug)
+            } else {
+                console.warn('⚠️ Inviter sem profileSlug')
             }
 
-            // 2. Redirecionar para o registro
+            // 2. Redirecionar para o registro com o ref
             const params = new URLSearchParams({
                 ref: inviter.profileSlug
             })
-            router.push(`/register?${params.toString()}`)
+            const redirectUrl = `/register?${params.toString()}`
+            console.log('🔀 Redirecionando para:', redirectUrl)
+
+            router.push(redirectUrl)
         } catch (error) {
-            console.error('Erro ao redirecionar:', error)
+            console.error('❌ Erro ao redirecionar:', error)
             toast.error('Erro ao processar convite')
         } finally {
             setActionLoading(false)
@@ -142,20 +186,40 @@ function ConviteContent() {
 
     // 🔥 FUNÇÃO ATUALIZADA: Vincular usuário logado
     const handleBindNetwork = async () => {
-        if (!currentUser || !inviter) return
+        if (!currentUser || !inviter) {
+            console.warn('⚠️ currentUser ou inviter não disponível')
+            return
+        }
+
+        console.log('🔗 Vinculando usuário à rede...')
+        console.log('👤 Usuário:', currentUser.id, currentUser.name)
+        console.log('👤 Inviter:', inviter.id, inviter.name)
+
         setActionLoading(true)
 
         try {
+            // Verificar se o usuário já tem upline
+            if (currentUser.upline_id) {
+                console.log('ℹ️ Usuário já tem upline:', currentUser.upline_id)
+                toast.info('Você já está vinculado a uma rede')
+                setActionLoading(false)
+                return
+            }
+
             // Usar a função do Supabase
+            console.log('📡 Chamando RPC link_user_to_network...')
+
             const { data, error } = await supabase.rpc('link_user_to_network', {
                 p_user_id: currentUser.id,
                 p_upline_id: inviter.id
             })
 
             if (error) {
-                console.error('Erro ao vincular via RPC:', error)
+                console.error('❌ Erro ao vincular via RPC:', error)
 
                 // Fallback: update direto
+                console.log('🔄 Tentando fallback com update direto...')
+
                 const { error: updateError } = await supabase
                     .from('profiles')
                     .update({
@@ -165,11 +229,15 @@ function ConviteContent() {
                     .eq('id', currentUser.id)
 
                 if (updateError) {
-                    console.error('Erro ao vincular (fallback):', updateError)
+                    console.error('❌ Erro ao vincular (fallback):', updateError)
                     toast.error('Não foi possível entrar na rede: ' + updateError.message)
                     setActionLoading(false)
                     return
                 }
+
+                console.log('✅ Vinculado via fallback!')
+            } else {
+                console.log('✅ Vinculado via RPC!', data)
             }
 
             toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
@@ -177,8 +245,9 @@ function ConviteContent() {
             setTimeout(() => {
                 router.push('/dashboard')
             }, 1500)
+
         } catch (error) {
-            console.error('Erro ao vincular:', error)
+            console.error('❌ Erro ao vincular:', error)
             toast.error('Erro ao processar convite')
         } finally {
             setActionLoading(false)
@@ -196,9 +265,6 @@ function ConviteContent() {
             toast.error('Erro ao copiar link')
         }
     }
-
-    // ... o resto do código (loading, renderização) permanece igual ...
-    // ... apenas o handleJoinNotLogged e handleBindNetwork foram alterados
 
     // Carregando
     if (loading) {
