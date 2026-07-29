@@ -199,14 +199,19 @@ function RegisterContent() {
   }
 
   // ✅ Tela de sucesso - REDIRECIONA PARA A PÁGINA INICIAL
+  // Tela de sucesso - redireciona para o perfil do usuário
   if (registered) {
     useEffect(() => {
       const timer = setTimeout(() => {
-        router.push('/') // ✅ Redireciona para a página inicial
+        if (profileSlug) {
+          window.location.href = `/${profileSlug}`
+        } else {
+          window.location.href = '/'
+        }
       }, 2000)
 
       return () => clearTimeout(timer)
-    }, [router])
+    }, [router, profileSlug])
 
     return (
       <div
@@ -238,11 +243,17 @@ function RegisterContent() {
               Conta criada! 🎉
             </h2>
             <p className="text-sm" style={{ color: textSecondary }}>
-              Bem-vindo ao iUser! Você será redirecionado para o início.
+              Bem-vindo ao iUser! Seu perfil está pronto.
             </p>
 
             <button
-              onClick={() => router.push('/')}
+              onClick={() => {
+                if (profileSlug) {
+                  window.location.href = `/${profileSlug}`
+                } else {
+                  window.location.href = '/'
+                }
+              }}
               className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               style={{
                 background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
@@ -250,8 +261,8 @@ function RegisterContent() {
                 boxShadow: `0 4px 14px ${accentColor}40`,
               }}
             >
-              <Home className="w-4 h-4" />
-              Ir para o Início
+              <User className="w-4 h-4" />
+              Ver meu perfil
             </button>
           </div>
         </div>
