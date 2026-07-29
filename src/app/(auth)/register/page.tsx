@@ -54,8 +54,15 @@ function RegisterContent() {
     setLoading(true)
     setError(null)
 
+    // Validações básicas
     if (password !== confirmPassword) {
       setError('As senhas não coincidem')
+      setLoading(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres')
       setLoading(false)
       return
     }
@@ -80,7 +87,7 @@ function RegisterContent() {
         return
       }
 
-      // 2. 🔥 LER COOKIE DE INDICAÇÃO
+      // 2. Ler cookie de indicação
       let referralSlug = null
       try {
         const res = await fetch('/api/get-referral-cookie')
@@ -93,6 +100,7 @@ function RegisterContent() {
 
       // 3. Buscar o upline_id
       let uplineId = null
+      let uplineData = null
       if (referralSlug) {
         const { data: upline, error: uplineError } = await supabase
           .from('profiles')
@@ -104,9 +112,9 @@ function RegisterContent() {
           console.error('Erro ao buscar upline:', uplineError)
         }
 
-        // 🔥 CORREÇÃO: Verificar se upline existe antes de acessar
         if (upline) {
           uplineId = upline.id
+          uplineData = upline
           console.log('✅ Upline encontrado:', upline.name, uplineId)
         } else {
           console.log('⚠️ Upline não encontrado para o slug:', referralSlug)
@@ -116,6 +124,7 @@ function RegisterContent() {
       }
 
       // 4. Criar usuário no Auth
+      console.log('📝 Criando usuário no Auth...')
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -126,74 +135,115 @@ function RegisterContent() {
         }
       })
 
-      if (authError) throw authError
+      if (authError) {
+        console.error('❌ Erro no Auth:', authError)
+        throw authError
+      }
 
-      if (authData.user) {
-        // 5. Criar perfil com upline_id
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: authData.user.id,
-            name: name,
-            upline_id: uplineId,
-            profileSlug: profileSlug,
-            is_active: true,
-            created_at: new Date().toISOString()
-          })
+      if (!authData.user) {
+        throw new Error('Usuário não criado')
+      }
 
-        if (profileError) {
-          console.error('Erro ao criar perfil:', profileError)
-          toast.error('Erro ao criar perfil: ' + profileError.message)
-          setLoading(false)
-          return
-        }
+      console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-        console.log('✅ Perfil criado com sucesso! Upline:', uplineId)
+      // 5. Criar perfil SEM upline_id primeiro
+      console.log('📝 Criando perfil...')
+      const profileData = {
+        id: authData.user.id,
+        name: name,
+        profileSlug: profileSlug,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
 
-        // 6. 🔥 LIMPAR O COOKIE
+      // Se tiver upline, adicionar depois
+      if (uplineId) {
+        Object.assign(profileData, { upline_id: uplineId })
+      }
+
+      console.log('📝 Dados do perfil:', profileData)
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData)
+
+      if (profileError) {
+        console.error('❌ Erro detalhado ao criar perfil:', {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        })
+        throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+      }
+
+      console.log('✅ Perfil criado com sucesso!')
+
+      // 6. Limpar o cookie
+      try {
+        await fetch('/api/clear-referral-cookie', { method: 'POST' })
+        console.log('✅ Cookie removido')
+      } catch (error) {
+        console.error('Erro ao limpar cookie:', error)
+      }
+
+      // 7. Vincular à rede (se tiver upline)
+      if (uplineId) {
+        console.log('🔗 Vinculando à rede...')
         try {
-          await fetch('/api/clear-referral-cookie', { method: 'POST' })
-          console.log('✅ Cookie removido')
-        } catch (error) {
-          console.error('Erro ao limpar cookie:', error)
-        }
-
-        // 7. Vincular à rede (se tiver upline)
-        if (uplineId) {
-          try {
-            const { data, error: networkError } = await supabase.rpc('link_user_to_network', {
+          // Verificar se a função existe
+          const { data: functionExists, error: checkError } = await supabase.rpc(
+            'link_user_to_network',
+            {
               p_user_id: authData.user.id,
               p_upline_id: uplineId
-            })
-
-            if (networkError) {
-              console.error('Erro ao vincular à rede:', networkError)
-              // Não falha o registro se a vinculação falhar
-            } else {
-              console.log('✅ Usuário vinculado à rede com sucesso!', data)
             }
-          } catch (networkError) {
-            console.error('Erro na vinculação:', networkError)
-          }
-        }
+          )
 
-        setRegistered(true)
-        toast.success('🎉 Conta criada com sucesso!')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+          if (checkError) {
+            console.error('❌ Erro na função link_user_to_network:', checkError)
+
+            // Fallback: Atualizar diretamente
+            console.log('🔄 Usando fallback: atualizando upline_id diretamente...')
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                upline_id: uplineId,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', authData.user.id)
+
+            if (updateError) {
+              console.error('❌ Erro no fallback:', updateError)
+            } else {
+              console.log('✅ Upline atualizado via fallback!')
+            }
+          } else {
+            console.log('✅ Usuário vinculado à rede com sucesso!', functionExists)
+          }
+        } catch (networkError) {
+          console.error('❌ Erro na vinculação:', networkError)
+        }
       }
+
+      setRegistered(true)
+      toast.success('🎉 Conta criada com sucesso!')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+
     } catch (err: any) {
-      console.error('Erro no registro:', err)
-      setError(err.message || 'Erro ao criar conta')
+      console.error('❌ Erro no registro:', err)
+      setError(err.message || 'Erro ao criar conta. Tente novamente.')
     } finally {
       setLoading(false)
     }
   }
 
-  // 🔥 Tela de sucesso
+  // Tela de sucesso
   if (registered) {
     useEffect(() => {
       const timer = setTimeout(() => {
-        router.push('/')
+        router.push('/dashboard')
       }, 2000)
 
       return () => clearTimeout(timer)
@@ -229,11 +279,11 @@ function RegisterContent() {
               Conta criada! 🎉
             </h2>
             <p className="text-sm" style={{ color: textSecondary }}>
-              Bem-vindo ao iUser! Você será redirecionado em instantes.
+              Bem-vindo ao iUser! Você será redirecionado para o dashboard.
             </p>
 
             <button
-              onClick={() => router.push('/')}
+              onClick={() => router.push('/dashboard')}
               className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               style={{
                 background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
@@ -242,7 +292,7 @@ function RegisterContent() {
               }}
             >
               <Home className="w-4 h-4" />
-              Ir para o Início
+              Ir para o Dashboard
             </button>
           </div>
         </div>
