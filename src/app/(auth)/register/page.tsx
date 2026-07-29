@@ -202,20 +202,18 @@ function RegisterContent() {
     }
   }
 
-  // ✅ Tela de sucesso - USANDO O REF PARA REDIRECIONAR
+  useEffect(() => {
+    if (!registered) return
+
+    const timer = setTimeout(() => {
+      window.location.href = '/'
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [registered])
+
+  // ✅ Tela de sucesso
   if (registered) {
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        // ✅ USAR O VALOR DO REF (não é resetado)
-        const slug = profileSlugRef.current
-        console.log('🔀 Redirecionando com slug do ref:', slug)
-
-        window.location.href = '/'
-      }, 2000)
-
-      return () => clearTimeout(timer)
-    }, []) // ✅ SEM DEPENDÊNCIAS - executa apenas uma vez
-
     return (
       <div
         className="relative flex flex-col min-h-screen pb-32"
