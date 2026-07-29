@@ -1,4 +1,4 @@
-// app/(auth)/register/page.tsx - VERSÃO SIMPLES
+// app/(auth)/register/page.tsx - VERSÃO CORRIGIDA
 
 'use client'
 
@@ -148,14 +148,15 @@ function RegisterContent() {
 
       console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-      // 5. 🔥 INSERT SIMPLES no profiles
-      console.log('📝 Criando perfil (INSERT simples)...')
+      // 5. 🔥 USAR UPSERT EM VEZ DE INSERT (corrige erro de chave duplicada)
+      console.log('📝 Criando/atualizando perfil (UPSERT)...')
 
       const profileData = {
         id: authData.user.id,
         name: name,
         profileSlug: profileSlug,
         upline_id: uplineId,
+        email: email,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -163,16 +164,19 @@ function RegisterContent() {
 
       console.log('📝 Dados do perfil:', profileData)
 
+      // 🔥 UPSERT: se o ID já existir, atualiza; se não, insere
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert(profileData)
+        .upsert(profileData, {
+          onConflict: 'id'  // Se o ID já existir, atualiza
+        })
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil:', profileError)
         throw new Error(`Erro ao criar perfil: ${profileError.message}`)
       }
 
-      console.log('✅ Perfil criado com sucesso!')
+      console.log('✅ Perfil criado/atualizado com sucesso!')
 
       // 6. Limpar o cookie (se existir)
       try {
