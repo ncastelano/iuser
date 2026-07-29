@@ -1,9 +1,9 @@
-// app/(auth)/register/page.tsx
+// app/(auth)/register/page.tsx - VERSÃO SIMPLES
 
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation' // ✅ Adicionar useSearchParams
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import {
@@ -31,7 +31,7 @@ function hexToRgb(hex: string) {
 
 function RegisterContent() {
   const router = useRouter()
-  const searchParams = useSearchParams() // ✅ Para ler o ref da URL
+  const searchParams = useSearchParams()
   const { colors } = useTheme()
   const surfaceRgb = hexToRgb(colors.surface)
 
@@ -88,31 +88,16 @@ function RegisterContent() {
         return
       }
 
-      // ========================================
-      // 2. 🔥 LER REF DA URL OU COOKIE
-      // ========================================
+      // 2. Buscar referral (URL ou cookie)
       let referralSlug = null
 
-      // 2a. Primeiro, tenta ler da URL (ex: /register?ref=natanparintintin)
+      // Tenta ler da URL primeiro
       const refParam = searchParams.get('ref')
-
       if (refParam) {
         referralSlug = refParam
         console.log('🔗 Ref da URL:', referralSlug)
-
-        // Salva o cookie também para manter consistência
-        try {
-          await fetch('/api/set-referral-cookie', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ referralSlug })
-          })
-          console.log('✅ Cookie salvo a partir da URL')
-        } catch (error) {
-          console.error('Erro ao salvar cookie da URL:', error)
-        }
       } else {
-        // 2b. Se não tem na URL, tenta ler do cookie
+        // Tenta ler do cookie
         try {
           const res = await fetch('/api/get-referral-cookie')
           const data = await res.json()
@@ -123,32 +108,21 @@ function RegisterContent() {
         }
       }
 
-      // 3. Buscar o upline_id
+      // 3. Buscar o upline_id (se tiver referral)
       let uplineId = null
-      let uplineName = null
-
       if (referralSlug) {
-        console.log('🔍 Buscando upline para o slug:', referralSlug)
-
-        const { data: upline, error: uplineError } = await supabase
+        const { data: upline } = await supabase
           .from('profiles')
-          .select('id, name, profileSlug')
+          .select('id')
           .eq('profileSlug', referralSlug)
           .maybeSingle()
 
-        if (uplineError) {
-          console.error('Erro ao buscar upline:', uplineError)
-        }
-
         if (upline) {
           uplineId = upline.id
-          uplineName = upline.name
-          console.log('✅ Upline encontrado:', upline.name, uplineId)
+          console.log('✅ Upline encontrado:', uplineId)
         } else {
           console.log('⚠️ Upline não encontrado para o slug:', referralSlug)
         }
-      } else {
-        console.log('ℹ️ Nenhum convite encontrado')
       }
 
       // 4. Criar usuário no Auth
@@ -174,82 +148,38 @@ function RegisterContent() {
 
       console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-      // 5. 🔥 USAR A FUNÇÃO create_profile
-      console.log('📝 Criando perfil via função SQL...')
-      console.log('📝 Dados:', {
-        p_user_id: authData.user.id,
-        p_name: name,
-        p_profile_slug: profileSlug,
-        p_upline_id: uplineId,
-        p_is_active: true
-      })
+      // 5. 🔥 INSERT SIMPLES no profiles
+      console.log('📝 Criando perfil (INSERT simples)...')
 
-      const { data: profileResult, error: profileError } = await supabase.rpc('create_profile', {
-        p_user_id: authData.user.id,
-        p_name: name,
-        p_profile_slug: profileSlug,
-        p_upline_id: uplineId,
-        p_is_active: true
-      })
+      const profileData = {
+        id: authData.user.id,
+        name: name,
+        profileSlug: profileSlug,
+        upline_id: uplineId,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      console.log('📝 Dados do perfil:', profileData)
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert(profileData)
 
       if (profileError) {
         console.error('❌ Erro ao criar perfil:', profileError)
-
-        // Fallback: tentar insert direto
-        console.log('🔄 Tentando fallback com insert direto...')
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            name: name,
-            profileSlug: profileSlug,
-            upline_id: uplineId,
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-
-        if (insertError) {
-          console.error('❌ Fallback também falhou:', insertError)
-          throw new Error(`Erro ao criar perfil: ${insertError.message}`)
-        }
-
-        console.log('✅ Perfil criado via fallback!')
-      } else if (!profileResult || !profileResult.success) {
-        throw new Error(profileResult?.error || 'Erro ao criar perfil')
-      } else {
-        console.log('✅ Perfil criado com sucesso via RPC!')
-        console.log('📝 Resultado:', profileResult)
+        throw new Error(`Erro ao criar perfil: ${profileError.message}`)
       }
 
-      // 6. Limpar o cookie
+      console.log('✅ Perfil criado com sucesso!')
+
+      // 6. Limpar o cookie (se existir)
       try {
         await fetch('/api/clear-referral-cookie', { method: 'POST' })
         console.log('✅ Cookie removido')
       } catch (error) {
         console.error('Erro ao limpar cookie:', error)
-      }
-
-      // 7. Criar notificação de boas-vindas (opcional)
-      try {
-        await supabase.rpc('create_notification', {
-          p_user_id: authData.user.id,
-          p_type: 'WELCOME',
-          p_title: 'Bem-vindo ao iUser! 🚀',
-          p_message: uplineName
-            ? `Você agora faz parte da rede de ${uplineName}!`
-            : 'Sua jornada no iUser começou!',
-          p_priority: 'HIGH',
-          p_action_url: '/dashboard',
-          p_action_label: 'Começar',
-          p_data: {
-            upline_id: uplineId,
-            created_at: new Date().toISOString()
-          }
-        })
-        console.log('✅ Notificação criada')
-      } catch (notifError) {
-        console.error('Erro na notificação:', notifError)
       }
 
       setRegistered(true)
