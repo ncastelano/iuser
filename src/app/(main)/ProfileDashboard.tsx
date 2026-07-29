@@ -47,8 +47,11 @@ import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './PublicationProfile'
 import ProfileOperatingDays from './ProfileOperatingDays'
 
-import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
+// ✅ IMPORTAR O COMPONENTE COMMISSION
 import Commission from './Commission'
+
+import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
+
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
