@@ -1,4 +1,4 @@
-// app/(auth)/register/page.tsx - VERSÃO COMPLETA E CORRIGIDA
+// app/(auth)/register/page.tsx 
 
 'use client'
 
@@ -210,11 +210,7 @@ function RegisterContent() {
         const slug = profileSlugRef.current
         console.log('🔀 Redirecionando com slug do ref:', slug)
 
-        if (slug) {
-          window.location.href = `/${slug}`
-        } else {
-          window.location.href = '/'
-        }
+        window.location.href = '/'
       }, 2000)
 
       return () => clearTimeout(timer)
@@ -257,11 +253,7 @@ function RegisterContent() {
               onClick={() => {
                 const slug = profileSlugRef.current
                 console.log('🔀 Botão: Redirecionando com slug:', slug)
-                if (slug) {
-                  window.location.href = `/${slug}`
-                } else {
-                  window.location.href = '/'
-                }
+                window.location.href = '/'
               }}
               className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               style={{
