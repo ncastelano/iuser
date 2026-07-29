@@ -100,7 +100,7 @@ function RegisterContent() {
 
       // 3. Buscar o upline_id
       let uplineId = null
-      let uplineData = null
+      let uplineName = null
       if (referralSlug) {
         const { data: upline, error: uplineError } = await supabase
           .from('profiles')
@@ -114,7 +114,7 @@ function RegisterContent() {
 
         if (upline) {
           uplineId = upline.id
-          uplineData = upline
+          uplineName = upline.name
           console.log('✅ Upline encontrado:', upline.name, uplineId)
         } else {
           console.log('⚠️ Upline não encontrado para o slug:', referralSlug)
@@ -146,36 +146,26 @@ function RegisterContent() {
 
       console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-      // 5. Criar perfil SEM upline_id primeiro
-      console.log('📝 Criando perfil...')
-      const profileData = {
-        id: authData.user.id,
-        name: name,
-        profileSlug: profileSlug,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
+      // 5. 🔥 USAR A FUNÇÃO create_profile
+      console.log('📝 Criando perfil via função SQL...')
 
-      // Se tiver upline, adicionar depois
-      if (uplineId) {
-        Object.assign(profileData, { upline_id: uplineId })
-      }
-
-      console.log('📝 Dados do perfil:', profileData)
-
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert(profileData)
+      const { data: profileResult, error: profileError } = await supabase.rpc('create_profile', {
+        p_user_id: authData.user.id,
+        p_name: name,
+        p_profile_slug: profileSlug,
+        p_upline_id: uplineId,
+        p_is_active: true
+      })
 
       if (profileError) {
-        console.error('❌ Erro detalhado ao criar perfil:', {
-          message: profileError.message,
-          details: profileError.details,
-          hint: profileError.hint,
-          code: profileError.code
-        })
+        console.error('❌ Erro ao criar perfil:', profileError)
         throw new Error(`Erro ao criar perfil: ${profileError.message}`)
+      }
+
+      console.log('✅ Resultado da função:', profileResult)
+
+      if (!profileResult || !profileResult.success) {
+        throw new Error(profileResult?.error || 'Erro ao criar perfil')
       }
 
       console.log('✅ Perfil criado com sucesso!')
@@ -188,43 +178,26 @@ function RegisterContent() {
         console.error('Erro ao limpar cookie:', error)
       }
 
-      // 7. Vincular à rede (se tiver upline)
-      if (uplineId) {
-        console.log('🔗 Vinculando à rede...')
-        try {
-          // Verificar se a função existe
-          const { data: functionExists, error: checkError } = await supabase.rpc(
-            'link_user_to_network',
-            {
-              p_user_id: authData.user.id,
-              p_upline_id: uplineId
-            }
-          )
-
-          if (checkError) {
-            console.error('❌ Erro na função link_user_to_network:', checkError)
-
-            // Fallback: Atualizar diretamente
-            console.log('🔄 Usando fallback: atualizando upline_id diretamente...')
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({
-                upline_id: uplineId,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', authData.user.id)
-
-            if (updateError) {
-              console.error('❌ Erro no fallback:', updateError)
-            } else {
-              console.log('✅ Upline atualizado via fallback!')
-            }
-          } else {
-            console.log('✅ Usuário vinculado à rede com sucesso!', functionExists)
+      // 7. Criar notificação de boas-vindas (opcional)
+      try {
+        await supabase.rpc('create_notification', {
+          p_user_id: authData.user.id,
+          p_type: 'WELCOME',
+          p_title: 'Bem-vindo ao iUser! 🚀',
+          p_message: uplineName
+            ? `Você agora faz parte da rede de ${uplineName}!`
+            : 'Sua jornada no iUser começou!',
+          p_priority: 'HIGH',
+          p_action_url: '/dashboard',
+          p_action_label: 'Começar',
+          p_data: {
+            upline_id: uplineId,
+            created_at: new Date().toISOString()
           }
-        } catch (networkError) {
-          console.error('❌ Erro na vinculação:', networkError)
-        }
+        })
+        console.log('✅ Notificação criada')
+      } catch (notifError) {
+        console.error('Erro na notificação:', notifError)
       }
 
       setRegistered(true)
