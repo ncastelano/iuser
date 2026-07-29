@@ -1,9 +1,11 @@
-// src/app/(auth)/register/page.tsx
+// app/(auth)/register/page.tsx
+
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useTheme } from '@/app/theme'
 import {
   User,
   Link as LinkIcon,
@@ -15,13 +17,23 @@ import {
   Zap,
   Sparkles,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2,
+  Home,
 } from 'lucide-react'
-import { BottomNav } from '@/components/BottomNav'
-import AnimatedBackground from '@/components/AnimatedBackground'
+import { toast } from 'sonner'
+
+function hexToRgb(hex: string) {
+  const clean = hex.replace('#', '')
+  const bigint = parseInt(clean, 16)
+  return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
 
 function RegisterContent() {
   const router = useRouter()
+  const { colors } = useTheme()
+  const surfaceRgb = hexToRgb(colors.surface)
+
   const [name, setName] = useState('')
   const [profileSlug, setProfileSlug] = useState('')
   const [email, setEmail] = useState('')
@@ -31,6 +43,11 @@ function RegisterContent() {
   const [loading, setLoading] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  const accentColor = colors.accent
+  const textPrimary = colors.textPrimary
+  const textSecondary = colors.textSecondary
+  const borderColor = colors.border
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,13 +66,13 @@ function RegisterContent() {
       return
     }
 
-
     try {
+      // 1. Verificar se o slug já existe
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('profileSlug', profileSlug)
-        .single()
+        .maybeSingle()
 
       if (existingProfile) {
         setError('Este link já está em uso por outro usuário.')
@@ -63,6 +80,42 @@ function RegisterContent() {
         return
       }
 
+      // 2. 🔥 LER COOKIE DE INDICAÇÃO
+      let referralSlug = null
+      try {
+        const res = await fetch('/api/get-referral-cookie')
+        const data = await res.json()
+        referralSlug = data.referralSlug || null
+        console.log('🔗 Cookie lido:', referralSlug)
+      } catch (error) {
+        console.error('Erro ao ler cookie:', error)
+      }
+
+      // 3. Buscar o upline_id
+      let uplineId = null
+      if (referralSlug) {
+        const { data: upline, error: uplineError } = await supabase
+          .from('profiles')
+          .select('id, name, profileSlug')
+          .eq('profileSlug', referralSlug)
+          .maybeSingle()
+
+        if (uplineError) {
+          console.error('Erro ao buscar upline:', uplineError)
+        }
+
+        // 🔥 CORREÇÃO: Verificar se upline existe antes de acessar
+        if (upline) {
+          uplineId = upline.id
+          console.log('✅ Upline encontrado:', upline.name, uplineId)
+        } else {
+          console.log('⚠️ Upline não encontrado para o slug:', referralSlug)
+        }
+      } else {
+        console.log('ℹ️ Nenhum convite encontrado')
+      }
+
+      // 4. Criar usuário no Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -76,304 +129,434 @@ function RegisterContent() {
       if (authError) throw authError
 
       if (authData.user) {
-        const getReferralSlug = async () => {
-          try {
-            const res = await fetch('/api/get-referral-cookie')
-            const data = await res.json()
-            return data.referralSlug || null
-          } catch {
-            return null
-          }
-        }
-
-        const referralSlug = await getReferralSlug()
-        let uplineId = null
-
-        if (referralSlug) {
-          const { data: upline } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('profileSlug', referralSlug)
-            .single()
-
-          uplineId = upline?.id || null
-        }
-
+        // 5. Criar perfil com upline_id
         const { error: profileError } = await supabase
           .from('profiles')
           .upsert({
             id: authData.user.id,
             name: name,
             upline_id: uplineId,
-            profileSlug: profileSlug
+            profileSlug: profileSlug,
+            is_active: true,
+            created_at: new Date().toISOString()
           })
 
         if (profileError) {
           console.error('Erro ao criar perfil:', profileError)
+          toast.error('Erro ao criar perfil: ' + profileError.message)
+          setLoading(false)
+          return
         }
 
-        await fetch('/api/clear-referral-cookie', { method: 'POST' })
+        console.log('✅ Perfil criado com sucesso! Upline:', uplineId)
+
+        // 6. 🔥 LIMPAR O COOKIE
+        try {
+          await fetch('/api/clear-referral-cookie', { method: 'POST' })
+          console.log('✅ Cookie removido')
+        } catch (error) {
+          console.error('Erro ao limpar cookie:', error)
+        }
+
+        // 7. Vincular à rede (se tiver upline)
+        if (uplineId) {
+          try {
+            const { data, error: networkError } = await supabase.rpc('link_user_to_network', {
+              p_user_id: authData.user.id,
+              p_upline_id: uplineId
+            })
+
+            if (networkError) {
+              console.error('Erro ao vincular à rede:', networkError)
+              // Não falha o registro se a vinculação falhar
+            } else {
+              console.log('✅ Usuário vinculado à rede com sucesso!', data)
+            }
+          } catch (networkError) {
+            console.error('Erro na vinculação:', networkError)
+          }
+        }
 
         setRegistered(true)
+        toast.success('🎉 Conta criada com sucesso!')
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     } catch (err: any) {
-      setError(err.message)
+      console.error('Erro no registro:', err)
+      setError(err.message || 'Erro ao criar conta')
     } finally {
       setLoading(false)
     }
   }
 
-  // Tela de sucesso após cadastro
+  // 🔥 Tela de sucesso
   if (registered) {
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        router.push('/')
+      }, 2000)
+
+      return () => clearTimeout(timer)
+    }, [router])
+
     return (
-      <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-        <AnimatedBackground />
+      <div
+        className="relative flex flex-col min-h-screen pb-32"
+        style={{ background: colors.background }}
+      >
         <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-          <div className="w-full max-w-md text-center">
-            <div className="mb-6">
-              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl">
-                <CheckCircle2 className="w-10 h-10 text-white" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
-              Perfil criado! 🎉
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Enviamos um link de <span className="font-bold text-gray-900">ativação</span> para o seu e-mail.
-            </p>
-            <p className="text-sm text-gray-600 mb-6">
-              Após confirmar, seu perfil <span className="font-mono text-xs bg-white/60 px-1 py-0.5 rounded border border-orange-200">/{profileSlug}</span> estará no ar
-              e você poderá <span className="font-bold text-gray-900">criar sua primeira loja</span>!
-            </p>
-            <button
-              onClick={() => router.push('/login')}
-              className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95"
+          <div
+            className="w-full max-w-md rounded-3xl p-8 text-center"
+            style={{
+              background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: `1px solid ${borderColor}`,
+              boxShadow: colors.shadow,
+            }}
+          >
+            <div
+              className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-xl mb-4"
+              style={{
+                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                color: colors.accentText,
+              }}
             >
-              Ir para o Login
-              <ArrowRight className="w-4 h-4 inline-block ml-2 group-hover:translate-x-1 transition-transform" />
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <h2 className="text-2xl font-black mb-2" style={{ color: textPrimary }}>
+              Conta criada! 🎉
+            </h2>
+            <p className="text-sm" style={{ color: textSecondary }}>
+              Bem-vindo ao iUser! Você será redirecionado em instantes.
+            </p>
+
+            <button
+              onClick={() => router.push('/')}
+              className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+              style={{
+                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                color: colors.accentText,
+                boxShadow: `0 4px 14px ${accentColor}40`,
+              }}
+            >
+              <Home className="w-4 h-4" />
+              Ir para o Início
             </button>
           </div>
         </div>
-        <BottomNav />
       </div>
     )
   }
 
   return (
-    <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-      <AnimatedBackground />
-
-      {/* Main content */}
+    <div
+      className="relative flex flex-col min-h-screen pb-32"
+      style={{ background: colors.background }}
+    >
       <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-        <form onSubmit={handleRegister} className="w-full max-w-md mb-8">
-          {/* Logo Avatar Circular */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mx-auto">
-                <img src="/logo.png" alt="iUser" className="w-12 h-12 object-contain rounded-full" />
+        <form onSubmit={handleRegister} className="w-full max-w-md">
+          <div
+            className="rounded-3xl p-8 flex flex-col gap-6"
+            style={{
+              background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: `1px solid ${borderColor}`,
+              boxShadow: colors.shadow,
+            }}
+          >
+            {/* Logo */}
+            <div className="text-center">
+              <div
+                className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{
+                  background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                  color: colors.accentText,
+                }}
+              >
+                <img src="/logotransparente.png" alt="iUser" className="w-12 h-12 object-contain" />
+              </div>
+
+              <h1 className="text-2xl font-black" style={{ color: textPrimary }}>
+                Crie seu perfil
+              </h1>
+              <p className="text-sm" style={{ color: textSecondary }}>
+                Comece a vender em minutos. É grátis!
+              </p>
+
+              <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                <div
+                  className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                  style={{
+                    background: `${accentColor}20`,
+                    color: accentColor,
+                  }}
+                >
+                  <Store className="w-3 h-3" />
+                  <span>Sua loja</span>
+                </div>
+                <div
+                  className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                  style={{
+                    background: `${accentColor}15`,
+                    color: accentColor,
+                  }}
+                >
+                  <Zap className="w-3 h-3" />
+                  <span>Venda em tempo real</span>
+                </div>
+                <div
+                  className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                  style={{
+                    background: `${accentColor}10`,
+                    color: accentColor,
+                  }}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Grátis</span>
+                </div>
               </div>
             </div>
 
-            <h1 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
-              Crie seu perfil
-            </h1>
-            <p className="text-sm text-gray-600">
-              Comece a vender em minutos. É grátis!
-            </p>
-
-            {/* Feature badges */}
-            <div className="flex items-center justify-center gap-4 mt-4">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                <Store className="w-3 h-3" />
-                <span>Sua loja</span>
+            {/* Error Message */}
+            {error && (
+              <div
+                className="p-3 text-xs font-bold rounded-xl"
+                style={{
+                  background: '#ef444420',
+                  border: `1px solid #ef444430`,
+                  color: '#ef4444',
+                }}
+              >
+                ⚠️ {error}
               </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
-                <Zap className="w-3 h-3" />
-                <span>Venda em tempo real</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
-                <Sparkles className="w-3 h-3" />
-                <span>Grátis</span>
-              </div>
-            </div>
-          </div>
+            )}
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 p-3 text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl">
-              ⚠️ {error}
-            </div>
-          )}
-
-          {/* Form Fields */}
-          <div className="space-y-5">
-            {/* Nome */}
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                <User className="w-4 h-4 text-orange-500" />
-                SEU NOME
-              </label>
-              <input
-                type="text"
-                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                placeholder="Como você quer ser chamado?"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            {/* Slug (link) */}
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                <LinkIcon className="w-4 h-4 text-orange-500" />
-                SEU LINK
-              </label>
-              <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl focus-within:border-orange-500 transition-all overflow-hidden">
-                <span className="pl-4 pr-1 text-xs font-mono text-gray-400 bg-white py-3">
-                  iuser.com.br/
-                </span>
+            {/* Form Fields */}
+            <div className="space-y-4">
+              {/* Nome */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                  <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  SEU NOME
+                </label>
                 <input
                   type="text"
-                  className="flex-1 py-3 pl-0 pr-4 bg-white text-gray-900 outline-none text-sm font-mono"
-                  placeholder="seu-nome"
-                  value={profileSlug}
-                  onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                  style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                    border: `2px solid ${borderColor}`,
+                    color: textPrimary,
+                    '--tw-ring-color': accentColor,
+                  } as React.CSSProperties}
+                  placeholder="Como você quer ser chamado?"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
                   disabled={loading}
                 />
               </div>
-              <p className="text-[11px] text-gray-500 ml-1">
-                🔗 Seu link público: <span className="font-mono font-bold">/{profileSlug || "seu-nome"}</span>
-              </p>
-            </div>
 
-            {/* Email */}
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                <Mail className="w-4 h-4 text-orange-500" />
-                E-MAIL
-              </label>
-              <input
-                type="email"
-                className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            {/* Senha e Confirmar senha lado a lado */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                  <Lock className="w-4 h-4 text-orange-500" />
-                  SENHA
+              {/* Slug (link) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                  <LinkIcon className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  SEU LINK
                 </label>
-                <div className="relative">
+                <div
+                  className="flex items-center rounded-xl transition-all overflow-hidden focus-within:ring-2 focus-within:ring-opacity-50"
+                  style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                    border: `2px solid ${borderColor}`,
+                    '--tw-ring-color': accentColor,
+                  } as React.CSSProperties}
+                >
+                  <span className="pl-4 pr-1 text-xs font-mono py-3" style={{ color: textSecondary }}>
+                    iuser.com.br/
+                  </span>
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 pr-10"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
-                  <Lock className="w-4 h-4 text-orange-500" />
-                  CONFIRMAR
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    type="text"
+                    className="flex-1 py-3 pl-0 pr-4 outline-none text-sm font-mono"
+                    style={{
+                      background: 'transparent',
+                      color: textPrimary,
+                    }}
+                    placeholder="seu-nome"
+                    value={profileSlug}
+                    onChange={(e) => setProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                     required
                     disabled={loading}
                   />
                 </div>
+                <p className="text-[10px]" style={{ color: textSecondary }}>
+                  🔗 Seu link público: <span className="font-mono font-bold" style={{ color: accentColor }}>/{profileSlug || "seu-nome"}</span>
+                </p>
+              </div>
+
+              {/* Email */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                  <Mail className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  E-MAIL
+                </label>
+                <input
+                  type="email"
+                  className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                    border: `2px solid ${borderColor}`,
+                    color: textPrimary,
+                    '--tw-ring-color': accentColor,
+                  } as React.CSSProperties}
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Senha e Confirmar senha lado a lado */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                    <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    SENHA
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50 pr-10"
+                      style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                        border: `2px solid ${borderColor}`,
+                        color: textPrimary,
+                        '--tw-ring-color': accentColor,
+                      } as React.CSSProperties}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                      style={{ color: textSecondary }}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
+                    <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    CONFIRMAR
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                      style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                        border: `2px solid ${borderColor}`,
+                        color: textPrimary,
+                        '--tw-ring-color': accentColor,
+                      } as React.CSSProperties}
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Botão de cadastro */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="group relative w-full mt-8 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="relative z-10 flex items-center justify-center gap-2">
+            {/* Botão de cadastro */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                color: colors.accentText,
+                boxShadow: `0 4px 14px ${accentColor}40`,
+              }}
+            >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
                   Criar meu perfil
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
-            </span>
-          </button>
+            </button>
 
-          {/* Termos */}
-          <div className="mt-6 text-center">
-            <p className="text-[10px] text-gray-500">
-              Ao criar uma conta, você concorda com nossos{' '}
-              <a href="/termos" className="font-bold text-orange-600 hover:underline">
-                Termos de Uso
-              </a>
-            </p>
-          </div>
-
-          {/* Divisor */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-orange-200/50"></div>
+            {/* Termos */}
+            <div className="text-center">
+              <p className="text-[10px]" style={{ color: textSecondary }}>
+                Ao criar uma conta, você concorda com nossos{' '}
+                <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>
+                  Termos de Uso
+                </a>
+              </p>
             </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white/40 backdrop-blur-sm text-gray-500 text-[9px] font-bold">Já tem perfil?</span>
+
+            {/* Divisor */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" style={{ borderColor: `${borderColor}50` }} />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span
+                  className="px-2 text-[9px] font-bold"
+                  style={{
+                    background: colors.surface,
+                    color: textSecondary,
+                  }}
+                >
+                  Já tem perfil?
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Botão de login */}
-          <button
-            type="button"
-            onClick={() => router.push('/login')}
-            className="w-full py-3.5 bg-white border-2 border-orange-200 text-gray-700 rounded-xl font-black uppercase text-sm tracking-wider hover:bg-orange-50 transition-all"
-          >
-            Fazer login
-          </button>
+            {/* Botão de login */}
+            <button
+              type="button"
+              onClick={() => router.push('/login')}
+              className="w-full py-3.5 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
+              style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                border: `2px solid ${borderColor}`,
+                color: textSecondary,
+              }}
+            >
+              Fazer login
+            </button>
 
-          {/* Mensagem motivacional */}
-          <div className="mt-8 pt-4 border-t border-orange-200/30">
-            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50">
-              <p className="text-[11px] text-gray-600 text-center leading-relaxed">
-                ✨ <span className="font-black text-orange-600">Mostre para todos ao redor</span> o que você tem de melhor.<br />
+            {/* Mensagem motivacional */}
+            <div
+              className="rounded-2xl p-4 border"
+              style={{
+                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                borderColor: `${borderColor}30`,
+              }}
+            >
+              <p className="text-[10px] text-center leading-relaxed" style={{ color: textSecondary }}>
+                ✨ <span className="font-bold" style={{ color: accentColor }}>Mostre para todos ao redor</span> o que você tem de melhor.<br />
                 Sua loja, suas vendas, seu sucesso.
               </p>
             </div>
           </div>
         </form>
       </div>
-
-      <BottomNav />
     </div>
   )
 }
@@ -381,8 +564,11 @@ function RegisterContent() {
 export default function Register() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: '#000' }}
+      >
+        <div className="w-8 h-8 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
       </div>
     }>
       <RegisterContent />

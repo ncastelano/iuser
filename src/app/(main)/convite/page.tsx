@@ -5,32 +5,44 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useTheme } from '@/app/theme'
 import {
-    User,
+    Users,
     Link as LinkIcon,
     ArrowRight,
     CheckCircle2,
-    Store,
-    Zap,
-    Sparkles,
-    Users,
-    Copy,
-    Check,
+    Crown,
     Loader2,
     AlertTriangle,
     Home,
     Send,
-    Mail,
-    Crown
+    Copy,
+    Check,
+    UserPlus,
+    Store,
+    Zap,
+    Sparkles,
+    Compass,
+    Star,
+    Shield,
+    Rocket,
+    TrendingUp,
 } from 'lucide-react'
-import { BottomNav } from '@/components/BottomNav'
-import AnimatedBackground from '@/components/AnimatedBackground'
 import { toast } from 'sonner'
+
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
 
 function ConviteContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const { colors } = useTheme()
     const profileSlug = searchParams.get('ref')
+
+    const surfaceRgb = hexToRgb(colors.surface)
 
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
@@ -38,6 +50,14 @@ function ConviteContent() {
     const [currentUser, setCurrentUser] = useState<any>(null)
     const [copied, setCopied] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    const accentColor = colors.accent
+    const textPrimary = colors.textPrimary
+    const textSecondary = colors.textSecondary
+    const borderColor = colors.border
+
+    const primaryParticle = accentColor
+    const darkerAccent = colors.accentLight || accentColor
 
     useEffect(() => {
         const loadPageData = async () => {
@@ -81,10 +101,33 @@ function ConviteContent() {
         loadPageData()
     }, [profileSlug])
 
+    // 🔥 FUNÇÃO ATUALIZADA: Salvar cookie antes de redirecionar
     const handleJoinNotLogged = async () => {
         setActionLoading(true)
         try {
-            // 🔥 Redireciona para /register com o ref
+            // 1. Salvar o cookie com o slug do convite
+            if (inviter?.profileSlug) {
+                const response = await fetch('/api/set-referral-cookie', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        referralSlug: inviter.profileSlug
+                    }),
+                })
+
+                if (!response.ok) {
+                    console.error('Erro ao salvar cookie')
+                    toast.error('Erro ao processar convite')
+                    setActionLoading(false)
+                    return
+                }
+
+                console.log('✅ Cookie salvo:', inviter.profileSlug)
+            }
+
+            // 2. Redirecionar para o registro
             const params = new URLSearchParams({
                 ref: inviter.profileSlug
             })
@@ -97,24 +140,32 @@ function ConviteContent() {
         }
     }
 
+    // 🔥 FUNÇÃO ATUALIZADA: Vincular usuário logado
     const handleBindNetwork = async () => {
         if (!currentUser || !inviter) return
         setActionLoading(true)
 
         try {
-            const { error } = await supabase.rpc('vincular_upline', {
+            // Usar a função do Supabase
+            const { data, error } = await supabase.rpc('link_user_to_network', {
                 p_user_id: currentUser.id,
                 p_upline_id: inviter.id
             })
 
             if (error) {
+                console.error('Erro ao vincular via RPC:', error)
+
+                // Fallback: update direto
                 const { error: updateError } = await supabase
                     .from('profiles')
-                    .update({ upline_id: inviter.id })
+                    .update({
+                        upline_id: inviter.id,
+                        updated_at: new Date().toISOString()
+                    })
                     .eq('id', currentUser.id)
 
                 if (updateError) {
-                    console.error('Erro ao vincular:', updateError)
+                    console.error('Erro ao vincular (fallback):', updateError)
                     toast.error('Não foi possível entrar na rede: ' + updateError.message)
                     setActionLoading(false)
                     return
@@ -146,18 +197,27 @@ function ConviteContent() {
         }
     }
 
+    // ... o resto do código (loading, renderização) permanece igual ...
+    // ... apenas o handleJoinNotLogged e handleBindNetwork foram alterados
+
     // Carregando
     if (loading) {
         return (
-            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-                <AnimatedBackground />
+            <div
+                className="relative flex flex-col min-h-screen pb-32"
+                style={{ background: colors.background }}
+            >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4">
                     <div className="text-center">
-                        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-                        <p className="text-sm text-gray-600">Carregando convite...</p>
+                        <Loader2
+                            className="w-12 h-12 animate-spin mx-auto mb-4"
+                            style={{ color: accentColor }}
+                        />
+                        <p className="text-sm" style={{ color: textSecondary }}>
+                            Carregando convite...
+                        </p>
                     </div>
                 </div>
-                <BottomNav />
             </div>
         )
     }
@@ -165,35 +225,126 @@ function ConviteContent() {
     // Sem profileSlug na URL
     if (!profileSlug) {
         return (
-            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-                <AnimatedBackground />
+            <div
+                className="relative flex flex-col min-h-screen pb-32"
+                style={{ background: colors.background }}
+            >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-                    <div className="w-full max-w-md text-center">
-                        <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mb-6">
-                            <Send className="w-10 h-10 text-white" />
+                    <div
+                        className="w-full max-w-md rounded-3xl p-8 text-center"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: `1px solid ${borderColor}`,
+                            boxShadow: colors.shadow,
+                        }}
+                    >
+                        {/* Logo com animação */}
+                        <div className="relative z-10 flex justify-center mb-6">
+                            <div
+                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                }}
+                            />
+                            <div
+                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                }}
+                            >
+                                <img
+                                    src="/logotransparente.png"
+                                    alt="iUser"
+                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
+                                />
+                            </div>
                         </div>
-                        <h1 className="text-2xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-3">
+
+                        <h1 className="text-2xl font-black mb-3" style={{ color: textPrimary }}>
                             Link de Convite
                         </h1>
-                        <p className="text-sm text-gray-600 max-w-sm mx-auto mb-8">
+                        <p className="text-sm mb-8" style={{ color: textSecondary }}>
                             Para aceitar um convite, você precisa de um link válido com o nome de quem te convidou.
                         </p>
-                        <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/50 mb-6 text-left">
-                            <p className="text-xs text-gray-500 mb-1">Exemplo:</p>
-                            <code className="text-sm text-orange-600 font-mono">
+                        <div
+                            className="rounded-2xl p-4 mb-6 text-left"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                border: `1px solid ${borderColor}`,
+                            }}
+                        >
+                            <p className="text-xs mb-1" style={{ color: textSecondary }}>Exemplo:</p>
+                            <code className="text-sm font-mono" style={{ color: accentColor }}>
                                 iuser.com.br/convite?ref=joaosilva
                             </code>
                         </div>
+
+                        {/* Card "Conhecer o iUser" */}
+                        <div
+                            className="rounded-2xl p-6 mb-6 text-left transition-all hover:scale-[1.02] cursor-pointer"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}15, ${accentColor}05)`,
+                                border: `1px solid ${accentColor}30`,
+                            }}
+                            onClick={() => router.push('/')}
+                        >
+                            <div className="flex items-start gap-4">
+                                <div
+                                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                        color: colors.accentText,
+                                    }}
+                                >
+                                    <img
+                                        src="/logotransparente.png"
+                                        alt="iUser"
+                                        className="h-8 w-8 object-contain rounded-full drop-shadow-lg relative z-20"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold" style={{ color: textPrimary }}>
+                                        Conhecer o iUser
+                                    </h4>
+                                    <p className="text-xs mt-1" style={{ color: textSecondary }}>
+                                        Descubra como o que outras pessoas tem a oferecer
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
+                                            <Rocket className="w-3 h-3" />
+                                            Comece grátis
+                                        </span>
+                                        <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
+                                            <Star className="w-3 h-3" />
+                                            +1000 lojas
+                                        </span>
+                                    </div>
+                                </div>
+                                <ArrowRight className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: accentColor }} />
+                            </div>
+                        </div>
+
                         <button
                             onClick={() => router.push('/')}
-                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 14px ${accentColor}40`,
+                            }}
                         >
-                            <Home className="w-4 h-4" />
-                            Voltar ao Início
+                            <img
+                                src="/logotransparente.png"
+                                alt="iUser"
+                                className="h-5 w-5 object-contain rounded-full drop-shadow-lg relative z-20"
+                            />
+                            Explorar iUser
                         </button>
                     </div>
                 </div>
-                <BottomNav />
             </div>
         )
     }
@@ -201,27 +352,66 @@ function ConviteContent() {
     // Convite inválido
     if (error || !inviter) {
         return (
-            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-                <AnimatedBackground />
+            <div
+                className="relative flex flex-col min-h-screen pb-32"
+                style={{ background: colors.background }}
+            >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
-                    <div className="w-full max-w-md text-center">
-                        <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                        <h1 className="text-2xl font-black bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent mb-2">
+                    <div
+                        className="w-full max-w-md rounded-3xl p-8 text-center"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: `1px solid ${borderColor}`,
+                            boxShadow: colors.shadow,
+                        }}
+                    >
+                        {/* Logo com animação */}
+                        <div className="relative z-10 flex justify-center mb-6">
+                            <div
+                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                }}
+                            />
+                            <div
+                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                }}
+                            >
+                                <img
+                                    src="/logotransparente.png"
+                                    alt="iUser"
+                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
+                                />
+                            </div>
+                        </div>
+
+                        <AlertTriangle className="w-16 h-16 mx-auto mb-4" style={{ color: '#ef4444' }} />
+                        <h1 className="text-2xl font-black mb-2" style={{ color: textPrimary }}>
                             Convite Inválido
                         </h1>
-                        <p className="text-sm text-gray-600 mb-8">
+                        <p className="text-sm mb-8" style={{ color: textSecondary }}>
                             Este link de convite não existe ou expirou.
                         </p>
+
                         <button
                             onClick={() => router.push('/')}
-                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                color: colors.accentText,
+                                boxShadow: `0 4px 14px ${accentColor}40`,
+                            }}
                         >
-                            <Home className="w-4 h-4" />
-                            Voltar ao Início
+                            <Compass className="w-4 h-4" />
+                            Explorar iUser
                         </button>
                     </div>
                 </div>
-                <BottomNav />
             </div>
         )
     }
@@ -229,218 +419,336 @@ function ConviteContent() {
     const isSameUser = currentUser?.id === inviter.id
 
     return (
-        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-            <AnimatedBackground />
-
+        <div
+            className="relative flex flex-col min-h-screen pb-32"
+            style={{ background: colors.background }}
+        >
             <div className="relative z-10 flex-1 flex items-center justify-center px-4 py-8">
                 <div className="w-full max-w-md">
-                    {/* Logo */}
-                    <div className="text-center mb-8">
-                        <div className="flex justify-center mb-4">
-                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-xl mx-auto">
-                                <Users className="w-10 h-10 text-white" />
-                            </div>
-                        </div>
-
-                        <h1 className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
-                            Convite Exclusivo
-                        </h1>
-                        <p className="text-sm text-gray-600">
-                            Você foi convidado(a) para o iUser!
-                        </p>
-
-                        {/* Feature badges */}
-                        <div className="flex items-center justify-center gap-4 mt-4">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                                <Store className="w-3 h-3" />
-                                <span>Sua loja</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 bg-red-100 px-3 py-1 rounded-full">
-                                <Zap className="w-3 h-3" />
-                                <span>Venda em tempo real</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full">
-                                <Sparkles className="w-3 h-3" />
-                                <span>Grátis</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Card do convidante */}
-                    <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center mb-6">
-                        <div className="w-20 h-20 rounded-full border-4 border-orange-200 bg-orange-100 flex items-center justify-center overflow-hidden mx-auto mb-3 shadow-lg">
-                            {inviter.avatar_url ? (
-                                <img
-                                    src={inviter.avatar_url}
-                                    className="w-full h-full object-cover"
-                                    alt={inviter.name}
-                                />
-                            ) : (
-                                <span className="text-3xl font-bold text-orange-500">
-                                    {inviter.name?.charAt(0) || '?'}
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="flex items-center justify-center gap-2 mb-1">
-                            <h2 className="text-xl font-bold text-gray-800">
-                                {inviter.name}
-                            </h2>
-                            <Crown className="w-4 h-4 text-orange-500" />
-                        </div>
-
-                        <p className="text-sm text-gray-500">
-                            @{inviter.profileSlug}
-                        </p>
-
-                        <div className="mt-3 pt-3 border-t border-orange-200/30">
-                            <p className="text-xs text-gray-500">
-                                <span className="font-bold text-orange-600">🔗 Convite exclusivo</span> — junte-se à rede de {inviter.name}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* CASO 1: NÃO LOGADO */}
-                    {!currentUser && (
-                        <button
-                            onClick={handleJoinNotLogged}
-                            disabled={actionLoading}
-                            className="group w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {actionLoading ? (
-                                <div className="flex items-center justify-center gap-2">
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                    Processando...
-                                </div>
-                            ) : (
-                                <span className="flex items-center justify-center gap-2">
-                                    Criar Conta e Entrar
-                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                </span>
-                            )}
-                        </button>
-                    )}
-
-                    {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
-                    {isSameUser && (
-                        <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center">
-                            <CheckCircle2 className="w-12 h-12 text-orange-500 mx-auto mb-3" />
-                            <h3 className="text-lg font-bold text-gray-800 mb-1">
-                                Este é o seu link de convite!
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-4">
-                                Copie esta URL e envie para novos parceiros.
-                            </p>
-                            <button
-                                onClick={handleCopyLink}
-                                className="flex items-center justify-center gap-2 w-full py-3 bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold rounded-xl transition-colors"
+                    <div
+                        className="rounded-3xl p-8 flex flex-col gap-6"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: `1px solid ${borderColor}`,
+                            boxShadow: colors.shadow,
+                        }}
+                    >
+                        {/* Logo com animação */}
+                        <div className="relative z-10 flex justify-center">
+                            <div
+                                className="absolute w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                }}
+                            />
+                            <div
+                                className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
+                                style={{
+                                    background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                    boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                }}
                             >
-                                {copied ? (
+                                <img
+                                    src="/logotransparente.png"
+                                    alt="iUser"
+                                    className="h-10 w-10 object-contain rounded-full drop-shadow-lg relative z-20"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="text-center">
+                            <h1 className="text-2xl font-black" style={{ color: textPrimary }}>
+                                Convite Exclusivo
+                            </h1>
+                            <p className="text-sm" style={{ color: textSecondary }}>
+                                Você foi convidado(a) para o iUser!
+                            </p>
+
+                            {/* Feature badges */}
+                            <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
+                                <div
+                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                                    style={{
+                                        background: `${accentColor}20`,
+                                        color: accentColor,
+                                    }}
+                                >
+                                    <Store className="w-3 h-3" />
+                                    <span>Sua loja</span>
+                                </div>
+                                <div
+                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                                    style={{
+                                        background: `${accentColor}15`,
+                                        color: accentColor,
+                                    }}
+                                >
+                                    <Zap className="w-3 h-3" />
+                                    <span>Venda em tempo real</span>
+                                </div>
+                                <div
+                                    className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
+                                    style={{
+                                        background: `${accentColor}10`,
+                                        color: accentColor,
+                                    }}
+                                >
+                                    <Sparkles className="w-3 h-3" />
+                                    <span>Grátis</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card do convidante */}
+                        <div
+                            className="rounded-2xl p-6 text-center"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                border: `1px solid ${borderColor}`,
+                            }}
+                        >
+                            <div
+                                className="w-20 h-20 rounded-full mx-auto mb-3 overflow-hidden"
+                                style={{
+                                    border: `3px solid ${accentColor}`,
+                                    boxShadow: `0 0 30px ${accentColor}30`,
+                                }}
+                            >
+                                {inviter.avatar_url ? (
+                                    <img
+                                        src={inviter.avatar_url}
+                                        className="w-full h-full object-cover"
+                                        alt={inviter.name}
+                                    />
+                                ) : (
+                                    <div
+                                        className="w-full h-full flex items-center justify-center text-3xl font-black"
+                                        style={{ background: `${accentColor}20`, color: accentColor }}
+                                    >
+                                        {inviter.name?.charAt(0) || '?'}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-center gap-2">
+                                <h2 className="text-xl font-bold" style={{ color: textPrimary }}>
+                                    {inviter.name}
+                                </h2>
+                                <Crown className="w-4 h-4" style={{ color: accentColor }} />
+                            </div>
+                            <p className="text-sm" style={{ color: textSecondary }}>
+                                @{inviter.profileSlug}
+                            </p>
+
+                            <div
+                                className="mt-3 pt-3 border-t"
+                                style={{ borderColor: `${borderColor}30` }}
+                            >
+                                <p className="text-xs" style={{ color: textSecondary }}>
+                                    <span className="font-bold" style={{ color: accentColor }}>🔗 Convite exclusivo</span> — junte-se à rede de {inviter.name}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* CASO 1: NÃO LOGADO */}
+                        {!currentUser && (
+                            <button
+                                onClick={handleJoinNotLogged}
+                                disabled={actionLoading}
+                                className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{
+                                    background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                    color: colors.accentText,
+                                    boxShadow: `0 4px 14px ${accentColor}40`,
+                                }}
+                            >
+                                {actionLoading ? (
                                     <>
-                                        <Check className="w-4 h-4 text-green-500" />
-                                        <span className="text-green-500">Copiado!</span>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Processando...
                                     </>
                                 ) : (
                                     <>
-                                        <Copy className="w-4 h-4" />
-                                        Copiar Link
+                                        <UserPlus className="w-4 h-4" />
+                                        Criar Conta e Entrar
+                                        <ArrowRight className="w-4 h-4" />
                                     </>
                                 )}
                             </button>
-                        </div>
-                    )}
+                        )}
 
-                    {/* CASO 3: LOGADO MAS CONTA DIFERENTE */}
-                    {currentUser && !isSameUser && (
-                        <div className="space-y-4">
-                            {currentUser.upline_id ? (
-                                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 border border-orange-200/50 text-center">
-                                    <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                    <h3 className="text-lg font-bold text-gray-800 mb-1">
-                                        Você já tem uma rede
-                                    </h3>
-                                    <p className="text-sm text-gray-600 mb-4">
-                                        Sua conta atual já está conectada a um líder.
-                                        Apenas contas isoladas podem aceitar convites.
-                                    </p>
-                                    <button
-                                        onClick={() => router.push('/dashboard')}
-                                        className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors"
-                                    >
-                                        Ir para meu Painel
-                                    </button>
-                                </div>
-                            ) : (
+                        {/* CASO 2: LOGADO COMO O PRÓPRIO DONO */}
+                        {isSameUser && (
+                            <div
+                                className="rounded-2xl p-6 text-center"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                    border: `1px solid ${borderColor}`,
+                                }}
+                            >
+                                <CheckCircle2 className="w-12 h-12 mx-auto mb-3" style={{ color: accentColor }} />
+                                <h3 className="font-bold" style={{ color: textPrimary }}>
+                                    Este é o seu link de convite!
+                                </h3>
+                                <p className="text-sm mt-1 mb-4" style={{ color: textSecondary }}>
+                                    Copie esta URL e envie para novos parceiros.
+                                </p>
                                 <button
-                                    onClick={handleBindNetwork}
-                                    disabled={actionLoading}
-                                    className="group w-full bg-gradient-to-r from-purple-500 to-orange-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={handleCopyLink}
+                                    className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                                    style={{
+                                        background: `${accentColor}20`,
+                                        border: `1px solid ${accentColor}`,
+                                        color: accentColor,
+                                    }}
                                 >
-                                    {actionLoading ? (
-                                        <div className="flex items-center justify-center gap-2">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            Conectando...
-                                        </div>
+                                    {copied ? (
+                                        <>
+                                            <Check className="w-4 h-4" style={{ color: '#10b981' }} />
+                                            <span style={{ color: '#10b981' }}>Copiado!</span>
+                                        </>
                                     ) : (
-                                        <span className="flex items-center justify-center gap-2">
-                                            <Users className="w-4 h-4" />
-                                            Vincular minha conta
-                                        </span>
+                                        <>
+                                            <Copy className="w-4 h-4" />
+                                            Copiar Link
+                                        </>
                                     )}
                                 </button>
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        )}
 
-                    {/* Divisor e mensagem adicional */}
-                    <div className="mt-6 pt-4 border-t border-orange-200/30">
-                        <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-4 border border-orange-200/30">
-                            <p className="text-[11px] text-gray-600 text-center leading-relaxed">
-                                ✨ <span className="font-black text-orange-600">Construa sua rede</span> de indicações<br />
-                                e ganhe comissões com cada novo membro.
+                        {/* CASO 3: LOGADO MAS CONTA DIFERENTE */}
+                        {currentUser && !isSameUser && (
+                            <div className="space-y-4">
+                                {currentUser.upline_id ? (
+                                    <div
+                                        className="rounded-2xl p-6 text-center"
+                                        style={{
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                            border: `1px solid ${borderColor}`,
+                                        }}
+                                    >
+                                        <Users className="w-12 h-12 mx-auto mb-3" style={{ color: textSecondary }} />
+                                        <h3 className="font-bold" style={{ color: textPrimary }}>
+                                            Você já tem uma rede
+                                        </h3>
+                                        <p className="text-sm mt-1 mb-4" style={{ color: textSecondary }}>
+                                            Sua conta atual já está conectada a um líder.
+                                            Apenas contas isoladas podem aceitar convites.
+                                        </p>
+                                        <button
+                                            onClick={() => router.push('/dashboard')}
+                                            className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
+                                            style={{
+                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                                border: `1px solid ${borderColor}`,
+                                                color: textSecondary,
+                                            }}
+                                        >
+                                            Ir para meu Painel
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={handleBindNetwork}
+                                        disabled={actionLoading}
+                                        className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        style={{
+                                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                            color: colors.accentText,
+                                            boxShadow: `0 4px 14px ${accentColor}40`,
+                                        }}
+                                    >
+                                        {actionLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Conectando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Users className="w-4 h-4" />
+                                                Vincular minha conta
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Card "Conhecer o iUser" */}
+                        <div
+                            className="rounded-2xl p-4 text-left transition-all hover:scale-[1.02] cursor-pointer"
+                            style={{
+                                background: `linear-gradient(135deg, ${accentColor}10, ${accentColor}05)`,
+                                border: `1px solid ${accentColor}20`,
+                            }}
+                            onClick={() => router.push('/')}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                        color: colors.accentText,
+                                    }}
+                                >
+                                    <img
+                                        src="/logotransparente.png"
+                                        alt="iUser"
+                                        className="h-6 w-6 object-contain rounded-full drop-shadow-lg relative z-20"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-sm" style={{ color: textPrimary }}>
+                                        Conhecer o iUser
+                                    </h4>
+                                    <p className="text-[10px]" style={{ color: textSecondary }}>
+                                        Descubra como o que outras pessoas tem a oferecer
+                                    </p>
+                                </div>
+                                <ArrowRight className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+                            </div>
+                        </div>
+
+                        {/* Rodapé */}
+                        <div className="text-center">
+                            <p className="text-[10px]" style={{ color: textSecondary }}>
+                                Ao entrar, você concorda com os{' '}
+                                <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>
+                                    Termos de Uso
+                                </a>
                             </p>
                         </div>
                     </div>
-
-                    {/* Botão voltar */}
-                    <button
-                        onClick={() => router.push('/')}
-                        className="mt-4 w-full py-3 bg-white/50 backdrop-blur-sm border border-orange-200/50 text-gray-600 rounded-xl font-bold text-sm transition-all hover:bg-white/80 flex items-center justify-center gap-2"
-                    >
-                        <Home className="w-4 h-4" />
-                        Voltar ao Início
-                    </button>
-
-                    {/* Rodapé */}
-                    <div className="mt-6 text-center">
-                        <p className="text-[10px] text-gray-500">
-                            Ao entrar, você concorda com os{' '}
-                            <a href="/termos" className="font-bold text-orange-600 hover:underline">
-                                Termos de Uso
-                            </a>
-                        </p>
-                    </div>
                 </div>
             </div>
-
-            <BottomNav />
         </div>
     )
 }
 
-// 🔥 Página principal com Suspense
+// Página principal com Suspense
 export default function ConvitePage() {
+    const { colors } = useTheme()
+
     return (
         <Suspense fallback={
-            <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
-                <AnimatedBackground />
+            <div
+                className="relative flex flex-col min-h-screen pb-32"
+                style={{ background: colors.background }}
+            >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4">
                     <div className="text-center">
-                        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mx-auto mb-4" />
-                        <p className="text-sm text-gray-600">Carregando convite...</p>
+                        <Loader2
+                            className="w-12 h-12 animate-spin mx-auto mb-4"
+                            style={{ color: colors.accent }}
+                        />
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Carregando convite...
+                        </p>
                     </div>
                 </div>
-                <BottomNav />
             </div>
         }>
             <ConviteContent />
