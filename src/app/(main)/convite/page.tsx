@@ -243,7 +243,7 @@ function ConviteContent() {
             toast.success(`🎉 Bem-vindo! Você agora faz parte da rede de ${inviter.name}!`)
 
             setTimeout(() => {
-                router.push('/dashboard')
+                router.push('/')
             }, 1500)
 
         } catch (error) {
@@ -705,7 +705,7 @@ function ConviteContent() {
                                             Apenas contas isoladas podem aceitar convites.
                                         </p>
                                         <button
-                                            onClick={() => router.push('/dashboard')}
+                                            onClick={() => router.push('/')}
                                             className="w-full py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
                                             style={{
                                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -713,7 +713,7 @@ function ConviteContent() {
                                                 color: textSecondary,
                                             }}
                                         >
-                                            Ir para meu Painel
+                                            voltar ao início
                                         </button>
                                     </div>
                                 ) : (

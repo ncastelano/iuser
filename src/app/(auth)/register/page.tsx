@@ -1,4 +1,4 @@
-// app/(auth)/register/page.tsx - VERSÃO CORRIGIDA
+// app/(auth)/register/page.tsx - VERSÃO COMPLETA E CORRIGIDA
 
 'use client'
 
@@ -198,11 +198,11 @@ function RegisterContent() {
     }
   }
 
-  // Tela de sucesso
+  // ✅ Tela de sucesso - REDIRECIONA PARA A PÁGINA INICIAL
   if (registered) {
     useEffect(() => {
       const timer = setTimeout(() => {
-        router.push('/dashboard')
+        router.push('/') // ✅ Redireciona para a página inicial
       }, 2000)
 
       return () => clearTimeout(timer)
@@ -238,11 +238,11 @@ function RegisterContent() {
               Conta criada! 🎉
             </h2>
             <p className="text-sm" style={{ color: textSecondary }}>
-              Bem-vindo ao iUser! Você será redirecionado para o dashboard.
+              Bem-vindo ao iUser! Você será redirecionado para o início.
             </p>
 
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/')}
               className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               style={{
                 background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
@@ -251,7 +251,7 @@ function RegisterContent() {
               }}
             >
               <Home className="w-4 h-4" />
-              Ir para o Dashboard
+              Ir para o Início
             </button>
           </div>
         </div>
