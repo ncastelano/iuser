@@ -27,7 +27,11 @@ function hexToRgb(hex: string) {
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
-function LoginAndRegisterContent() {
+interface LoginAndRegisterProps {
+    onLoginSuccess?: () => void
+}
+
+function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const { colors } = useTheme()
@@ -74,7 +78,13 @@ function LoginAndRegisterContent() {
             if (authError) throw authError
 
             toast.success('Login realizado com sucesso!')
-            router.push('/')
+
+            // Fecha a tela de login e vai para home com refresh
+            if (onLoginSuccess) {
+                onLoginSuccess()
+            } else {
+                window.location.href = '/'
+            }
         } catch (err: any) {
             setLoginError(err.message)
         } finally {
@@ -206,10 +216,14 @@ function LoginAndRegisterContent() {
     useEffect(() => {
         if (!registered) return
         const timer = setTimeout(() => {
-            router.push('/')
+            if (onLoginSuccess) {
+                onLoginSuccess()
+            } else {
+                window.location.href = '/'
+            }
         }, 2000)
         return () => clearTimeout(timer)
-    }, [registered, router])
+    }, [registered, router, onLoginSuccess])
 
     // Tela de sucesso do registro
     if (registered) {
@@ -246,7 +260,9 @@ function LoginAndRegisterContent() {
                         </p>
 
                         <button
-                            onClick={() => router.push('/')}
+                            onClick={() => {
+                                window.location.href = '/'
+                            }}
                             className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                             style={{
                                 background: 'linear-gradient(135deg, #f97316, #dc2626)',
@@ -698,7 +714,7 @@ function LoginAndRegisterContent() {
     )
 }
 
-export default function LoginAndRegister() {
+export default function LoginAndRegister({ onLoginSuccess }: LoginAndRegisterProps) {
     return (
         <Suspense fallback={
             <div
@@ -708,7 +724,7 @@ export default function LoginAndRegister() {
                 <div className="w-8 h-8 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
             </div>
         }>
-            <LoginAndRegisterContent />
+            <LoginAndRegisterContent onLoginSuccess={onLoginSuccess} />
         </Suspense>
     )
 }

@@ -1,4 +1,4 @@
-// app/(main)/[profileSlug]/[storeSlug]/[productSlug]/editar-produto/page.tsx
+// app/(main)/[profileSlug]/[storeSlug]/[slug]/editar-produto/page.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -36,9 +36,9 @@ export default function EditarProduto() {
   const storeSlug = Array.isArray(params.storeSlug)
     ? params.storeSlug[0]
     : params.storeSlug;
-  const productSlug = Array.isArray(params.productSlug)
-    ? params.productSlug[0]
-    : params.productSlug;
+  const slug = Array.isArray(params.slug)
+    ? params.slug[0]
+    : params.slug;
   const profileSlug = Array.isArray(params.profileSlug)
     ? params.profileSlug[0]
     : params.profileSlug;
@@ -92,7 +92,7 @@ export default function EditarProduto() {
 
   useEffect(() => {
     const fetchProductData = async () => {
-      if (!storeSlug || !productSlug) return;
+      if (!storeSlug || !slug) return;
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -125,7 +125,7 @@ export default function EditarProduto() {
       setStoreLat(store.store_lat ?? null);
       setStoreLng(store.store_lng ?? null);
 
-      const decodedSlug = decodeURIComponent(productSlug || "");
+      const decodedSlug = decodeURIComponent(slug || "");
       let query = supabase.from("products").select("*").eq("store_id", store.id);
 
       if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(decodedSlug)) {
@@ -194,7 +194,7 @@ export default function EditarProduto() {
       setPageLoading(false);
     };
     fetchProductData();
-  }, [storeSlug, productSlug]);
+  }, [storeSlug, slug]);
 
   useEffect(() => {
     if (!imageFile) return;
@@ -324,7 +324,7 @@ export default function EditarProduto() {
       if (!error && data) imagePath = data.path;
     }
 
-    let slug = name
+    let slugName = name
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -336,11 +336,11 @@ export default function EditarProduto() {
       const { data } = await supabase
         .from("products")
         .select("id")
-        .eq("slug", slug)
+        .eq("slug", slugName)
         .neq("id", productId)
         .limit(1)
         .maybeSingle();
-      if (data) slug = slug + "-" + Math.floor(Math.random() * 9999).toString();
+      if (data) slugName = slugName + "-" + Math.floor(Math.random() * 9999).toString();
       else isUnique = true;
     }
 
@@ -352,7 +352,7 @@ export default function EditarProduto() {
 
     const updateData: any = {
       name,
-      slug,
+      slug: slugName,
       description,
       price: listingType === "sale" ? parseCurrencyToNumber(price) : 0,
       type,
@@ -464,8 +464,8 @@ export default function EditarProduto() {
               <button
                 onClick={() => setListingType("sale")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "sale"
-                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <DollarSign className="w-4 h-4" />
@@ -474,8 +474,8 @@ export default function EditarProduto() {
               <button
                 onClick={() => setListingType("publication")}
                 className={`flex items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${listingType === "publication"
-                    ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
-                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                  ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent shadow-lg"
+                  : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                   }`}
               >
                 <MessageCircle className="w-4 h-4" />
@@ -510,8 +510,8 @@ export default function EditarProduto() {
                   key={option.value}
                   onClick={() => setType(option.value as ProductType)}
                   className={`flex flex-col items-center justify-center gap-2 py-4 border-2 rounded-xl transition-all text-[9px] font-black uppercase tracking-wider ${type === option.value
-                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
-                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                    ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent shadow-lg"
+                    : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                     }`}
                 >
                   <option.icon className="w-4 h-4" />
@@ -546,8 +546,8 @@ export default function EditarProduto() {
                   <button
                     onClick={() => setPriceType("fixed")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "fixed"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <DollarSign className="w-3 h-3" />
@@ -556,8 +556,8 @@ export default function EditarProduto() {
                   <button
                     onClick={() => setPriceType("hourly")}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border-2 text-[8px] font-black uppercase tracking-wider transition-all ${priceType === "hourly"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-600 hover:bg-orange-50"
                       }`}
                   >
                     <Clock className="w-3 h-3" />
@@ -629,8 +629,8 @@ export default function EditarProduto() {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
-                        : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white border-transparent"
+                      : "bg-white border-orange-200 text-gray-700 hover:bg-orange-50"
                       }`}
                   >
                     {cat}

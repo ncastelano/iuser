@@ -607,6 +607,7 @@ export default function HomePage() {
             return allTabs
         }
 
+
         if (stores.length > 0) {
             stores.forEach((s) => {
                 const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
@@ -621,7 +622,7 @@ export default function HomePage() {
                     label: s.name,
                     icon: Store,
                     imageUrl: s.logoUrl,
-                    onClick: () => router.push(`/${s.slug}`),
+                    onClick: () => router.push(`/${profileSlug}/${s.slug}`), // Isso redireciona para o StoreDashboard
                     isActive: false,
                     indicator: hasActive ? counts : null,
                     statusColor,
@@ -630,7 +631,7 @@ export default function HomePage() {
         } else {
             allTabs.push({
                 id: 'criar-loja',
-                label: 'Criar loja',
+                label: 'Quer criar uma loja?',
                 icon: Store,
                 imageUrl: null,
                 onClick: isLoggedIn
@@ -644,7 +645,6 @@ export default function HomePage() {
     }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, stores, loadingStores, storeOrderCounts, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile
-    const showHomeFab = !showConfig && !showCreateStore && !showLogin && !showProfile
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -703,7 +703,7 @@ export default function HomePage() {
                         onBack={() => setShowCreateStore(false)}
                     />
                 ) : showLogin ? (
-                    <LoginAndRegister />
+                    <LoginAndRegister onLoginSuccess={() => setShowLogin(false)} />
                 ) : showProfile ? (
                     <ProfileDashboard
                         profileSlug={profileSlug}

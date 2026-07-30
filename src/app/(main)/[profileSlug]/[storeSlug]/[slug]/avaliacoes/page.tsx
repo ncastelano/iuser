@@ -1,3 +1,5 @@
+//app/(main)/[profileSlug]/[storeSlug]/[slug]/avaliacoes/page.tsx
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -23,8 +25,7 @@ export default function ProductRatingsPage() {
     const router = useRouter()
     const profileSlug = Array.isArray(params.profileSlug) ? params.profileSlug[0] : params.profileSlug
     const storeSlug = Array.isArray(params.storeSlug) ? params.storeSlug[0] : params.storeSlug
-    const productSlug = Array.isArray(params.productSlug) ? params.productSlug[0] : params.productSlug
-
+    const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
 
     const [product, setProduct] = useState<any | null>(null)
     const [ratings, setRatings] = useState<RatingRow[]>([])
@@ -42,7 +43,7 @@ export default function ProductRatingsPage() {
                 .from('products')
                 .select('*')
                 .eq('store_id', storeData.id)
-                .eq('slug', productSlug)
+                .eq('slug', slug)
                 .maybeSingle()
 
             if (!productData) {
@@ -68,15 +69,34 @@ export default function ProductRatingsPage() {
         }
 
         load()
-    }, [productSlug, storeSlug, supabase])
+    }, [slug, storeSlug, supabase])
 
     if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Carregando avaliações...</div>
+
+    if (!product) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-neutral-400">Produto não encontrado</p>
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}`)}
+                        className="mt-4 text-orange-500 hover:underline"
+                    >
+                        Voltar para a loja
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="min-h-screen bg-black text-white px-4 py-6">
             <div className="max-w-5xl mx-auto">
                 <div className="flex items-center gap-4 mb-6">
-                    <button onClick={() => router.push(`/${profileSlug}/${storeSlug}/${productSlug}`)} className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/${slug}`)}
+                        className="w-10 h-10 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center hover:bg-neutral-800 transition"
+                    >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>

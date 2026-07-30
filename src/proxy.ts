@@ -22,40 +22,57 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // Se a URL já tem dois segmentos (ex: /perfil/loja), deixa passar
     const segments = pathname.split('/').filter(Boolean)
-    if (segments.length >= 2) return NextResponse.next()
+    if (segments.length === 0) return NextResponse.next()
 
-    // Agora temos apenas um segmento: /nomedaloja
-    const slug = segments[0]
-    if (!slug) return NextResponse.next()
+    const firstSegment = segments[0]
+
+    // Se já tem 3 ou mais segmentos, provavelmente já está no formato
+    // /profileSlug/storeSlug/slug — não reescrever
+    if (segments.length >= 3) return NextResponse.next()
 
     try {
-        // Procura a loja pelo storeSlug
-        const { data: store } = await supabaseAdmin
-            .from('stores')
-            .select('storeSlug, owner_id')
-            .eq('storeSlug', slug)
-            .maybeSingle()
-
-        if (!store) return NextResponse.next()
-
-        // Procura o profileSlug do dono
+        // Verifica se o PRIMEIRO segmento é um profileSlug válido
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('profileSlug')
-            .eq('id', store.owner_id)
-            .single()
+            .eq('profileSlug', firstSegment)
+            .maybeSingle()
 
-        if (profile?.profileSlug) {
-            // Reescreve internamente a URL para /profileSlug/storeSlug
-            const newUrl = request.nextUrl.clone()
-            newUrl.pathname = `/${profile.profileSlug}/${store.storeSlug}`
-            return NextResponse.rewrite(newUrl)
+        // Se o primeiro segmento é um profileSlug, a URL já está no formato correto — não reescrever
+        if (profile) return NextResponse.next()
+
+        // Procura se o primeiro segmento é um storeSlug (URL encurtada)
+        const { data: store } = await supabaseAdmin
+            .from('stores')
+            .select('storeSlug, owner_id')
+            .eq('storeSlug', firstSegment)
+            .maybeSingle()
+
+        if (store) {
+            // Busca o profileSlug do dono
+            const { data: ownerProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('profileSlug')
+                .eq('id', store.owner_id)
+                .single()
+
+            if (ownerProfile?.profileSlug) {
+                // Reescreve preservando segmentos extras: /loja/slug -> /perfil/loja/slug
+                const restPath = segments.slice(1).join('/')
+                const newUrl = request.nextUrl.clone()
+                newUrl.pathname = restPath
+                    ? `/${ownerProfile.profileSlug}/${store.storeSlug}/${restPath}`
+                    : `/${ownerProfile.profileSlug}/${store.storeSlug}`
+
+                return NextResponse.rewrite(newUrl)
+            }
         }
     } catch (error) {
-        console.error('Middleware error:', error)
+        console.error('Proxy error:', error)
     }
 
     return NextResponse.next()
 }
+
+export default proxy

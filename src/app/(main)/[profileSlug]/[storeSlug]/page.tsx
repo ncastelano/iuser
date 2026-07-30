@@ -1,7 +1,7 @@
 // src/app/(app)/[profileSlug]/[storeSlug]/page.tsx
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -21,6 +21,12 @@ import {
     Store,
     MapPin,
     MessageCircle,
+    Megaphone,
+    ImageIcon,
+    Send,
+    Trash2,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -91,10 +97,19 @@ type StoreType = {
     view_count?: number
 }
 
+type Publication = {
+    id: string
+    name: string
+    description?: string
+    image_url: string | null
+    slug: string
+    store_id: string
+    created_at: string
+}
 
-type TabType = 'products' | 'reviews'
+type TabType = 'products' | 'reviews' | 'publications'
 
-// Helpers para identificar visitantes (usados apenas para fallback ou captura de produto)
+// Helpers para identificar visitantes
 function getOrCreateAnonymousId(): string {
     const key = 'iuser_anon_id'
     let id = localStorage.getItem(key)
@@ -131,6 +146,8 @@ export default function StorePage() {
     const { colors } = useTheme()
     const { bgMode, customBgUrl } = useProfile()
 
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
     const [store, setStore] = useState<StoreType | null>(null)
     const [products, setProducts] = useState<any[]>([])
     const [ratings, setRatings] = useState<RatingRow[]>([])
@@ -143,6 +160,17 @@ export default function StorePage() {
     const [recentSales, setRecentSales] = useState<SaleType[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [cartAnimating, setCartAnimating] = useState(false)
+
+    // States para Publicações
+    const [publications, setPublications] = useState<Publication[]>([])
+    const [isCreatingPublication, setIsCreatingPublication] = useState(false)
+    const [pubName, setPubName] = useState('')
+    const [pubDescription, setPubDescription] = useState('')
+    const [pubImageFile, setPubImageFile] = useState<File | null>(null)
+    const [pubPreview, setPubPreview] = useState<string | null>(null)
+    const [pubSaving, setPubSaving] = useState(false)
+    const [pubLoading, setPubLoading] = useState(false)
+    const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
 
     const {
         itemsByStore,
@@ -203,7 +231,7 @@ export default function StorePage() {
         [storeSlug, removeItem]
     )
 
-    // ========== VISIT CAPTURE via RPC ==========
+    // ========== VISIT CAPTURE ==========
     const captureVisit = useCallback(
         async (storeId: string, userId: string | null) => {
             try {
@@ -213,7 +241,6 @@ export default function StorePage() {
                 const referrer = document.referrer || null
                 const userAgent = navigator.userAgent || null
 
-                // Chamada à função RPC que gerencia cooldown e incremento
                 const { data, error } = await supabase.rpc('record_store_visit', {
                     p_store_id: storeId,
                     p_session_id: sessionId,
@@ -226,16 +253,13 @@ export default function StorePage() {
 
                 if (error) {
                     console.warn('[StorePage] Erro ao registrar visita via RPC:', error.message)
-                    // Fallback: método antigo (inserção direta)
                     await fallbackCaptureVisit(storeId, userId, anonymousId, sessionId, device, referrer, userAgent)
                     return
                 }
 
                 if (data === true) {
-                    // Visita registrada com sucesso – atualizamos o contador local
                     setTotalVisitors(prev => prev + 1)
                 } else {
-                    // Visita ignorada (cooldown)
                     console.log('[StorePage] Visita ignorada (cooldown)')
                 }
             } catch (err) {
@@ -245,7 +269,6 @@ export default function StorePage() {
         []
     )
 
-    // Fallback para caso a RPC falhe (mantém a lógica antiga)
     const fallbackCaptureVisit = useCallback(
         async (storeId: string, userId: string | null, anonymousId: string | null, sessionId: string, device: string, referrer: string | null, userAgent: string | null) => {
             const { error } = await supabase.from('store_visits').insert({
@@ -261,12 +284,10 @@ export default function StorePage() {
                 console.warn('[StorePage] Fallback de visita falhou:', error.message)
                 return
             }
-            // Incremento manual (se a RPC não estiver disponível)
             const { error: rpcError } = await supabase.rpc('increment_store_view', { store_id: storeId })
             if (!rpcError) {
                 setTotalVisitors(prev => prev + 1)
             } else {
-                // Tentar update direto
                 const { data: storeData } = await supabase
                     .from('stores')
                     .select('view_count')
@@ -388,6 +409,26 @@ export default function StorePage() {
         [supabase]
     )
 
+    const loadPublications = useCallback(async (storeId: string) => {
+        setPubLoading(true)
+        try {
+            const { data, error } = await supabase
+                .from('products')
+                .select('id, name, description, image_url, slug, created_at')
+                .eq('store_id', storeId)
+                .eq('listing_type', 'publication')
+                .order('created_at', { ascending: false })
+
+            if (!error && data) {
+                setPublications(data as Publication[])
+            }
+        } catch (err) {
+            console.error('[StorePage] Erro ao carregar publicações:', err)
+        } finally {
+            setPubLoading(false)
+        }
+    }, [])
+
     const loadStore = useCallback(async () => {
         if (!storeSlug) return
         setLoading(true)
@@ -421,6 +462,7 @@ export default function StorePage() {
             .from('products')
             .select('*')
             .eq('store_id', foundStore.id)
+            .eq('listing_type', 'sale')
             .order('created_at', { ascending: false })
         const mappedProducts = (productsData || []).map(product => ({
             ...product,
@@ -440,8 +482,10 @@ export default function StorePage() {
         }
 
         setStore({ ...foundStore, logo_url: logoUrl, final_whatsapp: storeWhatsapp })
+        setStoreWhatsapp(storeWhatsapp)
         setProducts(mappedProducts)
         await loadRatings(foundStore.id, userId)
+        await loadPublications(foundStore.id)
 
         const { data: salesData } = await supabase
             .from('product_reviews')
@@ -465,19 +509,18 @@ export default function StorePage() {
 
         setLoading(false)
 
-        // Após carregar a loja, registrar a visita (com um pequeno atraso para não bloquear o render)
         setTimeout(() => {
             if (foundStore) {
                 captureVisit(foundStore.id, userId)
             }
         }, 2000)
-    }, [storeSlug, supabase, loadRatings, captureVisit])
+    }, [storeSlug, supabase, loadRatings, loadPublications, captureVisit])
 
     useEffect(() => {
         loadStore()
     }, [loadStore])
 
-    // ========== REALTIME: atualizar totalVisitors quando view_count mudar ==========
+    // ========== REALTIME: atualizar totalVisitors ==========
     useEffect(() => {
         if (!store) return
 
@@ -504,6 +547,102 @@ export default function StorePage() {
             supabase.removeChannel(channel)
         }
     }, [store?.id])
+
+    // ========== PUBLICATIONS ==========
+    const getImageUrl = (path: string | null) => {
+        if (!path) return null
+        if (path.startsWith('http')) return path
+        return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
+    }
+
+    useEffect(() => {
+        if (!pubImageFile) return
+        const url = URL.createObjectURL(pubImageFile)
+        setPubPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [pubImageFile])
+
+    const handleCreatePublication = async () => {
+        if (!pubName.trim()) {
+            toast.error('Dê um nome à publicação')
+            return
+        }
+        if (!store) return
+
+        setPubSaving(true)
+        try {
+            let imagePath: string | null = null
+            if (pubImageFile) {
+                const fileExt = pubImageFile.name.split('.').pop()
+                const fileName = `${Date.now()}.${fileExt}`
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('product-images')
+                    .upload(fileName, pubImageFile)
+                if (uploadError) throw uploadError
+                imagePath = uploadData?.path ?? null
+            }
+
+            let slug = pubName
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/(^-|-$)+/g, '')
+            let isUnique = false
+            while (!isUnique) {
+                const { data: existing } = await supabase
+                    .from('products')
+                    .select('id')
+                    .eq('slug', slug)
+                    .eq('store_id', store.id)
+                    .maybeSingle()
+                if (existing) {
+                    slug = slug + '-' + Math.floor(Math.random() * 9999)
+                } else {
+                    isUnique = true
+                }
+            }
+
+            const { error: insertError } = await supabase.from('products').insert({
+                name: pubName,
+                slug,
+                description: pubDescription || null,
+                price: 0,
+                type: 'physical',
+                price_type: 'fixed',
+                listing_type: 'publication',
+                image_url: imagePath,
+                store_id: store.id,
+            })
+
+            if (insertError) throw insertError
+
+            toast.success('Publicação criada com sucesso!')
+            setPubName('')
+            setPubDescription('')
+            setPubImageFile(null)
+            setPubPreview(null)
+            setIsCreatingPublication(false)
+
+            await loadPublications(store.id)
+        } catch (err: any) {
+            console.error('Erro ao criar publicação:', err)
+            toast.error('Erro ao criar: ' + (err.message || 'Tente novamente'))
+        } finally {
+            setPubSaving(false)
+        }
+    }
+
+    const handleDeletePublication = async (id: string) => {
+        if (!confirm('Deletar esta publicação?')) return
+        const { error } = await supabase.from('products').delete().eq('id', id)
+        if (!error) {
+            setPublications(prev => prev.filter(p => p.id !== id))
+            toast.success('Publicação removida')
+        } else {
+            toast.error('Erro ao remover')
+        }
+    }
 
     // ========== MAPS E PRODUTOS ==========
     const openGoogleMaps = () => {
@@ -540,16 +679,26 @@ export default function StorePage() {
         }
     }
 
+    // ========== HANDLE PRODUCT CLICK ==========
     const handleProductClick = (product: any) => {
-        if (isOwner) {
-            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`)
+        const productIdentifier = product.slug || product.id
+
+        if (!productIdentifier) {
+            toast.error('Erro ao acessar este item')
             return
         }
+
+        if (isOwner) {
+            router.push(`/${profileSlug}/${storeSlug}/${productIdentifier}/editar-produto`)
+            return
+        }
+
         const isPublication = product.listing_type === 'publication'
         if (isPublication) {
-            router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}`)
+            router.push(`/${profileSlug}/${storeSlug}/${productIdentifier}`)
             return
         }
+
         const alreadyInCart = cartItems.some((item: any) => item.product.id === product.id)
         if (alreadyInCart) return
 
@@ -559,7 +708,7 @@ export default function StorePage() {
         setTimeout(() => setCartAnimating(false), 500)
     }
 
-    // ========== PEDIDOS E STATUS (mantido igual) ==========
+    // ========== PEDIDOS E STATUS ==========
     useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -635,6 +784,9 @@ export default function StorePage() {
         boxShadow: colors.shadow,
     }
 
+    // GRADIENTE LARANJA-VERMELHO FIXO
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
     const primaryButtonStyle = {
         display: 'flex',
         alignItems: 'center',
@@ -646,10 +798,10 @@ export default function StorePage() {
         fontSize: '0.875rem',
         fontWeight: 700,
         transition: 'all 0.2s ease',
-        background: colors.accent,
-        color: colors.accentText,
+        background: GRADIENT,
+        color: '#ffffff',
         border: 'none',
-        boxShadow: `0 4px 14px ${colors.accent}60`,
+        boxShadow: `0 4px 14px #f9731660`,
         cursor: 'pointer',
     }
 
@@ -660,7 +812,7 @@ export default function StorePage() {
             <div className="min-h-screen flex items-center justify-center px-4 text-center" style={{ background: colors.background }}>
                 <div className="flex flex-col gap-4 max-w-sm items-center">
                     {error ? (
-                        <AlertTriangle className="w-12 h-12" style={{ color: colors.accent }} />
+                        <AlertTriangle className="w-12 h-12" style={{ color: '#f97316' }} />
                     ) : (
                         <Search className="w-12 h-12" style={{ color: colors.textSecondary }} />
                     )}
@@ -673,7 +825,7 @@ export default function StorePage() {
                     <button
                         onClick={() => router.push('/')}
                         className="font-bold mt-2"
-                        style={{ color: colors.accent }}
+                        style={{ color: '#f97316' }}
                     >
                         Voltar
                     </button>
@@ -759,7 +911,7 @@ export default function StorePage() {
                                 {store.logo_url ? (
                                     <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <span className="text-2xl font-black" style={{ color: colors.accent }}>
+                                    <span className="text-2xl font-black" style={{ color: '#f97316' }}>
                                         {store.name?.charAt(0) || '?'}
                                     </span>
                                 )}
@@ -808,7 +960,7 @@ export default function StorePage() {
                             <button
                                 onClick={() => setExpandedDesc(!expandedDesc)}
                                 className="ml-1 font-bold text-xs uppercase hover:underline"
-                                style={{ color: colors.accent }}
+                                style={{ color: '#f97316' }}
                             >
                                 {expandedDesc ? 'ver menos' : 'ver mais'}
                             </button>
@@ -822,7 +974,7 @@ export default function StorePage() {
                         <button
                             onClick={openGoogleMaps}
                             className="flex items-center gap-1 font-bold text-xs uppercase hover:underline"
-                            style={{ color: colors.accent }}
+                            style={{ color: '#f97316' }}
                         >
                             <MapPin className="w-3.5 h-3.5" />
                             <span>{store.address.split(',')[0].trim()}</span>
@@ -835,10 +987,10 @@ export default function StorePage() {
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''
                                 }`}
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                color: colors.accentText,
-                                border: `1px solid ${colors.accent}`,
-                                boxShadow: `0 8px 18px ${colors.accent}50`,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                border: `1px solid #f97316`,
+                                boxShadow: `0 8px 18px #f9731650`,
                             }}
                         >
                             <Calendar className="w-4 h-4" />
@@ -851,34 +1003,48 @@ export default function StorePage() {
                     )}
                 </div>
 
-                {/* ===== TABS ===== */}
+                {/* ===== TABS - CORRIGIDO: terceiro item agora é div ===== */}
                 <div className="flex rounded-2xl p-1.5 border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: colors.border }}>
                     <button
                         onClick={() => setActiveTab('products')}
                         className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${activeTab === 'products' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                         style={
                             activeTab === 'products'
-                                ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
+                                ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731650` }
                                 : { background: 'transparent', color: colors.textSecondary }
                         }
                     >
-                        <span>Produtos ou Serviços</span>
+                        <span>Produtos</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('publications')}
+                        className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${activeTab === 'publications' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
+                        style={
+                            activeTab === 'publications'
+                                ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731650` }
+                                : { background: 'transparent', color: colors.textSecondary }
+                        }
+                    >
+                        <span>Publicações</span>
+                        {publications.length > 0 && (
+                            <span className="text-[9px] font-bold opacity-70">({publications.length})</span>
+                        )}
                     </button>
                     <div
-                        role="button"
-                        tabIndex={0}
                         onClick={() => setActiveTab('reviews')}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveTab('reviews'); } }}
                         className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 cursor-pointer ${activeTab === 'reviews' ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                         style={
                             activeTab === 'reviews'
-                                ? { background: colors.accent, color: colors.accentText, boxShadow: `0 4px 12px ${colors.accent}50` }
+                                ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731650` }
                                 : { background: 'transparent', color: colors.textSecondary }
                         }
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setActiveTab('reviews') } }}
                     >
                         <span>Avaliações</span>
                         {store.ratings_count ? (
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1" style={{ color: activeTab === 'reviews' ? '#ffffff' : colors.textSecondary }}>
                                 <RatingStars value={Number(store.ratings_avg || 0)} size={10} />
                                 <span className="text-[10px] font-bold">{Number(store.ratings_avg || 0).toFixed(1)}</span>
                                 <span className="text-[9px] opacity-75">({store.ratings_count})</span>
@@ -912,7 +1078,7 @@ export default function StorePage() {
                                 <button
                                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
                                     className="flex items-center justify-center w-10 h-10 rounded-xl border shadow-md hover:scale-110 transition-transform"
-                                    style={{ background: colors.accent, color: colors.accentText, borderColor: colors.accent }}
+                                    style={{ background: GRADIENT, color: '#ffffff', borderColor: '#f97316' }}
                                     title="Adicionar produto"
                                 >
                                     <Plus className="w-5 h-5" />
@@ -923,8 +1089,8 @@ export default function StorePage() {
                         {filteredProducts.length === 0 ? (
                             isOwner ? (
                                 <div className="rounded-2xl p-6 flex flex-col items-center text-center gap-4" style={cardStyle}>
-                                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: colors.accentLight }}>
-                                        <Store size={28} style={{ color: colors.accent }} />
+                                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: `${colors.accent}20` }}>
+                                        <Store size={28} style={{ color: '#f97316' }} />
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Sua loja está vazia</h3>
@@ -938,7 +1104,7 @@ export default function StorePage() {
                                         style={primaryButtonStyle}
                                     >
                                         <Store size={18} />
-                                        Adicionar Produto ou Serviço
+                                        Adicionar Produto
                                     </button>
                                 </div>
                             ) : (
@@ -952,7 +1118,7 @@ export default function StorePage() {
                             Object.entries(groupedProducts).map(([category, products]) => (
                                 <div key={category} className="space-y-3">
                                     <h4 className="text-[10px] font-black uppercase tracking-[0.25em] pl-1"
-                                        style={{ color: colors.accent }}>
+                                        style={{ color: '#f97316' }}>
                                         {category}
                                     </h4>
                                     <div className="grid grid-cols-2 gap-3">
@@ -960,11 +1126,6 @@ export default function StorePage() {
                                             const isSelected = mounted && cartItems.some((item: any) => item.product.id === product.id)
                                             const quantity = getProductQuantity(product.id)
                                             const isHourly = product.price_type === 'hourly'
-                                            const isPublication = product.listing_type === 'publication'
-                                            const storeWhatsapp = store?.final_whatsapp || store?.whatsapp || null
-                                            const whatsappLink = isPublication && storeWhatsapp
-                                                ? `https://wa.me/${storeWhatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Tenho interesse no item "${product.name}" da loja ${store?.name}.`)}`
-                                                : '#'
                                             const hasImage = !!product.image_url
 
                                             if (!hasImage) {
@@ -972,10 +1133,10 @@ export default function StorePage() {
                                                     <div
                                                         key={product.id}
                                                         onClick={() => handleProductClick(product)}
-                                                        className={`col-span-2 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                        className={`col-span-2 rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
                                                         style={{
                                                             background: `${colors.surface}88`,
-                                                            borderColor: isSelected && !isPublication ? '#22c55e' : isPublication ? '#10b981' : colors.border,
+                                                            borderColor: isSelected ? '#22c55e' : colors.border,
                                                             backdropFilter: 'blur(8px)',
                                                             WebkitBackdropFilter: 'blur(8px)',
                                                         }}
@@ -988,37 +1149,22 @@ export default function StorePage() {
                                                                 {product.description || 'Sem descrição'}
                                                             </p>
                                                             <div className="mt-2">
-                                                                {isPublication ? (
-                                                                    <p className="text-sm font-black text-green-600">Sob consulta</p>
-                                                                ) : (
-                                                                    <div className="flex items-center">
-                                                                        <span className="text-base font-extrabold" style={{ color: colors.accent }}>
-                                                                            R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                        </span>
-                                                                        {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                                    </div>
-                                                                )}
+                                                                <div className="flex items-center">
+                                                                    <span className="text-base font-extrabold" style={{ color: '#f97316' }}>
+                                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                    </span>
+                                                                    {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                                </div>
                                                             </div>
                                                             <div className="mt-3 flex justify-end items-center">
                                                                 {isOwner ? (
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                         className="w-8 h-8 rounded-full border flex items-center justify-center"
-                                                                        style={{ borderColor: colors.border, color: colors.accent }}
+                                                                        style={{ borderColor: colors.border, color: '#f97316' }}
                                                                     >
                                                                         <ExternalLink className="w-4 h-4" />
                                                                     </button>
-                                                                ) : isPublication ? (
-                                                                    <a
-                                                                        href={whatsappLink}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        onClick={(e) => e.stopPropagation()}
-                                                                        className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
-                                                                    >
-                                                                        <MessageCircle size={14} />
-                                                                        Saber mais
-                                                                    </a>
                                                                 ) : isSelected ? (
                                                                     <div className="flex items-center gap-2">
                                                                         <button
@@ -1059,7 +1205,7 @@ export default function StorePage() {
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); handleProductClick(product) }}
                                                                         className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                        style={{ background: colors.accent }}
+                                                                        style={{ background: GRADIENT }}
                                                                     >
                                                                         <Plus className="w-4 h-4" />
                                                                     </button>
@@ -1074,11 +1220,11 @@ export default function StorePage() {
                                                 <div
                                                     key={product.id}
                                                     onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected && !isPublication ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''
+                                                    className={`relative rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''
                                                         }`}
                                                     style={{
                                                         background: `${colors.surface}88`,
-                                                        borderColor: isSelected && !isPublication ? '#22c55e' : isPublication ? '#10b981' : colors.border,
+                                                        borderColor: isSelected ? '#22c55e' : colors.border,
                                                         backdropFilter: 'blur(8px)',
                                                         WebkitBackdropFilter: 'blur(8px)',
                                                     }}
@@ -1087,7 +1233,7 @@ export default function StorePage() {
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: colors.accent }}>
+                                                            <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: '#f97316' }}>
                                                                 {product.name?.charAt(0) || '?'}
                                                             </div>
                                                         )}
@@ -1095,11 +1241,6 @@ export default function StorePage() {
                                                             <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase backdrop-blur-md"
                                                                 style={{ background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
-                                                            </span>
-                                                        )}
-                                                        {isPublication && (
-                                                            <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-green-500 text-white shadow-md">
-                                                                Divulgação
                                                             </span>
                                                         )}
                                                     </div>
@@ -1111,37 +1252,22 @@ export default function StorePage() {
                                                             {product.description || 'Sem descrição'}
                                                         </p>
                                                         <div className="mt-2">
-                                                            {isPublication ? (
-                                                                <p className="text-sm font-black text-green-600">Sob consulta</p>
-                                                            ) : (
-                                                                <div className="flex items-center">
-                                                                    <span className="text-base font-extrabold" style={{ color: colors.accent }}>
-                                                                        R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                    </span>
-                                                                    {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
-                                                                </div>
-                                                            )}
+                                                            <div className="flex items-center">
+                                                                <span className="text-base font-extrabold" style={{ color: '#f97316' }}>
+                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                </span>
+                                                                {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
+                                                            </div>
                                                         </div>
                                                         <div className="mt-3 flex justify-end items-center">
                                                             {isOwner ? (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/${storeSlug}/${product.slug || product.id}/editar-produto`) }}
                                                                     className="w-8 h-8 rounded-full border flex items-center justify-center"
-                                                                    style={{ borderColor: colors.border, color: colors.accent }}
+                                                                    style={{ borderColor: colors.border, color: '#f97316' }}
                                                                 >
                                                                     <ExternalLink className="w-4 h-4" />
                                                                 </button>
-                                                            ) : isPublication ? (
-                                                                <a
-                                                                    href={whatsappLink}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className="w-full py-2 rounded-xl text-xs font-bold bg-green-500 text-white flex items-center justify-center gap-1 hover:bg-green-600 transition-colors"
-                                                                >
-                                                                    <MessageCircle size={14} />
-                                                                    Saber mais
-                                                                </a>
                                                             ) : isSelected ? (
                                                                 <div className="flex items-center gap-2">
                                                                     <button
@@ -1182,7 +1308,7 @@ export default function StorePage() {
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); handleProductClick(product) }}
                                                                     className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                    style={{ background: colors.accent }}
+                                                                    style={{ background: GRADIENT }}
                                                                 >
                                                                     <Plus className="w-4 h-4" />
                                                                 </button>
@@ -1197,6 +1323,247 @@ export default function StorePage() {
                             ))
                         )}
                     </>
+                )}
+
+                {/* ===== TAB PUBLICAÇÕES ===== */}
+                {activeTab === 'publications' && (
+                    <div className="space-y-4">
+                        {pubLoading ? (
+                            <div className="flex justify-center py-8">
+                                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                            </div>
+                        ) : publications.length === 0 ? (
+                            <div
+                                className="rounded-2xl p-6 flex flex-col items-center text-center gap-4"
+                                style={cardStyle}
+                            >
+                                <div
+                                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                                    style={{ background: `${colors.accent}20` }}
+                                >
+                                    <Megaphone size={28} style={{ color: '#f97316' }} />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Apareça no iUser
+                                    </h3>
+                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                        Faça uma publicação para todos verem.
+                                    </p>
+                                </div>
+                                {!isCreatingPublication && isOwner && (
+                                    <button
+                                        onClick={() => setIsCreatingPublication(true)}
+                                        className="w-full"
+                                        style={primaryButtonStyle}
+                                    >
+                                        <Megaphone size={18} />
+                                        Criar Publicação
+                                    </button>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {publications.map(pub => {
+                                        const imgUrl = getImageUrl(pub.image_url)
+                                        const pubIdentifier = pub.slug || pub.id
+
+                                        const handleOpenPub = () => {
+                                            if (pubIdentifier) {
+                                                router.push(`/${profileSlug}/${storeSlug}/${pubIdentifier}`)
+                                            } else {
+                                                toast.error('Erro ao abrir esta publicação')
+                                            }
+                                        }
+
+                                        return (
+                                            <div
+                                                key={pub.id}
+                                                className="rounded-xl border p-3 flex flex-col gap-2 relative group cursor-pointer hover:opacity-90 transition-all"
+                                                style={{
+                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                                    borderColor: colors.border,
+                                                }}
+                                                onClick={handleOpenPub}
+                                            >
+                                                <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
+                                                    {imgUrl ? (
+                                                        <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}>
+                                                            <Megaphone size={32} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                    {pub.name}
+                                                </p>
+                                                {isOwner && (
+                                                    <div className="flex items-center justify-between mt-auto" onClick={e => e.stopPropagation()}>
+                                                        <button
+                                                            onClick={() => {
+                                                                const editIdentifier = pub.slug || pub.id
+                                                                if (editIdentifier) {
+                                                                    router.push(`/${profileSlug}/${storeSlug}/${editIdentifier}/editar-produto`)
+                                                                }
+                                                            }}
+                                                            className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                                                            title="Editar"
+                                                        >
+                                                            <ExternalLink size={14} style={{ color: colors.textSecondary }} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeletePublication(pub.id)}
+                                                            className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                            title="Excluir"
+                                                        >
+                                                            <Trash2 size={14} style={{ color: '#ef4444' }} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                {isOwner && !isCreatingPublication && (
+                                    <button
+                                        onClick={() => setIsCreatingPublication(true)}
+                                        className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-white/5"
+                                        style={{
+                                            border: `1px dashed ${colors.border}`,
+                                            color: '#f97316',
+                                        }}
+                                    >
+                                        <Plus size={16} />
+                                        Nova publicação
+                                    </button>
+                                )}
+                            </>
+                        )}
+
+                        {isCreatingPublication && isOwner && (
+                            <div
+                                className="rounded-xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                <h4 className="text-sm font-black flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                    <Megaphone size={16} style={{ color: '#f97316' }} />
+                                    Nova Publicação
+                                </h4>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                        Imagem (opcional)
+                                    </label>
+                                    <div
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-24 h-24 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
+                                    >
+                                        {pubPreview ? (
+                                            <img src={pubPreview} className="w-full h-full object-cover" alt="" />
+                                        ) : (
+                                            <ImageIcon className="text-orange-400 group-hover:scale-110 transition-transform" size={24} />
+                                        )}
+                                    </div>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) setPubImageFile(file)
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                        Título da publicação
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Promoção de verão!"
+                                        value={pubName}
+                                        onChange={(e) => setPubName(e.target.value)}
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        style={{
+                                            background: colors.surface,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary,
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold uppercase" style={{ color: colors.textSecondary }}>
+                                        Descrição
+                                    </label>
+                                    <textarea
+                                        placeholder="Descreva sua novidade..."
+                                        value={pubDescription}
+                                        onChange={(e) => setPubDescription(e.target.value)}
+                                        rows={3}
+                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none"
+                                        style={{
+                                            background: colors.surface,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary,
+                                        }}
+                                    />
+                                </div>
+
+                                {storeWhatsapp && (
+                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
+                                        <MessageCircle size={14} />
+                                        <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2 pt-2">
+                                    <button
+                                        onClick={() => {
+                                            setIsCreatingPublication(false)
+                                            setPubName('')
+                                            setPubDescription('')
+                                            setPubImageFile(null)
+                                            setPubPreview(null)
+                                        }}
+                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors"
+                                        style={{
+                                            borderColor: colors.border,
+                                            color: colors.textSecondary,
+                                        }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleCreatePublication}
+                                        disabled={pubSaving || !pubName.trim()}
+                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                        style={{
+                                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        {pubSaving ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <>
+                                                <Send size={14} />
+                                                Publicar
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 )}
 
                 {/* ===== TAB AVALIAÇÕES ===== */}
@@ -1214,12 +1581,12 @@ export default function StorePage() {
                                     const avatarUrl = getAvatarUrl(supabase, rating.profiles?.avatar_url)
                                     return (
                                         <div key={rating.id} className="flex gap-3 p-4 rounded-2xl border" style={cardStyle}>
-                                            <div className="w-10 h-10 rounded-2xl p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                                            <div className="w-10 h-10 rounded-2xl p-[2px] shrink-0" style={{ background: GRADIENT }}>
                                                 <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                                                     {avatarUrl ? (
                                                         <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <span className="font-bold text-sm" style={{ color: colors.accent }}>
+                                                        <span className="font-bold text-sm" style={{ color: '#f97316' }}>
                                                             {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
                                                         </span>
                                                     )}
@@ -1229,11 +1596,11 @@ export default function StorePage() {
                                                 <div className="flex items-center justify-between">
                                                     <div>
                                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
-                                                        <p className="text-[10px] font-medium" style={{ color: colors.accent }}>
+                                                        <p className="text-[10px] font-medium" style={{ color: '#f97316' }}>
                                                             {new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                                                         </p>
                                                     </div>
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}20`, color: '#f97316' }}>
                                                         <Shield className="w-3 h-3" />
                                                         <span className="text-[9px] font-black uppercase">Verificada</span>
                                                     </div>
@@ -1241,7 +1608,7 @@ export default function StorePage() {
                                                 <div className="mt-1.5">
                                                     <RatingStars value={rating.rating} size={14} />
                                                     {!rating.is_anonymous && rating.products?.name && (
-                                                        <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase" style={{ background: colors.accentLight, color: colors.accent }}>
+                                                        <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase" style={{ background: `${colors.accent}20`, color: '#f97316' }}>
                                                             {rating.products.name}
                                                         </span>
                                                     )}
@@ -1275,10 +1642,10 @@ export default function StorePage() {
                     onClick={() => router.push('/')}
                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                     style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                        color: colors.accentText,
-                        border: `2px solid ${colors.border}`,
-                        boxShadow: `0 8px 24px ${colors.accent}60`,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        border: `2px solid #f97316`,
+                        boxShadow: `0 8px 24px #f9731660`,
                     }}
                     aria-label="Voltar ao início"
                 >
@@ -1316,7 +1683,7 @@ export default function StorePage() {
                                     >
                                         <span
                                             className="text-sm font-bold"
-                                            style={{ color: isToday ? colors.accent : colors.textPrimary }}
+                                            style={{ color: isToday ? '#f97316' : colors.textPrimary }}
                                         >
                                             {label}{isToday ? ' (hoje)' : ''}
                                         </span>
@@ -1335,7 +1702,6 @@ export default function StorePage() {
                                     </div>
                                 )
                             })}
-                            {/* Datas bloqueadas */}
                             {((store.business_hours as any)?.blocked_dates?.length > 0) && (
                                 <div className="mt-4 pt-3 border-t" style={{ borderColor: colors.border }}>
                                     <p className="text-xs font-bold mb-2" style={{ color: colors.textSecondary }}>

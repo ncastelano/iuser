@@ -38,16 +38,19 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
             statusCounts.ready > 0 ||
             statusCounts.reviews > 0)
 
+    // GRADIENTE LARANJA-VERMELHO FIXO
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
     return (
         <div style={{ position: 'relative', width: 56, height: 56, display: 'inline-flex' }}>
             <button
                 onClick={handleClick}
                 className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                 style={{
-                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                    color: colors.accentText,
-                    border: `2px solid ${colors.border}`,
-                    boxShadow: `0 8px 24px ${colors.accent}60`,
+                    background: GRADIENT,
+                    color: '#ffffff',
+                    border: `2px solid #f97316`,
+                    boxShadow: `0 8px 24px #f9731660`,
                     position: 'relative',
                     width: '100%',
                     height: '100%',
