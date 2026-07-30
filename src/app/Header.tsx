@@ -1,4 +1,3 @@
-// components/Header.tsx
 'use client'
 
 import { useRouter } from 'next/navigation'
@@ -85,6 +84,8 @@ export default function Header({
         }
     }
     const surfaceRgb = hexToRgb(colors.surface)
+
+    // Gradiente de fundo com cores do tema (mantido para transparência)
     const gradientBg = `linear-gradient(to bottom, 
     rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
     rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
@@ -98,7 +99,8 @@ export default function Header({
             return tab.statusColor
         }
         if (tab.isActive) {
-            return colors.accent
+            // Gradiente laranja para vermelho nos tabs ativos
+            return 'linear-gradient(135deg, #f97316, #dc2626)'
         }
         return `${colors.surface}88`
     }
@@ -108,7 +110,7 @@ export default function Header({
             return '#ffffff'
         }
         if (tab.isActive) {
-            return colors.accentText
+            return '#ffffff'
         }
         return colors.textSecondary
     }
@@ -187,7 +189,7 @@ export default function Header({
                             onClick={handleHome}
                             className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-lg"
                             style={{
-                                background: 'linear-gradient(135deg, #f97316, #ef4444)',
+                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                 border: '2px solid rgba(255,255,255,0.2)',
                                 cursor: 'pointer',
                             }}
@@ -238,7 +240,7 @@ export default function Header({
                                         color: textColor,
                                         overflow: 'visible',
                                         ...(tab.isActive && !tab.statusColor ? {
-                                            boxShadow: `0 2px 8px ${colors.accent}40`,
+                                            boxShadow: `0 2px 8px #f9731640`,
                                             fontWeight: 'bold',
                                         } : {}),
                                         ...(tab.isActive && tab.statusColor ? {
@@ -259,7 +261,7 @@ export default function Header({
                                             className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
                                             style={{
                                                 background: tab.isActive
-                                                    ? (tab.statusColor ? `${tab.statusColor}cc` : colors.accent)
+                                                    ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
                                                     : `${colors.surface}88`,
                                                 backdropFilter: 'blur(10px)',
                                             }}

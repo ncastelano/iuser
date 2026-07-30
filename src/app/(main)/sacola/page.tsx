@@ -1242,7 +1242,7 @@ export default function SacolaPage() {
                                 })}
                                 {!currentUserId && storeSlugs.length > 0 && (
                                     <div className="rounded-2xl p-5" style={cardStyle}>
-                                        <p className="text-xs text-center mb-4" style={{ color: colors.textSecondary }}>Identifique-se para continuar</p>
+                                        <p className="text-xs text-center mb-4" style={{ color: colors.textSecondary }}>Identifique-se para fazermos o pedido</p>
                                         <div className="flex gap-2">
                                             <button onClick={() => setAuthMode('login')} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${authMode === 'login' ? 'shadow-sm' : ''}`}
                                                 style={authMode === 'login' ? { background: colors.accent, color: colors.accentText } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}>

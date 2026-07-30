@@ -29,16 +29,14 @@ import LastSearched from '@/components/LastSearched'
 import { supabase } from '@/lib/supabase/client'
 import Header from '../Header'
 import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
-import LoginScreen from './LoginScreen'
+import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
 import ButtonSettingsHome from './ButtonSettingsHome'
-import ButtonCreateStoreHome from './ButtonCreateStoreHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
 import LocationPicker from './LocationPicker'
-import PainelDaLoja from './StoreDashboard'
 import StoreList from './inicio/sections/StoreList'
 
 const DEFAULT_SECTIONS = [
@@ -139,7 +137,6 @@ export default function HomePage() {
     const [searchFocused, setSearchFocused] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
-    const [activeStoreSlug, setActiveStoreSlug] = useState<string | null>(null)
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
@@ -526,7 +523,7 @@ export default function HomePage() {
         }
     }
 
-    const isSearchVisible = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
+    const isSearchVisible = !showConfig && !showCreateStore && !showLogin && !showProfile
 
     // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
@@ -536,7 +533,6 @@ export default function HomePage() {
                     <StoreList
                         title="Lojas em Destaque"
                         maxItems={8}
-
                         onStoreClick={(storeSlug) => {
                             router.push(`/${storeSlug}`)
                         }}
@@ -571,15 +567,6 @@ export default function HomePage() {
 
     const showHomeSections = () => {
         setShowConfig(false)
-        setActiveStoreSlug(null)
-        setShowCreateStore(false)
-        setShowLogin(false)
-        setShowProfile(false)
-    }
-
-    const handleStoreTabClick = (storeSlug: string) => {
-        setShowConfig(false)
-        setActiveStoreSlug(storeSlug)
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
@@ -588,21 +575,14 @@ export default function HomePage() {
     const handleLoginClick = () => {
         setShowLogin(true)
         setShowConfig(false)
-        setActiveStoreSlug(null)
         setShowCreateStore(false)
         setShowProfile(false)
-    }
-
-    const handleSwitchToRegister = () => {
-        setShowLogin(false)
-        setShowCreateStore(true)
     }
 
     const handleProfileClick = () => {
         if (profileSlug && !loading) {
             setShowProfile(true)
             setShowConfig(false)
-            setActiveStoreSlug(null)
             setShowCreateStore(false)
             setShowLogin(false)
         } else {
@@ -636,16 +616,14 @@ export default function HomePage() {
                 const openNow = isOpenNow(todaySchedule)
                 const statusColor = openNow ? '#22c55e' : '#ef4444'
 
-                const isActive = activeStoreSlug === s.slug && !showConfig && !showProfile && !showLogin
-
                 allTabs.push({
-                    id: `loja-${s.slug}-painel`,
-                    label: `${s.name} · Painel`,
+                    id: `loja-${s.slug}`,
+                    label: s.name,
                     icon: Store,
                     imageUrl: s.logoUrl,
-                    onClick: () => handleStoreTabClick(s.slug),
-                    isActive,
-                    indicator: !isActive && hasActive ? counts : null,
+                    onClick: () => router.push(`/${s.slug}`),
+                    isActive: false,
+                    indicator: hasActive ? counts : null,
                     statusColor,
                 })
             })
@@ -663,10 +641,10 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, activeStoreSlug, showCreateStore, showLogin, showProfile, stores, loadingStores, storeOrderCounts, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, stores, loadingStores, storeOrderCounts, router])
 
-    const showFab = showConfig || showCreateStore || showLogin || showProfile || activeStoreSlug
-    const showHomeFab = !showConfig && !activeStoreSlug && !showCreateStore && !showLogin && !showProfile
+    const showFab = showConfig || showCreateStore || showLogin || showProfile
+    const showHomeFab = !showConfig && !showCreateStore && !showLogin && !showProfile
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -725,21 +703,12 @@ export default function HomePage() {
                         onBack={() => setShowCreateStore(false)}
                     />
                 ) : showLogin ? (
-                    <LoginScreen
-                        embedded
-                        onBack={() => setShowLogin(false)}
-                        onSwitchToRegister={handleSwitchToRegister}
-                    />
+                    <LoginAndRegister />
                 ) : showProfile ? (
                     <ProfileDashboard
                         profileSlug={profileSlug}
                         onBack={() => setShowProfile(false)}
-                        avatarUrl={avatarUrl} // <-- PASSA O avatarUrl
-                    />
-                ) : activeStoreSlug ? (
-                    <PainelDaLoja
-                        profileSlug={profileSlug!}
-                        storeSlug={activeStoreSlug}
+                        avatarUrl={avatarUrl}
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
@@ -792,64 +761,23 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* Home - apenas SacolaButton (lado direito) */}
-                {showHomeFab && (
+                {/* SacolaButton - sempre visível */}
+                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                    <SacolaButton
+                        totalItems={totalCartItems}
+                        statusCounts={{
+                            pending: pendingCount,
+                            preparing: preparingCount,
+                            ready: readyCount,
+                            reviews: pendingReviewsCount,
+                        }}
+                        animate={cartAnimating}
+                    />
+                </div>
+
+                {/* Botão Home - visível quando não está na home */}
+                {showFab && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                        <SacolaButton
-                            totalItems={totalCartItems}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                        />
-                    </div>
-                )}
-
-                {/* StoreDashboard - SacolaButton + Home (lado direito, agrupados) */}
-                {activeStoreSlug && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                        <SacolaButton
-                            totalItems={totalCartItems}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                        />
-                        <button
-                            onClick={showHomeSections}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                color: colors.accentText,
-                                border: `2px solid ${colors.border}`,
-                                boxShadow: `0 8px 24px ${colors.accent}60`,
-                            }}
-                            aria-label="Voltar ao início"
-                        >
-                            <Home size={24} />
-                        </button>
-                    </div>
-                )}
-
-                {/* Outras telas (Config, CreateStore, Login, Profile) - SacolaButton + Home */}
-                {showFab && !activeStoreSlug && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                        <SacolaButton
-                            totalItems={totalCartItems}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                        />
                         <button
                             onClick={showHomeSections}
                             className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
