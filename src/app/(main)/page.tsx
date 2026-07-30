@@ -607,7 +607,6 @@ export default function HomePage() {
             return allTabs
         }
 
-
         if (stores.length > 0) {
             stores.forEach((s) => {
                 const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
@@ -622,7 +621,7 @@ export default function HomePage() {
                     label: s.name,
                     icon: Store,
                     imageUrl: s.logoUrl,
-                    onClick: () => router.push(`/${profileSlug}/${s.slug}`), // Isso redireciona para o StoreDashboard
+                    onClick: () => router.push(`/${profileSlug}/${s.slug}`),
                     isActive: false,
                     indicator: hasActive ? counts : null,
                     statusColor,
