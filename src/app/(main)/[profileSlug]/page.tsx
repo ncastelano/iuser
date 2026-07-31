@@ -42,6 +42,9 @@ import EditarPerfil from './EditarPerfil'
 import type { Tab } from '@/app/Header'
 import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 type RatingRow = {
     id: string
     rating: number
@@ -772,8 +775,8 @@ export default function ProfilePage() {
                     50% { transform: translateY(-15px) rotate(5deg); }
                 }
                 @keyframes pulse-glow {
-                    0%, 100% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4), 0 0 0 6px rgba(139, 92, 246, 0.1); }
-                    50% { box-shadow: 0 8px 24px rgba(139, 92, 246, 0.6), 0 0 0 12px rgba(139, 92, 246, 0); }
+                    0%, 100% { box-shadow: 0 8px 24px rgba(249, 115, 22, 0.4), 0 0 0 6px rgba(249, 115, 22, 0.1); }
+                    50% { box-shadow: 0 8px 24px rgba(249, 115, 22, 0.6), 0 0 0 12px rgba(249, 115, 22, 0); }
                 }
                 @keyframes pulse-status {
                     0%, 100% { transform: scale(1); opacity: 1; }
@@ -853,7 +856,7 @@ export default function ProfilePage() {
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={uploadingAvatar}
                                         className="absolute bottom-0 right-0 w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50"
-                                        style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
                                     >
                                         {uploadingAvatar ? (
                                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -869,7 +872,7 @@ export default function ProfilePage() {
                                 <h1 className="text-3xl md:text-5xl font-black italic" style={{ color: colors.textPrimary }}>{profile.name}</h1>
                                 <div className="flex flex-wrap justify-center md:justify-start gap-2">
                                     <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
-                                        style={{ background: `${colors.accent}22`, color: colors.accent }}>Verificado iUser</span>
+                                        style={{ background: '#f9731622', color: '#f97316' }}>Verificado iUser</span>
                                     <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
                                         style={{ background: glassBg, color: colors.textSecondary }}>/{profile.profileSlug}</span>
                                 </div>
@@ -912,7 +915,7 @@ export default function ProfilePage() {
                                         <>
                                             <button onClick={handleFollowToggle}
                                                 className={`px-8 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all ${isFollowing ? 'border-2 hover:bg-white/10' : 'hover:scale-105 shadow-lg'}`}
-                                                style={isFollowing ? { borderColor: colors.accent, color: colors.accent, background: 'transparent' } : { background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
+                                                style={isFollowing ? { borderColor: '#f97316', color: '#f97316', background: 'transparent' } : { background: GRADIENT, color: '#ffffff' }}>
                                                 {isFollowing ? 'Seguindo' : 'Seguir'}
                                             </button>
                                             {whatsappLink && (
@@ -933,15 +936,15 @@ export default function ProfilePage() {
                                             {profile.address && !profile.address.toLowerCase().includes('rua tal') ? (
                                                 <div className="flex items-center gap-2 px-4 py-2 rounded-xl"
                                                     style={{ background: glassBgLight }}>
-                                                    <MapPin size={14} style={{ color: colors.accent }} />
+                                                    <MapPin size={14} style={{ color: '#f97316' }} />
                                                     <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{formatShortAddress(profile.address)}</span>
                                                     <button onClick={toggleLocationVisibility}
                                                         className="ml-2 px-2 py-1 rounded-lg text-[10px] font-bold"
-                                                        style={{ background: `${colors.accent}22`, color: colors.accent }}>
+                                                        style={{ background: '#f9731622', color: '#f97316' }}>
                                                         {profile.show_location ? 'Ocultar' : 'Mostrar'}
                                                     </button>
                                                     <button onClick={() => setShowLocationModal(true)} className="p-1 rounded-lg hover:bg-white/10">
-                                                        <Pencil size={12} style={{ color: colors.accent }} />
+                                                        <Pencil size={12} style={{ color: '#f97316' }} />
                                                     </button>
                                                 </div>
                                             ) : (
@@ -967,7 +970,7 @@ export default function ProfilePage() {
                         {/* Lojas do perfil visitado */}
                         {stores.length > 0 && (
                             <div className="mb-8">
-                                <h3 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: colors.accent }}>
+                                <h3 className="text-xs font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: '#f97316' }}>
                                     <Store size={16} /> Lojas
                                 </h3>
                                 <div className="flex overflow-x-auto gap-3 pb-4 snap-x snap-mandatory">
@@ -1014,7 +1017,7 @@ export default function ProfilePage() {
                                 ].map(tab => (
                                     <button key={tab.id} onClick={() => setActiveTab(tab.id as ProfileTab)}
                                         className={`px-6 py-4 rounded-2xl flex items-center gap-3 transition-all flex-shrink-0 ${activeTab === tab.id ? 'text-white shadow-lg' : ''}`}
-                                        style={activeTab === tab.id ? { background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` } : { color: colors.textSecondary, background: 'transparent' }}>
+                                        style={activeTab === tab.id ? { background: GRADIENT } : { color: colors.textSecondary, background: 'transparent' }}>
                                         <tab.icon size={18} />
                                         <span className="text-xs font-black uppercase hidden sm:inline">{tab.label}</span>
                                         <span className="px-2 py-0.5 rounded-full text-[10px] font-black" style={{ background: 'rgba(255,255,255,0.2)' }}>{tab.count}</span>
@@ -1044,7 +1047,7 @@ export default function ProfilePage() {
                                             <button
                                                 onClick={() => router.push(`/${profileSlug}/criar-produto`)}
                                                 className="flex items-center justify-center w-10 h-10 rounded-xl shadow-md hover:scale-110 transition-transform"
-                                                style={{ background: colors.accent, color: colors.accentText }}
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
                                                 title="Adicionar produto"
                                             >
                                                 <Plus className="w-5 h-5" />
@@ -1062,7 +1065,7 @@ export default function ProfilePage() {
                                                     border: `1px solid ${glassBorder}`,
                                                 }}>
                                                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: glassBgLight }}>
-                                                    <Store size={28} style={{ color: colors.accent }} />
+                                                    <Store size={28} style={{ color: '#f97316' }} />
                                                 </div>
                                                 <div>
                                                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Você ainda não tem produtos</h3>
@@ -1073,7 +1076,7 @@ export default function ProfilePage() {
                                                 <button
                                                     onClick={() => router.push(`/${profileSlug}/criar-produto`)}
                                                     className="w-full py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:scale-105 transition"
-                                                    style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}
+                                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                                 >
                                                     <Plus size={18} className="inline mr-1" /> Adicionar Produto ou Serviço
                                                 </button>
@@ -1095,7 +1098,7 @@ export default function ProfilePage() {
                                         Object.entries(groupedProducts).map(([category, products]) => (
                                             <div key={category} className="space-y-3">
                                                 <h4 className="text-[10px] font-black uppercase tracking-[0.25em] pl-1"
-                                                    style={{ color: colors.accent }}>
+                                                    style={{ color: '#f97316' }}>
                                                     {category}
                                                 </h4>
                                                 <div className="grid grid-cols-2 gap-3">
@@ -1129,7 +1132,7 @@ export default function ProfilePage() {
                                                                         </p>
                                                                         <div className="mt-2">
                                                                             <div className="flex items-center">
-                                                                                <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                                <span className="text-base font-extrabold" style={{ color: '#f97316' }}>
                                                                                     R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                                 </span>
                                                                                 {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
@@ -1140,7 +1143,7 @@ export default function ProfilePage() {
                                                                                 <button
                                                                                     onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/editar-produto/${product.slug || product.id}`) }}
                                                                                     className="w-8 h-8 rounded-full flex items-center justify-center"
-                                                                                    style={{ background: glassBg, color: colors.accent }}
+                                                                                    style={{ background: glassBg, color: '#f97316' }}
                                                                                 >
                                                                                     <ExternalLink className="w-4 h-4" />
                                                                                 </button>
@@ -1184,7 +1187,7 @@ export default function ProfilePage() {
                                                                                 <button
                                                                                     onClick={e => { e.stopPropagation(); handleProductClick(product) }}
                                                                                     className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                                    style={{ background: colors.accent }}
+                                                                                    style={{ background: GRADIENT }}
                                                                                 >
                                                                                     <Plus className="w-4 h-4" />
                                                                                 </button>
@@ -1206,7 +1209,7 @@ export default function ProfilePage() {
                                                                     {product.image_url ? (
                                                                         <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                                     ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: colors.accent }}>
+                                                                        <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: '#f97316' }}>
                                                                             {product.name?.charAt(0) || '?'}
                                                                         </div>
                                                                     )}
@@ -1226,7 +1229,7 @@ export default function ProfilePage() {
                                                                     </p>
                                                                     <div className="mt-2">
                                                                         <div className="flex items-center">
-                                                                            <span className="text-base font-extrabold" style={{ color: colors.accent }}>
+                                                                            <span className="text-base font-extrabold" style={{ color: '#f97316' }}>
                                                                                 R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                                             </span>
                                                                             {isHourly && <span className="text-[10px] ml-1 opacity-75">/h</span>}
@@ -1237,7 +1240,7 @@ export default function ProfilePage() {
                                                                             <button
                                                                                 onClick={e => { e.stopPropagation(); router.push(`/${profileSlug}/editar-produto/${product.slug || product.id}`) }}
                                                                                 className="w-8 h-8 rounded-full flex items-center justify-center"
-                                                                                style={{ background: glassBg, color: colors.accent }}
+                                                                                style={{ background: glassBg, color: '#f97316' }}
                                                                             >
                                                                                 <ExternalLink className="w-4 h-4" />
                                                                             </button>
@@ -1281,7 +1284,7 @@ export default function ProfilePage() {
                                                                             <button
                                                                                 onClick={e => { e.stopPropagation(); handleProductClick(product) }}
                                                                                 className="w-8 h-8 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                                style={{ background: colors.accent }}
+                                                                                style={{ background: GRADIENT }}
                                                                             >
                                                                                 <Plus className="w-4 h-4" />
                                                                             </button>
@@ -1318,7 +1321,7 @@ export default function ProfilePage() {
                                                 <button
                                                     onClick={() => router.push(`/${profileSlug}/fazer-divulgacao`)}
                                                     className="mt-2 px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg hover:scale-105 transition flex items-center gap-2"
-                                                    style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}
+                                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                                 >
                                                     <Plus size={16} />
                                                     Fazer Publicação
@@ -1420,12 +1423,12 @@ export default function ProfilePage() {
                                                             WebkitBackdropFilter: blurAmount,
                                                             border: `1px solid ${glassBorder}`,
                                                         }}>
-                                                        <div className="w-10 h-10 rounded-2xl p-[2px] shrink-0" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
+                                                        <div className="w-10 h-10 rounded-2xl p-[2px] shrink-0" style={{ background: GRADIENT }}>
                                                             <div className="w-full h-full rounded-2xl overflow-hidden bg-white flex items-center justify-center">
                                                                 {avatarUrl ? (
                                                                     <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    <span className="font-bold text-sm" style={{ color: colors.accent }}>
+                                                                    <span className="font-bold text-sm" style={{ color: '#f97316' }}>
                                                                         {(rating.profiles?.name || '?').slice(0, 1).toUpperCase()}
                                                                     </span>
                                                                 )}
@@ -1435,11 +1438,11 @@ export default function ProfilePage() {
                                                             <div className="flex items-center justify-between">
                                                                 <div>
                                                                     <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{rating.profiles?.name || 'Usuário'}</p>
-                                                                    <p className="text-[10px] font-medium" style={{ color: colors.accent }}>
+                                                                    <p className="text-[10px] font-medium" style={{ color: '#f97316' }}>
                                                                         {new Date(rating.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
                                                                     </p>
                                                                 </div>
-                                                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: glassBg, color: colors.accent }}>
+                                                                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full" style={{ background: glassBg, color: '#f97316' }}>
                                                                     <Shield className="w-3 h-3" />
                                                                     <span className="text-[9px] font-black uppercase">Verificada</span>
                                                                 </div>
@@ -1447,7 +1450,7 @@ export default function ProfilePage() {
                                                             <div className="mt-1.5">
                                                                 <RatingStars value={rating.rating} size={14} />
                                                                 {!rating.is_anonymous && rating.products?.name && (
-                                                                    <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase" style={{ background: glassBgLight, color: colors.accent }}>
+                                                                    <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-black uppercase" style={{ background: glassBgLight, color: '#f97316' }}>
                                                                         {rating.products.name}
                                                                     </span>
                                                                 )}
@@ -1499,7 +1502,7 @@ export default function ProfilePage() {
                                                     )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-black uppercase mb-1" style={{ color: colors.accent }}>Cliente desta Loja</p>
+                                                    <p className="text-xs font-black uppercase mb-1" style={{ color: '#f97316' }}>Cliente desta Loja</p>
                                                     <h3 className="text-xl font-black truncate" style={{ color: colors.textPrimary }}>{purchase.stores?.name}</h3>
                                                     <p className="text-xs font-bold mt-1" style={{ color: colors.textSecondary }}>/{purchase.stores?.storeSlug}</p>
                                                 </div>
@@ -1516,7 +1519,7 @@ export default function ProfilePage() {
                                         <div className="w-full space-y-4">
                                             <div className="flex items-center gap-4 px-2">
                                                 <div className="h-px flex-1" style={{ background: glassBorder }} />
-                                                <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2" style={{ color: colors.accent }}>
+                                                <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2" style={{ color: '#f97316' }}>
                                                     <CalendarDays size={16} /> Agenda de Hoje
                                                 </h3>
                                                 <div className="h-px flex-1" style={{ background: glassBorder }} />
@@ -1536,13 +1539,13 @@ export default function ProfilePage() {
                                                             {appt.profiles?.avatar_url ? (
                                                                 <img src={getAvatarUrl(supabase, appt.profiles.avatar_url)!} className="w-full h-full object-cover" alt="" />
                                                             ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-xs font-black" style={{ color: colors.accent }}>
+                                                                <div className="w-full h-full flex items-center justify-center text-xs font-black" style={{ color: '#f97316' }}>
                                                                     {appt.profiles?.name?.charAt(0) || 'U'}
                                                                 </div>
                                                             )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-bold" style={{ color: colors.accent }}>{appt.time}</p>
+                                                            <p className="text-xs font-bold" style={{ color: '#f97316' }}>{appt.time}</p>
                                                             <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>{appt.profiles?.name || 'Cliente'}</p>
                                                             <p className="text-xs font-bold truncate" style={{ color: colors.textSecondary }}>{appt.service_name || 'Agendamento'}</p>
                                                         </div>
@@ -1594,7 +1597,7 @@ export default function ProfilePage() {
                                                         <CalendarDays size={28} style={{ color: colors.textSecondary }} />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 text-xs font-black mb-1" style={{ color: colors.accent }}>
+                                                        <div className="flex items-center gap-2 text-xs font-black mb-1" style={{ color: '#f97316' }}>
                                                             <Calendar size={12} />{formatDate(appt.date)}
                                                             <span style={{ color: colors.textSecondary }}>|</span>
                                                             <Clock size={12} />{appt.time}
@@ -1710,7 +1713,7 @@ export default function ProfilePage() {
                             )}
                             <button onClick={saveLocation} disabled={!tempAddress}
                                 className="w-full py-4 rounded-xl font-black uppercase text-sm tracking-widest shadow-lg hover:scale-105 transition disabled:opacity-50"
-                                style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
+                                style={{ background: GRADIENT, color: '#ffffff' }}>
                                 Confirmar Endereço
                             </button>
                         </div>
