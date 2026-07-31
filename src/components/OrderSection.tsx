@@ -1,8 +1,11 @@
 'use client'
 
 import { ReactNode, useState, useEffect } from 'react'
-import { Settings2, Save, RotateCcw, X } from 'lucide-react'
+import { Settings2, Save, RotateCcw, X, Layout } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 interface OrderSectionProps {
     dragHandle?: ReactNode
@@ -69,14 +72,14 @@ export default function OrderSection({
                         gap: '0.5rem',
                         width: '100%',
                         padding: '0.75rem 1rem',
-                        borderRadius: '1rem',
+                        borderRadius: '9999px',
                         fontSize: '0.875rem',
                         fontWeight: 700,
-                        background: '#3b82f6',
+                        background: GRADIENT,
                         color: '#ffffff',
                         opacity: 0.5,
                     }}>
-                        <Settings2 size={18} />
+                        <Layout size={18} />
                         Personalizar ordem
                     </div>
                 </div>
@@ -88,46 +91,42 @@ export default function OrderSection({
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
-    const primaryButtonStyle: React.CSSProperties = {
+    // ===== STYLE PARA BOTÕES PILL =====
+    const pillButtonStyle: React.CSSProperties = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: '0.5rem',
-        width: '100%',
-        padding: '0.75rem 1rem',
-        borderRadius: '1rem',
+        padding: '0.75rem 1.25rem',
+        borderRadius: '9999px',
         fontSize: '0.875rem',
         fontWeight: 700,
-        transition: 'all .2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 12px ${colors.accent}40`,
+        transition: 'all 0.2s ease',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
+        border: 'none',
+    }
+
+    const primaryButtonStyle: React.CSSProperties = {
+        ...pillButtonStyle,
+        background: GRADIENT,
+        color: '#ffffff',
+        boxShadow: `0 4px 12px #f9731640`,
     }
 
     const secondaryButtonStyle: React.CSSProperties = {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.5rem',
+        ...pillButtonStyle,
         flex: 1,
-        padding: '0.6rem .75rem',
-        borderRadius: '.75rem',
-        fontSize: '.8rem',
-        fontWeight: 600,
-        transition: 'all .2s',
         background: 'transparent',
         color: colors.textSecondary,
         border: `1px solid ${colors.border}`,
-        cursor: 'pointer',
+        boxShadow: 'none',
     }
 
     return (
         <section>
             <div
-                className="rounded-2xl p-5 flex flex-col gap-1"
+                className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
                 style={{
                     background: cardBg,
                     backdropFilter: 'blur(12px)',
@@ -136,85 +135,103 @@ export default function OrderSection({
                     boxShadow: colors.shadow,
                 }}
             >
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-4">
                     {dragHandle && <div>{dragHandle}</div>}
 
-                    <div>
-                        <Settings2
-                            size={24}
-                            style={{ color: colors.accent }}
-                        />
+                    {/* Ícone com gradiente laranja-vermelho - igual ao ButtonSettingsHome */}
+                    <div
+                        className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
+                        }}
+                    >
+                        <Settings2 size={28} />
                     </div>
 
-                    <h2
-                        className="text-xl font-black"
-                        style={{ color: colors.textPrimary }}
-                    >
-                        Organizar Página
-                    </h2>
+                    <div>
+                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                            Organizar Página
+                        </h2>
+                        <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            Personalize a ordem das seções na sua página inicial.
+                        </p>
+                    </div>
                 </div>
-
-                <p
-                    className="text-sm mb-3"
-                    style={{ color: colors.textSecondary }}
-                >
-                    Personalize a ordem das seções na sua página inicial.
-                </p>
 
                 {!isEditing ? (
                     <button
                         onClick={onToggleEdit}
                         disabled={disabled}
-                        style={primaryButtonStyle}
-                        className="flex items-center justify-center gap-2"
+                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg flex-shrink-0"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 14px #f9731660`,
+                        }}
                     >
-                        <Settings2 size={18} />
+                        <Layout size={16} />
                         Personalizar ordem
                     </button>
                 ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-shrink-0">
                         <button
                             onClick={onSave}
-                            style={primaryButtonStyle}
-                            className="flex items-center justify-center gap-2"
+                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 14px #f9731660`,
+                            }}
                         >
-                            <Save size={18} />
+                            <Save size={16} />
                             Salvar Ordem
                         </button>
 
-                        <div className="flex gap-2">
-                            <button
-                                onClick={onToggleEdit}
-                                style={secondaryButtonStyle}
-                            >
-                                <X size={16} />
-                                Cancelar
-                            </button>
+                        <button
+                            onClick={onToggleEdit}
+                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
+                            style={{
+                                background: 'transparent',
+                                color: colors.textSecondary,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <X size={16} />
+                            Cancelar
+                        </button>
 
-                            <button
-                                onClick={onRestore}
-                                style={secondaryButtonStyle}
-                            >
-                                <RotateCcw size={16} />
-                                Restaurar padrão
-                            </button>
-                        </div>
+                        <button
+                            onClick={onRestore}
+                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
+                            style={{
+                                background: 'transparent',
+                                color: colors.textSecondary,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <RotateCcw size={16} />
+                            Restaurar
+                        </button>
                     </div>
                 )}
+            </div>
 
-                {isEditing && (
+            {isEditing && (
+                <div className="mt-3 px-1">
                     <p
-                        className="text-xs mt-2"
+                        className="text-xs"
                         style={{ color: colors.textSecondary }}
                     >
                         Arraste as seções para reordenar. Depois clique em{' '}
-                        <strong style={{ color: colors.accent }}>
+                        <strong style={{ color: '#f97316' }}>
                             Salvar Ordem
                         </strong>
                         .
                     </p>
-                )}
-            </div>
+                </div>
+            )}
         </section>
     )
 }

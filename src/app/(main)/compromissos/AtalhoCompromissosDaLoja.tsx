@@ -8,6 +8,31 @@ import { useAppointments, useDeleteAppointment } from '@/app/(main)/compromissos
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    padding: '0.75rem 1.25rem',
+    fontSize: '0.875rem',
+}
+
 /* ─── Helpers ─── */
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
@@ -27,7 +52,7 @@ function VisibilityBadge({ isPublic, textColor }: { isPublic: boolean; textColor
                 fontSize: 10,
                 fontWeight: 700,
                 padding: '2px 8px',
-                borderRadius: 8,
+                borderRadius: 9999,
                 backgroundColor: isPublic ? 'rgba(16,185,129,0.15)' : `${textColor}20`,
                 color: isPublic ? '#10b981' : textColor,
                 display: 'flex',
@@ -203,18 +228,25 @@ export default function AtalhoCompromissosDaLoja({
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho com toggle */}
+                {/* Cabeçalho com toggle - PILL */}
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
                 >
                     <div className="flex items-center gap-3">
                         {dragHandle}
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <Store size={24} />
@@ -225,7 +257,7 @@ export default function AtalhoCompromissosDaLoja({
                             </h2>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
                                 <span>
-                                    <span className="font-bold" style={{ color: accentColor }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
+                                    <span className="font-bold" style={{ color: '#f97316' }}>{pendingCount}</span> pendente{pendingCount !== 1 ? 's' : ''}
                                 </span>
                                 <span>•</span>
                                 <span>
@@ -236,7 +268,7 @@ export default function AtalhoCompromissosDaLoja({
                     </div>
                     <div className="flex items-center gap-2">
                         {storeAppointments.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: accentColor }}>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                 {storeAppointments.length}
                             </span>
                         )}
@@ -250,16 +282,17 @@ export default function AtalhoCompromissosDaLoja({
 
                 {isExpanded && (
                     <>
-                        {/* Botões de ação */}
+                        {/* Botões de ação - PILL */}
                         <div className="flex flex-wrap items-center justify-end gap-2">
                             <Link
                                 href="/compromissos/agendar"
-                                className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-md"
                                 style={{
-                                    background: accentColor,
-                                    color: colors.accentText,
-                                    boxShadow: `0 4px 12px ${accentColor}40`,
+                                    ...pillButtonStyle,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    boxShadow: `0 4px 12px #f9731640`,
                                 }}
+                                className="hover:scale-105 transition-transform"
                             >
                                 <Plus size={14} />
                                 Criar
@@ -268,11 +301,13 @@ export default function AtalhoCompromissosDaLoja({
                             {sorted.length > 0 && (
                                 <Link
                                     href="/compromissos"
-                                    className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:bg-white/10 flex items-center gap-1.5"
                                     style={{
+                                        ...pillButtonStyle,
                                         border: `1px solid ${borderColor}`,
                                         color: textSecondary,
+                                        background: 'transparent',
                                     }}
+                                    className="hover:bg-white/5 transition-colors"
                                 >
                                     <Calendar size={14} />
                                     Ver agenda
@@ -280,73 +315,21 @@ export default function AtalhoCompromissosDaLoja({
                             )}
                         </div>
 
-                        {/* Toggle "Mostrar pendentes" */}
-                        <div
-                            className="rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${borderColor}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold" style={{ color: textPrimary }}>
-                                    Mostrar pendentes
-                                </span>
-                                <label className="relative inline-flex cursor-pointer" style={{ width: 48, height: 26 }}>
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only peer"
-                                        checked={showPending}
-                                        onChange={() => setShowPending(prev => !prev)}
-                                    />
-                                    <span
-                                        className="absolute inset-0 rounded-full transition-colors duration-200"
-                                        style={{ background: showPending ? accentColor : borderColor }}
-                                    />
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[22px]' : 'translate-x-0'}`}
-                                    />
-                                </label>
-                                {!showPending && pendingCount > 0 && (
-                                    <span
-                                        className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
-                                        style={{ background: '#ef444420', color: '#ef4444' }}
-                                    >
-                                        {pendingCount} oculto{pendingCount > 1 ? 's' : ''}
-                                    </span>
-                                )}
-                            </div>
-
-                            {!showPending && pendingCount > 0 && (
-                                <button
-                                    onClick={() => setShowPending(true)}
-                                    className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:scale-105 flex items-center gap-1.5"
-                                    style={{
-                                        background: accentColor,
-                                        color: colors.accentText,
-                                    }}
-                                >
-                                    <Eye size={14} />
-                                    Mostrar pendentes
-                                </button>
-                            )}
-                        </div>
-
                         {/* Lista de compromissos */}
                         {sorted.length === 0 && !hasHiddenPending ? (
                             /* Estado vazio */
                             <div
-                                className="rounded-xl p-6 text-center flex flex-col items-center gap-3"
+                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     border: `1px dashed ${borderColor}`,
                                 }}
                             >
                                 <div
-                                    className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
                                     style={{
-                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                        color: colors.accentText,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
                                     }}
                                 >
                                     <Store size={32} />
@@ -361,12 +344,13 @@ export default function AtalhoCompromissosDaLoja({
                                 </div>
                                 <Link
                                     href="/compromissos/agendar"
-                                    className="text-xs font-bold px-6 py-3 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-lg"
                                     style={{
-                                        background: accentColor,
-                                        color: colors.accentText,
-                                        boxShadow: `0 4px 14px ${accentColor}60`,
+                                        ...pillButtonFullStyle,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 14px #f9731660`,
                                     }}
+                                    className="hover:scale-105 transition-transform"
                                 >
                                     <Plus size={16} />
                                     Novo compromisso
@@ -375,17 +359,17 @@ export default function AtalhoCompromissosDaLoja({
                         ) : sorted.length === 0 && hasHiddenPending ? (
                             /* Pendentes ocultos */
                             <div
-                                className="rounded-xl p-6 text-center flex flex-col items-center gap-3"
+                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
                                 style={{
-                                    background: `rgba(${accentColor}10, 0.3)`,
-                                    border: `1px dashed ${accentColor}40`,
+                                    background: `rgba(#f9731610, 0.3)`,
+                                    border: `1px dashed #f9731640`,
                                 }}
                             >
                                 <div
-                                    className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
                                     style={{
-                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                        color: colors.accentText,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
                                     }}
                                 >
                                     <EyeOff size={32} />
@@ -400,12 +384,13 @@ export default function AtalhoCompromissosDaLoja({
                                 </div>
                                 <button
                                     onClick={() => setShowPending(true)}
-                                    className="text-xs font-bold px-6 py-3 rounded-full transition-all hover:scale-105 flex items-center gap-1.5 shadow-lg"
                                     style={{
-                                        background: accentColor,
-                                        color: colors.accentText,
-                                        boxShadow: `0 4px 14px ${accentColor}60`,
+                                        ...pillButtonFullStyle,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 14px #f9731660`,
                                     }}
+                                    className="hover:scale-105 transition-transform"
                                 >
                                     <Eye size={16} />
                                     Mostrar pendentes
@@ -441,54 +426,56 @@ export default function AtalhoCompromissosDaLoja({
                                     return (
                                         <div
                                             key={appointment.id}
-                                            className="flex-shrink-0 w-[280px] snap-start flex items-center gap-3 p-3 rounded-xl border shadow-sm hover:shadow-md transition-all relative"
+                                            className="flex-shrink-0 w-[280px] snap-start flex items-center gap-3 p-3 rounded-2xl border shadow-sm hover:shadow-md transition-all relative"
                                             style={{
                                                 background: colors.surface,
-                                                borderColor: isPending ? `${accentColor}60` : borderColor,
-                                                boxShadow: isPending ? `0 0 0 2px ${accentColor}40` : 'none',
+                                                borderColor: isPending ? `#f9731660` : borderColor,
+                                                boxShadow: isPending ? `0 0 0 2px #f9731640` : 'none',
                                             }}
                                         >
                                             {isPending && (
                                                 <span
                                                     className="absolute -top-2 -right-2 z-10 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide shadow-md"
                                                     style={{
-                                                        background: accentColor,
-                                                        color: colors.accentText,
-                                                        boxShadow: `0 2px 6px ${accentColor}40`,
+                                                        background: GRADIENT,
+                                                        color: '#ffffff',
+                                                        boxShadow: `0 2px 6px #f9731640`,
                                                     }}
                                                 >
                                                     Novo
                                                 </span>
                                             )}
 
-                                            {/* Avatar do cliente */}
+                                            {/* Avatar do cliente - arredondado */}
                                             {customerSlug ? (
                                                 <Link href={`/${customerSlug}`} onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                                                     {avatarUrl ? (
-                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
                                                         <div
-                                                            className="w-11 h-11 rounded-xl flex items-center justify-center"
+                                                            className="w-11 h-11 rounded-full flex items-center justify-center"
                                                             style={{
-                                                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                                                background: GRADIENT,
+                                                                color: '#ffffff',
                                                             }}
                                                         >
-                                                            <User size={22} style={{ color: colors.accentText }} />
+                                                            <User size={22} />
                                                         </div>
                                                     )}
                                                 </Link>
                                             ) : (
                                                 <div className="flex-shrink-0">
                                                     {avatarUrl ? (
-                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                                                        <img src={avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover" />
                                                     ) : (
                                                         <div
-                                                            className="w-11 h-11 rounded-xl flex items-center justify-center"
+                                                            className="w-11 h-11 rounded-full flex items-center justify-center"
                                                             style={{
-                                                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                                                background: GRADIENT,
+                                                                color: '#ffffff',
                                                             }}
                                                         >
-                                                            <User size={22} style={{ color: colors.accentText }} />
+                                                            <User size={22} />
                                                         </div>
                                                     )}
                                                 </div>
@@ -537,7 +524,7 @@ export default function AtalhoCompromissosDaLoja({
                                                 </div>
 
                                                 <div className="flex items-center justify-between mt-2 pt-2 border-t" style={{ borderColor: `${borderColor}15` }}>
-                                                    <span className="text-sm font-black tabular-nums flex items-center gap-1" style={{ color: accentColor }}>
+                                                    <span className="text-sm font-black tabular-nums flex items-center gap-1" style={{ color: '#f97316' }}>
                                                         <Clock size={14} />
                                                         {formatTime(appointment.time)}
                                                     </span>
@@ -575,7 +562,7 @@ export default function AtalhoCompromissosDaLoja({
                             </div>
                         )}
 
-                        {/* Rodapé com toggle e contagem */}
+                        {/* Rodapé com toggle e contagem - ÚNICO toggle de mostrar pendentes */}
                         <div
                             className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t"
                             style={{ borderColor: borderColor }}
@@ -593,7 +580,7 @@ export default function AtalhoCompromissosDaLoja({
                                     />
                                     <span
                                         className="absolute inset-0 rounded-full transition-colors duration-200"
-                                        style={{ background: showPending ? accentColor : borderColor }}
+                                        style={{ background: showPending ? '#f97316' : borderColor }}
                                     />
                                     <span
                                         className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
@@ -612,11 +599,13 @@ export default function AtalhoCompromissosDaLoja({
                             {sorted.length > 0 && (
                                 <Link
                                     href="/compromissos"
-                                    className="text-xs font-bold px-4 py-2 rounded-full transition-all hover:bg-white/10 flex items-center gap-1.5"
                                     style={{
+                                        ...pillButtonStyle,
                                         border: `1px solid ${borderColor}`,
                                         color: textSecondary,
+                                        background: 'transparent',
                                     }}
+                                    className="hover:bg-white/5 transition-colors"
                                 >
                                     <Calendar size={14} />
                                     Ver agenda
@@ -636,15 +625,15 @@ export default function AtalhoCompromissosDaLoja({
                     background: transparent;
                 }
                 .scroll-container::-webkit-scrollbar-thumb {
-                    background-color: ${`${accentColor}40`};
+                    background-color: #f9731640;
                     border-radius: 9999px;
                 }
                 .scroll-container::-webkit-scrollbar-thumb:hover {
-                    background-color: ${accentColor};
+                    background-color: #f97316;
                 }
                 .scroll-container {
                     scrollbar-width: thin;
-                    scrollbar-color: ${`${accentColor}40`} transparent;
+                    scrollbar-color: #f9731640 transparent;
                 }
             `}</style>
         </div>

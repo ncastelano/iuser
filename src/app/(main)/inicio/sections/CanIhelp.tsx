@@ -6,6 +6,9 @@ import { ReactNode } from 'react'
 import { useTheme } from '@/app/theme'
 import { categorias } from '@/lib/categorias'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 interface CanIhelpProps {
     dragHandle?: ReactNode
 }
@@ -54,10 +57,13 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     Navegue pelas categorias e descubra lojas, serviços e muito mais.
                 </p>
 
-                {/* Grid de categorias – sem cards internos */}
+                {/* Grid de categorias */}
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                     {categorias.map((cat) => {
                         const Icon = cat.icone
+                        // Usar a cor da categoria OU laranja como fallback
+                        const iconColor = cat.color || '#f97316'
+
                         return (
                             <Link
                                 key={cat.slug}
@@ -65,14 +71,20 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                                 className="flex flex-col items-center justify-center p-1 transition-all duration-200 hover:scale-105 active:scale-95"
                                 style={{
                                     aspectRatio: '1 / 1',
-                                    // Sem background, sem borda, sem sombra
                                 }}
                             >
-                                <Icon
-                                    className="w-3/5 h-3/5 object-contain"
-                                    style={{ color: cat.color }}
-                                    strokeWidth={1.5}
-                                />
+                                <div
+                                    className="w-3/5 h-3/5 flex items-center justify-center rounded-full p-2 transition-all duration-200 group-hover:shadow-lg"
+                                    style={{
+                                        background: `${iconColor}15`,
+                                    }}
+                                >
+                                    <Icon
+                                        className="w-full h-full object-contain"
+                                        style={{ color: iconColor }}
+                                        strokeWidth={1.5}
+                                    />
+                                </div>
                                 <span
                                     className="text-[10px] font-bold text-center leading-tight mt-1"
                                     style={{ color: colors.textPrimary }}

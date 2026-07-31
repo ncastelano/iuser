@@ -20,6 +20,25 @@ import { format, formatDistanceToNow, subDays, startOfDay, eachDayOfInterval } f
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.25rem 0.75rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.625rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.25rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
@@ -257,13 +276,13 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho */}
+                {/* Cabeçalho com ícone arredondado */}
                 <div className="flex items-center gap-3">
                     <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
-                            background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                            color: colors.accentText,
+                            background: GRADIENT,
+                            color: '#ffffff',
                         }}
                     >
                         <Users size={24} />
@@ -274,7 +293,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                         </h3>
                         <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
                             <span>
-                                <span className="font-bold" style={{ color: accentColor }}>
+                                <span className="font-bold" style={{ color: '#f97316' }}>
                                     {totalUnique}
                                 </span>{' '}
                                 únicos
@@ -297,30 +316,30 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                     </div>
                 </div>
 
-                {/* Métricas principais */}
+                {/* Métricas principais - PILL */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="p-3 rounded-xl border" style={{ borderColor: colors.border, background: cardStyle.background }}>
+                    <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
                             <Eye size={14} />
                             <span>Online</span>
                         </div>
                         <p className="text-2xl font-black" style={{ color: textPrimary }}>{onlineNow}</p>
                     </div>
-                    <div className="p-3 rounded-xl border" style={{ borderColor: colors.border, background: cardStyle.background }}>
+                    <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
                             <Calendar size={14} />
                             <span>Hoje</span>
                         </div>
                         <p className="text-2xl font-black" style={{ color: textPrimary }}>{todayVisitors}</p>
                     </div>
-                    <div className="p-3 rounded-xl border" style={{ borderColor: colors.border, background: cardStyle.background }}>
+                    <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
                             <TrendingUp size={14} />
                             <span>Visitas</span>
                         </div>
                         <p className="text-2xl font-black" style={{ color: textPrimary }}>{totalVisits}</p>
                     </div>
-                    <div className="p-3 rounded-xl border" style={{ borderColor: colors.border, background: cardStyle.background }}>
+                    <div className="p-3 rounded-full border" style={{ borderColor: colors.border, background: cardStyle.background }}>
                         <div className="flex items-center gap-2 text-xs" style={{ color: textSecondary }}>
                             <Users size={14} />
                             <span>Únicos</span>
@@ -333,7 +352,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                 <div>
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-sm font-bold" style={{ color: textPrimary }}>
-                            <BarChart3 size={16} style={{ color: accentColor }} />
+                            <BarChart3 size={16} style={{ color: '#f97316' }} />
                             Visitas por dia
                         </div>
                         <div className="flex gap-1">
@@ -341,13 +360,13 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                 <button
                                     key={p}
                                     onClick={() => setPeriod(p)}
-                                    className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${period === p ? 'text-white' : ''
-                                        }`}
                                     style={{
-                                        background: period === p ? accentColor : 'transparent',
-                                        color: period === p ? '#fff' : textSecondary,
-                                        border: `1px solid ${period === p ? accentColor : colors.border}`,
+                                        ...pillButtonStyle,
+                                        background: period === p ? GRADIENT : 'transparent',
+                                        color: period === p ? '#ffffff' : textSecondary,
+                                        border: `1px solid ${period === p ? 'transparent' : colors.border}`,
                                     }}
+                                    className="hover:scale-105 transition-transform"
                                 >
                                     {p === 'today' ? 'Hoje' : p === '7days' ? '7 dias' : '30 dias'}
                                 </button>
@@ -363,7 +382,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                         className="w-full rounded-t transition-all duration-300"
                                         style={{
                                             height: `${Math.max(height, 2)}%`,
-                                            background: item.count > 0 ? accentColor : `${accentColor}30`,
+                                            background: item.count > 0 ? GRADIENT : `${'#f97316'}30`,
                                             minHeight: item.count > 0 ? '8px' : '4px',
                                         }}
                                     />
@@ -371,7 +390,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                         {item.date}
                                     </span>
                                     {item.count > 0 && (
-                                        <span className="text-[8px] font-bold" style={{ color: accentColor }}>
+                                        <span className="text-[8px] font-bold" style={{ color: '#f97316' }}>
                                             {item.count}
                                         </span>
                                     )}
@@ -388,7 +407,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                     </div>
                 ) : visitors.length === 0 ? (
                     <div
-                        className="rounded-xl p-6 text-center"
+                        className="rounded-2xl p-6 text-center"
                         style={{
                             background: cardStyle.background,
                             border: `1px dashed ${colors.border}`,
@@ -417,13 +436,13 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                 <div
                                     key={visit.id}
                                     onClick={() => handleVisitorClick(visit)}
-                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-md ${!isAnonymous && profile?.profileSlug ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
+                                    className={`flex items-center gap-3 p-3 rounded-2xl border transition-all hover:shadow-md ${!isAnonymous && profile?.profileSlug ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
                                     style={{ background: cardStyle.background, borderColor: colors.border }}
                                 >
                                     <div
                                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                                         style={{
-                                            background: isAnonymous ? '#ef444430' : `${accentColor}30`,
+                                            background: isAnonymous ? '#ef444430' : '#f9731630',
                                         }}
                                     >
                                         {isAnonymous ? (
@@ -435,7 +454,7 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                                                 className="w-full h-full rounded-full object-cover"
                                             />
                                         ) : (
-                                            <span className="font-bold text-sm" style={{ color: accentColor }}>
+                                            <span className="font-bold text-sm" style={{ color: '#f97316' }}>
                                                 {profile?.name?.charAt(0) || '?'}
                                             </span>
                                         )}

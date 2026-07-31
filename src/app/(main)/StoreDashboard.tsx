@@ -1,13 +1,12 @@
 // app/(main)/StoreDashboard.tsx
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { RatingStars } from '@/components/ratings/RatingStars'
 import { toast } from 'sonner'
 import {
     Eye,
@@ -30,15 +29,24 @@ import {
     ExternalLink,
     ChevronDown,
     ChevronUp,
+    Clock,
+    Calendar,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
-import Publication from './Publication'
+import Publication from './StorePublication'
 import StoreVisitors from './StoreVisitors'
 import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
+
+// ===== IMPORTAÇÃO COM SUPORTE A INTERVALO =====
+import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
+import StoreSchedule from './StoreSchedule'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -98,29 +106,24 @@ function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; 
     return sequence
 }
 
-// ---------- Funções de horário (mesma lógica da StorePage e HomePage) ----------
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey(): string {
-    return DAY_KEYS[new Date().getDay()]
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.75rem 1.25rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.875rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
 }
 
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = schedule.open.split(':').map(Number)
-    let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) closeH = 24
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    flex: 1,
 }
 
 export default function StoreDashboard({
@@ -178,7 +181,27 @@ export default function StoreDashboard({
     const [isOrdersExpanded, setIsOrdersExpanded] = useState(false)
     const [isProductsExpanded, setIsProductsExpanded] = useState(false)
 
+    // Estado para o modal de horários
+    const [showScheduleModal, setShowScheduleModal] = useState(false)
+
     const intervalRef = useRef<any>(null)
+
+    // ===== USANDO A FUNÇÃO COM SUPORTE A INTERVALO (MOVIDO PARA CIMA) =====
+    const isStoreOpen = useMemo(() => {
+        if (!store) return false
+        return isStoreOpenNow(store.business_hours)
+    }, [store])
+
+    const statusText = useMemo(() => {
+        if (!store) return ''
+        const status = getStoreStatusWithLunch(store.business_hours)
+        return status.text
+    }, [store])
+
+    const nextAvailable = useMemo(() => {
+        if (!store) return null
+        return getNextOpeningInfo(store.business_hours)
+    }, [store])
 
     const updateOrderCounts = useCallback((orders: any[]) => {
         if (!onOrderCountsChange) return
@@ -682,10 +705,6 @@ export default function StoreDashboard({
     if (loading) return <LoadingSpinner message="Carregando painel..." />
     if (!store) return null
 
-    // ===== DETERMINA STATUS ABERTO/FECHADO COM BASE NO BUSINESS_HOURS =====
-    const todaySchedule = getTodaySchedule(store.business_hours)
-    const storeOpen = isOpenNow(todaySchedule)
-
     const newOrders = groupedOrders.filter(o => o.status === 'pending')
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
@@ -758,62 +777,99 @@ export default function StoreDashboard({
 
     return (
         <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
-            {/* Header */}
+            {/* ===== MODAL DE HORÁRIOS ===== */}
+            {showScheduleModal && store && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setShowScheduleModal(false)}
+                >
+                    <div
+                        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <StoreSchedule
+                            storeId={store.id}
+                            storeName={store.name}
+                            storeSlug={store.storeSlug}
+                            onClose={() => setShowScheduleModal(false)}
+                            onSuccess={loadDashboard}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Header com status - usando a função com suporte a intervalo */}
             <div className="flex items-center justify-between mb-6">
-                <Link href={`/${profileSlug}/${storeSlug}`} className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200">
+                <div
+                    onClick={onBack}
+                    className="flex items-center gap-3 hover:opacity-70 transition cursor-pointer"
+                    style={{ color: colors.textPrimary }}
+                >
+                    <div
+                        className={`w-12 h-12 rounded-full overflow-hidden bg-gray-200 ${isStoreOpen ? 'ring-2 ring-green-500' : 'ring-2 ring-red-500'}`}
+                    >
                         {store.logo_url ? <img src={store.logo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl font-bold">{store.name?.charAt(0)}</div>}
                     </div>
                     <div>
                         <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>{store.name}</h2>
-                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                            <span className={`w-2 h-2 rounded-full ${storeOpen ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span>{storeOpen ? 'Aberto' : 'Fechado'}</span>
-                            <RatingStars value={store.ratings_avg || 0} size={10} />
-                            <span>{Number(store.ratings_avg || 0).toFixed(1)}</span>
+                        <div
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                if (store.business_hours && Object.keys(store.business_hours).length > 0) {
+                                    setShowScheduleModal(true)
+                                }
+                            }}
+                            className="flex items-center gap-1 text-xs font-bold hover:underline cursor-pointer w-fit"
+                            style={{ color: isStoreOpen ? '#22c55e' : '#ef4444' }}
+                        >
+                            <Clock size={12} />
+                            <span>{statusText}</span>
                         </div>
                     </div>
-                </Link>
+                </div>
                 <button onClick={handleRefresh} className="p-2 rounded-full" style={{ background: 'transparent', border: `1px solid ${colors.border}` }}>
                     <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
                 </button>
             </div>
 
-            {/* ===== Botões da Loja ===== */}
+            {/* ===== Botões da Loja em formato PILL ===== */}
             <div className="mb-6 mt-4">
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     <button
                         onClick={goToPublicStore}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
+                            ...pillButtonFullStyle,
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             border: `1px solid ${colors.border}`,
                             color: colors.textPrimary,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <ExternalLink size={18} />
                         Página da Loja
                     </button>
                     <button
                         onClick={copyStoreLink}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
+                            ...pillButtonFullStyle,
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             border: `1px solid ${colors.border}`,
                             color: colors.textPrimary,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <Copy size={18} />
                         Copiar Link
                     </button>
                     <button
                         onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
-                            background: colors.accent,
-                            color: colors.accentText,
-                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                            ...pillButtonFullStyle,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <Pencil size={18} />
                         Editar Loja
@@ -835,10 +891,10 @@ export default function StoreDashboard({
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <DollarSign size={24} />
@@ -848,7 +904,7 @@ export default function StoreDashboard({
                                 Vendas Hoje
                             </h3>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: colors.accent }}>
+                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
                                     R$ {metrics.daily.revenue.toFixed(2)}
                                 </span>
                                 <span>•</span>
@@ -891,13 +947,20 @@ export default function StoreDashboard({
                     <button
                         onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
                         className="w-full flex items-center justify-between text-left"
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '9999px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                    color: colors.accentText,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <ShoppingCart size={24} />
@@ -927,7 +990,7 @@ export default function StoreDashboard({
                         </div>
                         <div className="flex items-center gap-2">
                             {groupedOrders.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {groupedOrders.length}
                                 </span>
                             )}
@@ -945,12 +1008,13 @@ export default function StoreDashboard({
                                 {selectedOrderIds.size > 0 && (
                                     <button
                                         onClick={() => setShowAssignModal(true)}
-                                        className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
                                         style={{
-                                            background: colors.accent,
-                                            color: colors.accentText,
-                                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                                            ...pillButtonStyle,
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                            boxShadow: `0 4px 12px #f9731640`,
                                         }}
+                                        className="hover:scale-105 transition-transform"
                                     >
                                         <Send size={14} />
                                         Atribuir {selectedOrderIds.size}
@@ -993,14 +1057,14 @@ export default function StoreDashboard({
                                                     <div key={order.checkout_id} className="mb-1">
                                                         <OrderItem order={order} showAssignButton={!isAssigned} />
                                                         {isAssigned && (
-                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                                <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
+                                                                <span className="text-[10px]" style={{ color: '#f97316' }}>
                                                                     🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                                                 </span>
                                                                 <button
                                                                     onClick={() => setSingleAssignOpen({ order })}
                                                                     className="px-3 py-1 rounded-full text-xs font-bold"
-                                                                    style={{ background: colors.accent, color: 'white' }}
+                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                                                 >
                                                                     Trocar entregador
                                                                 </button>
@@ -1023,14 +1087,14 @@ export default function StoreDashboard({
                                                     <div key={order.checkout_id} className="mb-1">
                                                         <OrderItem order={order} showAssignButton={!isAssigned} />
                                                         {isAssigned && (
-                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                                <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                            <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
+                                                                <span className="text-[10px]" style={{ color: '#f97316' }}>
                                                                     🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                                                 </span>
                                                                 <button
                                                                     onClick={() => setSingleAssignOpen({ order })}
                                                                     className="px-3 py-1 rounded-full text-xs font-bold"
-                                                                    style={{ background: colors.accent, color: 'white' }}
+                                                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                                                 >
                                                                     Trocar entregador
                                                                 </button>
@@ -1044,7 +1108,7 @@ export default function StoreDashboard({
 
                                     {finished.length > 0 && (
                                         <div>
-                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>
+                                            <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#10b981' }}>
                                                 Finalizados ({finished.length})
                                             </h4>
                                             {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
@@ -1073,13 +1137,20 @@ export default function StoreDashboard({
                     <button
                         onClick={() => setIsProductsExpanded(!isProductsExpanded)}
                         className="w-full flex items-center justify-between text-left"
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '9999px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                    color: colors.accentText,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Package size={24} />
@@ -1095,7 +1166,7 @@ export default function StoreDashboard({
                         </div>
                         <div className="flex items-center gap-2">
                             {products.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {products.length}
                                 </span>
                             )}
@@ -1116,7 +1187,7 @@ export default function StoreDashboard({
                                         <select
                                             value={sortBy}
                                             onChange={e => setSortBy(e.target.value as any)}
-                                            className="bg-transparent border rounded px-2 py-1 text-xs"
+                                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
                                             style={{ borderColor: colors.border, color: colors.textPrimary }}
                                         >
                                             <option value="mostSold">Mais vendidos</option>
@@ -1128,12 +1199,13 @@ export default function StoreDashboard({
                                 </div>
                                 <button
                                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                                    className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
                                     style={{
-                                        background: colors.accent,
-                                        color: colors.accentText,
-                                        boxShadow: `0 4px 12px ${colors.accent}40`,
+                                        ...pillButtonStyle,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 12px #f9731640`,
                                     }}
+                                    className="hover:scale-105 transition-transform"
                                 >
                                     <Plus size={14} /> Adicionar
                                 </button>
@@ -1152,8 +1224,12 @@ export default function StoreDashboard({
                                     </p>
                                     <button
                                         onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                                        className="mt-3 text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 mx-auto"
-                                        style={{ background: colors.accent, color: 'white' }}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                        }}
+                                        className="mx-auto hover:opacity-80 transition-opacity"
                                     >
                                         <Plus size={14} /> Criar primeiro produto
                                     </button>
@@ -1185,7 +1261,7 @@ export default function StoreDashboard({
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                                    <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                                    <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>R$ {Number(prod.price).toFixed(2)}</p>
                                                     <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
                                                         <span>👁 {prod.viewsToday} hoje</span>
                                                         <span>🛒 {prod.inCart} na sacola</span>
@@ -1237,15 +1313,25 @@ export default function StoreDashboard({
             <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
-                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                    style={{
+                        ...pillButtonFullStyle,
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
+                    }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <Settings size={18} /> Editar loja
                 </button>
                 <button
                     onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
-                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
+                    style={{
+                        ...pillButtonFullStyle,
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
+                    }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <Plus size={18} /> Adicionar produto
                 </button>
@@ -1270,13 +1356,22 @@ export default function StoreDashboard({
                                 </div>
                             )}
                             {employees.map(emp => (
-                                <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? `${colors.accent}20` : 'transparent', border: `1px solid ${colors.border}` }}>
+                                <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? '#f9731620' : 'transparent', border: `1px solid ${colors.border}` }}>
                                     <p className="font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
                                     {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}
                                 </div>
                             ))}
                         </div>
-                        <button onClick={() => handleAssignDelivery()} disabled={!selectedEmployeeId || assigning} className="w-full mt-4 py-2 rounded-full font-bold" style={{ background: selectedEmployeeId ? colors.accent : colors.border, color: selectedEmployeeId ? 'white' : colors.textSecondary }}>
+                        <button
+                            onClick={() => handleAssignDelivery()}
+                            disabled={!selectedEmployeeId || assigning}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: selectedEmployeeId ? GRADIENT : colors.border,
+                                color: selectedEmployeeId ? '#ffffff' : colors.textSecondary,
+                            }}
+                            className="w-full hover:opacity-80 transition-opacity"
+                        >
                             {assigning ? 'Atribuindo...' : 'Confirmar'}
                         </button>
                     </div>

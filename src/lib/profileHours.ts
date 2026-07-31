@@ -135,6 +135,104 @@ export function getProfileStatusText(businessHours: BusinessHours | null | undef
     return 'Fechado hoje'
 }
 
+// ---------- NOVA FUNÇÃO: Status com suporte a almoço e intervalo ----------
+
+export function getProfileStatusWithLunch(businessHours: BusinessHours | null | undefined): {
+    isOpen: boolean
+    text: string
+    isLunchTime?: boolean
+} {
+    if (!businessHours?.weekly) {
+        return { isOpen: false, text: 'Horário não definido' }
+    }
+
+    const now = new Date()
+    const todayStr = toLocalDateString(now)
+
+    // verifica bloqueios
+    const blockedDates = businessHours.blocked_dates ?? []
+    if (blockedDates.includes(todayStr)) {
+        return { isOpen: false, text: 'Fechado hoje' }
+    }
+
+    const dayKey = String(now.getDay())
+    const dayConfig = businessHours.weekly[dayKey]
+
+    if (!dayConfig || !dayConfig.isOpen || !dayConfig.start || !dayConfig.end) {
+        return { isOpen: false, text: 'Fechado hoje' }
+    }
+
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const intervals = getOpenIntervals(dayConfig)
+
+    // 1. VERIFICA SE ESTÁ NO HORÁRIO DE INTERVALO (ALMOÇO)
+    if (dayConfig.lunchStart && dayConfig.lunchEnd) {
+        const lunchStartMin = timeToMinutes(dayConfig.lunchStart)
+        const lunchEndMin = timeToMinutes(dayConfig.lunchEnd)
+        if (lunchStartMin !== -1 && lunchEndMin !== -1 &&
+            currentMinutes >= lunchStartMin && currentMinutes < lunchEndMin) {
+            return {
+                isOpen: true,
+                text: `Em intervalo (volta às ${dayConfig.lunchEnd.slice(0, 5)})`,
+                isLunchTime: true
+            }
+        }
+    }
+
+    // 2. VERIFICA SE ESTÁ ABERTO
+    const isOpen = intervals.some(({ start, end }) => currentMinutes >= start && currentMinutes < end)
+
+    if (isOpen) {
+        // Verifica se está perto do fechamento
+        const endMinutes = timeToMinutes(dayConfig.end)
+        if (endMinutes !== -1 && endMinutes - currentMinutes <= 60) {
+            return {
+                isOpen: true,
+                text: `Aberto até ${dayConfig.end.slice(0, 5)}`
+            }
+        }
+
+        const startTime = dayConfig.start.slice(0, 5)
+        const endTime = dayConfig.end.slice(0, 5)
+
+        // Se tem almoço, mostra o formato completo
+        if (dayConfig.lunchStart && dayConfig.lunchEnd) {
+            const lunchStart = dayConfig.lunchStart.slice(0, 5)
+            const lunchEnd = dayConfig.lunchEnd.slice(0, 5)
+            return {
+                isOpen: true,
+                text: `Aberto: ${startTime} - ${lunchStart} / ${lunchEnd} - ${endTime}`
+            }
+        }
+
+        return {
+            isOpen: true,
+            text: `Aberto: ${startTime} - ${endTime}`
+        }
+    }
+
+    // 3. VERIFICA SE É ANTES DO HORÁRIO DE ABERTURA
+    const startMinutes = timeToMinutes(dayConfig.start)
+    if (startMinutes !== -1 && currentMinutes < startMinutes) {
+        return {
+            isOpen: false,
+            text: `Abre às ${dayConfig.start.slice(0, 5)}`
+        }
+    }
+
+    // 4. FECHADO (fora de todos os intervalos)
+    const next = getProfileNextOpeningInfo(businessHours, now)
+    if (next) {
+        const remaining = formatTimeRemaining(next.distanceMs)
+        return {
+            isOpen: false,
+            text: `Fechado · Abrirá em ${remaining} (${next.dayLabel} às ${next.time})`
+        }
+    }
+
+    return { isOpen: false, text: 'Fechado hoje' }
+}
+
 // Para compatibilidade com o store (caso precise)
 export function getProfileTodayHoursText(businessHours: BusinessHours | null | undefined): string | null {
     if (!businessHours?.weekly) return null

@@ -4,10 +4,29 @@
 import { MapPin, Phone, Store } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 600,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
 }
 
 interface StoreAddressProps {
@@ -37,10 +56,10 @@ export default function StoreAddress({ address, whatsapp }: StoreAddressProps) {
         >
             <div className="flex items-center gap-4 w-full">
                 <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                        color: colors.accentText,
+                        background: GRADIENT,
+                        color: '#ffffff',
                     }}
                 >
                     <MapPin size={28} />
@@ -53,21 +72,26 @@ export default function StoreAddress({ address, whatsapp }: StoreAddressProps) {
                     <div className="flex flex-col gap-1 mt-1">
                         {address && (
                             <div className="flex items-center gap-2 text-sm" style={{ color: colors.textSecondary }}>
-
                                 <span className="break-words">{address}</span>
                             </div>
                         )}
                         {whatsapp && (
                             <div className="flex items-center gap-2 text-sm" style={{ color: colors.textSecondary }}>
-                                <Phone size={16} className="flex-shrink-0" />
+
                                 {whatsappLink ? (
                                     <a
                                         href={whatsappLink}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="hover:underline transition-colors"
-                                        style={{ color: colors.accent }}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                            boxShadow: `0 4px 12px #f9731640`,
+                                        }}
+                                        className="hover:scale-105 transition-transform"
                                     >
+                                        <Phone size={14} />
                                         {whatsapp}
                                     </a>
                                 ) : (

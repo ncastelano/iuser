@@ -27,6 +27,32 @@ import { ptBR as ptBRLocale } from 'date-fns/locale'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    width: '100%',
+    padding: '0.75rem 1.25rem',
+    fontSize: '0.875rem',
+}
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
@@ -38,7 +64,7 @@ function hexToRgb(hex: string) {
 // ============================================
 
 interface CommissionProps {
-    userId: string  // ✅ AGORA É OBRIGATÓRIO
+    userId: string
     profileSlug?: string | null
 }
 
@@ -157,7 +183,6 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
         try {
             console.log('🔍 Buscando pessoas convidadas por:', userId)
 
-            // Buscar todos os perfis que têm este userId como upline_id
             const { data: downlineData, error } = await supabase
                 .from('profiles')
                 .select('*')
@@ -305,17 +330,24 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                         boxShadow: colors.shadow,
                     }}
                 >
-                    {/* Cabeçalho */}
+                    {/* Cabeçalho com toggle - PILL */}
                     <button
                         onClick={() => setIsExpanded(!isExpanded)}
                         className="w-full flex items-center justify-between text-left"
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '9999px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                    color: colors.accentText,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Users size={24} />
@@ -325,13 +357,13 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                     Convidei para o iUser
                                 </h3>
                                 <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                    {members.length} pessoas indicadas
+                                    {members.length} pessoa{members.length !== 1 ? 's' : ''} indicada{members.length !== 1 ? 's' : ''}
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             {members.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: accentColor }}>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {members.length}
                                 </span>
                             )}
@@ -345,15 +377,16 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                     {isExpanded && (
                         <div className="flex flex-col gap-5">
-                            {/* Botão Convidar */}
+                            {/* Botão Convidar - PILL */}
                             <button
                                 onClick={handleInvite}
-                                className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                                 style={{
-                                    background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                    color: colors.accentText,
-                                    boxShadow: `0 4px 12px ${accentColor}40`,
+                                    ...pillButtonFullStyle,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    boxShadow: `0 4px 12px #f9731640`,
                                 }}
+                                className="hover:scale-[1.02] transition-transform"
                             >
                                 <UserPlus size={16} />
                                 Convidar
@@ -361,7 +394,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             {loading ? (
                                 <div
-                                    className="rounded-xl p-8 text-center"
+                                    className="rounded-2xl p-8 text-center"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${borderColor}`,
@@ -374,17 +407,17 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                 </div>
                             ) : members.length === 0 ? (
                                 <div
-                                    className="rounded-xl p-6 text-center flex flex-col items-center gap-4"
+                                    className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px dashed ${borderColor}`,
                                     }}
                                 >
                                     <div
-                                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                                        style={{ background: colors.accentLight }}
+                                        className="w-16 h-16 rounded-full flex items-center justify-center"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
                                     >
-                                        <UserPlus size={28} style={{ color: accentColor }} />
+                                        <UserPlus size={28} />
                                     </div>
                                     <div>
                                         <p className="text-sm font-bold" style={{ color: textPrimary }}>
@@ -403,7 +436,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                         return (
                                             <div
                                                 key={member.id}
-                                                className="rounded-xl border p-3 flex flex-col gap-2 relative group cursor-pointer hover:shadow-md transition-shadow"
+                                                className="rounded-2xl border p-3 flex flex-col gap-2 relative group cursor-pointer hover:shadow-md transition-shadow"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: borderColor,
@@ -415,7 +448,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                                 }}
                                             >
                                                 <div
-                                                    className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center"
+                                                    className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center"
                                                     style={{
                                                         background: `${accentColor}15`,
                                                     }}
@@ -427,7 +460,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                                             alt={member.name}
                                                         />
                                                     ) : (
-                                                        <User size={32} style={{ color: accentColor }} />
+                                                        <User size={32} style={{ color: '#f97316' }} />
                                                     )}
                                                 </div>
 
@@ -455,7 +488,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
             </div>
 
             {/* ============================================
-            MODAL DE COMPARTILHAMENTO
+            MODAL DE COMPARTILHAMENTO - PILL
             ============================================ */}
             {showShareModal && (
                 <div
@@ -474,12 +507,13 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
                                 <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center"
                                     style={{
-                                        background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
                                     }}
                                 >
-                                    <Share2 size={20} style={{ color: colors.accentText }} />
+                                    <Share2 size={20} />
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: textPrimary }}>
@@ -501,7 +535,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                         {/* Link de convite */}
                         <div
-                            className="flex items-center gap-2 p-3 rounded-xl mb-6"
+                            className="flex items-center gap-2 p-3 rounded-2xl mb-6"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                                 border: `1px solid ${borderColor}`,
@@ -517,12 +551,12 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                     value={shareLink}
                                     readOnly
                                     className="w-full bg-transparent outline-none text-xs font-bold"
-                                    style={{ color: accentColor }}
+                                    style={{ color: '#f97316' }}
                                 />
                             </div>
                             <button
                                 onClick={handleCopyLink}
-                                className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
+                                className="p-1.5 rounded-full transition-colors hover:bg-white/10"
                                 style={{ color: textSecondary }}
                             >
                                 {copied ? (
@@ -533,11 +567,11 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                             </button>
                         </div>
 
-                        {/* Opções de compartilhamento */}
+                        {/* Opções de compartilhamento - PILL */}
                         <div className="grid grid-cols-4 gap-3 mb-6">
                             <button
                                 onClick={shareToWhatsApp}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: '#25D36615',
                                     border: `1px solid #25D36630`,
@@ -551,7 +585,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             <button
                                 onClick={shareToInstagram}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: '#E1306C15',
                                     border: `1px solid #E1306C30`,
@@ -565,7 +599,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             <button
                                 onClick={shareToTikTok}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: '#00000015',
                                     border: `1px solid #00000030`,
@@ -579,7 +613,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             <button
                                 onClick={shareToFacebook}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: '#1877F215',
                                     border: `1px solid #1877F230`,
@@ -593,7 +627,7 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             <button
                                 onClick={shareToTwitter}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: '#1DA1F215',
                                     border: `1px solid #1DA1F230`,
@@ -607,14 +641,14 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
 
                             <button
                                 onClick={handleCopyLink}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
-                                    background: `${accentColor}15`,
-                                    border: `1px solid ${accentColor}30`,
+                                    background: '#f9731620',
+                                    border: `1px solid #f9731640`,
                                 }}
                             >
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: accentColor }}>
-                                    <Copy size={24} style={{ color: colors.accentText }} />
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <Copy size={24} />
                                 </div>
                                 <span className="text-[10px] font-bold" style={{ color: textSecondary }}>Copiar Link</span>
                             </button>
@@ -624,28 +658,29 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
                                     navigator.clipboard.writeText(shareMessage)
                                     toast.success('Mensagem copiada!')
                                 }}
-                                className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+                                className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all hover:scale-105"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     border: `1px solid ${borderColor}`,
                                 }}
                             >
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: textSecondary + '30' }}>
-                                    <Send size={24} style={{ color: textSecondary }} />
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: textSecondary + '30', color: textSecondary }}>
+                                    <Send size={24} />
                                 </div>
                                 <span className="text-[10px] font-bold" style={{ color: textSecondary }}>Copiar Texto</span>
                             </button>
                         </div>
 
-                        {/* Botão fechar */}
+                        {/* Botão fechar - PILL */}
                         <button
                             onClick={() => setShowShareModal(false)}
-                            className="w-full mt-4 py-3 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
                             style={{
+                                ...pillButtonFullStyle,
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px solid ${borderColor}`,
                                 color: textSecondary,
                             }}
+                            className="hover:opacity-70 transition-opacity"
                         >
                             Fechar
                         </button>

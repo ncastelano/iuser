@@ -1,3 +1,5 @@
+// lib/storeHours.ts
+
 export interface DayConfig {
     isOpen: boolean
     start: string
@@ -67,7 +69,7 @@ function getOpenIntervals(dayConfig: DayConfig): { start: number; end: number }[
     return intervals
 }
 
-// ---------- funções originais (mantidas com melhorias) ----------
+// ---------- funções originais (mantidas) ----------
 
 export function isStoreOpenNow(businessHours: BusinessHours | null | undefined): boolean {
     if (!businessHours?.weekly) return false
@@ -75,7 +77,6 @@ export function isStoreOpenNow(businessHours: BusinessHours | null | undefined):
     const now = new Date()
     const todayStr = toLocalDateString(now)
 
-    // verifica bloqueios
     const blockedDates = businessHours.blocked_dates ?? []
     if (blockedDates.includes(todayStr)) return false
 
@@ -87,7 +88,6 @@ export function isStoreOpenNow(businessHours: BusinessHours | null | undefined):
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const intervals = getOpenIntervals(dayConfig)
 
-    // está aberto se cair em algum dos intervalos (sem incluir o almoço)
     return intervals.some(({ start, end }) => currentMinutes >= start && currentMinutes < end)
 }
 
@@ -100,7 +100,6 @@ export function getTodayHoursText(businessHours: BusinessHours | null | undefine
 
     if (!dayConfig || !dayConfig.start || !dayConfig.end) return null
 
-    // Retorna o formato mais completo se houver almoço
     const intervals = getOpenIntervals(dayConfig)
     const parts = intervals.map(({ start, end }) => `${minutesToTime(start)} - ${minutesToTime(end)}`)
     return parts.join(' / ')
@@ -131,7 +130,6 @@ export function getNextOpeningInfo(
         const intervals = getOpenIntervals(dayConfig)
         if (intervals.length === 0) continue
 
-        // Procura o primeiro intervalo do dia que ainda não começou
         for (const { start } of intervals) {
             if (i === 0 && start <= currentMinutes) continue
 
@@ -139,7 +137,7 @@ export function getNextOpeningInfo(
             const distanceMs = candidate.getTime() - from.getTime()
             return {
                 dayLabel: DAY_LABELS[candidate.getDay()],
-                time: dayConfig.start.slice(0, 5), // mantém horário do início oficial
+                time: dayConfig.start.slice(0, 5),
                 distanceMs,
             }
         }
@@ -159,107 +157,108 @@ export function formatTimeRemaining(ms: number): string {
     return `${minutes}m`
 }
 
-// ---------- NOVA FUNÇÃO para o banner ----------
+// ============================================================
+// NOVA FUNÇÃO: Status com suporte a intervalo (igual ao profileHours)
+// ============================================================
 
-/**
- * Retorna um objeto com:
- * - isOpen: boolean
- * - text: exatamente "Aberto 19:00 - 00:00" ou "Fechado 00:00 - 19:00"
- * 
- * Se a loja estiver aberta, mostra o intervalo completo do dia (incluindo almoço).
- * Se fechada, mostra desde o último fechamento até a próxima abertura.
- */
-export function getStatusIntervalText(businessHours: BusinessHours | null | undefined): {
+export function getStoreStatusWithLunch(businessHours: BusinessHours | null | undefined): {
     isOpen: boolean
     text: string
+    isLunchTime?: boolean
 } {
     if (!businessHours?.weekly) {
-        return { isOpen: false, text: 'Fechado' }
+        return { isOpen: false, text: 'Horário não definido' }
     }
 
     const now = new Date()
-    const intervals: { start: Date; end: Date }[] = []
-    const blockedDates = businessHours.blocked_dates ?? []
+    const todayStr = toLocalDateString(now)
 
-    const formatTime = (d: Date): string => {
-        const h = String(d.getHours()).padStart(2, '0')
-        const m = String(d.getMinutes()).padStart(2, '0')
-        return `${h}:${m}`
+    // verifica bloqueios
+    const blockedDates = businessHours.blocked_dates ?? []
+    if (blockedDates.includes(todayStr)) {
+        return { isOpen: false, text: 'Fechado hoje' }
     }
 
-    // Gerar todos os intervalos de funcionamento em uma janela de -3 a +7 dias do momento atual
-    for (let i = -3; i <= 7; i++) {
-        const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000)
-        const dateStr = toLocalDateString(date)
+    const dayKey = String(now.getDay())
+    const dayConfig = businessHours.weekly[dayKey]
 
-        if (blockedDates.includes(dateStr)) continue
+    if (!dayConfig || !dayConfig.isOpen || !dayConfig.start || !dayConfig.end) {
+        return { isOpen: false, text: 'Fechado hoje' }
+    }
 
-        const dayKey = String(date.getDay())
-        const dayConfig = businessHours.weekly[dayKey]
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const intervals = getOpenIntervals(dayConfig)
 
-        if (dayConfig && dayConfig.isOpen && dayConfig.start && dayConfig.end) {
-            const dayOpenIntervals = getOpenIntervals(dayConfig)
-            const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
-
-            for (const { start, end } of dayOpenIntervals) {
-                const intervalStart = new Date(dayStart.getTime() + start * 60 * 1000)
-                const intervalEnd = new Date(dayStart.getTime() + end * 60 * 1000)
-                intervals.push({ start: intervalStart, end: intervalEnd })
+    // 1. VERIFICA SE ESTÁ NO HORÁRIO DE INTERVALO
+    if (dayConfig.lunchStart && dayConfig.lunchEnd) {
+        const lunchStartMin = timeToMinutes(dayConfig.lunchStart)
+        const lunchEndMin = timeToMinutes(dayConfig.lunchEnd)
+        if (lunchStartMin !== -1 && lunchEndMin !== -1 &&
+            currentMinutes >= lunchStartMin && currentMinutes < lunchEndMin) {
+            return {
+                isOpen: true,
+                text: `Em intervalo (volta às ${dayConfig.lunchEnd.slice(0, 5)})`,
+                isLunchTime: true
             }
         }
     }
 
-    // Ordenar os intervalos de forma cronológica
-    intervals.sort((a, b) => a.start.getTime() - b.start.getTime())
+    // 2. VERIFICA SE ESTÁ ABERTO
+    const isOpen = intervals.some(({ start, end }) => currentMinutes >= start && currentMinutes < end)
 
-    const nowTime = now.getTime()
-    
-    // Verificar se o momento atual cai em algum intervalo aberto
-    const openIntervalIndex = intervals.findIndex(
-        interval => nowTime >= interval.start.getTime() && nowTime < interval.end.getTime()
-    )
+    if (isOpen) {
+        // Verifica se está perto do fechamento
+        const endMinutes = timeToMinutes(dayConfig.end)
+        if (endMinutes !== -1 && endMinutes - currentMinutes <= 60) {
+            return {
+                isOpen: true,
+                text: `Aberto até ${dayConfig.end.slice(0, 5)}`
+            }
+        }
 
-    if (openIntervalIndex !== -1) {
-        const activeInterval = intervals[openIntervalIndex]
+        const startTime = dayConfig.start.slice(0, 5)
+        const endTime = dayConfig.end.slice(0, 5)
+
+        // Se tem almoço, mostra o formato completo
+        if (dayConfig.lunchStart && dayConfig.lunchEnd) {
+            const lunchStart = dayConfig.lunchStart.slice(0, 5)
+            const lunchEnd = dayConfig.lunchEnd.slice(0, 5)
+            return {
+                isOpen: true,
+                text: `Aberto: ${startTime} - ${lunchStart} / ${lunchEnd} - ${endTime}`
+            }
+        }
+
         return {
             isOpen: true,
-            text: `Aberto ${formatTime(activeInterval.start)} - ${formatTime(activeInterval.end)}`,
+            text: `Aberto: ${startTime} - ${endTime}`
         }
     }
 
-    // Se estiver fechado, encontrar o próximo intervalo que iniciará
-    const nextIntervalIndex = intervals.findIndex(interval => interval.start.getTime() > nowTime)
-
-    if (nextIntervalIndex !== -1) {
-        const nextInterval = intervals[nextIntervalIndex]
-        if (nextIntervalIndex > 0) {
-            const prevInterval = intervals[nextIntervalIndex - 1]
-            return {
-                isOpen: false,
-                text: `Fechado ${formatTime(prevInterval.end)} - ${formatTime(nextInterval.start)}`,
-            }
-        } else {
-            // Caso não tenha intervalo anterior registrado na janela, assume o início do fechamento às 00:00
-            return {
-                isOpen: false,
-                text: `Fechado 00:00 - ${formatTime(nextInterval.start)}`,
-            }
-        }
-    }
-
-    // Caso não tenha próximo intervalo registrado na janela
-    if (intervals.length > 0) {
-        const lastInterval = intervals[intervals.length - 1]
+    // 3. ANTES DO HORÁRIO DE ABERTURA
+    const startMinutes = timeToMinutes(dayConfig.start)
+    if (startMinutes !== -1 && currentMinutes < startMinutes) {
         return {
             isOpen: false,
-            text: `Fechado desde ${formatTime(lastInterval.end)}`,
+            text: `Abre às ${dayConfig.start.slice(0, 5)}`
         }
     }
 
-    return { isOpen: false, text: 'Fechado' }
+    // 4. FECHADO (fora de todos os intervalos)
+    const next = getNextOpeningInfo(businessHours, now)
+    if (next) {
+        const remaining = formatTimeRemaining(next.distanceMs)
+        return {
+            isOpen: false,
+            text: `Fechado · Abrirá em ${remaining} (${next.dayLabel} às ${next.time})`
+        }
+    }
+
+    return { isOpen: false, text: 'Fechado hoje' }
 }
 
-// A função getStoreStatusText original continua disponível para outros usos
+// ---------- função legada (mantida para compatibilidade) ----------
+
 export function getStoreStatusText(businessHours: BusinessHours | null | undefined): string {
     const open = isStoreOpenNow(businessHours)
 

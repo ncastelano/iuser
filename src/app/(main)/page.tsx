@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard } from 'lucide-react'
 import {
     DndContext,
     closestCenter,
@@ -38,6 +38,10 @@ import ProductShowcase from './inicio/sections/ProductShowcase'
 import PublicationShowcase from './inicio/sections/PublicationShowcase'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
+import StoreDashboard from './StoreDashboard'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const DEFAULT_SECTIONS = [
     'storeList',
@@ -140,6 +144,7 @@ export default function HomePage() {
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [showProfile, setShowProfile] = useState(false)
+    const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
 
     const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
@@ -523,7 +528,7 @@ export default function HomePage() {
         }
     }
 
-    const isSearchVisible = !showConfig && !showCreateStore && !showLogin && !showProfile
+    const isSearchVisible = !showConfig && !showCreateStore && !showLogin && !showProfile && !showStoreDashboard
 
     // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
@@ -570,6 +575,7 @@ export default function HomePage() {
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
+        setShowStoreDashboard(null)
     }
 
     const handleLoginClick = () => {
@@ -577,6 +583,7 @@ export default function HomePage() {
         setShowConfig(false)
         setShowCreateStore(false)
         setShowProfile(false)
+        setShowStoreDashboard(null)
     }
 
     const handleProfileClick = () => {
@@ -585,9 +592,19 @@ export default function HomePage() {
             setShowConfig(false)
             setShowCreateStore(false)
             setShowLogin(false)
+            setShowStoreDashboard(null)
         } else {
             handleLoginClick()
         }
+    }
+
+    // Função para abrir o dashboard da loja
+    const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
+        setShowStoreDashboard({ slug: storeSlug, name: storeName })
+        setShowConfig(false)
+        setShowCreateStore(false)
+        setShowLogin(false)
+        setShowProfile(false)
     }
 
     const tabs = useMemo(() => {
@@ -619,10 +636,10 @@ export default function HomePage() {
                 allTabs.push({
                     id: `loja-${s.slug}`,
                     label: s.name,
-                    icon: Store,
+                    icon: LayoutDashboard,
                     imageUrl: s.logoUrl,
-                    onClick: () => router.push(`/${profileSlug}/${s.slug}`),
-                    isActive: false,
+                    onClick: () => handleStoreDashboardClick(s.slug, s.name),
+                    isActive: showStoreDashboard?.slug === s.slug,
                     indicator: hasActive ? counts : null,
                     statusColor,
                 })
@@ -641,9 +658,9 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, stores, loadingStores, storeOrderCounts, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, router])
 
-    const showFab = showConfig || showCreateStore || showLogin || showProfile
+    const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -709,6 +726,12 @@ export default function HomePage() {
                         onBack={() => setShowProfile(false)}
                         avatarUrl={avatarUrl}
                     />
+                ) : showStoreDashboard ? (
+                    <StoreDashboard
+                        profileSlug={profileSlug || ''}
+                        storeSlug={showStoreDashboard.slug}
+                        onBack={() => setShowStoreDashboard(null)}
+                    />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
                         {(searchFocused || searchQuery.trim()) && (
@@ -760,19 +783,21 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* SacolaButton - sempre visível */}
-                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                    <SacolaButton
-                        totalItems={totalCartItems}
-                        statusCounts={{
-                            pending: pendingCount,
-                            preparing: preparingCount,
-                            ready: readyCount,
-                            reviews: pendingReviewsCount,
-                        }}
-                        animate={cartAnimating}
-                    />
-                </div>
+                {/* SacolaButton - visível apenas quando NÃO está no ProfileDashboard */}
+                {!showProfile && !showStoreDashboard && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                        <SacolaButton
+                            totalItems={totalCartItems}
+                            statusCounts={{
+                                pending: pendingCount,
+                                preparing: preparingCount,
+                                ready: readyCount,
+                                reviews: pendingReviewsCount,
+                            }}
+                            animate={cartAnimating}
+                        />
+                    </div>
+                )}
 
                 {/* Botão Home - visível quando não está na home */}
                 {showFab && (
@@ -781,10 +806,10 @@ export default function HomePage() {
                             onClick={showHomeSections}
                             className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                color: colors.accentText,
-                                border: `2px solid ${colors.border}`,
-                                boxShadow: `0 8px 24px ${colors.accent}60`,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                border: `2px solid #f97316`,
+                                boxShadow: `0 8px 24px #f9731660`,
                             }}
                             aria-label="Voltar ao início"
                         >

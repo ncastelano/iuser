@@ -14,6 +14,9 @@ import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 // ---------- Tipos ----------
 interface ProductCard {
     id: string
@@ -35,7 +38,7 @@ interface ProductCard {
 
 // ---------- Props ----------
 interface ProductShowcaseProps {
-    dragHandle?: ReactNode // <-- NOVA PROP PARA DRAG HANDLE
+    dragHandle?: ReactNode
 }
 
 // ---------- Função para obter URL pública do avatar ----------
@@ -43,18 +46,14 @@ function getAvatarUrl(avatarPath: string | null): string | null {
     if (!avatarPath) return null
 
     try {
-        // Se já for uma URL completa (começa com http), retorna ela mesma
         if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
             return avatarPath
         }
 
-        // Se for apenas o caminho, gera a URL
         let cleanPath = avatarPath
-        // Remove 'avatars/' se existir no início
         if (cleanPath.startsWith('avatars/')) {
             cleanPath = cleanPath.replace('avatars/', '')
         }
-        // Remove qualquer barra no início
         if (cleanPath.startsWith('/')) {
             cleanPath = cleanPath.substring(1)
         }
@@ -118,7 +117,6 @@ function useProductShowcase() {
             setLoading(true)
 
             try {
-                // Buscar lojas
                 const { data: storesList, error: storesErr } = await supabase
                     .from('stores')
                     .select('id, name, storeSlug, address, logo_url, owner_id')
@@ -131,7 +129,6 @@ function useProductShowcase() {
 
                 const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
 
-                // Buscar produtos
                 const { data: productsList, error: prodErr } = await supabase
                     .from('products')
                     .select('*')
@@ -150,7 +147,6 @@ function useProductShowcase() {
                     return
                 }
 
-                // Identificar todos os owner_ids dos produtos e lojas
                 const storeOwnerIds = [...new Set(storesList?.map(s => s.owner_id) || [])]
                 const productOwnerIds = productsList
                     .filter(p => p.owner_id)
@@ -158,7 +154,6 @@ function useProductShowcase() {
 
                 const uniqueProfileIds = [...new Set([...storeOwnerIds, ...productOwnerIds])]
 
-                // Buscar todos os perfis (para fallback)
                 const { data: allProfiles, error: profileErr } = await supabase
                     .from('profiles')
                     .select('id, name, profileSlug, avatar_url')
@@ -170,7 +165,6 @@ function useProductShowcase() {
 
                 const profileMap = new Map(allProfiles?.map(p => [p.id, p]) || [])
 
-                // Buscar reviews
                 const { data: reviewsList } = await supabase
                     .from('product_reviews')
                     .select('product_id, rating')
@@ -184,7 +178,6 @@ function useProductShowcase() {
                 })
 
                 const cards: ProductCard[] = productsList.map(prod => {
-                    // Verifica se o produto pertence a uma loja ou perfil
                     const isProfileProduct = !prod.store_id && !!prod.owner_id
                     const store = storeMap.get(prod.store_id)
 
@@ -194,47 +187,39 @@ function useProductShowcase() {
                     let storeLogoUrl: string | null = null
                     let profileSlug: string | null = null
 
-                    // Busca o perfil associado ao produto
                     const profile = profileMap.get(prod.owner_id)
 
                     if (profile) {
                         profileSlug = profile.profileSlug || null
                     }
 
-                    // PRIORIDADE 1: Usar owner_image_url salvo no produto
                     if (prod.owner_image_url) {
                         storeLogoUrl = prod.owner_image_url
                     }
 
                     if (isProfileProduct) {
-                        // Produto de perfil
                         if (profile) {
                             storeName = profile.name || 'Perfil sem nome'
                             storeSlug = profile.profileSlug || '#'
                             storeAddress = null
 
-                            // Se não tiver owner_image_url, tenta buscar do perfil
                             if (!storeLogoUrl && profile.avatar_url) {
                                 storeLogoUrl = getAvatarUrl(profile.avatar_url)
                             }
                         }
                     } else if (store) {
-                        // Produto de loja
                         storeName = store.name
                         storeSlug = store.storeSlug
                         storeAddress = store.address ?? null
 
-                        // Se não tiver owner_image_url, tenta o logo da loja
                         if (!storeLogoUrl && store.logo_url) {
                             storeLogoUrl = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                         }
 
-                        // Se ainda não tem, tenta usar o avatar do perfil do dono
                         if (!storeLogoUrl && profile && profile.avatar_url) {
                             storeLogoUrl = getAvatarUrl(profile.avatar_url)
                         }
                     } else {
-                        // Fallback: usa o perfil diretamente
                         if (profile) {
                             storeName = profile.name || 'Perfil sem nome'
                             storeSlug = profile.profileSlug || '#'
@@ -246,7 +231,6 @@ function useProductShowcase() {
                         }
                     }
 
-                    // Último fallback: tenta buscar o avatar do perfil
                     if (!storeLogoUrl && profile && profile.avatar_url) {
                         storeLogoUrl = getAvatarUrl(profile.avatar_url)
                     }
@@ -329,6 +313,38 @@ function useBreakpoint() {
     return itemsPerPage
 }
 
+// ========== SKELETON CARD ==========
+function ProductSkeleton({ colors }: { colors: any }) {
+    return (
+        <div
+            className="h-28 rounded-xl overflow-hidden border"
+            style={{
+                borderColor: colors.border,
+                background: colors.surface,
+            }}
+        >
+            <div className="flex flex-row items-stretch h-full">
+                {/* Imagem skeleton */}
+                <div className="w-1/3 h-full flex-shrink-0" style={{ background: `${colors.border}40` }} />
+
+                {/* Conteúdo skeleton */}
+                <div className="flex-1 p-3 flex flex-col justify-center space-y-2">
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full" style={{ background: `${colors.border}30` }} />
+                        <div className="h-3 rounded w-20" style={{ background: `${colors.border}30` }} />
+                    </div>
+                    <div className="h-4 rounded w-3/4" style={{ background: `${colors.border}30` }} />
+                    <div className="flex items-center gap-2">
+                        <div className="h-3 rounded w-16" style={{ background: `${colors.border}25` }} />
+                        <div className="h-3 rounded w-12" style={{ background: `${colors.border}25` }} />
+                    </div>
+                    <div className="h-3 rounded w-1/2" style={{ background: `${colors.border}20` }} />
+                </div>
+            </div>
+        </div>
+    )
+}
+
 // ---------- Componente ----------
 export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const router = useRouter()
@@ -384,11 +400,14 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
 
     if (loading) {
         return (
-            <div className="animate-pulse space-y-4">
-                <div className="h-6 w-40 bg-gray-200 rounded mb-4" />
+            <div className="w-full">
+                <div className="flex items-center gap-2 mb-4 px-1">
+                    {dragHandle}
+                    <div className="h-5 rounded w-40" style={{ background: `${colors.border}60` }} />
+                </div>
                 <div className={`grid ${gridCols} gap-3`}>
-                    {Array.from({ length: itemsPerPage }).map((_, i) => (
-                        <div key={i} className="h-28 bg-gray-200 rounded-xl" />
+                    {Array.from({ length: Math.min(itemsPerPage, 6) }).map((_, i) => (
+                        <ProductSkeleton key={`skeleton-${i}`} colors={colors} />
                     ))}
                 </div>
             </div>
@@ -413,7 +432,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle - SEM ÍCONE */}
+            {/* Título com dragHandle */}
             <div className="flex items-center gap-2 mb-4 px-1">
                 {dragHandle}
                 <h2 className="text-sm font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
@@ -457,10 +476,10 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                         <div
                                             className="w-full h-full flex items-center justify-center"
                                             style={{
-                                                background: `linear-gradient(135deg, ${colors.accent}20, ${colors.accentLight}30)`,
+                                                background: GRADIENT,
                                             }}
                                         >
-                                            <Package size={32} style={{ color: colors.accent }} />
+                                            <Package size={32} style={{ color: '#ffffff' }} />
                                         </div>
                                     )}
                                     {product.viewCount > 0 && (
@@ -486,7 +505,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                         ) : (
                                             <div
                                                 className="w-4 h-4 rounded-full flex-shrink-0"
-                                                style={{ background: colors.accent }}
+                                                style={{ background: GRADIENT }}
                                             />
                                         )}
                                         <span
@@ -506,7 +525,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
 
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] mt-0.5">
                                         {formatPrice(product.price) && (
-                                            <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                            <span className="font-black" style={{ color: '#f97316' }}>
                                                 {formatPrice(product.price)}
                                             </span>
                                         )}
@@ -547,7 +566,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                             <button
                                 onClick={goToPrev}
                                 className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: colors.accent, color: colors.accentText }}
+                                style={{ background: GRADIENT, color: '#ffffff' }}
                                 aria-label="Anterior"
                             >
                                 <ChevronUp size={16} />
@@ -562,7 +581,8 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                         style={{
                                             width: '0.5rem',
                                             height: idx === currentPage ? '1.5rem' : '0.5rem',
-                                            background: idx === currentPage ? colors.accent : colors.border,
+                                            background: idx === currentPage ? '#f97316' : colors.border,
+                                            boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
                                         }}
                                         aria-label={`Ir para página ${idx + 1}`}
                                     />
@@ -576,7 +596,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                             <button
                                 onClick={goToNext}
                                 className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                                style={{ background: colors.accent, color: colors.accentText }}
+                                style={{ background: GRADIENT, color: '#ffffff' }}
                                 aria-label="Próximo"
                             >
                                 <ChevronDown size={16} />

@@ -742,7 +742,7 @@ export default function ProfilePage() {
         color: textBlack,
     }
 
-    if (loading) return <LoadingSpinner message="Carregando perfil..." />
+    if (loading) return <LoadingSpinner message="Carregando perfil..." background={colors.background} />
 
     if (profileNotFound) {
         return (
@@ -1647,14 +1647,15 @@ export default function ProfilePage() {
                     }}
                     animate={cartAnimating}
                 />
+
                 <button
                     onClick={() => router.push('/')}
                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                     style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                        color: colors.accentText,
-                        border: `2px solid ${glassBorder}`,
-                        boxShadow: `0 8px 24px ${colors.accent}60`,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        border: `2px solid rgba(249, 115, 22, 0.3)`,
+                        boxShadow: `0 8px 24px rgba(249, 115, 22, 0.6)`,
                     }}
                     aria-label="Voltar ao início"
                 >

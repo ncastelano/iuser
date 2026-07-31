@@ -33,13 +33,32 @@ interface PublicationProps {
     storeId: string
 }
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
-export default function Publication({ storeId }: PublicationProps) {
+export default function StorePublication({ storeId }: PublicationProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -211,17 +230,24 @@ export default function Publication({ storeId }: PublicationProps) {
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho */}
+                {/* Cabeçalho com toggle - PILL */}
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <Megaphone size={24} />
@@ -237,7 +263,7 @@ export default function Publication({ storeId }: PublicationProps) {
                     </div>
                     <div className="flex items-center gap-2">
                         {publications.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: accentColor }}>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                 {publications.length}
                             </span>
                         )}
@@ -257,17 +283,17 @@ export default function Publication({ storeId }: PublicationProps) {
                             </div>
                         ) : publications.length === 0 ? (
                             <div
-                                className="rounded-xl p-6 text-center flex flex-col items-center gap-4"
+                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     border: `1px dashed ${colors.border}`,
                                 }}
                             >
                                 <div
-                                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                                    style={{ background: colors.accentLight }}
+                                    className="w-16 h-16 rounded-full flex items-center justify-center"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
-                                    <MessageCircle size={28} style={{ color: accentColor }} />
+                                    <MessageCircle size={28} />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold" style={{ color: textPrimary }}>
@@ -280,12 +306,14 @@ export default function Publication({ storeId }: PublicationProps) {
                                 {!isCreating && (
                                     <button
                                         onClick={() => setIsCreating(true)}
-                                        className="text-xs font-bold px-6 py-2.5 rounded-full flex items-center gap-2 transition-all hover:scale-105"
                                         style={{
-                                            background: accentColor,
-                                            color: colors.accentText,
-                                            boxShadow: `0 4px 12px ${accentColor}40`,
+                                            ...pillButtonStyle,
+                                            padding: '0.625rem 1.5rem',
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                            boxShadow: `0 4px 12px #f9731640`,
                                         }}
+                                        className="hover:scale-105 transition-transform"
                                     >
                                         <Plus size={16} />
                                         Publicar
@@ -300,14 +328,14 @@ export default function Publication({ storeId }: PublicationProps) {
                                         return (
                                             <div
                                                 key={pub.id}
-                                                className="rounded-xl border p-3 flex flex-col gap-2 relative group"
+                                                className="rounded-2xl border p-3 flex flex-col gap-2 relative group"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
                                                 }}
                                             >
                                                 <div
-                                                    className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                                                    className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-pointer"
                                                     onClick={() => router.push(`/${pub.slug}`)}
                                                 >
                                                     {imgUrl ? (
@@ -324,14 +352,14 @@ export default function Publication({ storeId }: PublicationProps) {
                                                 <div className="flex items-center justify-between mt-auto">
                                                     <button
                                                         onClick={() => router.push(`/${pub.slug}/editar-produto`)}
-                                                        className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                                                        className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
                                                         title="Editar"
                                                     >
                                                         <ExternalLink size={14} style={{ color: textSecondary }} />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(pub.id)}
-                                                        className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                        className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
                                                         title="Excluir"
                                                     >
                                                         <Trash2 size={14} style={{ color: '#ef4444' }} />
@@ -345,11 +373,15 @@ export default function Publication({ storeId }: PublicationProps) {
                                 {!isCreating && (
                                     <button
                                         onClick={() => setIsCreating(true)}
-                                        className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:bg-white/5"
                                         style={{
+                                            ...pillButtonStyle,
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            background: 'transparent',
                                             border: `1px dashed ${colors.border}`,
-                                            color: accentColor,
+                                            color: '#f97316',
                                         }}
+                                        className="hover:bg-white/5 transition-colors"
                                     >
                                         <Plus size={16} />
                                         Nova publicação
@@ -360,14 +392,14 @@ export default function Publication({ storeId }: PublicationProps) {
 
                         {isCreating && (
                             <div
-                                className="rounded-xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200"
+                                className="rounded-2xl p-4 border space-y-4 animate-in slide-in-from-top-2 duration-200"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     borderColor: colors.border,
                                 }}
                             >
                                 <h4 className="text-sm font-black flex items-center gap-2" style={{ color: textPrimary }}>
-                                    <Send size={16} style={{ color: accentColor }} />
+                                    <Send size={16} style={{ color: '#f97316' }} />
                                     Nova Publicação
                                 </h4>
 
@@ -377,7 +409,7 @@ export default function Publication({ storeId }: PublicationProps) {
                                     </label>
                                     <div
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="w-24 h-24 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
+                                        className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-100 to-red-100 border-2 border-orange-200 hover:border-orange-400 flex items-center justify-center cursor-pointer overflow-hidden transition-all group"
                                     >
                                         {preview ? (
                                             <img src={preview} className="w-full h-full object-cover" alt="" />
@@ -406,7 +438,7 @@ export default function Publication({ storeId }: PublicationProps) {
                                         placeholder="Ex: Promoção de verão!"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
+                                        className="w-full px-3 py-2 rounded-full border text-sm focus:outline-none"
                                         style={{
                                             background: colors.surface,
                                             borderColor: colors.border,
@@ -424,7 +456,7 @@ export default function Publication({ storeId }: PublicationProps) {
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
                                         rows={3}
-                                        className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none"
+                                        className="w-full px-3 py-2 rounded-2xl border text-sm focus:outline-none resize-none"
                                         style={{
                                             background: colors.surface,
                                             borderColor: colors.border,
@@ -434,7 +466,7 @@ export default function Publication({ storeId }: PublicationProps) {
                                 </div>
 
                                 {storeWhatsapp && (
-                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-lg">
+                                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50/50 px-3 py-2 rounded-full">
                                         <MessageCircle size={14} />
                                         <span>O cliente será direcionado para o WhatsApp da loja: <strong>{storeWhatsapp}</strong></span>
                                     </div>
@@ -449,22 +481,28 @@ export default function Publication({ storeId }: PublicationProps) {
                                             setImageFile(null)
                                             setPreview(null)
                                         }}
-                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors"
                                         style={{
-                                            borderColor: colors.border,
+                                            ...pillButtonStyle,
+                                            flex: 1,
+                                            background: 'transparent',
+                                            border: `2px solid ${colors.border}`,
                                             color: textSecondary,
                                         }}
+                                        className="hover:opacity-70 transition-opacity"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         onClick={handleCreate}
                                         disabled={saving || !name.trim()}
-                                        className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                                         style={{
-                                            background: `linear-gradient(135deg, #22c55e, #16a34a)`,
+                                            ...pillButtonStyle,
+                                            flex: 1,
+                                            background: GRADIENT,
                                             color: '#ffffff',
+                                            opacity: saving || !name.trim() ? 0.5 : 1,
                                         }}
+                                        className="hover:opacity-80 transition-opacity"
                                     >
                                         {saving ? (
                                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

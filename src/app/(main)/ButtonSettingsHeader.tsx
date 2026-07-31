@@ -13,7 +13,10 @@ import ColloriUser from '@/components/ColloriUser'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
-type BgMode = 'animated' | 'black' | 'custom'
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+type BgMode = 'black' | 'custom' | 'animated'
 
 interface ConfiguracoesProps {
     onBack: () => void
@@ -34,7 +37,6 @@ export default function ConfiguracoesContent({
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    // 👇 Agora também pegamos current (tema ativo) e setTheme
     const { colors, current, setTheme } = useTheme()
     const { fontSize, setFontSize } = useFontStore()
 
@@ -47,7 +49,6 @@ export default function ConfiguracoesContent({
     const [uploadingBg, setUploadingBg] = useState(false)
     const [authChecked, setAuthChecked] = useState(false)
 
-    // Redireciona para login se não houver sessão
     useEffect(() => {
         const checkSession = async () => {
             const { data: { session } } = await supabase.auth.getSession()
@@ -60,7 +61,6 @@ export default function ConfiguracoesContent({
         checkSession()
     }, [router])
 
-    // Sincroniza props
     useEffect(() => {
         _setBgMode(propBgMode)
     }, [propBgMode])
@@ -69,7 +69,6 @@ export default function ConfiguracoesContent({
         _setCustomBgUrl(propCustomBgUrl)
     }, [propCustomBgUrl])
 
-    // Carrega perfil (whatsapp, tema e fonte) apenas se autenticado
     useEffect(() => {
         if (!authChecked) return
 
@@ -78,12 +77,11 @@ export default function ConfiguracoesContent({
             if (user) {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('whatsapp, app_theme, font_size')   // 👈 campos adicionais
+                    .select('whatsapp, app_theme, font_size')
                     .eq('id', user.id)
                     .single()
 
                 if (data) {
-                    // WhatsApp
                     if (data.whatsapp) {
                         setWhatsapp(data.whatsapp)
                         setUseWhatsapp(true)
@@ -91,21 +89,19 @@ export default function ConfiguracoesContent({
                         setUseWhatsapp(false)
                     }
 
-                    // Tema salvo
                     if (data.app_theme) {
-                        setTheme(data.app_theme)     // 👈 aplica o tema
+                        setTheme(data.app_theme)
                     }
 
-                    // Fonte salva
                     if (data.font_size) {
-                        setFontSize(data.font_size)  // 👈 aplica o tamanho da fonte
+                        setFontSize(data.font_size)
                     }
                 }
             }
             setLoading(false)
         }
         loadProfile()
-    }, [authChecked, setTheme, setFontSize])   // dependências
+    }, [authChecked, setTheme, setFontSize])
 
     const handleSave = async () => {
         setSaving(true)
@@ -118,8 +114,8 @@ export default function ConfiguracoesContent({
                     whatsapp: normalizedWhatsapp || null,
                     background_mode: bgMode,
                     background_image_url: bgMode === 'custom' ? customBgUrl : null,
-                    app_theme: current,        // 👈 salva o tema atual
-                    font_size: fontSize,       // 👈 salva o tamanho da fonte
+                    app_theme: current,
+                    font_size: fontSize,
                 })
                 .eq('id', user.id)
 
@@ -178,10 +174,25 @@ export default function ConfiguracoesContent({
     }
 
     const bgOptions = [
-        { mode: 'animated' as const, label: 'Animado', icon: Sparkles, desc: 'Partículas coloridas' },
         { mode: 'black' as const, label: 'Sem animação', icon: Palette, desc: 'Fundo sólido' },
         { mode: 'custom' as const, label: 'Sua foto', icon: Camera, desc: 'Sua própria imagem' },
     ]
+
+    // ===== STYLE PARA BOTÕES PILL =====
+    const pillButtonStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        width: '100%',
+        padding: '0.75rem 1.25rem',
+        borderRadius: '9999px',
+        fontSize: '0.875rem',
+        fontWeight: 700,
+        transition: 'all 0.2s ease',
+        cursor: 'pointer',
+        border: 'none',
+    }
 
     return (
         <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 pb-24">
@@ -200,8 +211,15 @@ export default function ConfiguracoesContent({
                     style={{ background: colors.surface, borderColor: colors.border }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
-                            <Image className="w-5 h-5" style={{ color: colors.accent }} />
+                        <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 12px #f9731640`,
+                            }}
+                        >
+                            <Image className="w-5 h-5" />
                         </div>
                         <div>
                             <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Plano de Fundo</h3>
@@ -217,19 +235,19 @@ export default function ConfiguracoesContent({
                                     onClick={() => handleBgModeChange(opt.mode)}
                                     className="relative flex flex-col items-center gap-1 p-3 rounded-xl border transition-all"
                                     style={{
-                                        background: isSelected ? colors.accentLight : colors.background,
-                                        borderColor: isSelected ? colors.accent : colors.border,
+                                        background: isSelected ? '#f9731620' : colors.background,
+                                        borderColor: isSelected ? '#f97316' : colors.border,
                                     }}
                                 >
                                     {isSelected && (
                                         <div
                                             className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                                            style={{ background: colors.accent }}
+                                            style={{ background: GRADIENT }}
                                         >
-                                            <Check size={12} color={colors.accentText} />
+                                            <Check size={12} color="#ffffff" />
                                         </div>
                                     )}
-                                    <opt.icon size={20} color={isSelected ? colors.accent : colors.textSecondary} />
+                                    <opt.icon size={20} color={isSelected ? '#f97316' : colors.textSecondary} />
                                     <span className="text-xs font-bold" style={{ color: isSelected ? colors.textPrimary : colors.textSecondary }}>{opt.label}</span>
                                     <span className="text-[9px]" style={{ color: colors.textSecondary }}>{opt.desc}</span>
                                 </button>
@@ -244,7 +262,12 @@ export default function ConfiguracoesContent({
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploadingBg}
                                 className="w-full py-2 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2"
-                                style={{ background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                                style={{
+                                    ...pillButtonStyle,
+                                    background: colors.background,
+                                    borderColor: colors.border,
+                                    color: colors.textSecondary,
+                                }}
                             >
                                 {uploadingBg ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -269,8 +292,8 @@ export default function ConfiguracoesContent({
                 >
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <Smartphone className="w-5 h-5 text-green-400" />
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#22c55e20' }}>
+                                <Smartphone className="w-5 h-5" style={{ color: '#22c55e' }} />
                             </div>
                             <div>
                                 <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>WhatsApp</h3>
@@ -299,7 +322,7 @@ export default function ConfiguracoesContent({
                                     placeholder="(00) 00000-0000"
                                     value={whatsapp}
                                     onChange={(e) => setWhatsapp(e.target.value)}
-                                    className="w-full px-5 py-4 rounded-xl placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                    className="w-full px-5 py-4 rounded-full placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                                     style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                 />
                                 <p className="text-[8px] mt-2" style={{ color: colors.textSecondary }}>Exemplo: (11) 99999-9999</p>
@@ -321,8 +344,15 @@ export default function ConfiguracoesContent({
                     style={{ background: colors.surface, borderColor: colors.border }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
-                            <Type className="w-5 h-5" style={{ color: colors.accent }} />
+                        <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 12px #f9731640`,
+                            }}
+                        >
+                            <Type className="w-5 h-5" />
                         </div>
                         <div>
                             <h3 className="text-base font-black uppercase tracking-tighter" style={{ color: colors.textPrimary }}>Tamanho da Fonte</h3>
@@ -333,27 +363,27 @@ export default function ConfiguracoesContent({
                     <div className="grid grid-cols-3 gap-3">
                         <button
                             onClick={() => setFontSize('normal')}
-                            className={`py-3 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'normal' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                            className={`py-3 rounded-full font-black uppercase text-[10px] tracking-wider transition-all ${fontSize === 'normal' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
+                            style={fontSize === 'normal' ? { background: GRADIENT } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Padrão
                         </button>
                         <button
                             onClick={() => setFontSize('large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                            className={`py-3 rounded-full font-black uppercase text-[11px] tracking-wider transition-all ${fontSize === 'large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
+                            style={fontSize === 'large' ? { background: GRADIENT } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Grande
                         </button>
                         <button
                             onClick={() => setFontSize('extra-large')}
-                            className={`py-3 rounded-xl font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
-                            style={fontSize === 'extra-large' ? { background: colors.accent } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
+                            className={`py-3 rounded-full font-black uppercase text-[12px] tracking-wider transition-all ${fontSize === 'extra-large' ? 'text-white shadow-md' : 'border hover:bg-white/10'}`}
+                            style={fontSize === 'extra-large' ? { background: GRADIENT } : { background: colors.background, borderColor: colors.border, color: colors.textSecondary }}
                         >
                             Enorme
                         </button>
                     </div>
-                    <div className="mt-4 p-3 rounded-xl border" style={{ background: colors.background, borderColor: colors.border }}>
+                    <div className="mt-4 p-3 rounded-2xl border" style={{ background: colors.background, borderColor: colors.border }}>
                         <p
                             style={{ color: colors.textPrimary }}
                             className={`${fontSize === 'normal' ? 'text-sm' : fontSize === 'large' ? 'text-base' : 'text-lg'}`}
@@ -363,35 +393,52 @@ export default function ConfiguracoesContent({
                     </div>
                 </div>
 
-                {/* Salvar */}
+                {/* Salvar - PILL */}
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="group relative w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ background: colors.accent, color: colors.accentText }}
+                    style={{
+                        ...pillButtonStyle,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        boxShadow: `0 4px 14px #f9731660`,
+                        opacity: saving ? 0.5 : 1,
+                        cursor: saving ? 'not-allowed' : 'pointer',
+                    }}
+                    className="hover:scale-105 transition-transform active:scale-95"
                 >
-                    <span className="relative z-10 flex items-center justify-center gap-2">
+                    <span className="flex items-center justify-center gap-2">
                         {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Save className="w-5 h-5" /> Salvar Configurações</>}
                     </span>
                 </button>
 
-                {/* Sair */}
+                {/* Sair - PILL */}
                 <button
                     onClick={handleLogout}
-                    className="group w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg active:scale-95 border-2"
-                    style={{ background: 'transparent', borderColor: colors.accent, color: colors.accent }}
+                    style={{
+                        ...pillButtonStyle,
+                        background: 'transparent',
+                        border: `2px solid #f97316`,
+                        color: '#f97316',
+                    }}
+                    className="hover:scale-105 transition-transform active:scale-95 hover:bg-orange-50/10"
                 >
-                    <span className="flex items-center justify-center gap-2"><LogOut className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" /> Sair da Conta</span>
+                    <span className="flex items-center justify-center gap-2"><LogOut className="w-5 h-5" /> Sair da Conta</span>
                 </button>
 
-                {/* Voltar */}
+                {/* Voltar - PILL */}
                 <button
                     onClick={onBack}
-                    className="group w-full py-4 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg active:scale-95 border-2"
-                    style={{ background: 'transparent', borderColor: colors.border, color: colors.textSecondary }}
+                    style={{
+                        ...pillButtonStyle,
+                        background: 'transparent',
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textSecondary,
+                    }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <span className="flex items-center justify-center gap-2">
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                        <ArrowLeft className="w-5 h-5" />
                         Voltar
                     </span>
                 </button>

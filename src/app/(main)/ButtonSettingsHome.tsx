@@ -4,6 +4,9 @@
 import { Settings, Palette } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 /* ─── Helper para converter hex em RGB ─── */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
     const clean = hex.replace('#', '')
@@ -31,15 +34,17 @@ export default function ButtonSettingsHome({ onClick }: ButtonSettingsHomeProps)
                 border: `1px solid ${colors.border}`,
                 backdropFilter: 'blur(12px)',
                 WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: colors.shadow,
             }}
         >
             <div className="flex items-center gap-4">
-                {/* Ícone de configurações com gradiente do tema */}
+                {/* Ícone de configurações com gradiente laranja-vermelho */}
                 <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center"
+                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                        color: colors.accentText,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        boxShadow: `0 4px 12px #f9731640`,
                     }}
                 >
                     <Settings size={28} />
@@ -57,9 +62,9 @@ export default function ButtonSettingsHome({ onClick }: ButtonSettingsHomeProps)
                 onClick={onClick}
                 className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
                 style={{
-                    background: colors.accent,
-                    color: colors.accentText,
-                    boxShadow: `0 4px 14px ${colors.accent}60`,
+                    background: GRADIENT,
+                    color: '#ffffff',
+                    boxShadow: `0 4px 14px #f9731660`,
                 }}
             >
                 <Palette size={16} />

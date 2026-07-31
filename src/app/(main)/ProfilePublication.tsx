@@ -33,6 +33,32 @@ interface PublicationProfileProps {
     profileSlug: string
 }
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    width: '100%',
+    padding: '0.75rem 1.25rem',
+    fontSize: '0.875rem',
+}
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
@@ -123,17 +149,24 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho */}
+                {/* Cabeçalho com toggle - PILL */}
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <Megaphone size={24} />
@@ -142,14 +175,23 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Minhas Publicações
                             </h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                Divulgue seus produtos ou serviços
-                            </p>
+                            <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: textSecondary }}>
+                                <span>{publications.length} publicação{publications.length !== 1 ? 'ões' : ''}</span>
+                                {!profileWhatsapp && (
+                                    <>
+                                        <span>•</span>
+                                        <span className="text-red-500 flex items-center gap-1">
+                                            <Eye size={12} />
+                                            WhatsApp não configurado
+                                        </span>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         {publications.length > 0 && (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: accentColor }}>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                 {publications.length}
                             </span>
                         )}
@@ -163,15 +205,16 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
 
                 {isExpanded && (
                     <div className="flex flex-col gap-5">
-                        {/* Botão Criar Publicação - redireciona para fazer-divulgacao */}
+                        {/* Botão Criar Publicação - PILL */}
                         <button
                             onClick={() => router.push(`/${profileSlug}/fazer-divulgacao`)}
-                            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
-                                boxShadow: `0 4px 12px ${accentColor}40`,
+                                ...pillButtonFullStyle,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 12px #f9731640`,
                             }}
+                            className="hover:scale-[1.02] transition-transform"
                         >
                             <Plus size={16} />
                             Criar Publicação
@@ -183,17 +226,17 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
                             </div>
                         ) : publications.length === 0 ? (
                             <div
-                                className="rounded-xl p-6 text-center flex flex-col items-center gap-4"
+                                className="rounded-2xl p-6 text-center flex flex-col items-center gap-4"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                     border: `1px dashed ${colors.border}`,
                                 }}
                             >
                                 <div
-                                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                                    style={{ background: colors.accentLight }}
+                                    className="w-16 h-16 rounded-full flex items-center justify-center"
+                                    style={{ background: GRADIENT, color: '#ffffff' }}
                                 >
-                                    <MessageCircle size={28} style={{ color: accentColor }} />
+                                    <MessageCircle size={28} />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold" style={{ color: textPrimary }}>
@@ -217,14 +260,14 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
                                     return (
                                         <div
                                             key={pub.id}
-                                            className="rounded-xl border p-3 flex flex-col gap-2 relative group"
+                                            className="rounded-2xl border p-3 flex flex-col gap-2 relative group"
                                             style={{
                                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                 borderColor: colors.border,
                                             }}
                                         >
                                             <div
-                                                className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                                                className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-pointer"
                                                 onClick={() => router.push(`/${profileSlug}/${pub.slug}`)}
                                             >
                                                 {imgUrl ? (
@@ -241,14 +284,14 @@ export default function PublicationProfile({ profileId, profileSlug }: Publicati
                                             <div className="flex items-center justify-between mt-auto">
                                                 <button
                                                     onClick={() => router.push(`/${profileSlug}/${pub.slug}/editar-produto`)}
-                                                    className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                                                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
                                                     title="Editar"
                                                 >
                                                     <ExternalLink size={14} style={{ color: textSecondary }} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(pub.id)}
-                                                    className="p-1.5 rounded hover:bg-red-50 transition-colors"
+                                                    className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
                                                     title="Excluir"
                                                 >
                                                     <Trash2 size={14} style={{ color: '#ef4444' }} />

@@ -30,6 +30,32 @@ const DEFAULT_WEEKLY = {
     '0': { isOpen: false, start: '09:00', end: '13:00', lunchStart: '', lunchEnd: '' },
 }
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    flex: 1,
+    padding: '0.75rem 1.25rem',
+    fontSize: '0.875rem',
+}
+
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
@@ -135,7 +161,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                     }}
                 >
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-xl bg-gray-200" />
+                        <div className="w-12 h-12 rounded-full bg-gray-200" />
                         <div className="h-6 w-32 bg-gray-200 rounded" />
                     </div>
                     <div className="space-y-4">
@@ -160,17 +186,24 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Cabeçalho com toggle */}
+                {/* Cabeçalho com toggle - PILL */}
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
                     className="w-full flex items-center justify-between text-left"
+                    style={{
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '9999px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                    }}
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <Clock size={24} />
@@ -179,9 +212,15 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Horários de Atendimento
                             </h3>
-                            <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
-                                {openDaysCount} dia{openDaysCount !== 1 ? 's' : ''} disponível{openDaysCount !== 1 ? 'is' : ''}
-                            </p>
+                            <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: textSecondary }}>
+                                <span>{openDaysCount} dia{openDaysCount !== 1 ? 's' : ''} disponível{openDaysCount !== 1 ? 'is' : ''}</span>
+                                {blockedDates.length > 0 && (
+                                    <>
+                                        <span>•</span>
+                                        <span>{blockedDates.length} bloqueada{blockedDates.length !== 1 ? 's' : ''}</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -196,7 +235,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                 {isExpanded && (
                     <>
                         {/* Subtítulo expandido */}
-                        <p className="text-xs mt-0.5" style={{ color: textSecondary }}>
+                        <p className="text-xs" style={{ color: textSecondary }}>
                             Defina os horários em que você está disponível para atendimento
                         </p>
 
@@ -215,7 +254,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                 return (
                                     <div
                                         key={day.id}
-                                        className="p-4 rounded-xl border"
+                                        className="p-4 rounded-2xl border"
                                         style={{
                                             borderColor: colors.border,
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -237,7 +276,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                 />
                                                 <span
                                                     className="absolute inset-0 rounded-full transition-colors duration-200"
-                                                    style={{ background: dayConfig.isOpen ? accentColor : colors.border }}
+                                                    style={{ background: dayConfig.isOpen ? '#f97316' : colors.border }}
                                                 />
                                                 <span
                                                     className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${dayConfig.isOpen ? 'translate-x-[18px]' : 'translate-x-0'
@@ -257,7 +296,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                             type="time"
                                                             value={dayConfig.start}
                                                             onChange={(e) => updateDaySetting(day.id, 'start', e.target.value)}
-                                                            className="w-full p-2 rounded-lg border text-sm"
+                                                            className="w-full p-2 rounded-full border text-sm"
                                                             style={{
                                                                 borderColor: colors.border,
                                                                 background: colors.surface,
@@ -273,7 +312,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                             type="time"
                                                             value={dayConfig.end}
                                                             onChange={(e) => updateDaySetting(day.id, 'end', e.target.value)}
-                                                            className="w-full p-2 rounded-lg border text-sm"
+                                                            className="w-full p-2 rounded-full border text-sm"
                                                             style={{
                                                                 borderColor: colors.border,
                                                                 background: colors.surface,
@@ -298,7 +337,8 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                                 updateDaySetting(day.id, 'lunchEnd', '')
                                                             }
                                                         }}
-                                                        className="rounded"
+                                                        className="rounded-full"
+                                                        style={{ accentColor: '#f97316' }}
                                                     />
                                                     <label
                                                         htmlFor={`lunch-config-${day.id}`}
@@ -319,7 +359,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                                 type="time"
                                                                 value={dayConfig.lunchStart}
                                                                 onChange={(e) => updateDaySetting(day.id, 'lunchStart', e.target.value)}
-                                                                className="w-full p-2 rounded-lg border text-sm"
+                                                                className="w-full p-2 rounded-full border text-sm"
                                                                 style={{
                                                                     borderColor: colors.border,
                                                                     background: colors.surface,
@@ -335,7 +375,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                                                 type="time"
                                                                 value={dayConfig.lunchEnd}
                                                                 onChange={(e) => updateDaySetting(day.id, 'lunchEnd', e.target.value)}
-                                                                className="w-full p-2 rounded-lg border text-sm"
+                                                                className="w-full p-2 rounded-full border text-sm"
                                                                 style={{
                                                                     borderColor: colors.border,
                                                                     background: colors.surface,
@@ -362,7 +402,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                     type="date"
                                     value={blockedDateInput}
                                     onChange={(e) => setBlockedDateInput(e.target.value)}
-                                    className="flex-1 p-3 rounded-xl border text-sm"
+                                    className="flex-1 p-3 rounded-full border text-sm"
                                     style={{
                                         borderColor: colors.border,
                                         background: colors.surface,
@@ -371,15 +411,19 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                                 />
                                 <button
                                     onClick={addBlockedDate}
-                                    className="px-4 py-3 rounded-xl font-bold text-sm transition-colors"
-                                    style={{ background: accentColor, color: colors.accentText }}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                    }}
+                                    className="hover:opacity-80 transition-opacity"
                                 >
                                     Bloquear
                                 </button>
                             </div>
                             {blockedDates.length > 0 && (
                                 <div
-                                    className="flex flex-wrap gap-2 p-3 rounded-xl max-h-32 overflow-y-auto"
+                                    className="flex flex-wrap gap-2 p-3 rounded-2xl max-h-32 overflow-y-auto"
                                     style={{
                                         border: `1px solid ${colors.border}`,
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
@@ -411,28 +455,30 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
                             )}
                         </div>
 
-                        {/* Botões de ação */}
+                        {/* Botões de ação - PILL */}
                         <div className="flex gap-3 mt-2">
                             <button
                                 onClick={cancelEditing}
-                                className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors"
                                 style={{
+                                    ...pillButtonFullStyle,
                                     background: 'transparent',
                                     border: `2px solid ${colors.border}`,
                                     color: textSecondary,
                                 }}
+                                className="hover:opacity-70 transition-opacity"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={saveConfig}
                                 disabled={saving}
-                                className="flex-1 py-3 rounded-xl font-bold text-sm transition-all"
                                 style={{
-                                    background: accentColor,
-                                    color: colors.accentText,
+                                    ...pillButtonFullStyle,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                     opacity: saving ? 0.7 : 1,
                                 }}
+                                className="hover:opacity-80 transition-opacity"
                             >
                                 {saving ? 'Salvando...' : 'Salvar'}
                             </button>

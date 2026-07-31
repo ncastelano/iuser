@@ -10,6 +10,9 @@ type LoadingSpinnerProps = {
     background?: string   // opcional: força uma cor de fundo (ex: "black")
 }
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 const adjustBrightness = (hex: string, percent: number): string => {
     const num = parseInt(hex.replace('#', ''), 16)
     const r = Math.min(255, Math.max(0, (num >> 16) + percent))
@@ -110,16 +113,19 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true, bac
 
     if (!mounted) return null
 
-    // Define o fundo: se 'background' for passado, usa-o; senão, transparente
+    // Define o fundo: se 'background' for passado, usa-o; senão, usa o fundo do tema ou transparente
     const bgStyle = background
         ? { background }
         : { background: 'transparent' }
 
-    // Cores derivadas do tema
-    const primaryParticle = accent
-    const secondaryParticle = accentLight
-    const darkerAccent = adjustBrightness(accent, -30)
-    const lighterAccent = adjustBrightness(accent, 40)
+    // Cores das partículas - sempre laranja/vermelho (identidade visual)
+    const primaryParticle = '#f97316'
+    const secondaryParticle = '#dc2626'
+    const darkerAccent = '#c2410c'
+    const lighterAccent = '#fb923c'
+
+    // Cor do texto baseada no tema
+    const textColor = textSecondary
 
     return (
         <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={bgStyle}>
@@ -164,19 +170,19 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true, bac
                         />
                     </div>
 
-                    {/* Ícone central */}
+                    {/* Ícone central com gradiente laranja-vermelho */}
                     <div className="relative z-10">
                         <div
                             className="absolute inset-0 w-20 h-20 rounded-full blur-xl opacity-50 animate-[pulse_2s_ease-in-out_infinite]"
                             style={{
-                                background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
+                                background: GRADIENT,
                             }}
                         />
                         <div
                             className="w-20 h-20 rounded-full flex items-center justify-center relative ring-2 ring-white/80 ring-offset-2 ring-offset-transparent"
                             style={{
-                                background: `linear-gradient(135deg, ${primaryParticle}, ${darkerAccent})`,
-                                boxShadow: `0 0 30px ${primaryParticle}66, 0 0 60px ${darkerAccent}33`,
+                                background: GRADIENT,
+                                boxShadow: `0 0 30px #f9731666, 0 0 60px #dc262633`,
                             }}
                         >
                             <img
@@ -250,11 +256,15 @@ export function LoadingSpinner({ message = 'Carregando...', showDots = true, bac
                     )}
                 </div>
 
-                {/* Mensagem de texto */}
+                {/* Mensagem de texto com cor do tema */}
                 {message && (
-                    <p className="text-sm font-bold animate-pulse" style={{ color: textSecondary }}>
-                        {message}
-                    </p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                        <p className="text-sm font-bold" style={{ color: textColor }}>
+                            {message}
+                            {showDots && <span className="inline-flex ml-1">...</span>}
+                        </p>
+                    </div>
                 )}
             </div>
 

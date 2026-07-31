@@ -44,14 +44,38 @@ import Employee from './Employee'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
-import PublicationProfile from './PublicationProfile'
+import PublicationProfile from './ProfilePublication'
 import ProfileOperatingDays from './ProfileOperatingDays'
-
-// ✅ IMPORTAR O COMPONENTE COMMISSION
 import Commission from './Commission'
 
-import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
+// ===== IMPORTAR DO PROFILEHOURS (com suporte a intervalo) =====
+import { isProfileOpenNow, getProfileStatusWithLunch } from '@/lib/profileHours'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    flex: 1,
+    padding: '0.75rem 1.25rem',
+    fontSize: '0.875rem',
+}
 
 function startOfDay(date: Date = new Date()): string {
     date.setHours(0, 0, 0, 0)
@@ -62,31 +86,6 @@ function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
-
-// ---------- Funções de horário ----------
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey(): string {
-    return DAY_KEYS[new Date().getDay()]
-}
-
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = schedule.open.split(':').map(Number)
-    let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) closeH = 24
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
 }
 
 // ---------- Funções de rota (entregas) ----------
@@ -167,14 +166,12 @@ export default function ProfileDashboard({
     const [reviews, setReviews] = useState<any[]>([])
     const [upcomingSchedules, setUpcomingSchedules] = useState<any[]>([])
 
-    // Estados para o SacolaButton
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
     const [cartAnimating, setCartAnimating] = useState(false)
 
-    // Estados para funções de vendedor (Store)
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
     const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
@@ -190,7 +187,6 @@ export default function ProfileDashboard({
     const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
     const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
 
-    // Estados para configurações da loja (perfil)
     const [acceptsPix, setAcceptsPix] = useState(false)
     const [acceptsCard, setAcceptsCard] = useState(false)
     const [acceptsDelivery, setAcceptsDelivery] = useState(false)
@@ -204,7 +200,7 @@ export default function ProfileDashboard({
 
     const intervalRef = useRef<any>(null)
 
-    // ===== STATUS ABERTO/FECHADO =====
+    // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
     const isProfileOpen = useMemo(() => {
         if (!profile) return false
         return isProfileOpenNow(profile.business_hours)
@@ -212,14 +208,14 @@ export default function ProfileDashboard({
 
     const profileStatusText = useMemo(() => {
         if (!profile) return ''
-        return getProfileStatusText(profile.business_hours)
+        const status = getProfileStatusWithLunch(profile.business_hours)
+        return status.text
     }, [profile])
 
     const totalCartItems = React.useMemo(() => {
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
     }, [itemsByStore])
 
-    // Animação da sacola
     React.useEffect(() => {
         if (totalCartItems > 0) {
             setCartAnimating(true)
@@ -228,7 +224,6 @@ export default function ProfileDashboard({
         }
     }, [totalCartItems])
 
-    // Buscar status dos pedidos (comprador)
     React.useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -286,7 +281,6 @@ export default function ProfileDashboard({
         if (!profileSlug) return
         setLoading(true)
 
-        // Buscar perfil
         const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -299,7 +293,6 @@ export default function ProfileDashboard({
             return
         }
 
-        // USAR o avatarUrl PASSADO COMO PROP
         const finalAvatarUrl = avatarUrl || (profileData.avatar_url
             ? supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
             : null)
@@ -307,7 +300,6 @@ export default function ProfileDashboard({
         setProfile({ ...profileData, avatar_url: finalAvatarUrl })
         setInitialBusinessHours(profileData.business_hours || {})
 
-        // Carregar configurações do perfil para funções de vendedor
         setAcceptsPix(profileData.accepts_pix ?? true)
         setAcceptsCard(profileData.accepts_card ?? true)
         setAcceptsDelivery(profileData.accepts_delivery ?? false)
@@ -329,7 +321,6 @@ export default function ProfileDashboard({
         const profileId = profileData.id
         setOwnerProfile({ name: profileData.name, phone: profileData.whatsapp })
 
-        // Buscar pedidos do usuário (como comprador)
         const { data: ordersData } = await supabase
             .from('orders')
             .select(`
@@ -392,7 +383,6 @@ export default function ProfileDashboard({
 
             setOrders(formattedOrders)
 
-            // Métricas diárias (comprador)
             const todayStart = startOfDay()
             const dailyOrders = formattedOrders.filter((o: any) =>
                 new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
@@ -400,7 +390,6 @@ export default function ProfileDashboard({
             )
             const dailySpent = dailyOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
 
-            // Métricas totais (comprador)
             const paidOrders = formattedOrders.filter((o: any) => o.status === 'paid')
             const totalSpent = paidOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
             const uniqueStores = new Set(paidOrders.map((o: any) => o.store_slug)).size
@@ -411,7 +400,6 @@ export default function ProfileDashboard({
                 total: { spent: totalSpent, orders: paidOrders.length, stores: uniqueStores },
             }))
 
-            // Buscar lojas favoritas (baseado em pedidos frequentes)
             const storeCounts = new Map<string, number>()
             ordersData.forEach((order: any) => {
                 const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
@@ -451,7 +439,6 @@ export default function ProfileDashboard({
             }
         }
 
-        // Buscar visualizações recentes
         const { data: viewsData } = await supabase
             .from('product_views')
             .select(`
@@ -493,7 +480,6 @@ export default function ProfileDashboard({
             setRecentViews(recentViewsData)
         }
 
-        // Buscar avaliações feitas
         const { data: reviewsData } = await supabase
             .from('product_reviews')
             .select(`
@@ -534,7 +520,6 @@ export default function ProfileDashboard({
             setReviews(formattedReviews)
         }
 
-        // Buscar agendamentos futuros
         const now = new Date().toISOString()
         const { data: schedulesData } = await supabase
             .from('schedules')
@@ -581,8 +566,6 @@ export default function ProfileDashboard({
             setUpcomingSchedules(formattedSchedules)
         }
 
-        // ===== FUNÇÕES DE VENDEDOR (Store) =====
-        // Buscar pedidos como vendedor (orders onde o perfil é o vendedor)
         const { data: storeOrdersData, error: storeOrdersError } = await supabase
             .from('orders')
             .select(`
@@ -637,7 +620,6 @@ export default function ProfileDashboard({
 
             setGroupedOrders(grouped)
 
-            // Métricas de vendas diárias
             const todayStartISO = startOfDay()
             const dailyOrders = storeOrdersData.filter(o =>
                 new Date(o.created_at).getTime() >= new Date(todayStartISO).getTime() &&
@@ -650,7 +632,6 @@ export default function ProfileDashboard({
             }))
         }
 
-        // ===== BUSCAR PRODUTOS DO PERFIL (apenas produtos sem store_id) =====
         const { data: productsData, error: productsError } = await supabase
             .from('products')
             .select('id, name, price, image_url, slug, store_id, owner_id, owner_image_url')
@@ -667,19 +648,16 @@ export default function ProfileDashboard({
             const productIds = productsData.map(p => p.id)
             const todayStartISO = startOfDay()
 
-            // Buscar visualizações de hoje
             const { data: viewsToday } = await supabase.from('product_views')
                 .select('product_id').in('product_id', productIds).gte('created_at', todayStartISO)
             const viewsTodayMap = new Map()
             viewsToday?.forEach(v => viewsTodayMap.set(v.product_id, (viewsTodayMap.get(v.product_id) || 0) + 1))
 
-            // Buscar visualizações totais
             const { data: viewsTotal } = await supabase.from('product_views')
                 .select('product_id').in('product_id', productIds)
             const viewsTotalMap = new Map()
             viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
 
-            // Buscar pedidos para contar vendas (usando store_id do perfil)
             const { data: orderIdsData } = await supabase
                 .from('orders')
                 .select('id')
@@ -697,7 +675,6 @@ export default function ProfileDashboard({
                 })
             }
 
-            // Buscar itens no carrinho (estimativa)
             let cartMap = new Map()
             try {
                 const { data: carts } = await supabase
@@ -731,14 +708,12 @@ export default function ProfileDashboard({
             setProducts([])
         }
 
-        // Buscar funcionários do perfil (vendedor)
         const { data: empData } = await supabase.from('employees').select('*').eq('store_id', profileId).eq('is_active', true)
         setEmployees(empData || [])
 
         setLoading(false)
     }, [profileSlug, avatarUrl])
 
-    // Buscar rotas de entrega
     const fetchEmployeeRoutes = useCallback(async () => {
         if (!profile?.id) return
 
@@ -908,8 +883,6 @@ export default function ProfileDashboard({
         }
     }
 
-    // ===== Funções de vendedor (Store) =====
-
     const ensureOwnerEmployee = async (): Promise<string | null> => {
         if (!profile?.id || !profile?.name) return null
 
@@ -1069,10 +1042,6 @@ export default function ProfileDashboard({
         }
     })
 
-    // ===== DETERMINA STATUS ABERTO/FECHADO (fallback) =====
-    const todaySchedule = getTodaySchedule(profile?.business_hours)
-    const storeOpen = isOpenNow(todaySchedule)
-
     const newOrders = groupedOrders.filter(o => o.status === 'pending')
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
@@ -1080,7 +1049,6 @@ export default function ProfileDashboard({
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // Componente OrderItem (para pedidos da loja)
     const OrderItem = ({ order, showAssignButton = true }: { order: any; showAssignButton?: boolean }) => {
         const isInPerson = !order.buyer_profile_slug
         const channelLabel = isInPerson ? 'v. presencial' : 'v. online'
@@ -1136,7 +1104,7 @@ export default function ProfileDashboard({
                         className="ml-2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
                         title="Atribuir entregador"
                     >
-                        <Send size={14} style={{ color: colors.accent }} />
+                        <Send size={14} style={{ color: '#f97316' }} />
                     </button>
                 )}
             </div>
@@ -1185,41 +1153,44 @@ export default function ProfileDashboard({
                 </div>
             </div>
 
-            {/* ===== Botões do Perfil ===== */}
+            {/* ===== Botões do Perfil - PILL ===== */}
             <div className="mb-6 mt-4">
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     <button
                         onClick={goToPublicProfile}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
+                            ...pillButtonFullStyle,
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             border: `1px solid ${colors.border}`,
                             color: colors.textPrimary,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <ExternalLink size={18} />
                         Página do Perfil
                     </button>
                     <button
                         onClick={copyStoreLink}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
+                            ...pillButtonFullStyle,
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             border: `1px solid ${colors.border}`,
                             color: colors.textPrimary,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <Copy size={18} />
                         Copiar Link
                     </button>
                     <button
                         onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
-                        className="flex-1 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-105"
                         style={{
-                            background: colors.accent,
-                            color: colors.accentText,
-                            boxShadow: `0 4px 12px ${colors.accent}40`,
+                            ...pillButtonFullStyle,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
                         }}
+                        className="hover:scale-105 transition-transform"
                     >
                         <Pencil size={18} />
                         Editar Perfil
@@ -1241,10 +1212,10 @@ export default function ProfileDashboard({
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <DollarSign size={24} />
@@ -1254,7 +1225,7 @@ export default function ProfileDashboard({
                                 Gastos Hoje
                             </h3>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: colors.accent }}>
+                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
                                     R$ {metrics.daily.spent.toFixed(2)}
                                 </span>
                                 <span>•</span>
@@ -1268,16 +1239,16 @@ export default function ProfileDashboard({
                         </div>
                     </div>
 
-                    {/* Cards de resumo */}
+                    {/* Cards de resumo - PILL */}
                     <div className="grid grid-cols-3 gap-3">
                         <div
-                            className="rounded-xl p-3 text-center"
+                            className="p-3 rounded-full text-center"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px solid ${colors.border}`,
                             }}
                         >
-                            <ShoppingCart size={20} style={{ color: colors.accent, margin: '0 auto 4px' }} />
+                            <ShoppingCart size={20} style={{ color: '#f97316', margin: '0 auto 4px' }} />
                             <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                 {metrics.total.orders}
                             </p>
@@ -1286,7 +1257,7 @@ export default function ProfileDashboard({
                             </p>
                         </div>
                         <div
-                            className="rounded-xl p-3 text-center"
+                            className="p-3 rounded-full text-center"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px solid ${colors.border}`,
@@ -1301,7 +1272,7 @@ export default function ProfileDashboard({
                             </p>
                         </div>
                         <div
-                            className="rounded-xl p-3 text-center"
+                            className="p-3 rounded-full text-center"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px solid ${colors.border}`,
@@ -1333,10 +1304,10 @@ export default function ProfileDashboard({
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <DollarSign size={24} />
@@ -1346,7 +1317,7 @@ export default function ProfileDashboard({
                                 Vendas Hoje
                             </h3>
                             <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: colors.accent }}>
+                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
                                     R$ {metrics.revenue.daily.toFixed(2)}
                                 </span>
                                 <span>•</span>
@@ -1390,10 +1361,10 @@ export default function ProfileDashboard({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                    color: colors.accentText,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <ShoppingCart size={24} />
@@ -1425,12 +1396,13 @@ export default function ProfileDashboard({
                         {selectedOrderIds.size > 0 && (
                             <button
                                 onClick={() => setShowAssignModal(true)}
-                                className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
                                 style={{
-                                    background: colors.accent,
-                                    color: colors.accentText,
-                                    boxShadow: `0 4px 12px ${colors.accent}40`,
+                                    ...pillButtonStyle,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    boxShadow: `0 4px 12px #f9731640`,
                                 }}
+                                className="hover:scale-105 transition-transform"
                             >
                                 <Send size={14} />
                                 Atribuir {selectedOrderIds.size}
@@ -1438,10 +1410,9 @@ export default function ProfileDashboard({
                         )}
                     </div>
 
-                    {/* Lista de pedidos */}
                     {groupedOrders.length === 0 ? (
                         <div
-                            className="rounded-xl p-6 text-center"
+                            className="rounded-2xl p-6 text-center"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
@@ -1473,14 +1444,14 @@ export default function ProfileDashboard({
                                             <div key={order.checkout_id} className="mb-1">
                                                 <OrderItem order={order} showAssignButton={!isAssigned} />
                                                 {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
+                                                        <span className="text-[10px]" style={{ color: '#f97316' }}>
                                                             🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                                         </span>
                                                         <button
                                                             onClick={() => setSingleAssignOpen({ order })}
                                                             className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: colors.accent, color: 'white' }}
+                                                            style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
                                                             Trocar entregador
                                                         </button>
@@ -1503,14 +1474,14 @@ export default function ProfileDashboard({
                                             <div key={order.checkout_id} className="mb-1">
                                                 <OrderItem order={order} showAssignButton={!isAssigned} />
                                                 {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: colors.accent }}>
-                                                        <span className="text-[10px]" style={{ color: colors.accent }}>
+                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
+                                                        <span className="text-[10px]" style={{ color: '#f97316' }}>
                                                             🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
                                                         </span>
                                                         <button
                                                             onClick={() => setSingleAssignOpen({ order })}
                                                             className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: colors.accent, color: 'white' }}
+                                                            style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
                                                             Trocar entregador
                                                         </button>
@@ -1547,17 +1518,24 @@ export default function ProfileDashboard({
                         boxShadow: colors.shadow,
                     }}
                 >
-                    {/* Cabeçalho com toggle */}
+                    {/* Cabeçalho com toggle - PILL */}
                     <button
                         onClick={() => setIsProductsExpanded(!isProductsExpanded)}
                         className="w-full flex items-center justify-between text-left"
+                        style={{
+                            padding: '0.5rem 0.75rem',
+                            borderRadius: '9999px',
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                    color: colors.accentText,
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Package size={24} />
@@ -1573,7 +1551,7 @@ export default function ProfileDashboard({
                         </div>
                         <div className="flex items-center gap-2">
                             {products.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: colors.accentLight, color: colors.accent }}>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {products.length}
                                 </span>
                             )}
@@ -1594,7 +1572,7 @@ export default function ProfileDashboard({
                                         <select
                                             value={sortBy}
                                             onChange={e => setSortBy(e.target.value as any)}
-                                            className="bg-transparent border rounded px-2 py-1 text-xs"
+                                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
                                             style={{ borderColor: colors.border, color: colors.textPrimary }}
                                         >
                                             <option value="mostSold">Mais vendidos</option>
@@ -1606,12 +1584,13 @@ export default function ProfileDashboard({
                                 </div>
                                 <button
                                     onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                                    className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 shadow-md transition-all hover:scale-105"
                                     style={{
-                                        background: colors.accent,
-                                        color: colors.accentText,
-                                        boxShadow: `0 4px 12px ${colors.accent}40`,
+                                        ...pillButtonStyle,
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 12px #f9731640`,
                                     }}
+                                    className="hover:scale-105 transition-transform"
                                 >
                                     <Plus size={14} /> Adicionar
                                 </button>
@@ -1619,7 +1598,7 @@ export default function ProfileDashboard({
 
                             {products.length === 0 ? (
                                 <div
-                                    className="rounded-xl p-6 text-center"
+                                    className="rounded-2xl p-6 text-center"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px dashed ${colors.border}`,
@@ -1630,8 +1609,12 @@ export default function ProfileDashboard({
                                     </p>
                                     <button
                                         onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                                        className="mt-3 text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1 mx-auto"
-                                        style={{ background: colors.accent, color: 'white' }}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                        }}
+                                        className="mx-auto hover:opacity-80 transition-opacity"
                                     >
                                         <Plus size={14} /> Criar primeiro produto
                                     </button>
@@ -1663,7 +1646,7 @@ export default function ProfileDashboard({
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                                    <p className="text-xs font-bold mt-1" style={{ color: colors.accent }}>R$ {Number(prod.price).toFixed(2)}</p>
+                                                    <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>R$ {Number(prod.price).toFixed(2)}</p>
                                                     <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
                                                         <span>👁 {prod.viewsToday} hoje</span>
                                                         <span>🛒 {prod.inCart} na sacola</span>
@@ -1712,7 +1695,7 @@ export default function ProfileDashboard({
                 profileSlug={profileSlug || ''}
             />
 
-            {/* ===== SISTEMA DE COMISSÕES (BREAKAWAY) ===== */}
+            {/* ===== SISTEMA DE COMISSÕES ===== */}
             {profile && (
                 <div className="mb-6 mt-4">
                     <Commission userId={profile.id} />
@@ -1736,10 +1719,10 @@ export default function ProfileDashboard({
                 >
                     <div className="flex items-center gap-3">
                         <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                                color: colors.accentText,
+                                background: GRADIENT,
+                                color: '#ffffff',
                             }}
                         >
                             <Package size={24} />
@@ -1756,7 +1739,7 @@ export default function ProfileDashboard({
 
                     {orders.length === 0 ? (
                         <div
-                            className="rounded-xl p-6 text-center"
+                            className="rounded-2xl p-6 text-center"
                             style={{
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                 border: `1px dashed ${colors.border}`,
@@ -1773,7 +1756,7 @@ export default function ProfileDashboard({
                                 return (
                                     <div
                                         key={order.checkout_id}
-                                        className="flex items-center justify-between p-3 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
+                                        className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors"
                                         style={{
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                             border: `1px solid ${colors.border}`,
@@ -1828,10 +1811,10 @@ export default function ProfileDashboard({
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, #ef4444, #f97316)`,
-                                    color: 'white',
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Heart size={24} />
@@ -1850,7 +1833,7 @@ export default function ProfileDashboard({
                             {favoriteStores.map((store: any, idx: number) => (
                                 <div
                                     key={idx}
-                                    className="flex-shrink-0 w-32 rounded-xl p-3 text-center cursor-pointer hover:shadow-md transition-shadow"
+                                    className="flex-shrink-0 w-32 rounded-2xl p-3 text-center cursor-pointer hover:shadow-md transition-shadow"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${colors.border}`,
@@ -1894,10 +1877,10 @@ export default function ProfileDashboard({
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, #3b82f6, #06b6d4)`,
-                                    color: 'white',
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Eye size={24} />
@@ -1916,14 +1899,14 @@ export default function ProfileDashboard({
                             {recentViews.map((view: any, idx: number) => (
                                 <div
                                     key={idx}
-                                    className="flex-shrink-0 w-36 rounded-xl p-3 cursor-pointer hover:shadow-md transition-shadow"
+                                    className="flex-shrink-0 w-36 rounded-2xl p-3 cursor-pointer hover:shadow-md transition-shadow"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${colors.border}`,
                                     }}
                                     onClick={() => router.push(`/${profileSlug}/${view.store_slug}/${view.product_slug}`)}
                                 >
-                                    <div className="w-full h-24 rounded-lg overflow-hidden bg-gray-100 mb-2">
+                                    <div className="w-full h-24 rounded-xl overflow-hidden bg-gray-100 mb-2">
                                         {view.image_url ? (
                                             <img src={view.image_url} className="w-full h-full object-cover" alt="" />
                                         ) : (
@@ -1958,10 +1941,10 @@ export default function ProfileDashboard({
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, #f59e0b, #f97316)`,
-                                    color: 'white',
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Star size={24} />
@@ -1980,7 +1963,7 @@ export default function ProfileDashboard({
                             {reviews.map((review: any) => (
                                 <div
                                     key={review.id}
-                                    className="p-3 rounded-xl"
+                                    className="p-3 rounded-2xl"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${colors.border}`,
@@ -2022,10 +2005,10 @@ export default function ProfileDashboard({
                     >
                         <div className="flex items-center gap-3">
                             <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: `linear-gradient(135deg, #8b5cf6, #a855f7)`,
-                                    color: 'white',
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
                                 <Calendar size={24} />
@@ -2044,7 +2027,7 @@ export default function ProfileDashboard({
                             {upcomingSchedules.map((schedule: any) => (
                                 <div
                                     key={schedule.id}
-                                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${colors.border}`,
@@ -2068,7 +2051,7 @@ export default function ProfileDashboard({
                                             {new Date(schedule.date).toLocaleDateString('pt-BR')} às {schedule.time}
                                         </p>
                                         {schedule.service_type && (
-                                            <p className="text-[10px]" style={{ color: colors.accent }}>
+                                            <p className="text-[10px]" style={{ color: '#f97316' }}>
                                                 {schedule.service_type}
                                             </p>
                                         )}
@@ -2089,41 +2072,47 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            {/* ===== Ações rápidas ===== */}
+            {/* ===== Ações rápidas - PILL ===== */}
             <div className="grid grid-cols-2 gap-3 mt-4">
                 <button
                     onClick={goToPublicProfile}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
                     style={{
+                        ...pillButtonFullStyle,
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        borderColor: colors.border,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
                     }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <User size={18} /> Ver perfil público
                 </button>
                 <button
                     onClick={() => router.push(`/${profileSlug}/configuracoes`)}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
                     style={{
+                        ...pillButtonFullStyle,
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        borderColor: colors.border,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
                     }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <Settings size={18} /> Configurações
                 </button>
                 <button
                     onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
-                    className="p-3 rounded-2xl border flex items-center gap-2"
                     style={{
+                        ...pillButtonFullStyle,
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        borderColor: colors.border,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
                     }}
+                    className="hover:opacity-70 transition-opacity"
                 >
                     <Pencil size={18} /> Editar perfil
                 </button>
             </div>
 
-            {/* ===== SACOLA + HOME (agrupados no canto direito) ===== */}
+            {/* ===== SACOLA + HOME ===== */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <SacolaButton
                     totalItems={totalCartItems}
@@ -2139,10 +2128,10 @@ export default function ProfileDashboard({
                     onClick={onBack}
                     className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                     style={{
-                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                        color: colors.accentText,
-                        border: `2px solid ${colors.border}`,
-                        boxShadow: `0 8px 24px ${colors.accent}60`,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        border: `2px solid #f97316`,
+                        boxShadow: `0 8px 24px #f9731660`,
                     }}
                     aria-label="Voltar ao início"
                 >
@@ -2160,7 +2149,7 @@ export default function ProfileDashboard({
                         </div>
                         <div className="space-y-2">
                             {ownerProfile && (
-                                <div onClick={handleAssignAsOwner} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                <div onClick={handleAssignAsOwner} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
                                     <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name?.charAt(0) || 'D'}</div>
                                     <div>
                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
@@ -2169,13 +2158,23 @@ export default function ProfileDashboard({
                                 </div>
                             )}
                             {employees.map(emp => (
-                                <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? `${colors.accent}20` : 'transparent', border: `1px solid ${colors.border}` }}>
+                                <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-2xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? '#f9731620' : 'transparent', border: `1px solid ${colors.border}` }}>
                                     <p className="font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
                                     {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}
                                 </div>
                             ))}
                         </div>
-                        <button onClick={() => handleAssignDelivery()} disabled={!selectedEmployeeId || assigning} className="w-full mt-4 py-2 rounded-full font-bold" style={{ background: selectedEmployeeId ? colors.accent : colors.border, color: selectedEmployeeId ? 'white' : colors.textSecondary }}>
+                        <button
+                            onClick={() => handleAssignDelivery()}
+                            disabled={!selectedEmployeeId || assigning}
+                            style={{
+                                ...pillButtonFullStyle,
+                                width: '100%',
+                                background: selectedEmployeeId ? GRADIENT : colors.border,
+                                color: selectedEmployeeId ? '#ffffff' : colors.textSecondary,
+                            }}
+                            className="hover:opacity-80 transition-opacity"
+                        >
                             {assigning ? 'Atribuindo...' : 'Confirmar'}
                         </button>
                     </div>
@@ -2192,7 +2191,7 @@ export default function ProfileDashboard({
                         <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Pedido de @{singleAssignOpen.order.buyer_profile_slug || singleAssignOpen.order.buyer_name || 'Cliente'} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}</p>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {ownerProfile && (
-                                <div onClick={handleSingleAssignAsOwner} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                <div onClick={handleSingleAssignAsOwner} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
                                     <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name?.charAt(0) || 'D'}</div>
                                     <div>
                                         <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
@@ -2204,7 +2203,7 @@ export default function ProfileDashboard({
                                 <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum funcionário cadastrado.</p>
                             ) : (
                                 employees.map(emp => (
-                                    <div key={emp.id} onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)} className="p-3 rounded-xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
+                                    <div key={emp.id} onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
                                         <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white font-bold">{emp.name.charAt(0)}</div>
                                         <div>
                                             <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{emp.name}</p>

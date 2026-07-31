@@ -27,6 +27,9 @@ import {
 } from '@/lib/storeHours'
 import { toast } from 'sonner'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 // ========== TIPOS ==========
 export type StoreCardData = {
     id: string
@@ -148,7 +151,7 @@ function StoreCard({
             {/* Logo / Imagem */}
             <div
                 className="relative w-full h-40 overflow-hidden"
-                style={{ background: colors.accentLight }}
+                style={{ background: GRADIENT }}
             >
                 {store.logo_url ? (
                     <img
@@ -158,8 +161,8 @@ function StoreCard({
                         loading="lazy"
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <Store className="w-16 h-16 opacity-30" style={{ color: colors.accent }} />
+                    <div className="w-full h-full flex items-center justify-center bg-black/10">
+                        <Store className="w-16 h-16 opacity-50" style={{ color: '#ffffff' }} />
                     </div>
                 )}
 
@@ -239,7 +242,7 @@ function StoreCard({
                 {store.top_products && store.top_products.length > 0 && (
                     <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                         <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textSecondary }}>
-                            <TrendingUp className="inline w-3 h-3 mr-1" />
+                            <TrendingUp className="inline w-3 h-3 mr-1" style={{ color: '#f97316' }} />
                             Destaques
                         </p>
                         <div className="flex gap-1.5">
@@ -264,7 +267,7 @@ function StoreCard({
                                     <span className="text-[9px] font-medium truncate flex-1" style={{ color: colors.textPrimary }}>
                                         {product.name}
                                     </span>
-                                    <span className="text-[8px] font-bold flex-shrink-0" style={{ color: colors.accent }}>
+                                    <span className="text-[8px] font-bold flex-shrink-0" style={{ color: '#f97316' }}>
                                         R$ {product.price.toFixed(2)}
                                     </span>
                                 </div>
@@ -301,37 +304,65 @@ function StoreCard({
     )
 }
 
-// ========== SKELETON CARD ==========
+// ========== SKELETON CARD - MAIS SUAVE E FIEL ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="w-full rounded-2xl overflow-hidden border animate-pulse"
+        <div className="w-full rounded-2xl overflow-hidden border"
             style={{
                 borderColor: colors.border,
                 background: colors.surface,
             }}
         >
-            <div className="relative w-full h-40 overflow-hidden"
-                style={{ background: colors.accentLight }}
-            >
-                <div className="w-full h-full" style={{ background: `${colors.border}60` }} />
-                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full w-20 h-6"
-                    style={{ background: `${colors.border}80` }}
-                />
+            {/* Imagem skeleton */}
+            <div className="relative w-full h-40 overflow-hidden" style={{ background: `${colors.border}50` }}>
+                <div className="w-full h-full" style={{ background: `${colors.border}30` }} />
             </div>
 
+            {/* Conteúdo skeleton */}
             <div className="p-4 space-y-3">
-                <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}60` }} />
-                <div className="h-3 rounded w-1/2" style={{ background: `${colors.border}40` }} />
-                <div className="flex items-center gap-2">
-                    <div className="h-3 rounded w-20" style={{ background: `${colors.border}40` }} />
-                    <div className="h-2 rounded w-10" style={{ background: `${colors.border}30` }} />
+                {/* Nome skeleton */}
+                <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                        <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}40` }} />
+                        <div className="h-3 rounded w-1/2 mt-1.5" style={{ background: `${colors.border}30` }} />
+                    </div>
+                    <div className="w-4 h-4 rounded" style={{ background: `${colors.border}30` }} />
                 </div>
-                <div className="h-3 rounded w-24" style={{ background: `${colors.border}40` }} />
+
+                {/* Avaliações skeleton */}
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                        <div className="h-3 rounded w-16" style={{ background: `${colors.border}30` }} />
+                        <div className="h-2 rounded w-6" style={{ background: `${colors.border}25` }} />
+                    </div>
+                </div>
+
+                {/* Status skeleton */}
+                <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-full" style={{ background: `${colors.border}30` }} />
+                    <div className="h-3 rounded w-20" style={{ background: `${colors.border}30` }} />
+                </div>
+
+                {/* Produtos skeleton */}
                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <div className="h-3 rounded w-16 mb-1.5" style={{ background: `${colors.border}40` }} />
+                    <div className="h-3 rounded w-16 mb-1.5" style={{ background: `${colors.border}30` }} />
                     <div className="flex gap-1.5">
-                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}30` }} />
-                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}30` }} />
+                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}25` }} />
+                        <div className="flex-1 h-8 rounded-lg" style={{ background: `${colors.border}25` }} />
+                    </div>
+                </div>
+
+                {/* Review skeleton */}
+                <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
+                    <div className="flex items-start gap-1.5">
+                        <div className="w-3 h-3 rounded-full mt-0.5" style={{ background: `${colors.border}30` }} />
+                        <div className="flex-1">
+                            <div className="flex items-center gap-1.5">
+                                <div className="h-2 rounded w-12" style={{ background: `${colors.border}30` }} />
+                                <div className="h-2 rounded w-10" style={{ background: `${colors.border}25` }} />
+                            </div>
+                            <div className="h-2 rounded w-3/4 mt-1" style={{ background: `${colors.border}25` }} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -365,7 +396,6 @@ export function StoreList({
 
     // Função para carregar lojas com controle de abort
     const loadStores = useCallback(async () => {
-        // Cancela requisição anterior se existir
         if (abortControllerRef.current) {
             abortControllerRef.current.abort()
         }
@@ -377,7 +407,6 @@ export function StoreList({
         setError(null)
 
         try {
-            // Buscar lojas com timeout
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error('Timeout na requisição')), 15000)
             })
@@ -398,7 +427,7 @@ export function StoreList({
                     view_count
                 `)
                 .order('created_at', { ascending: false })
-                .limit(50) // Limitar para evitar sobrecarga
+                .limit(50)
 
             const { data: storesData, error: storesError } = await Promise.race([
                 storesPromise,
@@ -418,13 +447,11 @@ export function StoreList({
                 return
             }
 
-            // Buscar produtos e reviews em paralelo com limite
             const storesWithDetails = await Promise.all(
                 storesData.map(async (store: any) => {
                     if (abortController.signal.aborted) return null
 
                     try {
-                        // Buscar produtos em paralelo
                         const [productsResult, reviewsResult] = await Promise.all([
                             supabase
                                 .from('products')
@@ -474,7 +501,6 @@ export function StoreList({
                         }
                     } catch (err) {
                         console.error(`Erro ao carregar detalhes da loja ${store.id}:`, err)
-                        // Retorna a loja sem os detalhes em caso de erro
                         return {
                             ...store,
                             top_products: [],
@@ -508,7 +534,6 @@ export function StoreList({
         }
     }, [])
 
-    // Carregar lojas se não foram passadas como prop
     useEffect(() => {
         isMountedRef.current = true
 
@@ -532,7 +557,6 @@ export function StoreList({
         }
     }, [initialStores, loadStores])
 
-    // Ordenar: abertos primeiro, depois fechados
     useEffect(() => {
         const sorted = [...stores].sort((a, b) => {
             const aOpen = isStoreOpenNow(a.business_hours)
@@ -553,7 +577,6 @@ export function StoreList({
         }
     }, [stores, maxItems])
 
-    // Paginação
     const total = filteredStores.length
     const totalPages = Math.max(1, Math.ceil(total / itemsPerPage))
 
@@ -569,7 +592,6 @@ export function StoreList({
         setCurrentPage(0)
     }, [itemsPerPage])
 
-    // Auto-play de 5 segundos
     useEffect(() => {
         if (isHovered || totalPages <= 1) return
 
@@ -579,7 +601,6 @@ export function StoreList({
         }
     }, [isHovered, goToNext, totalPages])
 
-    // ========== ITEMS COM LOOP INFINITO ==========
     const currentItems = useMemo(() => {
         if (total === 0) return []
 
@@ -594,7 +615,6 @@ export function StoreList({
         return items
     }, [filteredStores, currentPage, itemsPerPage, total])
 
-    // Define o grid baseado no itemsPerPage
     const gridCols = itemsPerPage >= 4 ? 'grid-cols-4'
         : itemsPerPage >= 3 ? 'grid-cols-3'
             : itemsPerPage >= 2 ? 'grid-cols-2'
@@ -608,7 +628,6 @@ export function StoreList({
         }
     }
 
-    // ========== RENDER SKELETON ==========
     if (loading) {
         return (
             <div className={`w-full ${className}`}>
@@ -627,7 +646,7 @@ export function StoreList({
                     <div className="flex items-center justify-center gap-4 mt-6">
                         <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
                         <div className="flex gap-2">
-                            <div className="h-1.5 w-6 rounded-full animate-pulse" style={{ background: colors.accent }} />
+                            <div className="h-1.5 w-6 rounded-full animate-pulse" style={{ background: '#f97316' }} />
                             <div className="h-1.5 w-2 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
                         </div>
                         <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
@@ -640,7 +659,7 @@ export function StoreList({
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
-                <AlertCircle className="w-12 h-12" style={{ color: colors.accent }} />
+                <AlertCircle className="w-12 h-12" style={{ color: '#f97316' }} />
                 <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
                     {error}
                 </p>
@@ -652,8 +671,9 @@ export function StoreList({
                     }}
                     className="px-4 py-2 rounded-xl text-sm font-bold transition hover:scale-105"
                     style={{
-                        background: colors.accent,
-                        color: colors.accentText,
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        boxShadow: `0 4px 12px #f9731640`,
                     }}
                 >
                     Tentar novamente
@@ -700,13 +720,13 @@ export function StoreList({
                     ))}
                 </div>
 
-                {/* Paginação melhorada - sem pontos esticados */}
+                {/* Paginação melhorada */}
                 {totalPages > 1 && (
                     <div className="flex items-center justify-center gap-4 mt-6">
                         <button
                             onClick={goToPrev}
                             className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: colors.accent, color: colors.accentText }}
+                            style={{ background: GRADIENT, color: '#ffffff' }}
                             aria-label="Anterior"
                         >
                             <ChevronLeft size={16} />
@@ -721,8 +741,8 @@ export function StoreList({
                                     style={{
                                         width: idx === currentPage ? '1.2rem' : '0.5rem',
                                         height: '0.5rem',
-                                        background: idx === currentPage ? colors.accent : colors.border,
-                                        boxShadow: idx === currentPage ? `0 0 8px ${colors.accent}50` : 'none',
+                                        background: idx === currentPage ? '#f97316' : colors.border,
+                                        boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
                                     }}
                                     aria-label={`Ir para página ${idx + 1}`}
                                 />
@@ -736,7 +756,7 @@ export function StoreList({
                         <button
                             onClick={goToNext}
                             className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: colors.accent, color: colors.accentText }}
+                            style={{ background: GRADIENT, color: '#ffffff' }}
                             aria-label="Próximo"
                         >
                             <ChevronRightIcon size={16} />

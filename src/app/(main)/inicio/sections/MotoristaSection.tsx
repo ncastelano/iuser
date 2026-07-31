@@ -5,6 +5,9 @@ import { ReactNode, useEffect } from 'react'
 import { Car, Clock } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 /* ─── Helper para converter hex em RGB ─── */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
     const clean = hex.replace('#', '')
@@ -42,11 +45,10 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
         fontSize: '0.875rem',
         fontWeight: 700,
         transition: 'all 0.2s',
-        background: colors.accent,
-        color: colors.accentText,
-        border: `1px solid ${colors.accent}`,
-        boxShadow: `0 4px 14px ${colors.accent}60`,
-        opacity: 0.5,
+        background: 'transparent',
+        color: colors.textSecondary,
+        border: `1px solid ${colors.border}`,
+        opacity: 0.6,
         cursor: 'not-allowed',
     }
 
@@ -62,25 +64,28 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Badge "Em breve" */}
+                {/* Badge "Em breve" com cores laranja */}
                 <span
                     className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide"
                     style={{
-                        background: `${colors.accent}20`,
-                        color: colors.accent,
-                        border: `1px solid ${colors.accent}40`,
+                        background: '#f9731620',
+                        color: '#f97316',
+                        border: `1px solid #f9731640`,
                     }}
                 >
                     Em breve
                 </span>
 
                 <div className="flex items-center gap-4">
-                    {/* Ícone com gradiente */}
+                    {dragHandle && <div>{dragHandle}</div>}
+
+                    {/* Ícone com gradiente laranja-vermelho - igual ao ButtonSettingsHome */}
                     <div
-                        className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                        className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
-                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`,
-                            color: colors.accentText,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
                         }}
                     >
                         <Car size={28} />
@@ -103,7 +108,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     aria-disabled="true"
                 >
                     <Clock size={16} />
-                    Em breve disponível
+                    pedir corrida
                 </button>
             </div>
         </section>
