@@ -200,8 +200,22 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 console.error('Erro ao limpar cookie:', error)
             }
 
+            // 🔥 FAZER LOGIN AUTOMÁTICO
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+                email: registerEmail,
+                password: registerPassword,
+            })
+
+            if (loginError) {
+                console.error('Erro ao fazer login automático:', loginError)
+                toast.error('Conta criada, mas não foi possível fazer login automático. Faça login manualmente.')
+                setRegistered(true)
+                return
+            }
+
+            // ✅ Login automático bem sucedido!
             setRegistered(true)
-            toast.success('🎉 Conta criada com sucesso!')
+            toast.success('🎉 Conta criada e logado com sucesso!')
             window.scrollTo({ top: 0, behavior: 'smooth' })
 
         } catch (err: any) {
@@ -215,15 +229,18 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     // Redirecionar após registro
     useEffect(() => {
         if (!registered) return
+
         const timer = setTimeout(() => {
+            // Como já estamos logados, podemos redirecionar direto
             if (onLoginSuccess) {
                 onLoginSuccess()
             } else {
                 window.location.href = '/'
             }
         }, 2000)
+
         return () => clearTimeout(timer)
-    }, [registered, router, onLoginSuccess])
+    }, [registered, onLoginSuccess])
 
     // Tela de sucesso do registro
     if (registered) {
