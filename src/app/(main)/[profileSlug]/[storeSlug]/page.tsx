@@ -805,7 +805,7 @@ export default function StorePage() {
         cursor: 'pointer',
     }
 
-    if (loading) return <LoadingSpinner message="Carregando loja..." background={colors.background} />
+    if (loading) return <LoadingSpinner message="Carregando loja" background={colors.background} />
 
     if (error || !store)
         return (

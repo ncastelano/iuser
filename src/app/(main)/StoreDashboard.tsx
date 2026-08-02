@@ -203,6 +203,40 @@ export default function StoreDashboard({
         return getNextOpeningInfo(store.business_hours)
     }, [store])
 
+    // ===== CALCULAR COR DA BORDA DOS PEDIDOS =====
+    const orderBorderColor = useMemo(() => {
+        const pending = groupedOrders.filter(o => o.status === 'pending').length
+        const preparing = groupedOrders.filter(o => o.status === 'preparing').length
+        const ready = groupedOrders.filter(o => o.status === 'ready').length
+
+        // Prioridade: pendente > preparo > pronto
+        if (pending > 0) {
+            return {
+                color: '#3b82f6',
+                glow: '0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(59, 130, 246, 0.15)',
+                border: '2px solid #3b82f6'
+            }
+        } else if (preparing > 0) {
+            return {
+                color: '#f59e0b',
+                glow: '0 0 20px rgba(245, 158, 11, 0.3), 0 0 40px rgba(245, 158, 11, 0.15)',
+                border: '2px solid #f59e0b'
+            }
+        } else if (ready > 0) {
+            return {
+                color: '#8b5cf6',
+                glow: '0 0 20px rgba(139, 92, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.15)',
+                border: '2px solid #8b5cf6'
+            }
+        } else {
+            return {
+                color: 'transparent',
+                glow: 'none',
+                border: 'none'
+            }
+        }
+    }, [groupedOrders])
+
     const updateOrderCounts = useCallback((orders: any[]) => {
         if (!onOrderCountsChange) return
         const counts = {
@@ -931,7 +965,7 @@ export default function StoreDashboard({
                 />
             </div>
 
-            {/* ===== Pedidos ===== */}
+            {/* ===== Pedidos - COM BORDA ANIMADA ===== */}
             <div className="mb-6 mt-4">
                 <div
                     className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
@@ -939,14 +973,67 @@ export default function StoreDashboard({
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                         backdropFilter: 'blur(12px)',
                         WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
+                        border: orderBorderColor.border || `1px solid ${colors.border}`,
+                        boxShadow: orderBorderColor.glow || colors.shadow,
+                        animation: orderBorderColor.color !== 'transparent' ? 'borderPulse 2s ease-in-out infinite' : 'none',
+                        transition: 'all 0.5s ease',
                     }}
                 >
+                    {/* Efeito de overlay brilhante para a borda */}
+                    {orderBorderColor.color !== 'transparent' && (
+                        <>
+                            <style>{`
+                                @keyframes borderPulse {
+                                    0%, 100% { 
+                                        box-shadow: ${orderBorderColor.glow};
+                                        border-color: ${orderBorderColor.color};
+                                    }
+                                    50% { 
+                                        box-shadow: 0 0 30px ${orderBorderColor.color}60, 0 0 60px ${orderBorderColor.color}30;
+                                        border-color: ${orderBorderColor.color}dd;
+                                    }
+                                }
+                                @keyframes shimmer {
+                                    0% { transform: translateX(-100%) rotate(0deg); }
+                                    100% { transform: translateX(100%) rotate(0deg); }
+                                }
+                                .shimmer-border {
+                                    position: absolute;
+                                    top: -2px;
+                                    left: -2px;
+                                    right: -2px;
+                                    bottom: -2px;
+                                    border-radius: 1rem;
+                                    overflow: hidden;
+                                    pointer-events: none;
+                                }
+                                .shimmer-border::before {
+                                    content: '';
+                                    position: absolute;
+                                    top: 0;
+                                    left: 0;
+                                    right: 0;
+                                    bottom: 0;
+                                    background: linear-gradient(
+                                        90deg,
+                                        transparent 0%,
+                                        ${orderBorderColor.color}33 25%,
+                                        ${orderBorderColor.color}66 50%,
+                                        ${orderBorderColor.color}33 75%,
+                                        transparent 100%
+                                    );
+                                    animation: shimmer 3s ease-in-out infinite;
+                                    transform: translateX(-100%);
+                                }
+                            `}</style>
+                            <div className="shimmer-border" />
+                        </>
+                    )}
+
                     {/* Cabeçalho com toggle */}
                     <button
                         onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
-                        className="w-full flex items-center justify-between text-left"
+                        className="w-full flex items-center justify-between text-left relative z-10"
                         style={{
                             padding: '0.5rem 0.75rem',
                             borderRadius: '9999px',
@@ -990,7 +1077,17 @@ export default function StoreDashboard({
                         </div>
                         <div className="flex items-center gap-2">
                             {groupedOrders.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                <span
+                                    className="text-xs font-bold px-2 py-0.5 rounded-full"
+                                    style={{
+                                        background: orderBorderColor.color !== 'transparent'
+                                            ? `${orderBorderColor.color}30`
+                                            : '#f9731620',
+                                        color: orderBorderColor.color !== 'transparent'
+                                            ? orderBorderColor.color
+                                            : '#f97316'
+                                    }}
+                                >
                                     {groupedOrders.length}
                                 </span>
                             )}
@@ -1004,7 +1101,7 @@ export default function StoreDashboard({
 
                     {isOrdersExpanded && (
                         <>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 relative z-10">
                                 {selectedOrderIds.size > 0 && (
                                     <button
                                         onClick={() => setShowAssignModal(true)}
@@ -1025,7 +1122,7 @@ export default function StoreDashboard({
                             {/* Lista de pedidos */}
                             {groupedOrders.length === 0 ? (
                                 <div
-                                    className="rounded-xl p-6 text-center"
+                                    className="rounded-xl p-6 text-center relative z-10"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px dashed ${colors.border}`,
@@ -1036,7 +1133,7 @@ export default function StoreDashboard({
                                     </p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-4 relative z-10">
                                     {newOrders.length > 0 && (
                                         <div>
                                             <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>

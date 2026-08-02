@@ -30,7 +30,12 @@ import { toast } from 'sonner'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { useTheme } from '@/app/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ----- Tipagem para dados de entrega -----
 interface StoreDeliveryInfo {
@@ -63,6 +68,7 @@ export default function SacolaPage() {
 
     const router = useRouter()
     const { colors } = useTheme()
+    const { bgMode, customBgUrl } = useProfile()
 
     const [mounted, setMounted] = useState(false)
     const [globalLoading, setGlobalLoading] = useState(true)
@@ -121,6 +127,9 @@ export default function SacolaPage() {
     // Cache dos dados de entrega da loja
     const [storeDeliveryInfo, setStoreDeliveryInfo] = useState<Record<string, StoreDeliveryInfo>>({})
 
+    // ===== ESTADO DA TAB ATIVA =====
+    const [activeTab, setActiveTab] = useState<string>('carrinho')
+
     // ----- Funções auxiliares -----
     const fetchPendingReviews = useCallback(async (userId: string) => {
         setLoadingPendingReviews(true)
@@ -158,7 +167,6 @@ export default function SacolaPage() {
 
             setPendingReviews(uniquePending)
 
-            // Busca detalhes (imagem e preço atual) dos produtos pendentes
             const productIds = uniquePending.map((p) => p.product_id)
             if (productIds.length > 0) {
                 const { data: products } = await supabase
@@ -865,43 +873,59 @@ export default function SacolaPage() {
         padding: '1.5rem',
     }
 
-    // Tabs com badge no tab Pedidos (quantidade de pedidos ativos)
+    // ===== TABS - AGORA SEM SCROLL, APENAS SETA A TAB ATIVA =====
     const tabs = useMemo(() => {
         if (!currentUserId) return []
-        const tabList = [
-            {
-                id: 'carrinho',
-                label: 'Sacola',
-                icon: ShoppingBag as React.ComponentType<{ size?: number; color?: string }>,
-                sectionId: 'section-sacola',
-                indicator: null,
-            },
-            {
-                id: 'pedidos',
-                label: 'Pedidos',
-                icon: Package as React.ComponentType<{ size?: number; color?: string }>,
-                sectionId: 'section-pedidos',
-                indicator:
-                    activeOrderCounts.pending > 0 ||
-                        activeOrderCounts.preparing > 0 ||
-                        activeOrderCounts.ready > 0
-                        ? {
-                            pending: activeOrderCounts.pending,
-                            preparing: activeOrderCounts.preparing,
-                            ready: activeOrderCounts.ready,
-                        }
-                        : null,
-            },
-            {
-                id: 'avaliacoes',
-                label: 'Avaliações',
-                icon: Star as React.ComponentType<{ size?: number; color?: string }>,
-                sectionId: 'section-avaliar',
-                indicator: null,
-            },
-        ]
+
+        const tabList: Array<{
+            id: string
+            label: string
+            icon: any
+            sectionId: string
+            indicator: any
+            isActive: boolean
+            onClick: () => void
+        }> = [
+                {
+                    id: 'carrinho',
+                    label: 'Sacola',
+                    icon: ShoppingBag,
+                    sectionId: 'section-sacola',
+                    indicator: null,
+                    isActive: activeTab === 'carrinho',
+                    onClick: () => setActiveTab('carrinho'),
+                },
+                {
+                    id: 'pedidos',
+                    label: 'Pedidos',
+                    icon: Package,
+                    sectionId: 'section-pedidos',
+                    indicator:
+                        activeOrderCounts.pending > 0 ||
+                            activeOrderCounts.preparing > 0 ||
+                            activeOrderCounts.ready > 0
+                            ? {
+                                pending: activeOrderCounts.pending,
+                                preparing: activeOrderCounts.preparing,
+                                ready: activeOrderCounts.ready,
+                            }
+                            : null,
+                    isActive: activeTab === 'pedidos',
+                    onClick: () => setActiveTab('pedidos'),
+                },
+                {
+                    id: 'avaliacoes',
+                    label: 'Avaliações',
+                    icon: Star,
+                    sectionId: 'section-avaliar',
+                    indicator: pendingReviews.length > 0 ? { count: pendingReviews.length } : null,
+                    isActive: activeTab === 'avaliacoes',
+                    onClick: () => setActiveTab('avaliacoes'),
+                },
+            ]
+
         return tabList
-    }, [currentUserId, activeOrderCounts])
+    }, [currentUserId, activeOrderCounts, pendingReviews.length, activeTab])
 
     const OrderCard = ({ order }: { order: any }) => {
         const statusStyle = getStatusStyles(order.status)
@@ -962,7 +986,7 @@ export default function SacolaPage() {
                                             })
                                         }
                                         className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase transition-all"
-                                        style={{ background: colors.accentLight, color: colors.accent }}
+                                        style={{ background: '#f9731620', color: '#f97316' }}
                                     >
                                         Avaliar
                                     </button>
@@ -1010,10 +1034,15 @@ export default function SacolaPage() {
         return { itemsTotal, deliveryFee, finalTotal }
     }
 
-    if (!mounted || globalLoading) return <LoadingSpinner />
+    if (!mounted || globalLoading) return <LoadingSpinner message="Carregando sacola" background={colors.background} />
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            {/* ===== FUNDO ANIMADO ===== */}
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
+
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
@@ -1021,14 +1050,7 @@ export default function SacolaPage() {
                     greeting={`Olá, ${currentUserSlug ? `@${currentUserSlug}` : 'Visitante'}`}
                     avatarUrl={currentUserAvatar}
                     loading={false}
-                    tabs={tabs.map(tab => ({
-                        ...tab,
-                        onClick: () => {
-                            const el = document.getElementById(tab.sectionId)
-                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                        },
-                        isActive: false,
-                    }))}
+                    tabs={tabs}
                     showSearch={true}
                     searchPlaceholder="Buscar pedido, produto ou loja..."
                     onSearch={setSearchQuery}
@@ -1037,270 +1059,284 @@ export default function SacolaPage() {
                 />
 
                 <div className="px-4 pt-4 pb-24 space-y-10">
-                    {/* Seção Sacola */}
-                    <section id="section-sacola" className="scroll-mt-24">
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                <ShoppingBag size={16} style={{ color: colors.accentText }} />
-                            </div>
-                            <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
-                                Sacola
-                            </h2>
-                            {storeSlugs.length > 0 && (
-                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                    {filteredCartSlugs.length} loja(s)
-                                </span>
-                            )}
-                        </div>
-                        {filteredCartSlugs.length === 0 ? (
-                            <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
-                                <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${colors.accent}20` }}>
-                                    <ShoppingBag className="w-7 h-7" style={{ color: colors.accent }} />
+                    {/* Seção Sacola - visível apenas quando activeTab === 'carrinho' */}
+                    {activeTab === 'carrinho' && (
+                        <section id="section-sacola" className="scroll-mt-24">
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <ShoppingBag size={16} />
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Sua sacola está vazia</h2>
-                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Explore as lojas e encontre o que você procura</p>
-                                </div>
-                                <Link href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shrink-0" style={{ background: colors.accent, color: colors.accentText }}>
-                                    Ver Vitrine <ChevronRight className="w-3.5 h-3.5" />
-                                </Link>
+                                <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
+                                    Sacola
+                                </h2>
+                                {storeSlugs.length > 0 && (
+                                    <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                        {filteredCartSlugs.length} loja(s)
+                                    </span>
+                                )}
                             </div>
-                        ) : (
-                            <>
-                                {filteredCartSlugs.map((slug) => {
-                                    const details = storeDetails[slug]
-                                    const items = itemsByStore[slug]
-                                    const config = storeConfigs[slug] || {}
-                                    const { itemsTotal, deliveryFee, finalTotal } = getStoreTotals(slug)
-                                    const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
-                                    const paymentOpt = paymentMethodByStore[slug] || 'pix'
+                            {filteredCartSlugs.length === 0 ? (
+                                <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
+                                        <ShoppingBag className="w-7 h-7" style={{ color: '#f97316' }} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Sua sacola está vazia</h2>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>Explore as lojas e encontre o que você procura</p>
+                                    </div>
+                                    <Link href="/" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-black uppercase text-[10px] tracking-wider transition-all shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        Ver Vitrine <ChevronRight className="w-3.5 h-3.5" />
+                                    </Link>
+                                </div>
+                            ) : (
+                                <>
+                                    {filteredCartSlugs.map((slug) => {
+                                        const details = storeDetails[slug]
+                                        const items = itemsByStore[slug]
+                                        const config = storeConfigs[slug] || {}
+                                        const { itemsTotal, deliveryFee, finalTotal } = getStoreTotals(slug)
+                                        const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
+                                        const paymentOpt = paymentMethodByStore[slug] || 'pix'
 
-                                    const canDelivery = config.accepts_delivery
-                                    const canPickup = config.accepts_pickup
-                                    const canPix = config.accepts_pix
-                                    const canCard = config.accepts_card
-                                    const canCash = config.accepts_cash
+                                        const canDelivery = config.accepts_delivery
+                                        const canPickup = config.accepts_pickup
+                                        const canPix = config.accepts_pix
+                                        const canCard = config.accepts_card
+                                        const canCash = config.accepts_cash
 
-                                    const uniqueItems = items.filter(
-                                        (item: any, index: number, self: any[]) =>
-                                            index === self.findIndex((t: any) => t.product.id === item.product.id)
-                                    )
+                                        const uniqueItems = items.filter(
+                                            (item: any, index: number, self: any[]) =>
+                                                index === self.findIndex((t: any) => t.product.id === item.product.id)
+                                        )
 
-                                    return (
-                                        <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-2">
-                                                    <Store size={18} style={{ color: colors.accent }} />
-                                                    <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
-                                                </div>
-                                                <span className="text-lg font-black" style={{ color: colors.accent }}>R$ {itemsTotal.toFixed(2)}</span>
-                                            </div>
-
-                                            <div className="space-y-3 mb-4">
-                                                {uniqueItems.map((item) => (
-                                                    <div key={item.product.id} className="flex gap-3 items-center">
-                                                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
-                                                            {item.product.image_url ? (
-                                                                <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">?</div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{item.product.name}</p>
-                                                            <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                                                                R$ {item.product.price.toFixed(2)} cada
-                                                            </p>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                <div className="flex items-center border rounded-lg" style={{ borderColor: colors.border }}>
-                                                                    <button onClick={() => updateQuantity(slug, item.product.id, -1)} className="w-6 h-6 flex items-center justify-center"><Minus size={12} /></button>
-                                                                    <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
-                                                                    <button onClick={() => updateQuantity(slug, item.product.id, 1)} className="w-6 h-6 flex items-center justify-center"><Plus size={12} /></button>
-                                                                </div>
-                                                                <button onClick={() => removeItem(slug, item.product.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
-                                                            </div>
-                                                        </div>
-                                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                            R$ {(item.product.price * item.quantity).toFixed(2)}
-                                                        </p>
+                                        return (
+                                            <div key={slug} className="rounded-2xl p-5 mb-4 border" style={{ borderColor: colors.border, background: colors.surface }}>
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <Store size={18} style={{ color: '#f97316' }} />
+                                                        <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
                                                     </div>
-                                                ))}
-                                            </div>
-
-                                            <div className="border-t pt-3 space-y-1 text-xs" style={{ borderColor: colors.border }}>
-                                                <div className="flex justify-between">
-                                                    <span style={{ color: colors.textSecondary }}>Subtotal</span>
-                                                    <span className="font-bold" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                    <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
                                                 </div>
-                                                {deliveryOpt === 'entrega' && (
-                                                    <div className="flex justify-between">
-                                                        <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
-                                                        {deliveryFee >= 0 ? (
-                                                            <span className="font-bold" style={{ color: colors.accent }}>
-                                                                {deliveryFee === 0 ? 'Grátis' : `R$ ${deliveryFee.toFixed(2)}`}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="italic" style={{ color: colors.textSecondary }}>a calcular</span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-between pt-1 border-t" style={{ borderColor: colors.border }}>
-                                                    <span className="font-bold" style={{ color: colors.textPrimary }}>Total</span>
-                                                    <span className="font-bold text-base" style={{ color: colors.accent }}>R$ {finalTotal.toFixed(2)}</span>
-                                                </div>
-                                            </div>
 
-                                            {currentUserId && (
-                                                <div className="mt-4 space-y-3">
-                                                    <div>
-                                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Recebimento</p>
-                                                        <div className="flex gap-2">
-                                                            {canDelivery && (
-                                                                <button
-                                                                    onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'entrega' }))}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'entrega' ? 'text-white' : ''}`}
-                                                                    style={deliveryOpt === 'entrega' ? { background: colors.accent, color: colors.accentText } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                >
-                                                                    <Truck size={14} /> Entrega
-                                                                </button>
-                                                            )}
-                                                            {canPickup && (
-                                                                <button
-                                                                    onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'retirada' }))}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'retirada' ? 'text-white' : ''}`}
-                                                                    style={deliveryOpt === 'retirada' ? { background: colors.accent, color: colors.accentText } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                >
-                                                                    <Store size={14} /> Retirada
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        {deliveryOpt === 'entrega' && (
-                                                            <div className="mt-2">
-                                                                {userAddress && !isEditingAddress ? (
-                                                                    <div className="flex items-center gap-2 text-xs p-2 rounded-xl" style={{ background: `${colors.accent}10`, color: colors.textPrimary }}>
-                                                                        <MapPin size={14} style={{ color: colors.accent }} />
-                                                                        <span className="flex-1">{userAddress}</span>
-                                                                        <button onClick={() => setIsEditingAddress(true)} className="font-bold" style={{ color: colors.accent }}>Mudar</button>
-                                                                    </div>
+                                                <div className="space-y-3 mb-4">
+                                                    {uniqueItems.map((item) => (
+                                                        <div key={item.product.id} className="flex gap-3 items-center">
+                                                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                                                                {item.product.image_url ? (
+                                                                    <img src={item.product.image_url} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Endereço de entrega"
-                                                                        className="w-full border rounded-lg px-3 py-1.5 text-xs"
-                                                                        style={{ background: colors.surface, borderColor: colors.accent, color: colors.textPrimary }}
-                                                                        value={addressInput}
-                                                                        onChange={(e) => setAddressInput(e.target.value)}
-                                                                    />
+                                                                    <div className="w-full h-full flex items-center justify-center text-lg font-bold text-gray-400">?</div>
                                                                 )}
                                                             </div>
-                                                        )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{item.product.name}</p>
+                                                                <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                                    R$ {item.product.price.toFixed(2)} cada
+                                                                </p>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <div className="flex items-center rounded-full overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                                                                        <button
+                                                                            onClick={() => updateQuantity(slug, item.product.id, -1)}
+                                                                            className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
+                                                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                                                        >
+                                                                            <Minus size={12} />
+                                                                        </button>
+                                                                        <span className="w-8 text-center text-xs font-bold" style={{ color: colors.textPrimary }}>{item.quantity}</span>
+                                                                        <button
+                                                                            onClick={() => updateQuantity(slug, item.product.id, 1)}
+                                                                            className="w-7 h-7 flex items-center justify-center transition-all hover:scale-110"
+                                                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                                                        >
+                                                                            <Plus size={12} />
+                                                                        </button>
+                                                                    </div>
+                                                                    <button onClick={() => removeItem(slug, item.product.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14} /></button>
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                                                R$ {(item.product.price * item.quantity).toFixed(2)}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                <div className="border-t pt-3 space-y-1 text-xs" style={{ borderColor: colors.border }}>
+                                                    <div className="flex justify-between">
+                                                        <span style={{ color: colors.textSecondary }}>Subtotal</span>
+                                                        <span className="font-bold" style={{ color: colors.textPrimary }}>R$ {itemsTotal.toFixed(2)}</span>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Pagamento</p>
-                                                        <div className="flex gap-2 flex-wrap">
-                                                            {canPix && (
-                                                                <button
-                                                                    onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'pix' }))}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'pix' ? 'text-white' : ''}`}
-                                                                    style={paymentOpt === 'pix' ? { background: colors.accent, color: colors.accentText } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                >
-                                                                    <QrCode size={14} /> Pix
-                                                                </button>
-                                                            )}
-                                                            {canCard && (
-                                                                <button
-                                                                    onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'cartao' }))}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'cartao' ? 'text-white' : ''}`}
-                                                                    style={paymentOpt === 'cartao' ? { background: colors.accent, color: colors.accentText } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                >
-                                                                    <CreditCard size={14} /> Cartão
-                                                                </button>
-                                                            )}
-                                                            {canCash && (
-                                                                <button
-                                                                    onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'dinheiro' }))}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'dinheiro' ? 'text-white' : ''}`}
-                                                                    style={paymentOpt === 'dinheiro' ? { background: colors.accent, color: colors.accentText } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                                >
-                                                                    <Banknote size={14} /> Dinheiro
-                                                                </button>
+                                                    {deliveryOpt === 'entrega' && (
+                                                        <div className="flex justify-between">
+                                                            <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
+                                                            {deliveryFee >= 0 ? (
+                                                                <span className="font-bold" style={{ color: '#f97316' }}>
+                                                                    {deliveryFee === 0 ? 'Grátis' : `R$ ${deliveryFee.toFixed(2)}`}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="italic" style={{ color: colors.textSecondary }}>a calcular</span>
                                                             )}
                                                         </div>
+                                                    )}
+                                                    <div className="flex justify-between pt-1 border-t" style={{ borderColor: colors.border }}>
+                                                        <span className="font-bold" style={{ color: colors.textPrimary }}>Total</span>
+                                                        <span className="font-bold text-base" style={{ color: '#f97316' }}>R$ {finalTotal.toFixed(2)}</span>
                                                     </div>
-                                                    <button
-                                                        onClick={() => handleFinalizarLoja(slug)}
-                                                        disabled={checkoutLoading === slug}
-                                                        className="w-full py-3 rounded-xl font-black uppercase text-sm tracking-wider transition shadow-lg"
-                                                        style={{ background: colors.accent, color: colors.accentText }}
-                                                    >
-                                                        {checkoutLoading === slug ? 'Finalizando...' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
-                                                    </button>
                                                 </div>
+
+                                                {currentUserId && (
+                                                    <div className="mt-4 space-y-3">
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Recebimento</p>
+                                                            <div className="flex gap-2">
+                                                                {canDelivery && (
+                                                                    <button
+                                                                        onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'entrega' }))}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'entrega' ? 'text-white' : ''}`}
+                                                                        style={deliveryOpt === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <Truck size={14} /> Entrega
+                                                                    </button>
+                                                                )}
+                                                                {canPickup && (
+                                                                    <button
+                                                                        onClick={() => setDeliveryOptionByStore(prev => ({ ...prev, [slug]: 'retirada' }))}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOpt === 'retirada' ? 'text-white' : ''}`}
+                                                                        style={deliveryOpt === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <Store size={14} /> Retirada
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            {deliveryOpt === 'entrega' && (
+                                                                <div className="mt-2">
+                                                                    {userAddress && !isEditingAddress ? (
+                                                                        <div className="flex items-center gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
+                                                                            <MapPin size={14} style={{ color: '#f97316' }} />
+                                                                            <span className="flex-1">{userAddress}</span>
+                                                                            <button onClick={() => setIsEditingAddress(true)} className="font-bold" style={{ color: '#f97316' }}>Mudar</button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Endereço de entrega"
+                                                                            className="w-full border rounded-full px-3 py-1.5 text-xs"
+                                                                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                                            value={addressInput}
+                                                                            onChange={(e) => setAddressInput(e.target.value)}
+                                                                        />
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Pagamento</p>
+                                                            <div className="flex gap-2 flex-wrap">
+                                                                {canPix && (
+                                                                    <button
+                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'pix' }))}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'pix' ? 'text-white' : ''}`}
+                                                                        style={paymentOpt === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <QrCode size={14} /> Pix
+                                                                    </button>
+                                                                )}
+                                                                {canCard && (
+                                                                    <button
+                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'cartao' }))}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'cartao' ? 'text-white' : ''}`}
+                                                                        style={paymentOpt === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <CreditCard size={14} /> Cartão
+                                                                    </button>
+                                                                )}
+                                                                {canCash && (
+                                                                    <button
+                                                                        onClick={() => setPaymentMethodByStore(prev => ({ ...prev, [slug]: 'dinheiro' }))}
+                                                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentOpt === 'dinheiro' ? 'text-white' : ''}`}
+                                                                        style={paymentOpt === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                                    >
+                                                                        <Banknote size={14} /> Dinheiro
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleFinalizarLoja(slug)}
+                                                            disabled={checkoutLoading === slug}
+                                                            className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95"
+                                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                                        >
+                                                            {checkoutLoading === slug ? 'Finalizando...' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                    {!currentUserId && storeSlugs.length > 0 && (
+                                        <div className="rounded-2xl p-5" style={cardStyle}>
+                                            <p className="text-xs text-center mb-4" style={{ color: colors.textSecondary }}>Identifique-se para fazermos o seu pedido</p>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setAuthMode('login')} className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'login' ? 'shadow-sm' : ''}`}
+                                                    style={authMode === 'login' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}>
+                                                    Entrar
+                                                </button>
+                                                <button onClick={() => setAuthMode('register')} className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'register' ? 'shadow-sm' : ''}`}
+                                                    style={authMode === 'register' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}>
+                                                    Criar Conta
+                                                </button>
+                                            </div>
+                                            {authError && <div className="p-3 border rounded-full text-[8px] font-black uppercase text-center mt-3" style={{ background: '#f9731620', borderColor: '#f97316', color: '#f97316' }}>⚠️ {authError}</div>}
+                                            {authMode === 'login' ? (
+                                                <form onSubmit={handleLogin} className="space-y-3 mt-3">
+                                                    <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-full px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
+                                                    <div className="relative">
+                                                        <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full border-2 rounded-full px-4 py-2.5 text-sm pr-10" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="current-password" />
+                                                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                                                    </div>
+                                                    <button type="submit" disabled={authLoading} className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: GRADIENT, color: '#ffffff' }}>{authLoading ? 'Entrando...' : 'Entrar'}</button>
+                                                </form>
+                                            ) : (
+                                                <form onSubmit={handleRegister} className="space-y-3 mt-3">
+                                                    <input type="text" placeholder="Nome Completo" className="w-full border-2 rounded-full px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authName} onChange={(e) => setAuthName(e.target.value)} required autoComplete="name" />
+                                                    <div className="flex items-center gap-1 border-2 rounded-full px-3" style={{ background: colors.surface, borderColor: colors.border }}>
+                                                        <span className="text-[9px] font-black" style={{ color: colors.textSecondary }}>iuser.com.br/</span>
+                                                        <input type="text" placeholder="seu-perfil" className="flex-1 py-2.5 bg-transparent text-sm outline-none" style={{ color: colors.textPrimary }} value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required autoComplete="off" />
+                                                        {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓' : '✗'}</span>}
+                                                    </div>
+                                                    <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-full px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full border-2 rounded-full px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="new-password" />
+                                                    <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full border-2 rounded-full px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required autoComplete="new-password" />
+                                                    <button type="submit" disabled={authLoading || isSlugAvailable === false} className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: GRADIENT, color: '#ffffff' }}>{authLoading ? 'Criando...' : 'Criar Conta'}</button>
+                                                </form>
                                             )}
                                         </div>
-                                    )
-                                })}
-                                {!currentUserId && storeSlugs.length > 0 && (
-                                    <div className="rounded-2xl p-5" style={cardStyle}>
-                                        <p className="text-xs text-center mb-4" style={{ color: colors.textSecondary }}>Identifique-se para fazermos o seu pedido</p>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setAuthMode('login')} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${authMode === 'login' ? 'shadow-sm' : ''}`}
-                                                style={authMode === 'login' ? { background: colors.accent, color: colors.accentText } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}>
-                                                Entrar
-                                            </button>
-                                            <button onClick={() => setAuthMode('register')} className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${authMode === 'register' ? 'shadow-sm' : ''}`}
-                                                style={authMode === 'register' ? { background: colors.accent, color: colors.accentText } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}>
-                                                Criar Conta
-                                            </button>
-                                        </div>
-                                        {authError && <div className="p-3 border rounded-xl text-[8px] font-black uppercase text-center mt-3" style={{ background: `${colors.accent}20`, borderColor: colors.accent, color: colors.accent }}>⚠️ {authError}</div>}
-                                        {authMode === 'login' ? (
-                                            <form onSubmit={handleLogin} className="space-y-3 mt-3">
-                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
-                                                <div className="relative">
-                                                    <input type={showPassword ? 'text' : 'password'} placeholder="sua senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm pr-10" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="current-password" />
-                                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-                                                </div>
-                                                <button type="submit" disabled={authLoading} className="w-full py-2.5 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: colors.accent, color: colors.accentText }}>{authLoading ? 'Entrando...' : 'Entrar'}</button>
-                                            </form>
-                                        ) : (
-                                            <form onSubmit={handleRegister} className="space-y-3 mt-3">
-                                                <input type="text" placeholder="Nome Completo" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authName} onChange={(e) => setAuthName(e.target.value)} required autoComplete="name" />
-                                                <div className="flex items-center gap-1 border-2 rounded-xl px-3" style={{ background: colors.surface, borderColor: colors.border }}>
-                                                    <span className="text-[9px] font-black" style={{ color: colors.textSecondary }}>iuser.com.br/</span>
-                                                    <input type="text" placeholder="seu-perfil" className="flex-1 py-2.5 bg-transparent text-sm outline-none" style={{ color: colors.textPrimary }} value={authProfileSlug} onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} required autoComplete="off" />
-                                                    {isSlugAvailable !== null && <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>{isSlugAvailable ? '✓' : '✗'}</span>}
-                                                </div>
-                                                <input type="email" placeholder="seu@email.com" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required autoComplete="email" />
-                                                <input type={showPassword ? 'text' : 'password'} placeholder="Senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required autoComplete="new-password" />
-                                                <input type={showPassword ? 'text' : 'password'} placeholder="Confirmar senha" className="w-full border-2 rounded-xl px-4 py-2.5 text-sm" style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }} value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required autoComplete="new-password" />
-                                                <button type="submit" disabled={authLoading || isSlugAvailable === false} className="w-full py-2.5 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50" style={{ background: colors.accent, color: colors.accentText }}>{authLoading ? 'Criando...' : 'Criar Conta'}</button>
-                                            </form>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </section>
+                                    )}
+                                </>
+                            )}
+                        </section>
+                    )}
 
-                    {/* Seção Pedidos */}
-                    {currentUserId && (
+                    {/* Seção Pedidos - visível apenas quando activeTab === 'pedidos' */}
+                    {currentUserId && activeTab === 'pedidos' && (
                         <section id="section-pedidos" className="scroll-mt-24">
                             <div className="flex items-center gap-2 mb-4">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                    <Package size={16} style={{ color: colors.accentText }} />
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <Package size={16} />
                                 </div>
                                 <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
                                     Meus Pedidos
                                 </h2>
-                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                                <span className="text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
                                     {filteredGroupedOrders.length}
                                 </span>
                             </div>
                             {filteredGroupedOrders.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${colors.accent}20` }}>
-                                        <Package className="w-7 h-7" style={{ color: colors.accent }} />
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
+                                        <Package className="w-7 h-7" style={{ color: '#f97316' }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhum pedido ainda</h2>
@@ -1317,12 +1353,12 @@ export default function SacolaPage() {
                         </section>
                     )}
 
-                    {/* Seção Avaliações (pendentes + já feitas) */}
-                    {currentUserId && (
+                    {/* Seção Avaliações - visível apenas quando activeTab === 'avaliacoes' */}
+                    {currentUserId && activeTab === 'avaliacoes' && (
                         <section id="section-avaliar" className="scroll-mt-24">
                             <div className="flex items-center gap-2 mb-4">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                    <Star size={16} style={{ color: colors.accentText }} />
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <Star size={16} />
                                 </div>
                                 <h2 className="text-base font-black italic uppercase tracking-tighter" style={{ color: colors.textPrimary }}>
                                     Avaliações
@@ -1335,8 +1371,8 @@ export default function SacolaPage() {
                             </div>
                             {pendingReviews.length === 0 && userReviews.length === 0 ? (
                                 <div className="flex items-center gap-4 p-4 rounded-2xl" style={cardStyle}>
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: `${colors.accent}20` }}>
-                                        <Star className="w-7 h-7" style={{ color: colors.accent }} />
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ background: '#f9731620' }}>
+                                        <Star className="w-7 h-7" style={{ color: '#f97316' }} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-sm font-black" style={{ color: colors.textPrimary }}>Nenhuma avaliação ainda</h2>
@@ -1371,7 +1407,7 @@ export default function SacolaPage() {
                                                                         <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
                                                                             {new Date(item.created_at).toLocaleDateString('pt-BR')}
                                                                         </span>
-                                                                        <span className="text-[10px] font-black" style={{ color: colors.accent }}>
+                                                                        <span className="text-[10px] font-black" style={{ color: '#f97316' }}>
                                                                             R$ {Number(item.price).toFixed(2)}
                                                                         </span>
                                                                     </div>
@@ -1388,7 +1424,7 @@ export default function SacolaPage() {
                                                                     })
                                                                 }
                                                                 className="ml-4 px-4 py-2 rounded-full text-[10px] font-black uppercase transition-all flex-shrink-0"
-                                                                style={{ background: colors.accent, color: colors.accentText }}
+                                                                style={{ background: GRADIENT, color: '#ffffff' }}
                                                             >
                                                                 Avaliar
                                                             </button>
@@ -1435,7 +1471,7 @@ export default function SacolaPage() {
                                                                             &ldquo;{review.comment}&rdquo;
                                                                         </p>
                                                                     )}
-                                                                    <p className="text-[10px] font-bold mt-1" style={{ color: colors.accent }}>
+                                                                    <p className="text-[10px] font-bold mt-1" style={{ color: '#f97316' }}>
                                                                         R$ {Number(review.product_price).toFixed(2)}
                                                                     </p>
                                                                 </div>
@@ -1458,8 +1494,8 @@ export default function SacolaPage() {
                     {finishedOrders.length > 0 && (
                         <section className="space-y-4 animate-slide-in">
                             <div className="rounded-2xl p-5 text-center" style={cardStyle}>
-                                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})` }}>
-                                    <CheckCircle2 className="w-8 h-8" style={{ color: colors.accentText }} />
+                                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                    <CheckCircle2 className="w-8 h-8" />
                                 </div>
                                 <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Pedido Realizado!</h2>
                                 <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>Acompanhe o status abaixo em tempo real</p>
@@ -1471,11 +1507,10 @@ export default function SacolaPage() {
                                 onClick={async () => {
                                     if (currentUserId) await loadUserData(currentUserId)
                                     setFinishedOrders([])
-                                    const el = document.getElementById('section-pedidos')
-                                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                    setActiveTab('pedidos')
                                 }}
-                                className="w-full py-4 rounded-xl font-black uppercase text-xs tracking-wider transition-all shadow-md"
-                                style={{ background: colors.accent, color: colors.accentText }}
+                                className="w-full py-4 rounded-full font-black uppercase text-xs tracking-wider transition-all shadow-md hover:scale-105 active:scale-95"
+                                style={{ background: GRADIENT, color: '#ffffff' }}
                             >
                                 Ver Meus Pedidos
                             </button>
@@ -1488,10 +1523,10 @@ export default function SacolaPage() {
                         onClick={() => router.back()}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                         style={{
-                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                            color: colors.accentText,
-                            border: `2px solid ${colors.border}`,
-                            boxShadow: `0 8px 24px ${colors.accent}60`,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            border: `2px solid #f97316`,
+                            boxShadow: `0 8px 24px #f9731660`,
                         }}
                         aria-label="Voltar para a página anterior"
                     >
@@ -1501,10 +1536,10 @@ export default function SacolaPage() {
                         onClick={() => router.push('/')}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
                         style={{
-                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                            color: colors.accentText,
-                            border: `2px solid ${colors.border}`,
-                            boxShadow: `0 8px 24px ${colors.accent}60`,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            border: `2px solid #f97316`,
+                            boxShadow: `0 8px 24px #f9731660`,
                         }}
                         aria-label="Ir para o início"
                     >

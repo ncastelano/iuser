@@ -1,4 +1,4 @@
-// app/(auth)/register/page.tsx 
+// app/(auth)/register/page.tsx
 
 'use client'
 
@@ -22,6 +22,10 @@ import {
   Home,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 function hexToRgb(hex: string) {
   const clean = hex.replace('#', '')
@@ -45,7 +49,6 @@ function RegisterContent() {
   const [registered, setRegistered] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  // ✅ USAR REF PARA ARMAZENAR O profileSlug (não é resetado)
   const profileSlugRef = useRef<string>('')
 
   const accentColor = colors.accent
@@ -58,7 +61,6 @@ function RegisterContent() {
     setLoading(true)
     setError(null)
 
-    // Validações básicas
     if (password !== confirmPassword) {
       setError('As senhas não coincidem')
       setLoading(false)
@@ -78,7 +80,6 @@ function RegisterContent() {
     }
 
     try {
-      // 1. Verificar se o slug já existe
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -91,9 +92,7 @@ function RegisterContent() {
         return
       }
 
-      // 2. Buscar referral (URL ou cookie)
       let referralSlug = null
-
       const refParam = searchParams.get('ref')
       if (refParam) {
         referralSlug = refParam
@@ -109,7 +108,6 @@ function RegisterContent() {
         }
       }
 
-      // 3. Buscar o upline_id
       let uplineId = null
       if (referralSlug) {
         const { data: upline } = await supabase
@@ -126,7 +124,6 @@ function RegisterContent() {
         }
       }
 
-      // 4. Criar usuário no Auth
       console.log('📝 Criando usuário no Auth...')
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -149,11 +146,9 @@ function RegisterContent() {
 
       console.log('✅ Usuário criado no Auth:', authData.user.id)
 
-      // 5. ✅ SALVAR O profileSlug NO REF ANTES DE QUALQUER COISA
       profileSlugRef.current = profileSlug
       console.log('📝 ProfileSlug salvo no ref:', profileSlugRef.current)
 
-      // 6. Criar perfil com UPSERT
       console.log('📝 Criando/atualizando perfil (UPSERT)...')
 
       const profileData = {
@@ -182,7 +177,6 @@ function RegisterContent() {
 
       console.log('✅ Perfil criado/atualizado com sucesso!')
 
-      // 7. Limpar o cookie
       try {
         await fetch('/api/clear-referral-cookie', { method: 'POST' })
         console.log('✅ Cookie removido')
@@ -212,7 +206,6 @@ function RegisterContent() {
     return () => clearTimeout(timer)
   }, [registered])
 
-  // ✅ Tela de sucesso
   if (registered) {
     return (
       <div
@@ -231,10 +224,10 @@ function RegisterContent() {
             }}
           >
             <div
-              className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center shadow-xl mb-4"
+              className="w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-xl mb-4"
               style={{
-                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                color: colors.accentText,
+                background: GRADIENT,
+                color: '#ffffff',
               }}
             >
               <CheckCircle2 className="w-10 h-10" />
@@ -253,11 +246,11 @@ function RegisterContent() {
                 console.log('🔀 Botão: Redirecionando com slug:', slug)
                 window.location.href = '/'
               }}
-              className="w-full mt-6 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+              className="w-full mt-6 py-3.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
               style={{
-                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                color: colors.accentText,
-                boxShadow: `0 4px 14px ${accentColor}40`,
+                background: GRADIENT,
+                color: '#ffffff',
+                boxShadow: `0 4px 14px #f9731640`,
               }}
             >
               <User className="w-4 h-4" />
@@ -289,10 +282,11 @@ function RegisterContent() {
             {/* Logo */}
             <div className="text-center">
               <div
-                className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4"
                 style={{
-                  background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                  color: colors.accentText,
+                  background: GRADIENT,
+                  color: '#ffffff',
+                  boxShadow: `0 4px 14px #f9731640`,
                 }}
               >
                 <img src="/logotransparente.png" alt="iUser" className="w-12 h-12 object-contain" />
@@ -309,8 +303,8 @@ function RegisterContent() {
                 <div
                   className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
                   style={{
-                    background: `${accentColor}20`,
-                    color: accentColor,
+                    background: '#f9731620',
+                    color: '#f97316',
                   }}
                 >
                   <Store className="w-3 h-3" />
@@ -319,8 +313,8 @@ function RegisterContent() {
                 <div
                   className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
                   style={{
-                    background: `${accentColor}15`,
-                    color: accentColor,
+                    background: '#f9731615',
+                    color: '#f97316',
                   }}
                 >
                   <Zap className="w-3 h-3" />
@@ -329,8 +323,8 @@ function RegisterContent() {
                 <div
                   className="flex items-center gap-1.5 text-[10px] font-bold px-3 py-1 rounded-full"
                   style={{
-                    background: `${accentColor}10`,
-                    color: accentColor,
+                    background: '#f9731610',
+                    color: '#f97316',
                   }}
                 >
                   <Sparkles className="w-3 h-3" />
@@ -342,7 +336,7 @@ function RegisterContent() {
             {/* Error Message */}
             {error && (
               <div
-                className="p-3 text-xs font-bold rounded-xl"
+                className="p-3 text-xs font-bold rounded-full"
                 style={{
                   background: '#ef444420',
                   border: `1px solid #ef444430`,
@@ -355,21 +349,20 @@ function RegisterContent() {
 
             {/* Form Fields */}
             <div className="space-y-4">
-              {/* Nome */}
+              {/* Nome - PILL */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
-                  <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  <User className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
                   SEU NOME
                 </label>
                 <input
                   type="text"
-                  className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                  className="w-full px-4 py-3 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                     border: `2px solid ${borderColor}`,
                     color: textPrimary,
-                    '--tw-ring-color': accentColor,
-                  } as React.CSSProperties}
+                  }}
                   placeholder="Como você quer ser chamado?"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -378,26 +371,25 @@ function RegisterContent() {
                 />
               </div>
 
-              {/* Slug (link) */}
+              {/* Slug (link) - PILL */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
-                  <LinkIcon className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  <LinkIcon className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
                   SEU LINK
                 </label>
                 <div
-                  className="flex items-center rounded-xl transition-all overflow-hidden focus-within:ring-2 focus-within:ring-opacity-50"
+                  className="flex items-center rounded-full transition-all overflow-hidden focus-within:ring-2 focus:ring-orange-500/20"
                   style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                     border: `2px solid ${borderColor}`,
-                    '--tw-ring-color': accentColor,
-                  } as React.CSSProperties}
+                  }}
                 >
-                  <span className="pl-4 pr-1 text-xs font-mono py-3" style={{ color: textSecondary }}>
+                  <span className="pl-5 pr-1 text-xs font-mono py-3" style={{ color: textSecondary }}>
                     iuser.com.br/
                   </span>
                   <input
                     type="text"
-                    className="flex-1 py-3 pl-0 pr-4 outline-none text-sm font-mono"
+                    className="flex-1 py-3 pl-0 pr-5 outline-none text-sm font-mono"
                     style={{
                       background: 'transparent',
                       color: textPrimary,
@@ -410,25 +402,24 @@ function RegisterContent() {
                   />
                 </div>
                 <p className="text-[10px]" style={{ color: textSecondary }}>
-                  🔗 Seu link público: <span className="font-mono font-bold" style={{ color: accentColor }}>/{profileSlug || "seu-nome"}</span>
+                  🔗 Seu link público: <span className="font-mono font-bold" style={{ color: '#f97316' }}>/{profileSlug || "seu-nome"}</span>
                 </p>
               </div>
 
-              {/* Email */}
+              {/* Email - PILL */}
               <div className="space-y-1">
                 <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
-                  <Mail className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                  <Mail className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
                   E-MAIL
                 </label>
                 <input
                   type="email"
-                  className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  className="w-full px-4 py-3 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                   style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                     border: `2px solid ${borderColor}`,
                     color: textPrimary,
-                    '--tw-ring-color': accentColor,
-                  } as React.CSSProperties}
+                  }}
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -437,23 +428,22 @@ function RegisterContent() {
                 />
               </div>
 
-              {/* Senha e Confirmar senha lado a lado */}
+              {/* Senha e Confirmar senha - PILL */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
-                    <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    <Lock className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
                     SENHA
                   </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50 pr-10"
+                      className="w-full px-4 py-3 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20 pr-12"
                       style={{
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                         border: `2px solid ${borderColor}`,
                         color: textPrimary,
-                        '--tw-ring-color': accentColor,
-                      } as React.CSSProperties}
+                      }}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -463,7 +453,7 @@ function RegisterContent() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
                       style={{ color: textSecondary }}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -473,19 +463,18 @@ function RegisterContent() {
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
-                    <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
+                    <Lock className="w-3.5 h-3.5" style={{ color: '#f97316' }} />
                     CONFIRMAR
                   </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      className="w-full px-4 py-3 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                      className="w-full px-4 py-3 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                       style={{
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                         border: `2px solid ${borderColor}`,
                         color: textPrimary,
-                        '--tw-ring-color': accentColor,
-                      } as React.CSSProperties}
+                      }}
                       placeholder="••••••••"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
@@ -497,15 +486,15 @@ function RegisterContent() {
               </div>
             </div>
 
-            {/* Botão de cadastro */}
+            {/* Botão de cadastro - PILL */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: `linear-gradient(135deg, ${accentColor}, ${colors.accentLight})`,
-                color: colors.accentText,
-                boxShadow: `0 4px 14px ${accentColor}40`,
+                background: GRADIENT,
+                color: '#ffffff',
+                boxShadow: `0 4px 14px #f9731640`,
               }}
             >
               {loading ? (
@@ -522,7 +511,7 @@ function RegisterContent() {
             <div className="text-center">
               <p className="text-[10px]" style={{ color: textSecondary }}>
                 Ao criar uma conta, você concorda com nossos{' '}
-                <a href="/termos" className="font-bold hover:underline" style={{ color: accentColor }}>
+                <a href="/termos" className="font-bold hover:underline" style={{ color: '#f97316' }}>
                   Termos de Uso
                 </a>
               </p>
@@ -546,11 +535,11 @@ function RegisterContent() {
               </div>
             </div>
 
-            {/* Botão de login */}
+            {/* Botão de login - PILL */}
             <button
               type="button"
               onClick={() => router.push('/login')}
-              className="w-full py-3.5 rounded-xl font-bold text-sm transition-all hover:scale-[1.02]"
+              className="w-full py-3.5 rounded-full font-bold text-sm transition-all hover:scale-[1.02]"
               style={{
                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                 border: `2px solid ${borderColor}`,
@@ -569,7 +558,7 @@ function RegisterContent() {
               }}
             >
               <p className="text-[10px] text-center leading-relaxed" style={{ color: textSecondary }}>
-                ✨ <span className="font-bold" style={{ color: accentColor }}>Mostre para todos ao redor</span> o que você tem de melhor.<br />
+                ✨ <span className="font-bold" style={{ color: '#f97316' }}>Mostre para todos ao redor</span> o que você tem de melhor.<br />
                 Sua loja, suas vendas, seu sucesso.
               </p>
             </div>
@@ -587,7 +576,7 @@ export default function Register() {
         className="min-h-screen flex items-center justify-center"
         style={{ background: '#000' }}
       >
-        <div className="w-8 h-8 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+        <LoadingSpinner message="Carregando..." background="#000" />
       </div>
     }>
       <RegisterContent />

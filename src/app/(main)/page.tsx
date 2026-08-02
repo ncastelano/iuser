@@ -19,7 +19,7 @@ import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import SortableSection from './inicio/sections/SortableSection'
-import ConfiguracoesContent from './ButtonSettingsHeader'
+import ConfiguracoesContent from './Configuration'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
@@ -44,10 +44,10 @@ import StoreDashboard from './StoreDashboard'
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 const DEFAULT_SECTIONS = [
+    'categorias',
     'storeList',
     'productShowcase',
     'publicationShowcase',
-    'categorias',
     'settingsSection',
     'orderSection',
 ]
@@ -185,8 +185,12 @@ export default function HomePage() {
             try {
                 const parsed = JSON.parse(saved)
                 if (Array.isArray(parsed)) {
-                    const missing = DEFAULT_SECTIONS.filter(s => !parsed.includes(s))
-                    setSections([...parsed, ...missing])
+                    // Garante que 'categorias' esteja sempre em primeiro
+                    const hasCategorias = parsed.includes('categorias')
+                    let filtered = parsed.filter(s => s !== 'categorias')
+                    const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
+                    const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
+                    setSections(final)
                 }
             } catch {
                 // Ignora erros de parse
@@ -408,7 +412,7 @@ export default function HomePage() {
         }
     }, [stores])
 
-    // ---------- SEÇÕES EXIBIDAS ----------
+    // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
     const displayedSections = useMemo(() => {
         const normal: string[] = []
         const breve: string[] = []
@@ -421,7 +425,15 @@ export default function HomePage() {
             normal.push(s)
         })
 
-        return [...normal, ...breve]
+        // Garante que categorias esteja sempre em primeiro
+        const hasCategorias = sections.includes('categorias')
+        const result = hasCategorias ? ['categorias'] : []
+
+        // Adiciona o resto (exceto categorias que já foi adicionada)
+        const rest = [...normal, ...breve].filter(s => s !== 'categorias')
+        result.push(...rest)
+
+        return result
     }, [sections, breveMap])
 
     // ---------- DRAG AND DROP ----------
@@ -431,6 +443,16 @@ export default function HomePage() {
         setSections((items) => {
             const oldIndex = items.indexOf(active.id as string)
             const newIndex = items.indexOf(over.id as string)
+
+            // Impede que 'categorias' seja movido para fora da primeira posição
+            if (active.id === 'categorias' && newIndex !== 0) {
+                return items // Não faz nada
+            }
+            // Impede que outro item seja movido para antes de 'categorias'
+            if (newIndex === 0 && active.id !== 'categorias') {
+                return items // Não faz nada
+            }
+
             return arrayMove(items, oldIndex, newIndex)
         })
     }
@@ -445,8 +467,13 @@ export default function HomePage() {
         if (saved) {
             try {
                 const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed) && parsed.length === DEFAULT_SECTIONS.length) {
-                    setSections(parsed)
+                if (Array.isArray(parsed)) {
+                    // Garante que categorias esteja em primeiro ao restaurar
+                    const hasCategorias = parsed.includes('categorias')
+                    let filtered = parsed.filter(s => s !== 'categorias')
+                    const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
+                    const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
+                    setSections(final)
                     setEditMode(false)
                     return
                 }
@@ -708,7 +735,7 @@ export default function HomePage() {
                 {showConfig ? (
                     <ConfiguracoesContent
                         onBack={() => setShowConfig(false)}
-                        bgMode={bgMode}
+
                         setBgMode={setBgMode}
                         customBgUrl={customBgUrl}
                         setCustomBgUrl={setCustomBgUrl}

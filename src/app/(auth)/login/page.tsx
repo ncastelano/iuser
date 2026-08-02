@@ -1,3 +1,4 @@
+// app/(main)/Login.tsx
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
@@ -8,16 +9,19 @@ import {
   Store, Star, TrendingUp, Shield, Users,
   ShoppingBag
 } from 'lucide-react'
-import AnimatedBackground from '@/components/AnimatedBackground'
 import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 export const dynamic = 'force-dynamic'
 
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { colors, setTheme } = useTheme() // <-- setTheme adicionado
+  const { colors, setTheme } = useTheme()
 
   const [success, setSuccess] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -43,7 +47,6 @@ function LoginContent() {
       })
       if (authError) throw authError
 
-      // ✅ Restaura o tema salvo no perfil
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profile } = await supabase
@@ -74,15 +77,30 @@ function LoginContent() {
     { icon: Users, titulo: 'Comunidade ativa', descricao: 'Conecte-se com outros vendedores, troque experiências e cresça junto.' },
   ]
 
+  // ===== STYLE PARA BOTÕES PILL =====
+  const pillButtonStyle = {
+    width: '100%',
+    padding: '0.75rem 1.25rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.875rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+  }
+
   return (
     <div className="relative flex flex-col min-h-screen" style={{ background: colors.background }}>
-      <AnimatedBackground />
       <Header title="iUser" showBack={false} />
 
       {success === 'account_created' && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500 max-w-sm mx-auto">
           <div className="px-5 py-3 text-xs font-bold rounded-full shadow-lg border text-center"
-            style={{ background: colors.accent, color: colors.accentText, borderColor: `${colors.accent}33` }}>
+            style={{ background: GRADIENT, color: '#ffffff', borderColor: '#f9731633' }}>
             🎉 Conta criada com sucesso! Faça seu login para começar.
           </div>
         </div>
@@ -91,8 +109,8 @@ function LoginContent() {
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8">
         <form onSubmit={handleLogin} className="w-full max-w-md">
           {error && (
-            <div className="mb-6 p-3 text-xs font-bold rounded-xl border"
-              style={{ background: `${colors.accent}22`, borderColor: `${colors.accent}44`, color: colors.accent }}>
+            <div className="mb-6 p-3 text-xs font-bold rounded-full border"
+              style={{ background: '#f9731622', borderColor: '#f9731644', color: '#f97316' }}>
               ⚠️ {error}
             </div>
           )}
@@ -101,52 +119,84 @@ function LoginContent() {
             <div className="space-y-1.5">
               <label className="text-xs font-black uppercase tracking-wider flex items-center gap-2 ml-1"
                 style={{ color: colors.textSecondary }}>
-                <Mail className="w-4 h-4" style={{ color: colors.accent }} /> E-mail
+                <Mail className="w-4 h-4" style={{ color: '#f97316' }} /> E-mail
               </label>
-              <input type="email" className="w-full px-4 py-3 border-2 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
-                placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={loading}
-                style={{ background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary, outlineColor: colors.accent }} />
+              <input
+                type="email"
+                className="w-full px-4 py-3 border-2 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                style={{
+                  background: `${colors.surface}88`,
+                  borderColor: colors.border,
+                  color: colors.textPrimary,
+                }}
+              />
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-1">
                 <label className="text-xs font-black uppercase tracking-wider flex items-center gap-2"
                   style={{ color: colors.textSecondary }}>
-                  <Lock className="w-4 h-4" style={{ color: colors.accent }} /> Senha
+                  <Lock className="w-4 h-4" style={{ color: '#f97316' }} /> Senha
                 </label>
-                <a href="/recuperar-senha" className="text-[10px] font-bold transition-all hover:underline" style={{ color: colors.accent }}>
+                <a href="/recuperar-senha" className="text-[10px] font-bold transition-all hover:underline" style={{ color: '#f97316' }}>
                   Esqueceu?
                 </a>
               </div>
               <div className="relative">
-                <input type={showPassword ? 'text' : 'password'}
-                  className="w-full px-4 py-3 border-2 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
-                  placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={loading}
-                  style={{ background: `${colors.surface}88`, borderColor: colors.border, color: colors.textPrimary, outlineColor: colors.accent }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors" style={{ color: colors.textSecondary }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="w-full px-4 py-3 border-2 rounded-full text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  style={{
+                    background: `${colors.surface}88`,
+                    borderColor: colors.border,
+                    color: colors.textPrimary,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: colors.textSecondary }}>
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
           </div>
 
-          <button type="submit" disabled={loading}
-            className="group relative w-full mt-6 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: `linear-gradient(135deg, ${colors.accent}, ${colors.accentLight})`, color: colors.accentText }}>
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <> Entrar <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /> </>
-              )}
-            </span>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              ...pillButtonStyle,
+              background: GRADIENT,
+              color: '#ffffff',
+              boxShadow: `0 4px 14px #f9731660`,
+              opacity: loading ? 0.6 : 1,
+              marginTop: '1.5rem',
+            }}
+            className="hover:scale-105 transition-transform active:scale-95"
+          >
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <> Entrar <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /> </>
+            )}
           </button>
 
           <div className="mt-6 text-center">
             <p className="text-sm" style={{ color: colors.textSecondary }}>
               Ainda não tem uma conta?{' '}
-              <a href="/register" className="font-black transition-colors underline-offset-4 hover:underline" style={{ color: colors.accent }}>
+              <a href="/register" className="font-black transition-colors underline-offset-4 hover:underline" style={{ color: '#f97316' }}>
                 Criar conta grátis
               </a>
             </p>
@@ -163,8 +213,9 @@ function LoginContent() {
               <div key={i} className="rounded-2xl p-4 border backdrop-blur-md transition-all hover:shadow-lg"
                 style={{ background: `${colors.surface}88`, borderColor: colors.border, boxShadow: colors.shadow }}>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: colors.accentLight }}>
-                    <b.icon size={18} style={{ color: colors.accent }} />
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: GRADIENT, color: '#ffffff' }}>
+                    <b.icon size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>{b.titulo}</h3>
@@ -189,7 +240,7 @@ export default function Login() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
-        <div className="w-8 h-8 border-3 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+        <LoadingSpinner message="Carregando..." background="#ffffff" />
       </div>
     }>
       <LoginContent />
