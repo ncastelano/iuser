@@ -24,7 +24,7 @@ interface FeaturedPublicationsProps {
     title?: string
     maxItems?: number
     className?: string
-    onPublicationClick?: (storeSlug: string, productId: string) => void
+    onPublicationClick?: (productId: string) => void
 }
 
 // ---------- Hook de dados ----------
@@ -212,11 +212,12 @@ export default function FeaturedPublications({
                 : itemsPerView >= 3 ? 'grid-cols-3'
                     : 'grid-cols-2'
 
+    // ===== HANDLE CLICK - VAI PARA /publicacoes/{id} =====
     const handlePublicationClick = (pub: PublicationCard) => {
         if (onPublicationClick) {
-            onPublicationClick(pub.storeSlug, pub.id)
+            onPublicationClick(pub.id)
         } else {
-            router.push(`/${pub.storeSlug}?produto=${pub.id}`)
+            router.push(`/publicacoes/${pub.id}`)
         }
     }
 
@@ -252,7 +253,7 @@ export default function FeaturedPublications({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle e botão "Ver todos" estilo PILLS (igual ao StoreList) */}
+            {/* Título com dragHandle e botão "Ver todos" estilo PILLS */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     {dragHandle}
@@ -261,7 +262,7 @@ export default function FeaturedPublications({
                     </h2>
                 </div>
 
-                {/* Botão "Ver todos" estilo PILLS - IGUAL AO STORELIST */}
+                {/* Botão "Ver todos" estilo PILLS - vai para /publicacoes */}
                 {hasPublications && (
                     <button
                         onClick={() => router.push('/publicacoes')}

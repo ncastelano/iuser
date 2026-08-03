@@ -35,7 +35,7 @@ import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
-import PublicationShowcase from './inicio/sections/FeaturePublications'
+import FeaturedPublications from './inicio/sections/FeaturePublications'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from './StoreDashboard'
@@ -585,7 +585,7 @@ export default function HomePage() {
             case 'productShowcase':
                 return <ProductShowcase />
             case 'publicationShowcase':
-                return <PublicationShowcase />
+                return <FeaturedPublications />
             case 'transporte':
                 return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
@@ -735,7 +735,6 @@ export default function HomePage() {
                 {showConfig ? (
                     <ConfiguracoesContent
                         onBack={() => setShowConfig(false)}
-
                         setBgMode={setBgMode}
                         customBgUrl={customBgUrl}
                         setCustomBgUrl={setCustomBgUrl}
