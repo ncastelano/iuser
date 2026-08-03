@@ -407,6 +407,7 @@ export function StoreList({
     const [scrollLeft, setScrollLeft] = useState(0)
     const [isDraggingOrInteracted, setIsDraggingOrInteracted] = useState(false)
     const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const isScrollingRef = useRef(false) // Previne loops de scroll
 
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
@@ -628,7 +629,7 @@ export function StoreList({
             return
         }
 
-        autoPlayRef.current = setInterval(goToNext, 15000) // 15 segundos
+        autoPlayRef.current = setInterval(goToNext, 15000)
 
         return () => {
             if (autoPlayRef.current) {
@@ -671,7 +672,7 @@ export function StoreList({
                 : 'grid-cols-1'
 
     const handleStoreClick = (storeSlug: string) => {
-        if (isDragging) return // Previne clique durante drag
+        if (isDragging) return
         if (onStoreClick) {
             onStoreClick(storeSlug)
         } else {
@@ -688,6 +689,7 @@ export function StoreList({
         containerRef.current.style.cursor = 'grabbing'
         containerRef.current.style.scrollBehavior = 'auto'
         resetInteractionTimer()
+        isScrollingRef.current = false
     }
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -717,7 +719,6 @@ export function StoreList({
         }
     }
 
-    // Touch events para mobile
     const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
         if (!containerRef.current) return
         setIsDragging(true)
@@ -725,6 +726,7 @@ export function StoreList({
         setScrollLeft(containerRef.current.scrollLeft)
         containerRef.current.style.scrollBehavior = 'auto'
         resetInteractionTimer()
+        isScrollingRef.current = false
     }
 
     const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -741,35 +743,65 @@ export function StoreList({
         resetInteractionTimer()
     }
 
-    // Atualiza página atual baseado no scroll - CORRIGIDO
+    // ========== SCROLL CORRIGIDO - COM DEBOUNCE ==========
     const handleScroll = useCallback(() => {
-        if (!containerRef.current) return
+        if (!containerRef.current || isScrollingRef.current) return
 
         const container = containerRef.current
-        const cardWidth = container.scrollWidth / Math.max(filteredStores.length, 1)
+        const containerWidth = container.clientWidth
         const scrollPosition = container.scrollLeft
-        const newPage = Math.round(scrollPosition / (cardWidth * itemsPerPage))
 
-        if (newPage !== currentPage && newPage < totalPages && newPage >= 0) {
-            setCurrentPage(newPage)
+        // Calcula em qual página estamos baseado no scroll
+        const pageWidth = containerWidth // Cada página tem a largura do container
+        const newPage = Math.round(scrollPosition / pageWidth)
+
+        // Limita entre 0 e totalPages - 1
+        const clampedPage = Math.max(0, Math.min(newPage, totalPages - 1))
+
+        if (clampedPage !== currentPage) {
+            setCurrentPage(clampedPage)
         }
-    }, [currentPage, itemsPerPage, totalPages, filteredStores.length])
+    }, [currentPage, totalPages])
 
-    // Sincroniza scroll com a página atual - CORRIGIDO
+    // ========== SINCRONIZA SCROLL COM A PÁGINA ==========
     useEffect(() => {
         if (!containerRef.current || isDragging) return
 
         const container = containerRef.current
-        const cardWidth = container.scrollWidth / Math.max(filteredStores.length, 1)
-        const targetScroll = currentPage * cardWidth * itemsPerPage
+        const containerWidth = container.clientWidth
+        const targetScroll = currentPage * containerWidth
 
-        if (targetScroll >= 0 && targetScroll <= container.scrollWidth - container.clientWidth) {
+        // Verifica se o scroll atual já está próximo do alvo
+        const currentScroll = container.scrollLeft
+        const diff = Math.abs(currentScroll - targetScroll)
+
+        // Só rola se a diferença for significativa (evita loops)
+        if (diff > 5) {
+            isScrollingRef.current = true
             container.scrollTo({
                 left: targetScroll,
                 behavior: 'smooth'
             })
+            // Libera o flag após o scroll terminar
+            setTimeout(() => {
+                isScrollingRef.current = false
+            }, 400)
         }
-    }, [currentPage, itemsPerPage, filteredStores.length, isDragging])
+    }, [currentPage, isDragging])
+
+    // ========== ATUALIZA SCROLL QUANDO O TAMANHO DA TELA MUDA ==========
+    useEffect(() => {
+        if (!containerRef.current) return
+
+        const container = containerRef.current
+        const containerWidth = container.clientWidth
+        const targetScroll = currentPage * containerWidth
+
+        container.scrollTo({
+            left: targetScroll,
+            behavior: 'auto'
+        })
+    }, [itemsPerPage, currentPage])
 
     if (loading) {
         return (
@@ -857,6 +889,7 @@ export function StoreList({
                 style={{
                     scrollSnapType: 'x mandatory',
                     WebkitOverflowScrolling: 'touch',
+                    scrollBehavior: 'smooth',
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -868,18 +901,18 @@ export function StoreList({
                 onScroll={handleScroll}
             >
                 <div
-                    className={`grid ${gridCols} gap-4`}
+                    className="flex gap-4"
                     style={{
+                        width: `${filteredStores.length * (100 / itemsPerPage)}%`,
                         minWidth: '100%',
-                        width: `${Math.max(filteredStores.length, 1) * (100 / itemsPerPage)}%`,
-                        gridTemplateColumns: `repeat(${Math.max(filteredStores.length, 1)}, 1fr)`,
                     }}
                 >
                     {filteredStores.map((store, index) => (
                         <div
                             key={`${store.id}-${index}`}
-                            className="h-full"
+                            className="flex-shrink-0"
                             style={{
+                                width: `${100 / filteredStores.length}%`,
                                 scrollSnapAlign: 'start',
                             }}
                         >
