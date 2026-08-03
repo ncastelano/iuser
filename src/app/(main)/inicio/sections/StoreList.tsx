@@ -126,7 +126,7 @@ function StoreStatus({ businessHours }: { businessHours: BusinessHours | null | 
     )
 }
 
-// ========== COMPONENTE CARD - PADRÃO FIXO ==========
+// ========== COMPONENTE CARD ==========
 function StoreCard({
     store,
     onClick,
@@ -139,14 +139,12 @@ function StoreCard({
     const isOpen = isStoreOpenNow(store.business_hours)
     const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : 'Endereço não informado'
 
-    // Verifica se tem informações mínimas para mostrar
     const hasProducts = store.top_products && store.top_products.length > 0
     const hasReviews = store.recent_reviews && store.recent_reviews.length > 0
     const hasRating = store.ratings_count && store.ratings_count > 0
     const hasAddress = store.address && store.address.trim().length > 0
 
-    // ALTURA FIXA PARA TODOS OS CARDS - PADRÃO
-    const imageHeight = 'h-48' // Altura fixa para todos
+    const imageHeight = 'h-48'
 
     return (
         <div
@@ -157,7 +155,6 @@ function StoreCard({
                 borderColor: colors.border,
             }}
         >
-            {/* Logo / Imagem - altura fixa */}
             <div
                 className={`relative w-full ${imageHeight} overflow-hidden flex-shrink-0`}
                 style={{ background: GRADIENT }}
@@ -175,7 +172,6 @@ function StoreCard({
                     </div>
                 )}
 
-                {/* Badge de status */}
                 <div
                     className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[10px] font-black uppercase shadow-lg flex items-center gap-1.5"
                     style={{
@@ -184,13 +180,11 @@ function StoreCard({
                     }}
                 >
                     <div
-                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOpen ? 'bg-white' : 'bg-white/60'
-                            }`}
+                        className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOpen ? 'bg-white' : 'bg-white/60'}`}
                     />
                     {isOpen ? 'Aberto' : 'Fechado'}
                 </div>
 
-                {/* Visitantes */}
                 {store.view_count && store.view_count > 0 && (
                     <div className="absolute bottom-3 left-3 px-2 py-1 rounded-full text-[9px] font-bold shadow-md flex items-center gap-1"
                         style={{
@@ -204,9 +198,7 @@ function StoreCard({
                 )}
             </div>
 
-            {/* Conteúdo - altura fixa com flex */}
             <div className="p-4 space-y-2 flex-1 flex flex-col min-h-[180px]">
-                {/* Nome e endereço */}
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
@@ -222,7 +214,6 @@ function StoreCard({
                     <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: colors.textSecondary }} />
                 </div>
 
-                {/* Avaliações */}
                 {hasRating ? (
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1">
@@ -244,10 +235,8 @@ function StoreCard({
                     </div>
                 )}
 
-                {/* Status */}
                 <StoreStatus businessHours={store.business_hours} />
 
-                {/* Produtos em destaque - só aparece se tiver produtos */}
                 {hasProducts && (
                     <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                         <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textSecondary }}>
@@ -285,7 +274,6 @@ function StoreCard({
                     </div>
                 )}
 
-                {/* Review recente - só aparece se tiver reviews */}
                 {hasReviews && (
                     <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                         {store.recent_reviews!.slice(0, 1).map((review) => (
@@ -309,7 +297,6 @@ function StoreCard({
                     </div>
                 )}
 
-                {/* Espaço vazio no final para manter consistência */}
                 <div className="flex-1" />
             </div>
         </div>
@@ -325,14 +312,11 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                 background: colors.surface,
             }}
         >
-            {/* Imagem skeleton */}
             <div className="relative w-full h-48 overflow-hidden flex-shrink-0" style={{ background: `${colors.border}50` }}>
                 <div className="w-full h-full" style={{ background: `${colors.border}30` }} />
             </div>
 
-            {/* Conteúdo skeleton */}
             <div className="p-4 space-y-3 flex-1 flex flex-col min-h-[180px]">
-                {/* Nome skeleton */}
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
                         <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}40` }} />
@@ -341,7 +325,6 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                     <div className="w-4 h-4 rounded" style={{ background: `${colors.border}30` }} />
                 </div>
 
-                {/* Avaliações skeleton */}
                 <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                         <div className="h-3 rounded w-16" style={{ background: `${colors.border}30` }} />
@@ -349,13 +332,11 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                     </div>
                 </div>
 
-                {/* Status skeleton */}
                 <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 rounded-full" style={{ background: `${colors.border}30` }} />
                     <div className="h-3 rounded w-20" style={{ background: `${colors.border}30` }} />
                 </div>
 
-                {/* Produtos skeleton */}
                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                     <div className="h-3 rounded w-16 mb-1.5" style={{ background: `${colors.border}30` }} />
                     <div className="flex gap-1.5">
@@ -364,7 +345,6 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                     </div>
                 </div>
 
-                {/* Review skeleton */}
                 <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                     <div className="flex items-start gap-1.5">
                         <div className="w-3 h-3 rounded-full mt-0.5" style={{ background: `${colors.border}30` }} />
@@ -378,14 +358,13 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                     </div>
                 </div>
 
-                {/* Espaço vazio */}
                 <div className="flex-1" />
             </div>
         </div>
     )
 }
 
-// ========== COMPONENTE PRINCIPAL ==========
+// ========== COMPONENTE PRINCIPAL REFATORADO ==========
 export function StoreList({
     initialStores,
     onStoreClick,
@@ -396,29 +375,26 @@ export function StoreList({
 }: StoreListProps) {
     const router = useRouter()
     const { colors } = useTheme()
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
     const isMountedRef = useRef(true)
     const abortControllerRef = useRef<AbortController | null>(null)
 
-    // Referências para o drag
+    // Referências
     const containerRef = useRef<HTMLDivElement>(null)
-    const [isDragging, setIsDragging] = useState(false)
-    const [startX, setStartX] = useState(0)
-    const [scrollLeft, setScrollLeft] = useState(0)
-    const [isDraggingOrInteracted, setIsDraggingOrInteracted] = useState(false)
-    const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const isScrollingRef = useRef(false) // Previne loops de scroll
+    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+    const [isHovered, setIsHovered] = useState(false)
 
+    // Estados
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
     const [loading, setLoading] = useState(!initialStores)
     const [error, setError] = useState<string | null>(null)
+    const [currentIndex, setCurrentIndex] = useState(0)
+    const [isAutoPlayPaused, setIsAutoPlayPaused] = useState(false)
 
     const itemsPerPage = useBreakpoint()
-    const [currentPage, setCurrentPage] = useState(0)
-    const [isHovered, setIsHovered] = useState(false)
+    const totalPages = Math.max(1, Math.ceil(filteredStores.length / itemsPerPage))
 
-    // Função para carregar lojas com controle de abort
+    // ===== CARREGAR LOJAS =====
     const loadStores = useCallback(async () => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort()
@@ -578,12 +554,10 @@ export function StoreList({
             if (autoPlayRef.current) {
                 clearInterval(autoPlayRef.current)
             }
-            if (dragTimeoutRef.current) {
-                clearTimeout(dragTimeoutRef.current)
-            }
         }
     }, [initialStores, loadStores])
 
+    // ===== ORDENAÇÃO =====
     useEffect(() => {
         const sorted = [...stores].sort((a, b) => {
             const aOpen = isStoreOpenNow(a.business_hours)
@@ -604,24 +578,9 @@ export function StoreList({
         }
     }, [stores, maxItems])
 
-    const total = filteredStores.length
-    const totalPages = Math.max(1, Math.ceil(total / itemsPerPage))
-
-    const goToNext = useCallback(() => {
-        setCurrentPage(prev => (prev + 1) % totalPages)
-    }, [totalPages])
-
-    const goToPrev = useCallback(() => {
-        setCurrentPage(prev => (prev - 1 + totalPages) % totalPages)
-    }, [totalPages])
-
+    // ===== AUTO-PLAY =====
     useEffect(() => {
-        setCurrentPage(0)
-    }, [itemsPerPage])
-
-    // Auto-play com 15 segundos
-    useEffect(() => {
-        if (isHovered || isDraggingOrInteracted || totalPages <= 1) {
+        if (isHovered || isAutoPlayPaused || totalPages <= 1) {
             if (autoPlayRef.current) {
                 clearInterval(autoPlayRef.current)
                 autoPlayRef.current = null
@@ -629,7 +588,9 @@ export function StoreList({
             return
         }
 
-        autoPlayRef.current = setInterval(goToNext, 15000)
+        autoPlayRef.current = setInterval(() => {
+            setCurrentIndex(prev => (prev + 1) % totalPages)
+        }, 15000)
 
         return () => {
             if (autoPlayRef.current) {
@@ -637,42 +598,43 @@ export function StoreList({
                 autoPlayRef.current = null
             }
         }
-    }, [isHovered, isDraggingOrInteracted, goToNext, totalPages])
+    }, [isHovered, isAutoPlayPaused, totalPages])
 
-    // Reset do estado de interação após 3 segundos sem interação
-    const resetInteractionTimer = useCallback(() => {
-        setIsDraggingOrInteracted(true)
+    // ===== NAVEGAÇÃO =====
+    const goToNext = useCallback(() => {
+        setCurrentIndex(prev => (prev + 1) % totalPages)
+        setIsAutoPlayPaused(true)
+        setTimeout(() => setIsAutoPlayPaused(false), 3000)
+    }, [totalPages])
 
-        if (dragTimeoutRef.current) {
-            clearTimeout(dragTimeoutRef.current)
-        }
+    const goToPrev = useCallback(() => {
+        setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages)
+        setIsAutoPlayPaused(true)
+        setTimeout(() => setIsAutoPlayPaused(false), 3000)
+    }, [totalPages])
 
-        dragTimeoutRef.current = setTimeout(() => {
-            setIsDraggingOrInteracted(false)
-        }, 3000)
+    const goToPage = useCallback((page: number) => {
+        setCurrentIndex(page)
+        setIsAutoPlayPaused(true)
+        setTimeout(() => setIsAutoPlayPaused(false), 3000)
     }, [])
 
+    // ===== ITENS ATUAIS =====
     const currentItems = useMemo(() => {
-        if (total === 0) return []
+        if (filteredStores.length === 0) return []
 
-        const start = currentPage * itemsPerPage
+        const start = currentIndex * itemsPerPage
         const items: StoreCardData[] = []
 
         for (let i = 0; i < itemsPerPage; i++) {
-            const index = (start + i) % total
+            const index = (start + i) % filteredStores.length
             items.push(filteredStores[index])
         }
 
         return items
-    }, [filteredStores, currentPage, itemsPerPage, total])
-
-    const gridCols = itemsPerPage >= 4 ? 'grid-cols-4'
-        : itemsPerPage >= 3 ? 'grid-cols-3'
-            : itemsPerPage >= 2 ? 'grid-cols-2'
-                : 'grid-cols-1'
+    }, [filteredStores, currentIndex, itemsPerPage])
 
     const handleStoreClick = (storeSlug: string) => {
-        if (isDragging) return
         if (onStoreClick) {
             onStoreClick(storeSlug)
         } else {
@@ -680,129 +642,12 @@ export function StoreList({
         }
     }
 
-    // ========== FUNÇÕES DE DRAG CORRIGIDAS ==========
-    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!containerRef.current) return
-        setIsDragging(true)
-        setStartX(e.pageX - containerRef.current.offsetLeft)
-        setScrollLeft(containerRef.current.scrollLeft)
-        containerRef.current.style.cursor = 'grabbing'
-        containerRef.current.style.scrollBehavior = 'auto'
-        resetInteractionTimer()
-        isScrollingRef.current = false
-    }
+    const gridCols = itemsPerPage >= 4 ? 'grid-cols-4'
+        : itemsPerPage >= 3 ? 'grid-cols-3'
+            : itemsPerPage >= 2 ? 'grid-cols-2'
+                : 'grid-cols-1'
 
-    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!isDragging || !containerRef.current) return
-        e.preventDefault()
-        const x = e.pageX - containerRef.current.offsetLeft
-        const walk = (x - startX) * 1.5
-        containerRef.current.scrollLeft = scrollLeft - walk
-    }
-
-    const handleMouseUp = () => {
-        if (!containerRef.current) return
-        setIsDragging(false)
-        containerRef.current.style.cursor = 'grab'
-        containerRef.current.style.scrollBehavior = 'smooth'
-        resetInteractionTimer()
-    }
-
-    const handleMouseLeave = () => {
-        if (isDragging) {
-            setIsDragging(false)
-            if (containerRef.current) {
-                containerRef.current.style.cursor = 'grab'
-                containerRef.current.style.scrollBehavior = 'smooth'
-            }
-            resetInteractionTimer()
-        }
-    }
-
-    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (!containerRef.current) return
-        setIsDragging(true)
-        setStartX(e.touches[0].pageX - containerRef.current.offsetLeft)
-        setScrollLeft(containerRef.current.scrollLeft)
-        containerRef.current.style.scrollBehavior = 'auto'
-        resetInteractionTimer()
-        isScrollingRef.current = false
-    }
-
-    const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-        if (!isDragging || !containerRef.current) return
-        const x = e.touches[0].pageX - containerRef.current.offsetLeft
-        const walk = (x - startX) * 1.5
-        containerRef.current.scrollLeft = scrollLeft - walk
-    }
-
-    const handleTouchEnd = () => {
-        if (!containerRef.current) return
-        setIsDragging(false)
-        containerRef.current.style.scrollBehavior = 'smooth'
-        resetInteractionTimer()
-    }
-
-    // ========== SCROLL CORRIGIDO - COM DEBOUNCE ==========
-    const handleScroll = useCallback(() => {
-        if (!containerRef.current || isScrollingRef.current) return
-
-        const container = containerRef.current
-        const containerWidth = container.clientWidth
-        const scrollPosition = container.scrollLeft
-
-        // Calcula em qual página estamos baseado no scroll
-        const pageWidth = containerWidth // Cada página tem a largura do container
-        const newPage = Math.round(scrollPosition / pageWidth)
-
-        // Limita entre 0 e totalPages - 1
-        const clampedPage = Math.max(0, Math.min(newPage, totalPages - 1))
-
-        if (clampedPage !== currentPage) {
-            setCurrentPage(clampedPage)
-        }
-    }, [currentPage, totalPages])
-
-    // ========== SINCRONIZA SCROLL COM A PÁGINA ==========
-    useEffect(() => {
-        if (!containerRef.current || isDragging) return
-
-        const container = containerRef.current
-        const containerWidth = container.clientWidth
-        const targetScroll = currentPage * containerWidth
-
-        // Verifica se o scroll atual já está próximo do alvo
-        const currentScroll = container.scrollLeft
-        const diff = Math.abs(currentScroll - targetScroll)
-
-        // Só rola se a diferença for significativa (evita loops)
-        if (diff > 5) {
-            isScrollingRef.current = true
-            container.scrollTo({
-                left: targetScroll,
-                behavior: 'smooth'
-            })
-            // Libera o flag após o scroll terminar
-            setTimeout(() => {
-                isScrollingRef.current = false
-            }, 400)
-        }
-    }, [currentPage, isDragging])
-
-    // ========== ATUALIZA SCROLL QUANDO O TAMANHO DA TELA MUDA ==========
-    useEffect(() => {
-        if (!containerRef.current) return
-
-        const container = containerRef.current
-        const containerWidth = container.clientWidth
-        const targetScroll = currentPage * containerWidth
-
-        container.scrollTo({
-            left: targetScroll,
-            behavior: 'auto'
-        })
-    }, [itemsPerPage, currentPage])
-
+    // ===== RENDER =====
     if (loading) {
         return (
             <div className={`w-full ${className}`}>
@@ -882,40 +727,13 @@ export function StoreList({
                 </h2>
             </div>
 
-            {/* Container com scroll para drag */}
-            <div
-                ref={containerRef}
-                className="relative overflow-x-auto hide-scrollbar cursor-grab"
-                style={{
-                    scrollSnapType: 'x mandatory',
-                    WebkitOverflowScrolling: 'touch',
-                    scrollBehavior: 'smooth',
-                }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onScroll={handleScroll}
-            >
+            {/* Grid com transição suave */}
+            <div className="relative overflow-hidden">
                 <div
-                    className="flex gap-4"
-                    style={{
-                        width: `${filteredStores.length * (100 / itemsPerPage)}%`,
-                        minWidth: '100%',
-                    }}
+                    className={`grid ${gridCols} gap-4 transition-all duration-500 ease-in-out`}
                 >
-                    {filteredStores.map((store, index) => (
-                        <div
-                            key={`${store.id}-${index}`}
-                            className="flex-shrink-0"
-                            style={{
-                                width: `${100 / filteredStores.length}%`,
-                                scrollSnapAlign: 'start',
-                            }}
-                        >
+                    {currentItems.map((store, index) => (
+                        <div key={`${store.id}-${index}`} className="animate-fadeIn">
                             <StoreCard
                                 store={store}
                                 colors={colors}
@@ -926,7 +744,7 @@ export function StoreList({
                 </div>
             </div>
 
-            {/* Paginação melhorada */}
+            {/* Paginação */}
             {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-4 mt-6">
                     <button
@@ -942,16 +760,13 @@ export function StoreList({
                         {Array.from({ length: totalPages }).map((_, idx) => (
                             <button
                                 key={idx}
-                                onClick={() => {
-                                    setCurrentPage(idx)
-                                    resetInteractionTimer()
-                                }}
+                                onClick={() => goToPage(idx)}
                                 className="rounded-full transition-all duration-300"
                                 style={{
-                                    width: idx === currentPage ? '1.2rem' : '0.5rem',
+                                    width: idx === currentIndex ? '1.2rem' : '0.5rem',
                                     height: '0.5rem',
-                                    background: idx === currentPage ? '#f97316' : colors.border,
-                                    boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
+                                    background: idx === currentIndex ? '#f97316' : colors.border,
+                                    boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
                                 }}
                                 aria-label={`Ir para página ${idx + 1}`}
                             />
@@ -959,7 +774,7 @@ export function StoreList({
                     </div>
 
                     <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
-                        {currentPage + 1}/{totalPages}
+                        {currentIndex + 1}/{totalPages}
                     </span>
 
                     <button
@@ -974,12 +789,18 @@ export function StoreList({
             )}
 
             <style jsx>{`
-                .hide-scrollbar::-webkit-scrollbar {
-                    display: none;
+                @keyframes fadeIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
-                .hide-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
+                .animate-fadeIn {
+                    animation: fadeIn 0.5s ease-out forwards;
                 }
             `}</style>
         </div>
