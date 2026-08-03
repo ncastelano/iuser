@@ -126,7 +126,7 @@ function StoreStatus({ businessHours }: { businessHours: BusinessHours | null | 
     )
 }
 
-// ========== COMPONENTE CARD ==========
+// ========== COMPONENTE CARD - PADRÃO FIXO ==========
 function StoreCard({
     store,
     onClick,
@@ -145,33 +145,19 @@ function StoreCard({
     const hasRating = store.ratings_count && store.ratings_count > 0
     const hasAddress = store.address && store.address.trim().length > 0
 
-    // Define altura da imagem baseado na quantidade de informações
-    let imageHeight = 'h-40'
-    const infoCount = [
-        hasAddress,
-        hasRating,
-        hasProducts,
-        hasReviews
-    ].filter(Boolean).length
-
-    if (infoCount <= 1) {
-        imageHeight = 'h-56'
-    } else if (infoCount <= 2) {
-        imageHeight = 'h-48'
-    } else {
-        imageHeight = 'h-40'
-    }
+    // ALTURA FIXA PARA TODOS OS CARDS - PADRÃO
+    const imageHeight = 'h-48' // Altura fixa para todos
 
     return (
         <div
             onClick={onClick}
-            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
+            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col h-full"
             style={{
                 background: colors.surface,
                 borderColor: colors.border,
             }}
         >
-            {/* Logo / Imagem - altura dinâmica */}
+            {/* Logo / Imagem - altura fixa */}
             <div
                 className={`relative w-full ${imageHeight} overflow-hidden flex-shrink-0`}
                 style={{ background: GRADIENT }}
@@ -218,8 +204,8 @@ function StoreCard({
                 )}
             </div>
 
-            {/* Conteúdo - flex-1 para ocupar espaço restante */}
-            <div className="p-4 space-y-2 flex-1 flex flex-col">
+            {/* Conteúdo - altura fixa com flex */}
+            <div className="p-4 space-y-2 flex-1 flex flex-col min-h-[180px]">
                 {/* Nome e endereço */}
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -333,19 +319,19 @@ function StoreCard({
 // ========== SKELETON CARD ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="w-full rounded-2xl overflow-hidden border flex flex-col"
+        <div className="w-full rounded-2xl overflow-hidden border flex flex-col h-full"
             style={{
                 borderColor: colors.border,
                 background: colors.surface,
             }}
         >
             {/* Imagem skeleton */}
-            <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: `${colors.border}50` }}>
+            <div className="relative w-full h-48 overflow-hidden flex-shrink-0" style={{ background: `${colors.border}50` }}>
                 <div className="w-full h-full" style={{ background: `${colors.border}30` }} />
             </div>
 
             {/* Conteúdo skeleton */}
-            <div className="p-4 space-y-3 flex-1 flex flex-col">
+            <div className="p-4 space-y-3 flex-1 flex flex-col min-h-[180px]">
                 {/* Nome skeleton */}
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -419,6 +405,8 @@ export function StoreList({
     const [isDragging, setIsDragging] = useState(false)
     const [startX, setStartX] = useState(0)
     const [scrollLeft, setScrollLeft] = useState(0)
+    const [isDraggingOrInteracted, setIsDraggingOrInteracted] = useState(false)
+    const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
@@ -589,6 +577,9 @@ export function StoreList({
             if (autoPlayRef.current) {
                 clearInterval(autoPlayRef.current)
             }
+            if (dragTimeoutRef.current) {
+                clearTimeout(dragTimeoutRef.current)
+            }
         }
     }, [initialStores, loadStores])
 
@@ -627,14 +618,38 @@ export function StoreList({
         setCurrentPage(0)
     }, [itemsPerPage])
 
+    // Auto-play com 15 segundos
     useEffect(() => {
-        if (isHovered || totalPages <= 1) return
-
-        autoPlayRef.current = setInterval(goToNext, 5000)
-        return () => {
-            if (autoPlayRef.current) clearInterval(autoPlayRef.current)
+        if (isHovered || isDraggingOrInteracted || totalPages <= 1) {
+            if (autoPlayRef.current) {
+                clearInterval(autoPlayRef.current)
+                autoPlayRef.current = null
+            }
+            return
         }
-    }, [isHovered, goToNext, totalPages])
+
+        autoPlayRef.current = setInterval(goToNext, 15000) // 15 segundos
+
+        return () => {
+            if (autoPlayRef.current) {
+                clearInterval(autoPlayRef.current)
+                autoPlayRef.current = null
+            }
+        }
+    }, [isHovered, isDraggingOrInteracted, goToNext, totalPages])
+
+    // Reset do estado de interação após 3 segundos sem interação
+    const resetInteractionTimer = useCallback(() => {
+        setIsDraggingOrInteracted(true)
+
+        if (dragTimeoutRef.current) {
+            clearTimeout(dragTimeoutRef.current)
+        }
+
+        dragTimeoutRef.current = setTimeout(() => {
+            setIsDraggingOrInteracted(false)
+        }, 3000)
+    }, [])
 
     const currentItems = useMemo(() => {
         if (total === 0) return []
@@ -664,7 +679,7 @@ export function StoreList({
         }
     }
 
-    // ========== FUNÇÕES DE DRAG ==========
+    // ========== FUNÇÕES DE DRAG CORRIGIDAS ==========
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!containerRef.current) return
         setIsDragging(true)
@@ -672,6 +687,7 @@ export function StoreList({
         setScrollLeft(containerRef.current.scrollLeft)
         containerRef.current.style.cursor = 'grabbing'
         containerRef.current.style.scrollBehavior = 'auto'
+        resetInteractionTimer()
     }
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -687,6 +703,7 @@ export function StoreList({
         setIsDragging(false)
         containerRef.current.style.cursor = 'grab'
         containerRef.current.style.scrollBehavior = 'smooth'
+        resetInteractionTimer()
     }
 
     const handleMouseLeave = () => {
@@ -696,6 +713,7 @@ export function StoreList({
                 containerRef.current.style.cursor = 'grab'
                 containerRef.current.style.scrollBehavior = 'smooth'
             }
+            resetInteractionTimer()
         }
     }
 
@@ -706,6 +724,7 @@ export function StoreList({
         setStartX(e.touches[0].pageX - containerRef.current.offsetLeft)
         setScrollLeft(containerRef.current.scrollLeft)
         containerRef.current.style.scrollBehavior = 'auto'
+        resetInteractionTimer()
     }
 
     const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -719,33 +738,37 @@ export function StoreList({
         if (!containerRef.current) return
         setIsDragging(false)
         containerRef.current.style.scrollBehavior = 'smooth'
+        resetInteractionTimer()
     }
 
-    // Atualiza página atual baseado no scroll
+    // Atualiza página atual baseado no scroll - CORRIGIDO
     const handleScroll = useCallback(() => {
-        if (!containerRef.current || isDragging) return
+        if (!containerRef.current) return
 
         const container = containerRef.current
-        const cardWidth = container.scrollWidth / filteredStores.length
+        const cardWidth = container.scrollWidth / Math.max(filteredStores.length, 1)
         const scrollPosition = container.scrollLeft
         const newPage = Math.round(scrollPosition / (cardWidth * itemsPerPage))
 
-        if (newPage !== currentPage && newPage < totalPages) {
+        if (newPage !== currentPage && newPage < totalPages && newPage >= 0) {
             setCurrentPage(newPage)
         }
-    }, [currentPage, itemsPerPage, totalPages, filteredStores.length, isDragging])
+    }, [currentPage, itemsPerPage, totalPages, filteredStores.length])
 
-    // Sincroniza scroll com a página atual
+    // Sincroniza scroll com a página atual - CORRIGIDO
     useEffect(() => {
         if (!containerRef.current || isDragging) return
 
         const container = containerRef.current
-        const cardWidth = container.scrollWidth / filteredStores.length
+        const cardWidth = container.scrollWidth / Math.max(filteredStores.length, 1)
         const targetScroll = currentPage * cardWidth * itemsPerPage
-        container.scrollTo({
-            left: targetScroll,
-            behavior: 'smooth'
-        })
+
+        if (targetScroll >= 0 && targetScroll <= container.scrollWidth - container.clientWidth) {
+            container.scrollTo({
+                left: targetScroll,
+                behavior: 'smooth'
+            })
+        }
     }, [currentPage, itemsPerPage, filteredStores.length, isDragging])
 
     if (loading) {
@@ -848,13 +871,14 @@ export function StoreList({
                     className={`grid ${gridCols} gap-4`}
                     style={{
                         minWidth: '100%',
-                        width: `${filteredStores.length * (100 / itemsPerPage)}%`,
-                        gridTemplateColumns: `repeat(${filteredStores.length}, 1fr)`,
+                        width: `${Math.max(filteredStores.length, 1) * (100 / itemsPerPage)}%`,
+                        gridTemplateColumns: `repeat(${Math.max(filteredStores.length, 1)}, 1fr)`,
                     }}
                 >
                     {filteredStores.map((store, index) => (
                         <div
                             key={`${store.id}-${index}`}
+                            className="h-full"
                             style={{
                                 scrollSnapAlign: 'start',
                             }}
@@ -885,7 +909,10 @@ export function StoreList({
                         {Array.from({ length: totalPages }).map((_, idx) => (
                             <button
                                 key={idx}
-                                onClick={() => setCurrentPage(idx)}
+                                onClick={() => {
+                                    setCurrentPage(idx)
+                                    resetInteractionTimer()
+                                }}
                                 className="rounded-full transition-all duration-300"
                                 style={{
                                     width: idx === currentPage ? '1.2rem' : '0.5rem',

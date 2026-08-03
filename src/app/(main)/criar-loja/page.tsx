@@ -23,6 +23,9 @@ import {
   Hash,
   FileText,
   Loader2,
+  MessageCircle,
+  Shield,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
@@ -133,6 +136,26 @@ function extractStreetDisplay(fullAddress: string): string {
   return parts[0].trim();
 }
 
+// Função para validar número de WhatsApp
+function validateWhatsApp(number: string): boolean {
+  // Remove tudo que não é número
+  const clean = number.replace(/\D/g, '');
+  // Deve ter entre 10 e 13 dígitos (DDD + número)
+  return clean.length >= 10 && clean.length <= 13;
+}
+
+// Função para formatar número de WhatsApp
+function formatWhatsApp(number: string): string {
+  const clean = number.replace(/\D/g, '');
+  if (clean.length === 11) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+  }
+  if (clean.length === 10) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
+  }
+  return number;
+}
+
 export default function CriarLoja() {
   const router = useRouter();
   const { bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
@@ -155,6 +178,8 @@ export default function CriarLoja() {
   const [storeSlug, setStoreSlug] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCategorySlug, setSelectedCategorySlug] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [whatsappError, setWhatsappError] = useState("");
 
   // Estados de localização
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
@@ -464,6 +489,26 @@ export default function CriarLoja() {
     setLoadingLocation(false);
   };
 
+  // Validação do WhatsApp
+  const handleWhatsAppChange = (value: string) => {
+    // Permite apenas números, +, espaços, parênteses e hífens
+    const cleaned = value.replace(/[^0-9+\s()-]/g, '');
+    setWhatsapp(cleaned);
+
+    if (cleaned.replace(/\D/g, '').length > 0) {
+      const clean = cleaned.replace(/\D/g, '');
+      if (clean.length < 10) {
+        setWhatsappError('Número incompleto. Digite DDD + número');
+      } else if (clean.length > 13) {
+        setWhatsappError('Número muito longo');
+      } else {
+        setWhatsappError('');
+      }
+    } else {
+      setWhatsappError('');
+    }
+  };
+
   const handleCreate = async () => {
     if (!name || !storeSlug) {
       toast.error("Preencha os campos obrigatórios");
@@ -482,6 +527,18 @@ export default function CriarLoja() {
 
     if (!addressNumber.trim()) {
       toast.error("Digite o número da localização");
+      return;
+    }
+
+    // Validação do WhatsApp
+    const whatsappClean = whatsapp.replace(/\D/g, '');
+    if (!whatsappClean || whatsappClean.length < 10) {
+      toast.error("Digite um número de WhatsApp válido com DDD");
+      return;
+    }
+
+    if (whatsappClean.length > 13) {
+      toast.error("Número de WhatsApp inválido");
       return;
     }
 
@@ -535,6 +592,7 @@ export default function CriarLoja() {
       address_number: addressNumber,
       address_complement: addressComplement || null,
       category: categoryName,
+      whatsapp: whatsappClean, // Salva apenas os números
     });
 
     if (error) {
@@ -626,13 +684,14 @@ export default function CriarLoja() {
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <Store className="w-3 h-3 text-orange-500" />
-                Nome da Loja
+                Nome da Loja *
               </label>
               <input
                 placeholder="Minha Super Loja"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all"
+                required
               />
             </div>
 
@@ -640,7 +699,7 @@ export default function CriarLoja() {
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <Zap className="w-3 h-3 text-orange-500" />
-                Nome único da loja
+                Nome único da loja *
               </label>
               <div className="flex items-center bg-white border-2 border-orange-200 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all">
                 <span className="px-3 bg-orange-50 text-gray-600 border-r border-orange-200 text-xs font-bold py-3 whitespace-nowrap">
@@ -692,11 +751,57 @@ export default function CriarLoja() {
               )}
             </div>
 
+            {/* WHATSAPP - NOVO CAMPO OBRIGATÓRIO */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                <MessageCircle className="w-3 h-3 text-green-500" />
+                WhatsApp da Loja *
+              </label>
+              <div className="relative">
+                <div className="flex items-center bg-white border-2 rounded-xl overflow-hidden focus-within:border-orange-500 transition-all"
+                  style={{
+                    borderColor: whatsappError ? '#ef4444' : '#fbd5a4',
+                  }}
+                >
+                  <span className="px-3 bg-green-50 text-gray-600 border-r border-green-200 text-xs font-bold py-3 whitespace-nowrap flex items-center gap-1">
+                    <MessageCircle className="w-3 h-3 text-green-500" />
+                    +55
+                  </span>
+                  <input
+                    placeholder="(11) 99999-9999"
+                    value={whatsapp}
+                    onChange={(e) => handleWhatsAppChange(e.target.value)}
+                    className="flex-1 px-3 py-3 bg-white text-gray-900 text-sm outline-none"
+                    maxLength={18}
+                  />
+                </div>
+                {whatsappError && (
+                  <div className="flex items-center gap-2 text-[9px] font-bold text-red-500 mt-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {whatsappError}
+                  </div>
+                )}
+                {!whatsappError && whatsapp.replace(/\D/g, '').length >= 10 && (
+                  <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Número válido!
+                    {whatsapp.replace(/\D/g, '').length >= 11 ? ' Celular' : ' Telefone'}
+                  </div>
+                )}
+                <div className="flex items-start gap-1.5 mt-1.5">
+                  <Shield className="w-3 h-3 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-[8px] text-gray-400 leading-relaxed">
+                    As notificações de pedidos e mensagens dos clientes serão enviadas para este número
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* CATEGORIA */}
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <Tag className="w-3 h-3 text-orange-500" />
-                Categoria
+                Categoria *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {CATEGORIAS_LOJAS.map((cat) => {
@@ -738,18 +843,18 @@ export default function CriarLoja() {
                 Descrição
               </label>
               <textarea
-                placeholder="O que você vende?"
+                placeholder="O que você vende? (opcional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="w-full bg-white border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-orange-500 transition-all min-h-[100px]"
               />
             </div>
 
-            {/* LOCALIZAÇÃO - Estilo LocationPicker */}
+            {/* LOCALIZAÇÃO */}
             <div className="space-y-3">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <MapPinned className="w-3 h-3 text-orange-500" />
-                Localização da Loja
+                Localização da Loja *
               </label>
 
               {/* Busca + GPS */}
@@ -913,6 +1018,42 @@ export default function CriarLoja() {
                 </>
               )}
             </button>
+
+            {/* Resumo dos campos obrigatórios */}
+            <div className="flex flex-wrap gap-3 justify-center text-[9px] text-gray-400">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                Nome
+              </span>
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                Link
+              </span>
+              <span className="flex items-center gap-1">
+                {whatsapp.replace(/\D/g, '').length >= 10 ? (
+                  <CheckCircle2 className="w-3 h-3 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-3 h-3 text-red-400" />
+                )}
+                WhatsApp
+              </span>
+              <span className="flex items-center gap-1">
+                {selectedCategorySlug ? (
+                  <CheckCircle2 className="w-3 h-3 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-3 h-3 text-red-400" />
+                )}
+                Categoria
+              </span>
+              <span className="flex items-center gap-1">
+                {addressNumber ? (
+                  <CheckCircle2 className="w-3 h-3 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-3 h-3 text-red-400" />
+                )}
+                Localização
+              </span>
+            </div>
           </div>
         </div>
 
