@@ -35,7 +35,7 @@ import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
-import PublicationShowcase from './inicio/sections/PublicationShowcase'
+import PublicationShowcase from './inicio/sections/FeaturePublications'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from './StoreDashboard'
@@ -564,7 +564,7 @@ export default function HomePage() {
                 return (
                     <StoreList
                         title="Lojas em Destaque"
-                        maxItems={8}
+                        maxItems={5}
                         onStoreClick={(storeSlug) => {
                             router.push(`/${storeSlug}`)
                         }}

@@ -1,0 +1,392 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
+import { ChevronLeft, ChevronRight, Store, ArrowRight } from 'lucide-react'
+import { useTheme } from '@/app/theme'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
+
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ---------- Tipos ----------
+interface PublicationCard {
+    id: string
+    imageUrl: string | null
+    storeName: string
+    storeSlug: string
+    storeLogoUrl: string | null
+}
+
+// ---------- Props ----------
+interface FeaturedPublicationsProps {
+    dragHandle?: ReactNode
+    title?: string
+    maxItems?: number
+    className?: string
+    onPublicationClick?: (storeSlug: string, productId: string) => void
+}
+
+// ---------- Hook de dados ----------
+function usePublications() {
+    const [publications, setPublications] = useState<PublicationCard[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchPublications = async () => {
+            setLoading(true)
+            const { data: storesList, error: storesErr } = await supabase
+                .from('stores')
+                .select('id, name, storeSlug, logo_url')
+
+            if (storesErr) {
+                console.error('[FeaturedPublications] Erro ao buscar lojas:', storesErr)
+                setLoading(false)
+                return
+            }
+            const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
+
+            const { data: publicationsList, error: pubErr } = await supabase
+                .from('products')
+                .select('id, image_url, store_id')
+                .eq('listing_type', 'publication')
+                .eq('is_active', true)
+                .order('view_count', { ascending: false })
+
+            if (pubErr) {
+                console.error('[FeaturedPublications] Erro ao buscar publicações:', pubErr)
+                setLoading(false)
+                return
+            }
+            if (!publicationsList || publicationsList.length === 0) {
+                setPublications([])
+                setLoading(false)
+                return
+            }
+
+            const cards: PublicationCard[] = publicationsList.map(pub => {
+                const store = storeMap.get(pub.store_id)
+                const logoUrl = store?.logo_url
+                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                    : null
+                const imageUrl = pub.image_url
+                    ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
+                    : null
+                return {
+                    id: pub.id,
+                    imageUrl,
+                    storeName: store?.name ?? 'Loja desconhecida',
+                    storeSlug: store?.storeSlug ?? '#',
+                    storeLogoUrl: logoUrl,
+                }
+            })
+
+            setPublications(cards)
+            setLoading(false)
+        }
+        fetchPublications()
+    }, [])
+
+    return { publications, loading }
+}
+
+// ---------- Hook para detectar breakpoint ----------
+function useBreakpoint() {
+    const [itemsPerView, setItemsPerView] = useState(4)
+
+    useEffect(() => {
+        const update = () => {
+            const width = window.innerWidth
+            if (width >= 1280) {
+                setItemsPerView(6)
+            } else if (width >= 1024) {
+                setItemsPerView(5)
+            } else if (width >= 768) {
+                setItemsPerView(4)
+            } else if (width >= 500) {
+                setItemsPerView(3)
+            } else {
+                setItemsPerView(2)
+            }
+        }
+
+        update()
+        window.addEventListener('resize', update)
+        return () => window.removeEventListener('resize', update)
+    }, [])
+
+    return itemsPerView
+}
+
+// ---------- Componente Principal ----------
+export default function FeaturedPublications({
+    dragHandle,
+    title = 'Publicações em destaque',
+    maxItems,
+    className = '',
+    onPublicationClick,
+}: FeaturedPublicationsProps) {
+    const router = useRouter()
+    const { colors } = useTheme()
+    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+
+    const { publications, loading } = usePublications()
+    const itemsPerView = useBreakpoint()
+
+    // Aplica maxItems se fornecido
+    const displayPublications = useMemo(() => {
+        if (maxItems && publications.length > maxItems) {
+            return publications.slice(0, maxItems)
+        }
+        return publications
+    }, [publications, maxItems])
+
+    const [currentIndex, setCurrentIndex] = useState(0)
+    const [isHovered, setIsHovered] = useState(false)
+
+    // ===== VERIFICA SE HÁ PUBLICAÇÕES =====
+    const hasPublications = useMemo(() => {
+        return displayPublications.length > 0
+    }, [displayPublications])
+
+    const totalPages = Math.max(1, Math.ceil(displayPublications.length / itemsPerView))
+
+    // ===== AUTOPLAY =====
+    useEffect(() => {
+        if (isHovered || totalPages <= 1 || displayPublications.length === 0) {
+            if (autoPlayRef.current) {
+                clearInterval(autoPlayRef.current)
+                autoPlayRef.current = null
+            }
+            return
+        }
+
+        autoPlayRef.current = setInterval(() => {
+            setCurrentIndex(prev => (prev + 1) % totalPages)
+        }, 5000)
+
+        return () => {
+            if (autoPlayRef.current) {
+                clearInterval(autoPlayRef.current)
+                autoPlayRef.current = null
+            }
+        }
+    }, [isHovered, totalPages, displayPublications.length])
+
+    // Reset current index quando itemsPerView muda
+    useEffect(() => {
+        setCurrentIndex(0)
+    }, [itemsPerView])
+
+    const goToNext = useCallback(() => {
+        setCurrentIndex(prev => (prev + 1) % totalPages)
+    }, [totalPages])
+
+    const goToPrev = useCallback(() => {
+        setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages)
+    }, [totalPages])
+
+    const goToPage = useCallback((page: number) => {
+        setCurrentIndex(page)
+    }, [])
+
+    // ===== ITEMS ATUAIS =====
+    const currentItems = useMemo(() => {
+        if (displayPublications.length === 0) return []
+
+        const start = currentIndex * itemsPerView
+        const items: PublicationCard[] = []
+
+        for (let i = 0; i < itemsPerView; i++) {
+            const index = (start + i) % displayPublications.length
+            items.push(displayPublications[index])
+        }
+
+        return items
+    }, [displayPublications, currentIndex, itemsPerView])
+
+    // ===== GRID COLUMNS =====
+    const gridCols = itemsPerView >= 6 ? 'grid-cols-6'
+        : itemsPerView >= 5 ? 'grid-cols-5'
+            : itemsPerView >= 4 ? 'grid-cols-4'
+                : itemsPerView >= 3 ? 'grid-cols-3'
+                    : 'grid-cols-2'
+
+    const handlePublicationClick = (pub: PublicationCard) => {
+        if (onPublicationClick) {
+            onPublicationClick(pub.storeSlug, pub.id)
+        } else {
+            router.push(`/${pub.storeSlug}?produto=${pub.id}`)
+        }
+    }
+
+    // ===== LOADING =====
+    if (loading) {
+        return (
+            <div className={`w-full ${className}`}>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        {dragHandle}
+                        <div className="h-6 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
+                    </div>
+                </div>
+                <div className={`grid ${gridCols} gap-4`}>
+                    {Array.from({ length: Math.min(itemsPerView, 6) }).map((_, i) => (
+                        <div
+                            key={i}
+                            className="aspect-[3/4] rounded-xl animate-pulse"
+                            style={{ background: `${colors.border}40` }}
+                        />
+                    ))}
+                </div>
+            </div>
+        )
+    }
+
+    if (!publications.length) return null
+
+    // ===== RENDER =====
+    return (
+        <div
+            className={`relative w-full ${className}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {/* Título com dragHandle e botão "Ver todos" estilo PILLS (igual ao StoreList) */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    {dragHandle}
+                    <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                        {title}
+                    </h2>
+                </div>
+
+                {/* Botão "Ver todos" estilo PILLS - IGUAL AO STORELIST */}
+                {hasPublications && (
+                    <button
+                        onClick={() => router.push('/publicacoes')}
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
+                        }}
+                    >
+                        <span>Ver todas as publicações</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                )}
+            </div>
+
+            {/* Grid de publicações */}
+            <div className="relative">
+                <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
+                    {currentItems.map((pub, idx) => (
+                        <div
+                            key={`${pub.id}-${idx}`}
+                            onClick={() => handlePublicationClick(pub)}
+                            className="group relative rounded-xl overflow-hidden border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+                            style={{
+                                borderColor: colors.border,
+                                background: colors.surface,
+                                aspectRatio: '3/4',
+                            }}
+                        >
+                            {pub.imageUrl ? (
+                                <>
+                                    <img
+                                        src={pub.imageUrl}
+                                        alt={pub.storeName}
+                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+                                </>
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center"
+                                    style={{ background: GRADIENT, opacity: 0.3 }}>
+                                    <Store className="w-12 h-12 opacity-30" style={{ color: colors.textPrimary }} />
+                                </div>
+                            )}
+
+                            {/* Conteúdo na parte inferior */}
+                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0 shadow-lg">
+                                        {pub.storeLogoUrl ? (
+                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Store size={12} className="text-white/80" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <h3 className="text-white font-semibold text-xs leading-tight truncate drop-shadow-lg">
+                                        {pub.storeName}
+                                    </h3>
+                                </div>
+                            </div>
+
+                            {/* Efeito de brilho no hover */}
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl"
+                                style={{
+                                    boxShadow: `inset 0 0 40px ${colors.accent}30`,
+                                    border: `2px solid ${colors.accent}40`,
+                                }}
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Paginação inferior */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-3 mt-4">
+                        <button
+                            onClick={goToPrev}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                            }}
+                            aria-label="Anterior"
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                            {Array.from({ length: totalPages }).map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => goToPage(idx)}
+                                    className="rounded-full transition-all duration-300"
+                                    style={{
+                                        width: idx === currentIndex ? '1.2rem' : '0.5rem',
+                                        height: '0.5rem',
+                                        background: idx === currentIndex ? '#f97316' : colors.border,
+                                        boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
+                                    }}
+                                    aria-label={`Ir para página ${idx + 1}`}
+                                />
+                            ))}
+                        </div>
+
+                        <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
+                            {currentIndex + 1}/{totalPages}
+                        </span>
+
+                        <button
+                            onClick={goToNext}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                            }}
+                            aria-label="Próximo"
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
