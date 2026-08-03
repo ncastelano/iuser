@@ -1,6 +1,7 @@
+// app/(main)/lojas-em-destaque/page.tsx
 'use client'
 
-import { useEffect, useState, useCallback, useRef, ReactNode, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import {
@@ -15,10 +16,8 @@ import {
     Coffee,
     Loader2,
     AlertCircle,
-    ChevronLeft,
-    ChevronRight as ChevronRightIcon,
     Megaphone,
-    ArrowRight,
+    Search,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { RatingStars } from '@/components/ratings/RatingStars'
@@ -28,12 +27,16 @@ import {
     type BusinessHours
 } from '@/lib/storeHours'
 import { toast } from 'sonner'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import Header from '@/app/Header'
+import { categoriasMap } from '@/lib/categorias'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ========== TIPOS ==========
-export type StoreCardData = {
+type StoreCardData = {
     id: string
     name: string
     storeSlug: string
@@ -45,7 +48,8 @@ export type StoreCardData = {
     owner_id: string
     business_hours?: BusinessHours | null
     view_count?: number
-    listing_type?: 'sale' | 'publication' | null
+    category?: string | null
+    whatsapp?: string | null
     top_products?: {
         id: string
         name: string
@@ -59,43 +63,9 @@ export type StoreCardData = {
         comment?: string
         profile_name?: string
     }[]
-}
-
-type StoreListProps = {
-    initialStores?: StoreCardData[]
-    onStoreClick?: (storeSlug: string) => void
-    maxItems?: number
-    className?: string
-    title?: string
-    dragHandle?: ReactNode
-    showViewAll?: boolean
-    viewAllLink?: string
-}
-
-// ========== HOOK PARA BREAKPOINT ==========
-function useBreakpoint() {
-    const [itemsPerPage, setItemsPerPage] = useState(1)
-
-    useEffect(() => {
-        const update = () => {
-            const width = window.innerWidth
-            if (width >= 1200) {
-                setItemsPerPage(4)
-            } else if (width >= 800) {
-                setItemsPerPage(3)
-            } else if (width >= 400) {
-                setItemsPerPage(2)
-            } else {
-                setItemsPerPage(1)
-            }
-        }
-
-        update()
-        window.addEventListener('resize', update)
-        return () => window.removeEventListener('resize', update)
-    }, [])
-
-    return itemsPerPage
+    profiles?: {
+        profileSlug: string
+    } | null
 }
 
 // ========== COMPONENTE DE STATUS ==========
@@ -150,25 +120,25 @@ function StoreCard({
     const hasRating = store.ratings_count && store.ratings_count > 0
     const hasAddress = store.address && store.address.trim().length > 0
 
-    const CARD_HEIGHT = 'h-[420px]'
-    const IMAGE_HEIGHT = 'h-48'
-    const CONTENT_HEIGHT = 'min-h-[180px]'
-
     const isProductPublication = (product: any) => {
         return product.listing_type === 'publication'
     }
 
+    const categoryInfo = store.category ? categoriasMap[store.category] : null
+    const categoryColor = categoryInfo?.color || '#f97316'
+    const categoryName = categoryInfo?.nome || store.category || 'Categoria'
+
     return (
         <div
             onClick={onClick}
-            className={`group w-full ${CARD_HEIGHT} rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col`}
+            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col h-[420px]"
             style={{
                 background: colors.surface,
                 borderColor: colors.border,
             }}
         >
             <div
-                className={`relative w-full ${IMAGE_HEIGHT} overflow-hidden flex-shrink-0`}
+                className="relative w-full h-48 overflow-hidden flex-shrink-0"
                 style={{ background: GRADIENT }}
             >
                 {store.logo_url ? (
@@ -208,9 +178,24 @@ function StoreCard({
                         {store.view_count}
                     </div>
                 )}
+
+                {store.category && (
+                    <div className="absolute bottom-3 right-3">
+                        <span
+                            className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-sm"
+                            style={{
+                                background: `${categoryColor}dd`,
+                                color: '#fff',
+                                boxShadow: `0 2px 8px ${categoryColor}40`,
+                            }}
+                        >
+                            {categoryName}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            <div className={`p-4 space-y-2 flex-1 flex flex-col ${CONTENT_HEIGHT} overflow-hidden`}>
+            <div className="p-4 space-y-2 flex-1 flex flex-col min-h-[180px] overflow-hidden">
                 <div className="flex items-start justify-between gap-2 flex-shrink-0">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
@@ -334,7 +319,7 @@ function StoreCard({
 // ========== SKELETON CARD ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="w-full h-[420px] rounded-2xl overflow-hidden border flex flex-col"
+        <div className="w-full rounded-2xl overflow-hidden border flex flex-col h-[420px]"
             style={{
                 borderColor: colors.border,
                 background: colors.surface,
@@ -390,51 +375,35 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
     )
 }
 
-// ========== COMPONENTE PRINCIPAL ==========
-export function StoreList({
-    initialStores,
-    onStoreClick,
-    maxItems,
-    className = '',
-    title,
-    dragHandle,
-    showViewAll = false,
-    viewAllLink = '/lojas-em-destaque',
-}: StoreListProps) {
+// ========== PÁGINA PRINCIPAL COM SCROLL INFINITO ==========
+export default function AllStoreList() {
     const router = useRouter()
     const { colors } = useTheme()
-    const isMountedRef = useRef(true)
-    const abortControllerRef = useRef<AbortController | null>(null)
-    const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
+    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
-    const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
-    const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
-    const [loading, setLoading] = useState(!initialStores)
+    // Observador de scroll
+    const observerRef = useRef<IntersectionObserver | null>(null)
+    const loadMoreRef = useRef<HTMLDivElement>(null)
+
+    const [allStores, setAllStores] = useState<StoreCardData[]>([])
+    const [displayedStores, setDisplayedStores] = useState<StoreCardData[]>([])
+    const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [currentIndex, setCurrentIndex] = useState(0)
-    const [isAutoPlayPaused, setIsAutoPlayPaused] = useState(false)
-    const [isHovered, setIsHovered] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+    const [hasMore, setHasMore] = useState(true)
+    const [page, setPage] = useState(0)
 
-    const itemsPerPage = useBreakpoint()
-    const totalPages = Math.max(1, Math.ceil(filteredStores.length / itemsPerPage))
+    const ITEMS_PER_LOAD = 12
 
+    // ===== CARREGAR LOJAS =====
     const loadStores = useCallback(async () => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort()
-        }
-
-        const abortController = new AbortController()
-        abortControllerRef.current = abortController
-
         setLoading(true)
         setError(null)
 
         try {
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Timeout na requisição')), 15000)
-            })
-
-            const storesPromise = supabase
+            const { data: storesData, error: storesError } = await supabase
                 .from('stores')
                 .select(`
                     id,
@@ -447,39 +416,48 @@ export function StoreList({
                     ratings_count,
                     owner_id,
                     business_hours,
-                    view_count
+                    view_count,
+                    category,
+                    whatsapp
                 `)
-                .order('created_at', { ascending: false })
-                .limit(50)
-
-            const { data: storesData, error: storesError } = await Promise.race([
-                storesPromise,
-                timeoutPromise.then(() => { throw new Error('Timeout') })
-            ]) as any
-
-            if (abortController.signal.aborted) return
+                .eq('is_active', true)
+                .order('ratings_avg', { ascending: false })
+                .limit(200)
 
             if (storesError) throw storesError
 
             if (!storesData || storesData.length === 0) {
-                if (isMountedRef.current) {
-                    setStores([])
-                    setFilteredStores([])
-                    setLoading(false)
-                }
+                setAllStores([])
+                setDisplayedStores([])
+                setHasMore(false)
+                setLoading(false)
                 return
             }
 
+            // Busca profileSlug dos donos
+            const ownerIds = [...new Set(storesData.map(s => s.owner_id).filter(Boolean))]
+            let profilesMap: Record<string, string> = {}
+            if (ownerIds.length) {
+                const { data: profilesData } = await supabase
+                    .from('profiles')
+                    .select('id, "profileSlug"')
+                    .in('id', ownerIds)
+
+                if (profilesData) {
+                    profilesMap = Object.fromEntries(profilesData.map(p => [p.id, p.profileSlug]))
+                }
+            }
+
+            // Busca produtos e reviews para cada loja
             const storesWithDetails = await Promise.all(
                 storesData.map(async (store: any) => {
-                    if (abortController.signal.aborted) return null
-
                     try {
                         const [productsResult, reviewsResult] = await Promise.all([
                             supabase
                                 .from('products')
                                 .select('id, name, image_url, price, listing_type')
                                 .eq('store_id', store.id)
+                                .eq('is_active', true)
                                 .order('created_at', { ascending: false })
                                 .limit(2),
                             supabase
@@ -497,8 +475,6 @@ export function StoreList({
                                 .order('created_at', { ascending: false })
                                 .limit(2)
                         ])
-
-                        if (abortController.signal.aborted) return null
 
                         const mappedReviews = (reviewsResult.data || []).map((review: any) => ({
                             ...review,
@@ -522,306 +498,292 @@ export function StoreList({
                                 : null,
                             top_products: mappedProducts,
                             recent_reviews: mappedReviews,
+                            profiles: { profileSlug: profilesMap[store.owner_id] || null },
                         }
                     } catch (err) {
                         console.error(`Erro ao carregar detalhes da loja ${store.id}:`, err)
                         return {
                             ...store,
+                            logo_url: store.logo_url
+                                ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                                : null,
                             top_products: [],
                             recent_reviews: [],
+                            profiles: { profileSlug: profilesMap[store.owner_id] || null },
                         }
                     }
                 })
             )
 
-            if (abortController.signal.aborted) return
-
-            const validStores = storesWithDetails.filter((store): store is StoreCardData => store !== null)
-
-            if (isMountedRef.current) {
-                setStores(validStores)
-                setFilteredStores(validStores)
-                setLoading(false)
-            }
+            setAllStores(storesWithDetails)
+            setDisplayedStores(storesWithDetails.slice(0, ITEMS_PER_LOAD))
+            setHasMore(storesWithDetails.length > ITEMS_PER_LOAD)
+            setPage(1)
         } catch (err: any) {
-            if (err.name === 'AbortError' || err.message === 'Aborted') {
-                console.log('Requisição cancelada')
-                return
-            }
-
             console.error('Erro ao carregar lojas:', err)
-            if (isMountedRef.current) {
-                setError(err.message || 'Erro ao carregar lojas')
-                toast.error('Erro ao carregar lojas')
-                setLoading(false)
-            }
+            setError(err.message || 'Erro ao carregar lojas')
+            toast.error('Erro ao carregar lojas')
+        } finally {
+            setLoading(false)
         }
     }, [])
 
     useEffect(() => {
-        isMountedRef.current = true
-
-        if (initialStores) {
-            setStores(initialStores)
-            setFilteredStores(initialStores)
-            setLoading(false)
-            return
-        }
-
         loadStores()
+    }, [loadStores])
 
-        return () => {
-            isMountedRef.current = false
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort()
-            }
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-            }
+    // ===== FILTROS =====
+    const filteredStores = useMemo(() => {
+        let filtered = [...allStores]
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase()
+            filtered = filtered.filter(
+                s =>
+                    s.name.toLowerCase().includes(q) ||
+                    (s.description && s.description.toLowerCase().includes(q)) ||
+                    (s.address && s.address.toLowerCase().includes(q))
+            )
         }
-    }, [initialStores, loadStores])
 
-    useEffect(() => {
-        const sorted = [...stores].sort((a, b) => {
+        if (selectedCategory) {
+            filtered = filtered.filter(s => s.category === selectedCategory)
+        }
+
+        filtered.sort((a, b) => {
             const aOpen = isStoreOpenNow(a.business_hours)
             const bOpen = isStoreOpenNow(b.business_hours)
-
             if (aOpen && !bOpen) return -1
             if (!aOpen && bOpen) return 1
-
-            const aRating = a.ratings_avg || 0
-            const bRating = b.ratings_avg || 0
-            return bRating - aRating
+            return (b.ratings_avg || 0) - (a.ratings_avg || 0)
         })
 
-        if (maxItems && sorted.length > maxItems) {
-            setFilteredStores(sorted.slice(0, maxItems))
-        } else {
-            setFilteredStores(sorted)
-        }
-    }, [stores, maxItems])
+        return filtered
+    }, [allStores, searchQuery, selectedCategory])
 
+    // ===== RESETAR DISPLAY QUANDO FILTRO MUDA =====
     useEffect(() => {
-        if (isHovered || isAutoPlayPaused || totalPages <= 1) {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
-            }
+        setDisplayedStores(filteredStores.slice(0, ITEMS_PER_LOAD))
+        setHasMore(filteredStores.length > ITEMS_PER_LOAD)
+        setPage(1)
+    }, [filteredStores])
+
+    // ===== CARREGAR MAIS =====
+    const loadMore = useCallback(() => {
+        if (loadingMore || !hasMore) return
+
+        const nextPage = page + 1
+        const start = nextPage * ITEMS_PER_LOAD
+        const end = start + ITEMS_PER_LOAD
+        const newItems = filteredStores.slice(start, end)
+
+        if (newItems.length === 0) {
+            setHasMore(false)
             return
         }
 
-        autoPlayRef.current = setInterval(() => {
-            setCurrentIndex(prev => (prev + 1) % totalPages)
-        }, 15000)
+        setLoadingMore(true)
+        setTimeout(() => {
+            setDisplayedStores(prev => [...prev, ...newItems])
+            setPage(nextPage)
+            setHasMore(end < filteredStores.length)
+            setLoadingMore(false)
+        }, 300)
+    }, [loadingMore, hasMore, page, filteredStores])
+
+    // ===== OBSERVADOR DE SCROLL INFINITO =====
+    useEffect(() => {
+        if (loading) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore) {
+                    loadMore()
+                }
+            },
+            { threshold: 0.1, rootMargin: '200px' }
+        )
+
+        observerRef.current = observer
+
+        if (loadMoreRef.current) {
+            observer.observe(loadMoreRef.current)
+        }
 
         return () => {
-            if (autoPlayRef.current) {
-                clearInterval(autoPlayRef.current)
-                autoPlayRef.current = null
+            if (observerRef.current) {
+                observerRef.current.disconnect()
             }
         }
-    }, [isHovered, isAutoPlayPaused, totalPages])
+    }, [loading, hasMore, loadingMore, loadMore])
 
-    const goToNext = useCallback(() => {
-        setCurrentIndex(prev => (prev + 1) % totalPages)
-        setIsAutoPlayPaused(true)
-        setTimeout(() => setIsAutoPlayPaused(false), 3000)
-    }, [totalPages])
-
-    const goToPrev = useCallback(() => {
-        setCurrentIndex(prev => (prev - 1 + totalPages) % totalPages)
-        setIsAutoPlayPaused(true)
-        setTimeout(() => setIsAutoPlayPaused(false), 3000)
-    }, [totalPages])
-
-    const goToPage = useCallback((page: number) => {
-        setCurrentIndex(page)
-        setIsAutoPlayPaused(true)
-        setTimeout(() => setIsAutoPlayPaused(false), 3000)
-    }, [])
-
-    const currentItems = useMemo(() => {
-        if (filteredStores.length === 0) return []
-
-        const start = currentIndex * itemsPerPage
-        const items: StoreCardData[] = []
-
-        for (let i = 0; i < itemsPerPage; i++) {
-            const index = (start + i) % filteredStores.length
-            items.push(filteredStores[index])
-        }
-
-        return items
-    }, [filteredStores, currentIndex, itemsPerPage])
-
+    // ===== HANDLE STORE CLICK =====
     const handleStoreClick = (storeSlug: string) => {
-        if (onStoreClick) {
-            onStoreClick(storeSlug)
-        } else {
-            router.push(`/${storeSlug}`)
-        }
+        router.push(`/${storeSlug}`)
     }
 
-    const gridCols = itemsPerPage >= 4 ? 'grid-cols-4'
-        : itemsPerPage >= 3 ? 'grid-cols-3'
-            : itemsPerPage >= 2 ? 'grid-cols-2'
-                : 'grid-cols-1'
+    // ===== CATEGORIAS PARA FILTRO =====
+    const categories = useMemo(() => {
+        const uniqueCategories = new Set(allStores.map(s => s.category).filter(Boolean))
+        return Array.from(uniqueCategories).map(cat => ({
+            slug: cat as string,
+            name: categoriasMap[cat as string]?.nome || cat as string,
+            color: categoriasMap[cat as string]?.color || '#f97316',
+        }))
+    }, [allStores])
 
-    if (loading) {
-        return (
-            <div className={`w-full ${className}`}>
-                <div className="flex items-center gap-2 mb-4">
-                    {dragHandle}
-                    <div className="h-7 rounded w-48 animate-pulse" style={{ background: `${colors.border}60` }} />
-                </div>
-
-                <div className={`grid ${gridCols} gap-4`}>
-                    {Array.from({ length: itemsPerPage }).map((_, i) => (
-                        <StoreCardSkeleton key={`skeleton-${i}`} colors={colors} />
-                    ))}
-                </div>
-
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-4 mt-6">
-                        <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
-                        <div className="flex gap-2">
-                            <div className="h-1.5 w-6 rounded-full animate-pulse" style={{ background: '#f97316' }} />
-                            <div className="h-1.5 w-2 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
-                        </div>
-                        <div className="w-8 h-8 rounded-full animate-pulse" style={{ background: `${colors.border}60` }} />
-                    </div>
-                )}
-            </div>
-        )
-    }
-
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
-                <AlertCircle className="w-12 h-12" style={{ color: '#f97316' }} />
-                <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                    {error}
-                </p>
-                <button
-                    onClick={() => {
-                        setError(null)
-                        setLoading(true)
-                        loadStores()
-                    }}
-                    className="px-4 py-2 rounded-xl text-sm font-bold transition hover:scale-105"
-                    style={{
-                        background: GRADIENT,
-                        color: '#ffffff',
-                        boxShadow: `0 4px 12px #f9731640`,
-                    }}
-                >
-                    Tentar novamente
-                </button>
-            </div>
-        )
-    }
-
-    if (filteredStores.length === 0) {
-        return (
-            <div className="py-12 text-center">
-                <Store className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: colors.textSecondary }} />
-                <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                    Nenhuma loja disponível no momento
-                </p>
-            </div>
-        )
-    }
-
+    // ===== RENDER =====
     return (
-        <div
-            className={`w-full ${className}`}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
-            {/* Título com dragHandle e botão "Ver todos" - MESMA LINHA */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    {dragHandle}
-                    <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                        {title || 'Lojas em Destaque'}
-                    </h2>
-                </div>
-                {showViewAll && (
-                    <button
-                        onClick={() => router.push(viewAllLink)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
-                        style={{
-                            background: `rgba(249, 115, 22, 0.1)`,
-                            color: '#f97316',
-                            border: `1px solid rgba(249, 115, 22, 0.2)`,
-                        }}
-                    >
-                        <span>Ver todos</span>
-                        <ArrowRight className="w-3 h-3" />
-                    </button>
-                )}
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            {/* Grid com altura fixa */}
-            <div className="relative" style={{ minHeight: '420px' }}>
-                <div
-                    className={`grid ${gridCols} gap-4 transition-all duration-500 ease-in-out`}
-                >
-                    {currentItems.map((store, index) => (
-                        <div key={`${store.id}-${index}`} className="animate-fadeIn">
-                            <StoreCard
-                                store={store}
-                                colors={colors}
-                                onClick={() => handleStoreClick(store.storeSlug)}
-                            />
-                        </div>
-                    ))}
-                </div>
-            </div>
+            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
+                <Header
+                    title="Lojas em Destaque"
+                    showBack={true}
+                    onBack={() => router.push('/')}
+                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    avatarUrl={avatarUrl}
+                    loading={profileLoading}
+                    showSearch={true}
+                    searchPlaceholder="Buscar lojas..."
+                    onSearch={setSearchQuery}
+                />
 
-            {/* Paginação */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-4 mt-6">
-                    <button
-                        onClick={goToPrev}
-                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{ background: GRADIENT, color: '#ffffff' }}
-                        aria-label="Anterior"
-                    >
-                        <ChevronLeft size={16} />
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                        {Array.from({ length: totalPages }).map((_, idx) => (
+                <section className="px-4 md:px-6 mt-2 pb-24">
+                    {/* FILTROS POR CATEGORIA */}
+                    {categories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-4">
                             <button
-                                key={idx}
-                                onClick={() => goToPage(idx)}
-                                className="rounded-full transition-all duration-300"
+                                onClick={() => setSelectedCategory(null)}
+                                className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${!selectedCategory ? 'shadow-md' : 'hover:opacity-70'
+                                    }`}
                                 style={{
-                                    width: idx === currentIndex ? '1.2rem' : '0.5rem',
-                                    height: '0.5rem',
-                                    background: idx === currentIndex ? '#f97316' : colors.border,
-                                    boxShadow: idx === currentIndex ? `0 0 8px #f9731650` : 'none',
+                                    background: !selectedCategory ? GRADIENT : `${colors.surface}66`,
+                                    color: !selectedCategory ? '#ffffff' : colors.textSecondary,
+                                    border: `1px solid ${!selectedCategory ? 'transparent' : colors.border}`,
                                 }}
-                                aria-label={`Ir para página ${idx + 1}`}
-                            />
-                        ))}
-                    </div>
+                            >
+                                Todas
+                            </button>
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.slug}
+                                    onClick={() => setSelectedCategory(cat.slug)}
+                                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${selectedCategory === cat.slug ? 'shadow-md' : 'hover:opacity-70'
+                                        }`}
+                                    style={{
+                                        background: selectedCategory === cat.slug ? cat.color : `${colors.surface}66`,
+                                        color: selectedCategory === cat.slug ? '#ffffff' : colors.textSecondary,
+                                        border: `1px solid ${selectedCategory === cat.slug ? 'transparent' : colors.border}`,
+                                    }}
+                                >
+                                    {cat.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
-                    <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
-                        {currentIndex + 1}/{totalPages}
-                    </span>
+                    {/* LOADING INICIAL */}
+                    {loading && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <StoreCardSkeleton key={`skeleton-${i}`} colors={colors} />
+                            ))}
+                        </div>
+                    )}
 
-                    <button
-                        onClick={goToNext}
-                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                        style={{ background: GRADIENT, color: '#ffffff' }}
-                        aria-label="Próximo"
-                    >
-                        <ChevronRightIcon size={16} />
-                    </button>
-                </div>
-            )}
+                    {/* ERROR */}
+                    {error && !loading && (
+                        <div
+                            className="rounded-2xl p-6 flex flex-col items-center gap-3 mt-4"
+                            style={{
+                                background: `${colors.surface}66`,
+                                backdropFilter: 'blur(12px)',
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <AlertCircle className="w-8 h-8" style={{ color: '#ef4444' }} />
+                            <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                                {error}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setError(null)
+                                    loadStores()
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-bold"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                }}
+                            >
+                                Tentar novamente
+                            </button>
+                        </div>
+                    )}
+
+                    {/* LISTA DE LOJAS */}
+                    {!loading && !error && (
+                        <>
+                            {displayedStores.length === 0 ? (
+                                <div
+                                    className="rounded-2xl p-6 flex flex-col items-center gap-3 mt-4"
+                                    style={{
+                                        background: `${colors.surface}66`,
+                                        backdropFilter: 'blur(12px)',
+                                        border: `1px solid ${colors.border}`,
+                                    }}
+                                >
+                                    <Store className="w-8 h-8 opacity-40" style={{ color: colors.textSecondary }} />
+                                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                                        {searchQuery ? 'Nenhuma loja encontrada para esta busca.' : 'Nenhuma loja disponível no momento.'}
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                        {displayedStores.map((store, index) => (
+                                            <div key={`${store.id}-${index}`} className="animate-fadeIn">
+                                                <StoreCard
+                                                    store={store}
+                                                    colors={colors}
+                                                    onClick={() => handleStoreClick(store.storeSlug)}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* LOADER DE CARREGAMENTO - SCROLL INFINITO */}
+                                    {hasMore && (
+                                        <div
+                                            ref={loadMoreRef}
+                                            className="flex justify-center py-8 mt-4"
+                                        >
+                                            {loadingMore ? (
+                                                <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                                            ) : (
+                                                <div className="h-8" />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* FIM DA LISTA */}
+                                    {!hasMore && displayedStores.length > 0 && (
+                                        <div className="text-center py-8">
+                                            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                                Você já viu todas as lojas disponíveis 🎉
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    )}
+                </section>
+            </main>
 
             <style jsx>{`
                 @keyframes fadeIn {
@@ -841,5 +803,3 @@ export function StoreList({
         </div>
     )
 }
-
-export default StoreList
