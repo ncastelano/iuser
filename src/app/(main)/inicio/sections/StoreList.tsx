@@ -139,18 +139,42 @@ function StoreCard({
     const isOpen = isStoreOpenNow(store.business_hours)
     const addressShort = store.address ? store.address.split(',')[0]?.trim() || store.address : 'Endereço não informado'
 
+    // Verifica se tem informações mínimas para mostrar
+    const hasProducts = store.top_products && store.top_products.length > 0
+    const hasReviews = store.recent_reviews && store.recent_reviews.length > 0
+    const hasRating = store.ratings_count && store.ratings_count > 0
+    const hasAddress = store.address && store.address.trim().length > 0
+
+    // Define altura da imagem baseado na quantidade de informações
+    // Quanto menos informações, maior a imagem
+    let imageHeight = 'h-40' // padrão
+    const infoCount = [
+        hasAddress,
+        hasRating,
+        hasProducts,
+        hasReviews
+    ].filter(Boolean).length
+
+    if (infoCount <= 1) {
+        imageHeight = 'h-56' // mais espaço para imagem
+    } else if (infoCount <= 2) {
+        imageHeight = 'h-48'
+    } else {
+        imageHeight = 'h-40'
+    }
+
     return (
         <div
             onClick={onClick}
-            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer"
+            className="group w-full rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col"
             style={{
                 background: colors.surface,
                 borderColor: colors.border,
             }}
         >
-            {/* Logo / Imagem */}
+            {/* Logo / Imagem - altura dinâmica */}
             <div
-                className="relative w-full h-40 overflow-hidden"
+                className={`relative w-full ${imageHeight} overflow-hidden flex-shrink-0`}
                 style={{ background: GRADIENT }}
             >
                 {store.logo_url ? (
@@ -195,15 +219,15 @@ function StoreCard({
                 )}
             </div>
 
-            {/* Conteúdo */}
-            <div className="p-4 space-y-2">
+            {/* Conteúdo - flex-1 para ocupar espaço restante */}
+            <div className="p-4 space-y-2 flex-1 flex flex-col">
                 {/* Nome e endereço */}
                 <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
                             {store.name}
                         </h3>
-                        {store.address && (
+                        {hasAddress && (
                             <div className="flex items-center gap-1 mt-0.5 text-[10px]" style={{ color: colors.textSecondary }}>
                                 <MapPin className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{addressShort}</span>
@@ -214,7 +238,7 @@ function StoreCard({
                 </div>
 
                 {/* Avaliações */}
-                {store.ratings_count && store.ratings_count > 0 ? (
+                {hasRating ? (
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1">
                             <RatingStars value={store.ratings_avg || 0} size={12} />
@@ -238,15 +262,15 @@ function StoreCard({
                 {/* Status */}
                 <StoreStatus businessHours={store.business_hours} />
 
-                {/* Produtos em destaque */}
-                {store.top_products && store.top_products.length > 0 && (
+                {/* Produtos em destaque - só aparece se tiver produtos */}
+                {hasProducts && (
                     <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
                         <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textSecondary }}>
                             <TrendingUp className="inline w-3 h-3 mr-1" style={{ color: '#f97316' }} />
                             Destaques
                         </p>
                         <div className="flex gap-1.5">
-                            {store.top_products.slice(0, 2).map((product) => (
+                            {store.top_products!.slice(0, 2).map((product) => (
                                 <div
                                     key={product.id}
                                     className="flex-1 flex items-center gap-1.5 px-2 py-1 rounded-lg"
@@ -276,10 +300,10 @@ function StoreCard({
                     </div>
                 )}
 
-                {/* Review recente */}
-                {store.recent_reviews && store.recent_reviews.length > 0 && (
+                {/* Review recente - só aparece se tiver reviews */}
+                {hasReviews && (
                     <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                        {store.recent_reviews.slice(0, 1).map((review) => (
+                        {store.recent_reviews!.slice(0, 1).map((review) => (
                             <div key={review.id} className="flex items-start gap-1.5">
                                 <Star className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
                                 <div className="flex-1 min-w-0">
@@ -299,27 +323,30 @@ function StoreCard({
                         ))}
                     </div>
                 )}
+
+                {/* Espaço vazio no final para manter consistência */}
+                <div className="flex-1" />
             </div>
         </div>
     )
 }
 
-// ========== SKELETON CARD - MAIS SUAVE E FIEL ==========
+// ========== SKELETON CARD ==========
 function StoreCardSkeleton({ colors }: { colors: any }) {
     return (
-        <div className="w-full rounded-2xl overflow-hidden border"
+        <div className="w-full rounded-2xl overflow-hidden border flex flex-col"
             style={{
                 borderColor: colors.border,
                 background: colors.surface,
             }}
         >
             {/* Imagem skeleton */}
-            <div className="relative w-full h-40 overflow-hidden" style={{ background: `${colors.border}50` }}>
+            <div className="relative w-full h-40 overflow-hidden flex-shrink-0" style={{ background: `${colors.border}50` }}>
                 <div className="w-full h-full" style={{ background: `${colors.border}30` }} />
             </div>
 
             {/* Conteúdo skeleton */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 flex-1 flex flex-col">
                 {/* Nome skeleton */}
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -365,6 +392,9 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
                         </div>
                     </div>
                 </div>
+
+                {/* Espaço vazio */}
+                <div className="flex-1" />
             </div>
         </div>
     )

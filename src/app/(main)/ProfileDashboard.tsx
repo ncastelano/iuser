@@ -37,6 +37,9 @@ import {
     ExternalLink,
     ChevronUp,
     ChevronDown,
+    AlertCircle,
+    Check,
+    Loader2,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 import ButtonInPersonSale from './ButtonInPersonSale'
@@ -198,6 +201,11 @@ export default function ProfileDashboard({
     const [distanceRules, setDistanceRules] = useState<{ max_km: string; fee: string }[]>([])
     const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
 
+    // Estado para o aviso de WhatsApp
+    const [showWhatsAppAlert, setShowWhatsAppAlert] = useState(true)
+    const [whatsAppInput, setWhatsAppInput] = useState('')
+    const [savingWhatsApp, setSavingWhatsApp] = useState(false)
+
     const intervalRef = useRef<any>(null)
 
     // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
@@ -277,6 +285,49 @@ export default function ProfileDashboard({
         fetchOrderStatuses()
     }, [])
 
+    // Função para salvar WhatsApp
+    const handleSaveWhatsApp = async () => {
+        if (!profile || !profileSlug) return
+
+        // Limpa o número: remove espaços, parênteses, hífens
+        const cleanPhone = whatsAppInput.replace(/\s/g, '').replace(/[()\-]/g, '')
+
+        if (cleanPhone.length < 10) {
+            toast.error('Digite um número de telefone válido (mínimo 10 dígitos)')
+            return
+        }
+
+        setSavingWhatsApp(true)
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ whatsapp: cleanPhone })
+                .eq('id', profile.id)
+
+            if (error) throw error
+
+            // Atualiza o estado local
+            setProfile({ ...profile, whatsapp: cleanPhone })
+
+            // Corrigido: Verifica se ownerProfile existe antes de atualizar
+            if (ownerProfile) {
+                setOwnerProfile({ ...ownerProfile, phone: cleanPhone })
+            } else {
+                setOwnerProfile({ name: profile.name || '', phone: cleanPhone })
+            }
+
+            setShowWhatsAppAlert(false)
+            toast.success('WhatsApp adicionado com sucesso! 🎉')
+
+            // Recarrega o dashboard para refletir as mudanças
+            loadDashboard()
+        } catch (error: any) {
+            toast.error('Erro ao salvar WhatsApp: ' + error.message)
+        } finally {
+            setSavingWhatsApp(false)
+        }
+    }
+
     const loadDashboard = useCallback(async () => {
         if (!profileSlug) return
         setLoading(true)
@@ -320,6 +371,13 @@ export default function ProfileDashboard({
 
         const profileId = profileData.id
         setOwnerProfile({ name: profileData.name, phone: profileData.whatsapp })
+
+        // Verifica se tem WhatsApp para mostrar o aviso
+        if (profileData.whatsapp) {
+            setShowWhatsAppAlert(false)
+        } else {
+            setShowWhatsAppAlert(true)
+        }
 
         const { data: ordersData } = await supabase
             .from('orders')
@@ -1152,6 +1210,97 @@ export default function ProfileDashboard({
                     </div>
                 </div>
             </div>
+
+            {/* ===== CARD DE AVISO - WHATSAPP (ACIMA DOS GASTOS) ===== */}
+            {showWhatsAppAlert && (
+                <div className="mb-6 mt-4">
+                    <div
+                        className="rounded-2xl p-6 pt-7 flex flex-col gap-4 relative"
+                        style={{
+                            background: `rgba(255, 165, 0, 0.08)`,
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            border: `2px solid #f97316`,
+                            boxShadow: `0 4px 20px rgba(249, 115, 22, 0.15)`,
+                        }}
+                    >
+                        <div className="flex items-start gap-3">
+                            <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                }}
+                            >
+                                <AlertCircle size={20} />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-black" style={{ color: '#f97316' }}>
+                                    Adicione seu WhatsApp
+                                </h4>
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                    Receba pedidos e notificações diretamente no seu WhatsApp.
+                                    <br />
+                                    <span className="font-medium" style={{ color: '#f97316' }}>
+                                        ✅ Clientes podem entrar em contato
+                                    </span>
+                                    {' • '}
+                                    <span className="font-medium" style={{ color: '#f97316' }}>
+                                        📱 Notificações em tempo real
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <div className="flex-1 relative">
+                                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="tel"
+                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                        border: `2px solid ${colors.border}`,
+                                        color: colors.textPrimary,
+                                        '--tw-ring-color': '#f97316',
+                                    } as React.CSSProperties}
+                                    placeholder="(00) 00000-0000"
+                                    value={whatsAppInput}
+                                    onChange={(e) => setWhatsAppInput(e.target.value)}
+                                    disabled={savingWhatsApp}
+                                />
+                            </div>
+                            <button
+                                onClick={handleSaveWhatsApp}
+                                disabled={savingWhatsApp || !whatsAppInput.trim()}
+                                className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 whitespace-nowrap"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    boxShadow: `0 4px 12px #f9731640`,
+                                }}
+                            >
+                                {savingWhatsApp ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                    <>
+                                        <Check size={16} />
+                                        Salvar
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <button
+                            onClick={() => setShowWhatsAppAlert(false)}
+                            className="absolute top-3 right-3 p-1 rounded-full hover:bg-white/10 transition-colors"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* ===== Botões do Perfil - PILL ===== */}
             <div className="mb-6 mt-4">
