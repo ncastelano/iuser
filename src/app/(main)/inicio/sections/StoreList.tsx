@@ -62,14 +62,11 @@ export type StoreCardData = {
 }
 
 type StoreListProps = {
-    initialStores?: StoreCardData[]
     onStoreClick?: (storeSlug: string) => void
     maxItems?: number
     className?: string
     title?: string
     dragHandle?: ReactNode
-    showViewAll?: boolean
-    viewAllLink?: string
 }
 
 // ========== HOOK PARA BREAKPOINT ==========
@@ -392,14 +389,11 @@ function StoreCardSkeleton({ colors }: { colors: any }) {
 
 // ========== COMPONENTE PRINCIPAL ==========
 export function StoreList({
-    initialStores,
     onStoreClick,
-    maxItems,
+    maxItems = 8,
     className = '',
-    title,
+    title = 'Lojas em Destaque',
     dragHandle,
-    showViewAll = false,
-    viewAllLink = '/lojas-em-destaque',
 }: StoreListProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -407,9 +401,9 @@ export function StoreList({
     const abortControllerRef = useRef<AbortController | null>(null)
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
-    const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
-    const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
-    const [loading, setLoading] = useState(!initialStores)
+    const [stores, setStores] = useState<StoreCardData[]>([])
+    const [filteredStores, setFilteredStores] = useState<StoreCardData[]>([])
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [currentIndex, setCurrentIndex] = useState(0)
     const [isAutoPlayPaused, setIsAutoPlayPaused] = useState(false)
@@ -418,6 +412,38 @@ export function StoreList({
     const itemsPerPage = useBreakpoint()
     const totalPages = Math.max(1, Math.ceil(filteredStores.length / itemsPerPage))
 
+    // ===== VERIFICA SE HÁ PRODUTOS =====
+    const hasAnyProduct = useMemo(() => {
+        return filteredStores.some(store =>
+            store.top_products && store.top_products.length > 0
+        )
+    }, [filteredStores])
+
+    // ===== FUNÇÃO PARA CONVERTER business_hours - CORRIGIDA =====
+    const convertBusinessHours = (data: any): BusinessHours | null => {
+        if (!data) return null
+
+        // Se já tem a estrutura com 'weekly', retorna como está
+        if (data.weekly) {
+            return data as BusinessHours
+        }
+
+        // Caso contrário, converte o objeto para o formato BusinessHours
+        const weekly: any = {}
+        const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+        DAY_KEYS.forEach(day => {
+            if (data[day]) {
+                weekly[day] = data[day]
+            }
+        })
+
+        // Retorna apenas o que o tipo BusinessHours espera
+        return {
+            weekly
+        }
+    }
+
+    // ===== CARREGAR LOJAS =====
     const loadStores = useCallback(async () => {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort()
@@ -520,6 +546,7 @@ export function StoreList({
                             logo_url: store.logo_url
                                 ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
                                 : null,
+                            business_hours: convertBusinessHours(store.business_hours),
                             top_products: mappedProducts,
                             recent_reviews: mappedReviews,
                         }
@@ -527,6 +554,7 @@ export function StoreList({
                         console.error(`Erro ao carregar detalhes da loja ${store.id}:`, err)
                         return {
                             ...store,
+                            business_hours: convertBusinessHours(store.business_hours),
                             top_products: [],
                             recent_reviews: [],
                         }
@@ -560,14 +588,6 @@ export function StoreList({
 
     useEffect(() => {
         isMountedRef.current = true
-
-        if (initialStores) {
-            setStores(initialStores)
-            setFilteredStores(initialStores)
-            setLoading(false)
-            return
-        }
-
         loadStores()
 
         return () => {
@@ -579,8 +599,9 @@ export function StoreList({
                 clearInterval(autoPlayRef.current)
             }
         }
-    }, [initialStores, loadStores])
+    }, [loadStores])
 
+    // ===== FILTRAR E ORDENAR =====
     useEffect(() => {
         const sorted = [...stores].sort((a, b) => {
             const aOpen = isStoreOpenNow(a.business_hours)
@@ -601,6 +622,7 @@ export function StoreList({
         }
     }, [stores, maxItems])
 
+    // ===== AUTOPLAY =====
     useEffect(() => {
         if (isHovered || isAutoPlayPaused || totalPages <= 1) {
             if (autoPlayRef.current) {
@@ -738,26 +760,28 @@ export function StoreList({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle e botão "Ver todos" - MESMA LINHA */}
+            {/* Título com dragHandle e botão "Ver todos" estilo PILLS */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     {dragHandle}
                     <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                        {title || 'Lojas em Destaque'}
+                        {title}
                     </h2>
                 </div>
-                {showViewAll && (
+
+                {/* Botão "Ver todos" estilo PILLS - aparece APENAS se houver produtos */}
+                {hasAnyProduct && (
                     <button
-                        onClick={() => router.push(viewAllLink)}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 whitespace-nowrap"
+                        onClick={() => router.push('/lojas-em-destaque')}
+                        className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
                         style={{
-                            background: `rgba(249, 115, 22, 0.1)`,
-                            color: '#f97316',
-                            border: `1px solid rgba(249, 115, 22, 0.2)`,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 2px 8px rgba(249, 115, 22, 0.3)`,
                         }}
                     >
-                        <span>Ver todos</span>
-                        <ArrowRight className="w-3 h-3" />
+                        <span>Ver todas as lojas</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                 )}
             </div>
