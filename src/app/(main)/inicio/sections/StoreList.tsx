@@ -146,8 +146,7 @@ function StoreCard({
     const hasAddress = store.address && store.address.trim().length > 0
 
     // Define altura da imagem baseado na quantidade de informações
-    // Quanto menos informações, maior a imagem
-    let imageHeight = 'h-40' // padrão
+    let imageHeight = 'h-40'
     const infoCount = [
         hasAddress,
         hasRating,
@@ -156,7 +155,7 @@ function StoreCard({
     ].filter(Boolean).length
 
     if (infoCount <= 1) {
-        imageHeight = 'h-56' // mais espaço para imagem
+        imageHeight = 'h-56'
     } else if (infoCount <= 2) {
         imageHeight = 'h-48'
     } else {
@@ -415,6 +414,12 @@ export function StoreList({
     const isMountedRef = useRef(true)
     const abortControllerRef = useRef<AbortController | null>(null)
 
+    // Referências para o drag
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [isDragging, setIsDragging] = useState(false)
+    const [startX, setStartX] = useState(0)
+    const [scrollLeft, setScrollLeft] = useState(0)
+
     const [stores, setStores] = useState<StoreCardData[]>(initialStores || [])
     const [filteredStores, setFilteredStores] = useState<StoreCardData[]>(initialStores || [])
     const [loading, setLoading] = useState(!initialStores)
@@ -651,12 +656,97 @@ export function StoreList({
                 : 'grid-cols-1'
 
     const handleStoreClick = (storeSlug: string) => {
+        if (isDragging) return // Previne clique durante drag
         if (onStoreClick) {
             onStoreClick(storeSlug)
         } else {
             router.push(`/${storeSlug}`)
         }
     }
+
+    // ========== FUNÇÕES DE DRAG ==========
+    const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!containerRef.current) return
+        setIsDragging(true)
+        setStartX(e.pageX - containerRef.current.offsetLeft)
+        setScrollLeft(containerRef.current.scrollLeft)
+        containerRef.current.style.cursor = 'grabbing'
+        containerRef.current.style.scrollBehavior = 'auto'
+    }
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isDragging || !containerRef.current) return
+        e.preventDefault()
+        const x = e.pageX - containerRef.current.offsetLeft
+        const walk = (x - startX) * 1.5
+        containerRef.current.scrollLeft = scrollLeft - walk
+    }
+
+    const handleMouseUp = () => {
+        if (!containerRef.current) return
+        setIsDragging(false)
+        containerRef.current.style.cursor = 'grab'
+        containerRef.current.style.scrollBehavior = 'smooth'
+    }
+
+    const handleMouseLeave = () => {
+        if (isDragging) {
+            setIsDragging(false)
+            if (containerRef.current) {
+                containerRef.current.style.cursor = 'grab'
+                containerRef.current.style.scrollBehavior = 'smooth'
+            }
+        }
+    }
+
+    // Touch events para mobile
+    const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (!containerRef.current) return
+        setIsDragging(true)
+        setStartX(e.touches[0].pageX - containerRef.current.offsetLeft)
+        setScrollLeft(containerRef.current.scrollLeft)
+        containerRef.current.style.scrollBehavior = 'auto'
+    }
+
+    const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+        if (!isDragging || !containerRef.current) return
+        const x = e.touches[0].pageX - containerRef.current.offsetLeft
+        const walk = (x - startX) * 1.5
+        containerRef.current.scrollLeft = scrollLeft - walk
+    }
+
+    const handleTouchEnd = () => {
+        if (!containerRef.current) return
+        setIsDragging(false)
+        containerRef.current.style.scrollBehavior = 'smooth'
+    }
+
+    // Atualiza página atual baseado no scroll
+    const handleScroll = useCallback(() => {
+        if (!containerRef.current || isDragging) return
+
+        const container = containerRef.current
+        const cardWidth = container.scrollWidth / filteredStores.length
+        const scrollPosition = container.scrollLeft
+        const newPage = Math.round(scrollPosition / (cardWidth * itemsPerPage))
+
+        if (newPage !== currentPage && newPage < totalPages) {
+            setCurrentPage(newPage)
+        }
+    }, [currentPage, itemsPerPage, totalPages, filteredStores.length, isDragging])
+
+    // Sincroniza scroll com a página atual
+    useEffect(() => {
+        if (!containerRef.current || isDragging) return
+
+        const container = containerRef.current
+        const cardWidth = container.scrollWidth / filteredStores.length
+        const targetScroll = currentPage * cardWidth * itemsPerPage
+        container.scrollTo({
+            left: targetScroll,
+            behavior: 'smooth'
+        })
+    }, [currentPage, itemsPerPage, filteredStores.length, isDragging])
 
     if (loading) {
         return (
@@ -737,67 +827,99 @@ export function StoreList({
                 </h2>
             </div>
 
-            {/* Grid com paginação */}
-            <div className="relative">
-                <div className={`grid ${gridCols} gap-4`}>
-                    {currentItems.map((store, index) => (
-                        <StoreCard
+            {/* Container com scroll para drag */}
+            <div
+                ref={containerRef}
+                className="relative overflow-x-auto hide-scrollbar cursor-grab"
+                style={{
+                    scrollSnapType: 'x mandatory',
+                    WebkitOverflowScrolling: 'touch',
+                }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onScroll={handleScroll}
+            >
+                <div
+                    className={`grid ${gridCols} gap-4`}
+                    style={{
+                        minWidth: '100%',
+                        width: `${filteredStores.length * (100 / itemsPerPage)}%`,
+                        gridTemplateColumns: `repeat(${filteredStores.length}, 1fr)`,
+                    }}
+                >
+                    {filteredStores.map((store, index) => (
+                        <div
                             key={`${store.id}-${index}`}
-                            store={store}
-                            colors={colors}
-                            onClick={() => handleStoreClick(store.storeSlug)}
-                        />
+                            style={{
+                                scrollSnapAlign: 'start',
+                            }}
+                        >
+                            <StoreCard
+                                store={store}
+                                colors={colors}
+                                onClick={() => handleStoreClick(store.storeSlug)}
+                            />
+                        </div>
                     ))}
                 </div>
-
-                {/* Paginação melhorada */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-4 mt-6">
-                        <button
-                            onClick={goToPrev}
-                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                            aria-label="Anterior"
-                        >
-                            <ChevronLeft size={16} />
-                        </button>
-
-                        <div className="flex items-center gap-2">
-                            {Array.from({ length: totalPages }).map((_, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setCurrentPage(idx)}
-                                    className="rounded-full transition-all duration-300"
-                                    style={{
-                                        width: idx === currentPage ? '1.2rem' : '0.5rem',
-                                        height: '0.5rem',
-                                        background: idx === currentPage ? '#f97316' : colors.border,
-                                        boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
-                                    }}
-                                    aria-label={`Ir para página ${idx + 1}`}
-                                />
-                            ))}
-                        </div>
-
-                        <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
-                            {currentPage + 1}/{totalPages}
-                        </span>
-
-                        <button
-                            onClick={goToNext}
-                            className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                            aria-label="Próximo"
-                        >
-                            <ChevronRightIcon size={16} />
-                        </button>
-                    </div>
-                )}
             </div>
+
+            {/* Paginação melhorada */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-6">
+                    <button
+                        onClick={goToPrev}
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        style={{ background: GRADIENT, color: '#ffffff' }}
+                        aria-label="Anterior"
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                        {Array.from({ length: totalPages }).map((_, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setCurrentPage(idx)}
+                                className="rounded-full transition-all duration-300"
+                                style={{
+                                    width: idx === currentPage ? '1.2rem' : '0.5rem',
+                                    height: '0.5rem',
+                                    background: idx === currentPage ? '#f97316' : colors.border,
+                                    boxShadow: idx === currentPage ? `0 0 8px #f9731650` : 'none',
+                                }}
+                                aria-label={`Ir para página ${idx + 1}`}
+                            />
+                        ))}
+                    </div>
+
+                    <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
+                        {currentPage + 1}/{totalPages}
+                    </span>
+
+                    <button
+                        onClick={goToNext}
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        style={{ background: GRADIENT, color: '#ffffff' }}
+                        aria-label="Próximo"
+                    >
+                        <ChevronRightIcon size={16} />
+                    </button>
+                </div>
+            )}
 
             <style jsx>{`
                 .hide-scrollbar::-webkit-scrollbar {
                     display: none;
+                }
+                .hide-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
                 }
             `}</style>
         </div>
