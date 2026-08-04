@@ -8,24 +8,88 @@ import { supabase } from "@/lib/supabase/client";
 import {
     ImageIcon,
     MapPinned,
-    Edit3,
     ArrowLeft,
     Plus,
-    Sparkles,
     MapPin,
-    User,
     Eye,
     Video,
     Camera,
     X,
-    MessageCircle,
     Megaphone,
+    Link2,
+    Palette,
+    Hash,
+    Sparkles,
+    Navigation,
+    Search,
+    MoveVertical,
+    Home,
+    Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import AnimatedBackground from "@/components/AnimatedBackground";
 import { useTheme } from "@/app/theme";
+import AnimatedBackgroundiUser from "@/components/AnimatedBackground";
+import { useProfile } from "@/app/contexts/ProfileContext";
 
 type MediaType = "image" | "video" | null;
+
+// Tipo para o botão
+type ButtonDisplay = {
+    text: string;
+    color: string;
+    link: string | null;
+    isWhatsapp: boolean;
+} | null;
+
+// Cores pré-definidas para o botão
+const BUTTON_COLORS = [
+    { name: "Verde", value: "#10b981" },
+    { name: "Azul", value: "#3b82f6" },
+    { name: "Vermelho", value: "#ef4444" },
+    { name: "Amarelo", value: "#eab308" },
+    { name: "Roxo", value: "#8b5cf6" },
+    { name: "Rosa", value: "#ec4899" },
+    { name: "Laranja", value: "#f97316" },
+    { name: "Ciano", value: "#06b6d4" },
+    { name: "Cinza", value: "#6b7280" },
+    { name: "Preto", value: "#1f2937" },
+];
+
+// Pré-modelos de botões para redes sociais e plataformas
+const PRESET_BUTTONS = [
+    { name: "WhatsApp", color: "#25D366", text: "WhatsApp" },
+    { name: "YouTube", color: "#FF0000", text: "YouTube" },
+    { name: "Instagram", color: "#E4405F", text: "Instagram" },
+    { name: "Facebook", color: "#1877F2", text: "Facebook" },
+    { name: "Spotify", color: "#1DB954", text: "Spotify" },
+    { name: "SoundCloud", color: "#FF3300", text: "SoundCloud" },
+    { name: "Google Play", color: "#34A853", text: "Google Play" },
+    { name: "App Store", color: "#007AFF", text: "App Store" },
+    { name: "Reddit", color: "#FF4500", text: "Reddit" },
+];
+
+// Gradiente fixo laranja-vermelho (igual ao OrderSection)
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)';
+
+// Style para botões pill (igual ao OrderSection)
+const pillButtonStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    padding: '0.75rem 1.25rem',
+    borderRadius: '9999px',
+    fontSize: '0.875rem',
+    fontWeight: 700,
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+};
+
+const pillButtonFullStyle: React.CSSProperties = {
+    ...pillButtonStyle,
+    width: '100%',
+};
 
 // Helper para hexToRgb
 function hexToRgb(hex: string) {
@@ -101,10 +165,85 @@ function dataURLToBlob(dataURL: string): Blob {
     return new Blob([arrayBuffer], { type: mime });
 }
 
+// Funções de geocodificação
+async function geocodeAddress(query: string): Promise<{ lat: number; lng: number; address: string } | null> {
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`,
+            { headers: { 'User-Agent': 'iUserApp/1.0', 'Accept-Language': 'pt-BR' } }
+        );
+        if (!res.ok) throw new Error('Erro');
+        const data = await res.json();
+
+        if (data?.length > 0) {
+            return {
+                lat: parseFloat(data[0].lat),
+                lng: parseFloat(data[0].lon),
+                address: data[0].display_name || query
+            };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+async function reverseGeocode(lat: number, lng: number): Promise<{
+    fullAddress: string;
+    extractedNumber: string;
+}> {
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
+            { headers: { 'User-Agent': 'iUserApp/1.0', 'Accept-Language': 'pt-BR' } }
+        );
+        if (!res.ok) throw new Error('Erro');
+        const data = await res.json();
+
+        let formatted = '';
+        let extractedNumber = '';
+
+        if (data?.address) {
+            const addr = data.address;
+            const street = addr.road || addr.street || '';
+            const number = addr.house_number || '';
+            const neighbourhood = addr.neighbourhood || addr.suburb || addr.district || '';
+            const city = addr.city || addr.town || addr.municipality || '';
+            const state = addr.state || '';
+
+            extractedNumber = number;
+
+            const parts = [];
+            if (street) {
+                parts.push(number ? `${street}, ${number}` : street);
+            }
+            if (neighbourhood) parts.push(neighbourhood);
+            if (city) parts.push(city);
+            if (state) parts.push(state);
+
+            formatted = parts.length > 0 ? parts.join(', ') : data.display_name || '';
+        }
+
+        if (!formatted) {
+            formatted = data?.display_name || '';
+        }
+
+        if (!formatted) {
+            formatted = `Local (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        }
+
+        return { fullAddress: formatted, extractedNumber };
+    } catch {
+        const fallback = `Local (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        return { fullAddress: fallback, extractedNumber: '' };
+    }
+}
+
 export default function FazerDivulgacao() {
     const router = useRouter();
     const params = useParams();
     const { colors } = useTheme();
+    const { bgMode, customBgUrl } = useProfile();
     const surfaceRgb = hexToRgb(colors.surface);
 
     const profileSlug = Array.isArray(params.profileSlug)
@@ -140,9 +279,23 @@ export default function FazerDivulgacao() {
 
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [address, setAddress] = useState("");
+    const [addressNumber, setAddressNumber] = useState("");
+    const [addressComplement, setAddressComplement] = useState("");
     const [city, setCity] = useState("");
     const [manualAddress, setManualAddress] = useState("");
     const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState("");
+
+    // Estado para o botão
+    const [buttonText, setButtonText] = useState("");
+    const [buttonLink, setButtonLink] = useState("");
+    const [buttonColor, setButtonColor] = useState(BUTTON_COLORS[0].value);
+    const [showButtonSettings, setShowButtonSettings] = useState(false);
+    const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+
+    // Estado para WhatsApp Button
+    const [useWhatsappButton, setUseWhatsappButton] = useState(false);
 
     const getAvatarUrl = (avatarPath: string | null): string | null => {
         if (!avatarPath) return null;
@@ -336,20 +489,23 @@ export default function FazerDivulgacao() {
         setSuggestions([]);
         const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
         if (cityComponent) setCity(cityComponent.text);
+
+        const numberMatch = feature.place_name.match(/,?\s*(\d+)\s*,?/);
+        if (numberMatch) {
+            setAddressNumber(numberMatch[1]);
+        }
     };
 
     const fetchAddressFromCoords = async (lat: number, lng: number) => {
         try {
-            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-            const res = await fetch(
-                `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}`
-            );
-            const data = await res.json();
-            if (data.features?.length > 0) {
-                const feature = data.features[0];
-                setAddress(feature.place_name);
-                const cityComponent = feature.context?.find((c: any) => c.id.includes("place"));
-                if (cityComponent) setCity(cityComponent.text);
+            const result = await reverseGeocode(lat, lng);
+            setAddress(result.fullAddress);
+            if (result.extractedNumber) {
+                setAddressNumber(result.extractedNumber);
+            }
+            const cityMatch = result.fullAddress.match(/([^,]+),\s*([^,]+)$/);
+            if (cityMatch) {
+                setCity(cityMatch[2]?.trim() || '');
             }
         } catch (e) {
             console.error(e);
@@ -397,6 +553,83 @@ export default function FazerDivulgacao() {
         } catch (e) {
             console.error(e);
             toast.error("Erro ao buscar coordenadas.");
+        }
+    };
+
+    const handleGetCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocalização não suportada');
+            return;
+        }
+
+        setLoadingLocation(true);
+
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const newPos = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude
+                };
+                setLocation(newPos);
+
+                try {
+                    const result = await reverseGeocode(newPos.lat, newPos.lng);
+                    setAddress(result.fullAddress);
+                    if (result.extractedNumber) {
+                        setAddressNumber(result.extractedNumber);
+                    }
+                } catch (err) {
+                    const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`;
+                    setAddress(fallback);
+                }
+                setLoadingLocation(false);
+            },
+            (err) => {
+                let msg = 'Erro ao obter localização. ';
+                switch (err.code) {
+                    case err.PERMISSION_DENIED: msg += 'Permissão negada.'; break;
+                    case err.POSITION_UNAVAILABLE: msg += 'Localização indisponível.'; break;
+                    case err.TIMEOUT: msg += 'Tempo esgotado.'; break;
+                }
+                toast.error(msg);
+                setLoadingLocation(false);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    };
+
+    const handleSearchAddress = async () => {
+        if (!manualAddress.trim()) return;
+
+        setIsSearching(true);
+        setSearchError('');
+
+        const result = await geocodeAddress(manualAddress.trim());
+
+        if (result) {
+            setLocation({ lat: result.lat, lng: result.lng });
+            setAddress(result.address);
+            setManualAddress(result.address);
+            setSuggestions([]);
+
+            const numberMatch = result.address.match(/,?\s*(\d+)\s*,?/);
+            if (numberMatch) {
+                setAddressNumber(numberMatch[1]);
+            }
+        } else {
+            setSearchError('Endereço não encontrado.');
+        }
+
+        setIsSearching(false);
+    };
+
+    const applyPreset = (preset: typeof PRESET_BUTTONS[0]) => {
+        setSelectedPreset(preset.name);
+        setButtonText(preset.text);
+        setButtonColor(preset.color);
+        setUseWhatsappButton(false);
+        if (preset.name === "WhatsApp") {
+            setUseWhatsappButton(true);
         }
     };
 
@@ -492,6 +725,34 @@ export default function FazerDivulgacao() {
             locationString = `SRID=4326;POINT(${location.lng} ${location.lat})`;
         }
 
+        let fullAddress = address;
+        if (addressNumber && !address.includes(addressNumber)) {
+            const parts = address.split(',');
+            if (parts.length > 0) {
+                fullAddress = `${parts[0]}, ${addressNumber}`;
+                if (parts.length > 1) {
+                    fullAddress += parts.slice(1).join(',');
+                }
+            }
+        }
+
+        let buttonData = null;
+        if (useWhatsappButton && profileWhatsapp) {
+            buttonData = {
+                text: "WhatsApp",
+                link: `https://wa.me/${profileWhatsapp.replace(/\D/g, '')}`,
+                color: "#25D366",
+                isWhatsapp: true,
+            };
+        } else if (buttonText && buttonText.length <= 12) {
+            buttonData = {
+                text: buttonText,
+                link: buttonLink || null,
+                color: buttonColor,
+                isWhatsapp: false,
+            };
+        }
+
         const { error } = await supabase.from("products").insert({
             name: title,
             slug,
@@ -507,10 +768,11 @@ export default function FazerDivulgacao() {
             owner_id: profileId,
             owner_image_url: profileAvatarUrl,
             location: locationString,
-            address: address || null,
+            address: fullAddress || address || null,
             city: city || null,
             category: category || null,
             duration_minutes: null,
+            button_data: buttonData,
         });
 
         if (error) {
@@ -531,129 +793,221 @@ export default function FazerDivulgacao() {
         };
     }, [preview, videoPreview]);
 
+    const getButtonDisplay = (): ButtonDisplay => {
+        if (useWhatsappButton && profileWhatsapp) {
+            return {
+                text: "WhatsApp",
+                color: "#25D366",
+                link: `https://wa.me/${profileWhatsapp.replace(/\D/g, '')}`,
+                isWhatsapp: true,
+            };
+        } else if (buttonText && buttonText.length <= 12) {
+            return {
+                text: buttonText,
+                color: buttonColor,
+                link: buttonLink || null,
+                isWhatsapp: false,
+            };
+        }
+        return null;
+    };
+
+    const buttonDisplay = getButtonDisplay();
+
+    // ===== ESTILO GLASSMORPHISM (igual ao OrderSection) =====
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`;
+
+    const glassStyle = {
+        background: cardBg,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${colors.border}`,
+        boxShadow: colors.shadow,
+        borderRadius: '1.25rem',
+        padding: '1.5rem',
+    };
+
+    const glassInputStyle = {
+        background: `rgba(255, 255, 255, 0.06)`,
+        borderColor: `rgba(255, 255, 255, 0.12)`,
+        color: colors.textPrimary,
+    };
+
     return (
-        <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 pb-32">
-            <AnimatedBackground />
-            <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
-                <header className="flex items-center gap-3 mb-6 pb-4 border-b border-green-200/50">
+        <div className="relative min-h-dvh">
+            {/* ===== FUNDO ANIMADO ===== */}
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
+
+            {/* ===== CONTEÚDO ===== */}
+            <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full min-h-dvh">
+                {/* HEADER - glassmorphism com gradiente no ícone */}
+                <div
+                    className="flex items-center gap-3 mb-6 p-3 rounded-full"
+                    style={{
+                        background: cardBg,
+                        backdropFilter: 'blur(12px)',
+                        WebkitBackdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                    }}
+                >
                     <button
                         onClick={() => router.back()}
-                        className="w-10 h-10 flex items-center justify-center bg-white/90 border-2 border-green-200 rounded-xl hover:bg-gradient-to-r hover:from-green-500 hover:to-emerald-600 hover:text-white transition-all"
+                        className="w-10 h-10 flex items-center justify-center rounded-full transition-all hover:scale-105"
+                        style={{
+                            background: `rgba(255, 255, 255, 0.08)`,
+                            border: `1px solid rgba(255, 255, 255, 0.12)`,
+                            color: colors.textPrimary
+                        }}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
+                    <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: '0 4px 12px rgba(249, 115, 22, 0.4)',
+                        }}
+                    >
+                        <Megaphone size={24} />
+                    </div>
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent tracking-tighter">
+                        <h1 className="text-xl font-black" style={{ color: colors.textPrimary }}>
                             Fazer Divulgação
                         </h1>
-                        <p className="text-[8px] font-black uppercase tracking-wider text-gray-500 mt-0.5 flex items-center gap-1">
-                            <User size={10} />
-                            Perfil: @{profileSlug}
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                            @{profileSlug}
                         </p>
                     </div>
-                </header>
+                </div>
 
                 {/* ===== EXEMPLO DE CARTAZ ===== */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
                             <Eye className="w-3 h-3" />
                             Exemplo de Cartaz
-                        </span>
-                        <span className="text-[7px] font-black uppercase px-2 py-0.5 rounded-full bg-green-100 text-green-600">
-                            📢 Divulgação
                         </span>
                     </div>
 
                     <div
-                        className="relative rounded-xl overflow-hidden border transition-all max-w-[200px]"
+                        className="relative rounded-2xl overflow-hidden max-w-[200px] mx-auto"
                         style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
-                            borderColor: '#10b981',
-                            boxShadow: '0 0 0 2px #10b98120',
+                            background: colors.surface,
+                            border: `1px solid ${colors.border}`,
+                            boxShadow: colors.shadow,
                         }}
                     >
                         <div
-                            className="aspect-square relative overflow-hidden"
-                            style={{ background: colors.accentLight }}
+                            className="relative w-full"
+                            style={{ paddingBottom: '100%' }}
                         >
                             {mediaType === 'video' && videoPreview ? (
-                                <video src={videoPreview} className="w-full h-full object-cover" />
+                                <video src={videoPreview} className="absolute inset-0 w-full h-full object-cover" />
                             ) : preview ? (
-                                <img src={preview} className="w-full h-full object-cover" alt="Preview" />
+                                <img src={preview} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-3xl font-black" style={{ color: colors.accent }}>
+                                <div className="absolute inset-0 flex items-center justify-center text-4xl font-black" style={{ color: colors.textSecondary }}>
                                     ?
                                 </div>
                             )}
 
+                            {/* Overlay com texto sobre a imagem */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-3">
+                                <h4 className="text-xs font-bold text-white truncate">
+                                    {title || "Título da Publicação"}
+                                </h4>
+                                <p className="text-[9px] truncate mt-0.5 text-white/80">
+                                    {subtitle || "Subtítulo da publicação"}
+                                </p>
+                            </div>
+
                             {mediaType === 'video' && (
-                                <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
+                                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
                                     <Video className="w-3 h-3" />
                                     Vídeo
                                 </span>
                             )}
 
-                            <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full text-[7px] font-black uppercase bg-green-500 text-white shadow-md">
-                                Divulgação
-                            </span>
-                        </div>
-
-                        <div className="p-2.5">
-                            <h4 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                {title || "Título da Publicação"}
-                            </h4>
-
-                            <p className="text-[9px] truncate mt-0.5 opacity-75" style={{ color: colors.textSecondary }}>
-                                {subtitle || "Subtítulo da publicação"}
-                            </p>
+                            {/* BOTÃO DO CARTAZ */}
+                            {buttonDisplay && (
+                                <div className="absolute top-3 right-3 z-20">
+                                    <button
+                                        className="px-3 py-1.5 font-black uppercase text-[8px] tracking-wider text-white shadow-lg transition-all hover:scale-105 rounded-full flex items-center gap-1.5"
+                                        style={{
+                                            backgroundColor: buttonDisplay.color,
+                                        }}
+                                        onClick={() =>
+                                            buttonDisplay.link &&
+                                            window.open(
+                                                buttonDisplay.link,
+                                                "_blank"
+                                            )
+                                        }
+                                    >
+                                        {buttonDisplay.text}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    <p className="text-[8px] text-gray-400 text-center mt-2">
+                    <p className="text-[8px] text-center mt-2" style={{ color: colors.textSecondary }}>
                         📢 Modo Divulgação: apenas exibe a publicação sem ação de compra
                     </p>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-green-200/50 p-6 space-y-6 shadow-sm">
+                {/* FORMULÁRIO - Glassmorphism com cores do tema */}
+                <div style={glassStyle} className="space-y-6">
                     {/* CAPA - IMAGEM/VIDEO */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                            <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                                 Capa
                             </label>
-                            <span className="text-[8px] text-gray-400">Máx. 20MB</span>
+                            <span className="text-[8px]" style={{ color: colors.textSecondary }}>Máx. 20MB</span>
                         </div>
 
                         {!preview && !videoPreview ? (
-                            <button
+                            <div
                                 onClick={() => setShowMediaPicker(true)}
-                                className="w-full h-48 rounded-xl border-2 border-dashed border-green-300 hover:border-green-500 flex flex-col items-center justify-center gap-3 transition-all group"
-                                style={{ background: 'rgba(16, 185, 129, 0.05)' }}
+                                className="w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all group cursor-pointer"
+                                style={{
+                                    borderColor: colors.border,
+                                    background: colors.background,
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = '#f97316';
+                                    e.currentTarget.style.borderWidth = '3px';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = colors.border;
+                                    e.currentTarget.style.borderWidth = '2px';
+                                }}
                             >
                                 {uploading ? (
                                     <div className="flex flex-col items-center gap-2">
-                                        <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-                                        <span className="text-sm font-bold text-green-600">{uploadProgress}%</span>
-                                        <span className="text-xs text-gray-500">Processando...</span>
+                                        <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: colors.accent }} />
+                                        <span className="text-sm font-bold" style={{ color: colors.accent }}>{uploadProgress}%</span>
+                                        <span className="text-xs" style={{ color: colors.textSecondary }}>Processando...</span>
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <ImageIcon className="w-8 h-8 text-green-500" />
+                                        <div className="w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform" style={{ background: colors.accentLight }}>
+                                            <ImageIcon className="w-8 h-8" style={{ color: colors.accent }} />
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-sm font-bold text-gray-700">Adicionar capa</p>
-                                            <p className="text-xs text-gray-400">Imagem ou vídeo (máx. 20MB)</p>
-                                            <p className="text-[10px] text-gray-400 mt-1">Arquivos acima de 20MB serão comprimidos automaticamente</p>
+                                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Adicionar capa</p>
+                                            <p className="text-xs" style={{ color: colors.textSecondary }}>Imagem ou vídeo (máx. 20MB)</p>
+                                            <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>Arquivos acima de 20MB serão comprimidos</p>
                                         </div>
                                     </>
                                 )}
-                            </button>
+                            </div>
                         ) : (
-                            <div className="relative rounded-xl overflow-hidden border-2 border-green-300">
+                            <div className="relative rounded-2xl overflow-hidden border-2" style={{ borderColor: colors.accent }}>
                                 {mediaType === 'video' && videoPreview ? (
                                     <video src={videoPreview} className="w-full max-h-80 object-contain" controls />
                                 ) : (
@@ -702,55 +1056,293 @@ export default function FazerDivulgacao() {
                         />
                     </div>
 
-                    {/* INFO */}
-                    <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-xs text-green-800 space-y-1">
-                        <p className="font-bold mb-1">📢 Modo divulgação ativado</p>
-                        <p>A publicação será exibida como um cartaz informativo.</p>
-                        {profileWhatsapp ? (
-                            <p>📱 WhatsApp: <strong>{profileWhatsapp}</strong></p>
-                        ) : (
-                            <p className="text-red-600">⚠️ Nenhum WhatsApp configurado no perfil.</p>
-                        )}
-                        {(profileAddress || (profileLat != null && profileLng != null)) && (
-                            <p>📍 Localização do perfil cadastrada e disponível para o produto.</p>
-                        )}
-                    </div>
-
                     {/* TÍTULO */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                            <Plus className="w-3 h-3 text-green-500" />
+                        <label className="block text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                            <Plus className="w-3 h-3" style={{ color: colors.accent }} />
                             Título da Publicação
                         </label>
                         <input
                             placeholder="Ex: Novo Serviço Disponível!"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold uppercase focus:outline-none focus:border-green-500 transition-all"
+                            className="w-full border-2 rounded-2xl px-4 py-3 text-sm font-bold uppercase focus:outline-none transition-all placeholder:text-white/20"
+                            style={{
+                                background: colors.background,
+                                borderColor: colors.border,
+                                color: colors.textPrimary,
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = colors.accent}
+                            onBlur={(e) => e.target.style.borderColor = colors.border}
                         />
                     </div>
 
                     {/* SUBTÍTULO */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">
+                        <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                             Subtítulo
                         </label>
-                        <textarea placeholder="Um subtítulo que chame a atenção..."
+                        <textarea
+                            placeholder="Um subtítulo que chame a atenção..."
                             value={subtitle}
                             onChange={(e) => setSubtitle(e.target.value)}
                             rows={3}
-                            className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-green-500 transition-all min-h-[80px] resize-none"
+                            className="w-full border-2 rounded-2xl px-4 py-3 text-sm focus:outline-none transition-all min-h-[80px] resize-none placeholder:text-white/20"
+                            style={{
+                                background: colors.background,
+                                borderColor: colors.border,
+                                color: colors.textPrimary,
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = colors.accent}
+                            onBlur={(e) => e.target.style.borderColor = colors.border}
                         />
+                    </div>
+
+                    {/* BOTÃO DO CARTAZ */}
+                    <div className="space-y-3 border-t-2 border-dashed pt-4" style={{ borderColor: colors.border }}>
+                        <button
+                            onClick={() => setShowButtonSettings(!showButtonSettings)}
+                            className="w-full flex items-center justify-between py-2.5 px-4 border-2 rounded-2xl transition-all"
+                            style={{
+                                background: colors.background,
+                                borderColor: colors.border,
+                            }}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full"
+                                    style={{
+                                        background: "#25D366",
+                                        color: "#ffffff",
+                                    }}
+                                >
+                                    <span className="text-[9px] font-black uppercase tracking-wider">
+                                        WhatsApp
+                                    </span>
+                                </div>
+                                <div className="text-left">
+                                    <span className="text-sm font-bold block" style={{ color: colors.textPrimary }}>Botão do Cartaz</span>
+                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>WhatsApp, redes sociais ou link</span>
+                                </div>
+                            </div>
+                            <div className={`transform transition-transform ${showButtonSettings ? 'rotate-180' : ''}`}>
+                                <svg className="w-5 h-5" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </button>
+
+                        {showButtonSettings && (
+                            <div
+                                className="space-y-4 p-4 rounded-2xl border"
+                                style={{
+                                    background: colors.background,
+                                    borderColor: colors.border,
+                                }}
+                            >
+                                {/* Pré-modelos */}
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                                        Botões
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {PRESET_BUTTONS.map((preset) => {
+                                            const isActive = selectedPreset === preset.name && buttonColor === preset.color;
+                                            return (
+                                                <button
+                                                    key={preset.name}
+                                                    onClick={() => applyPreset(preset)}
+                                                    className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all ${isActive ? 'text-white' : ''
+                                                        }`}
+                                                    style={{
+                                                        background: isActive ? preset.color : colors.background,
+                                                        border: `1px solid ${isActive ? preset.color : colors.border}`,
+                                                        color: isActive ? 'white' : colors.textPrimary,
+                                                    }}
+                                                >
+                                                    {preset.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-dashed" style={{ borderColor: colors.border }} />
+
+                                {/* Opção WhatsApp do Perfil */}
+                                {profileWhatsapp && (
+                                    <div className="space-y-2">
+                                        <label className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="buttonType"
+                                                checked={useWhatsappButton}
+                                                onChange={() => {
+                                                    setUseWhatsappButton(true);
+                                                    setButtonText("");
+                                                    setButtonLink("");
+                                                    setSelectedPreset("WhatsApp");
+                                                    setButtonColor("#25D366");
+                                                }}
+                                                className="w-4 h-4 accent-green-500"
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                                    WhatsApp do Perfil
+                                                </span>
+                                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                    ({profileWhatsapp})
+                                                </span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                )}
+
+                                {/* Opção Personalizado */}
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="buttonType"
+                                            checked={!useWhatsappButton}
+                                            onChange={() => {
+                                                setUseWhatsappButton(false);
+                                                setSelectedPreset(null);
+                                            }}
+                                            className="w-4 h-4 accent-green-500"
+                                        />
+                                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                            Personalizado
+                                        </span>
+                                    </label>
+
+                                    {!useWhatsappButton && (
+                                        <div className="space-y-3 pl-7">
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                                    <Hash className="w-3 h-3" style={{ color: colors.accent }} />
+                                                    Texto (máx. 12 caracteres)
+                                                </label>
+                                                <input
+                                                    placeholder="Ex: Comprar, Saber Mais..."
+                                                    value={buttonText}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value.slice(0, 12);
+                                                        setButtonText(value);
+                                                        setSelectedPreset(null);
+                                                    }}
+                                                    maxLength={12}
+                                                    className="w-full border-2 rounded-2xl px-4 py-3 text-sm font-bold uppercase focus:outline-none transition-all placeholder:text-white/20"
+                                                    style={{
+                                                        background: colors.background,
+                                                        borderColor: colors.border,
+                                                        color: colors.textPrimary,
+                                                    }}
+                                                    onFocus={(e) => e.target.style.borderColor = colors.accent}
+                                                    onBlur={(e) => e.target.style.borderColor = colors.border}
+                                                />
+                                                <span className="text-[8px] block text-right" style={{ color: colors.textSecondary }}>
+                                                    {buttonText.length}/12 caracteres
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                                    <Link2 className="w-3 h-3" style={{ color: colors.accent }} />
+                                                    Link (opcional)
+                                                </label>
+                                                <input
+                                                    placeholder="https://seusite.com/oferta"
+                                                    value={buttonLink}
+                                                    onChange={(e) => setButtonLink(e.target.value)}
+                                                    className="w-full border-2 rounded-2xl px-4 py-3 text-sm focus:outline-none transition-all placeholder:text-white/20"
+                                                    style={{
+                                                        background: colors.background,
+                                                        borderColor: colors.border,
+                                                        color: colors.textPrimary,
+                                                    }}
+                                                    onFocus={(e) => e.target.style.borderColor = colors.accent}
+                                                    onBlur={(e) => e.target.style.borderColor = colors.border}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="block text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                                                    <Palette className="w-3 h-3" style={{ color: colors.accent }} />
+                                                    Cor do Botão
+                                                </label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {BUTTON_COLORS.map((color) => (
+                                                        <button
+                                                            key={color.value}
+                                                            onClick={() => {
+                                                                setButtonColor(color.value);
+                                                                setSelectedPreset(null);
+                                                            }}
+                                                            className={`w-10 h-10 rounded-full transition-all hover:scale-110 ${buttonColor === color.value
+                                                                    ? 'ring-2 ring-offset-2 scale-110'
+                                                                    : ''
+                                                                }`}
+                                                            style={{
+                                                                backgroundColor: color.value,
+                                                            }}
+                                                            title={color.name}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Preview do botão */}
+                                {buttonDisplay && (
+                                    <div className="p-3 rounded-2xl border" style={{
+                                        background: colors.background,
+                                        borderColor: colors.border,
+                                    }}>
+                                        <p className="text-[10px] mb-2" style={{ color: colors.textSecondary }}>Preview do botão:</p>
+                                        <button
+                                            className="px-4 py-2 font-black uppercase text-xs tracking-wider text-white rounded-full transition-all hover:scale-105 flex items-center gap-2"
+                                            style={{
+                                                backgroundColor: buttonDisplay.color,
+                                            }}
+                                            onClick={() =>
+                                                buttonDisplay.link &&
+                                                window.open(
+                                                    buttonDisplay.link,
+                                                    "_blank"
+                                                )
+                                            }
+                                        >
+                                            {buttonDisplay.text}
+                                        </button>
+                                        {buttonDisplay.link && (
+                                            <p className="text-[8px] mt-1 truncate" style={{ color: colors.textSecondary }}>
+                                                🔗 {buttonDisplay.link}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* CATEGORIA */}
                     <div className="space-y-2">
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700">Categoria</label>
+                        <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>Categoria</label>
                         <input
                             placeholder="Ex: Bebidas, Sobremesas..."
                             value={category}
                             onChange={(e) => setCategory(e.target.value)}
-                            className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm font-bold uppercase focus:outline-none focus:border-green-500 transition-all"
+                            className="w-full border-2 rounded-2xl px-4 py-3 text-sm font-bold uppercase focus:outline-none transition-all placeholder:text-white/20"
+                            style={{
+                                background: colors.background,
+                                borderColor: colors.border,
+                                color: colors.textPrimary,
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = colors.accent}
+                            onBlur={(e) => e.target.style.borderColor = colors.border}
                         />
                         {existingCategories.length > 0 && (
                             <div className="flex flex-wrap gap-2 mt-2">
@@ -758,10 +1350,15 @@ export default function FazerDivulgacao() {
                                     <button
                                         key={cat}
                                         onClick={() => setCategory(cat)}
-                                        className={`px-3 py-1.5 border-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                                            ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white border-transparent"
-                                            : "bg-white border-green-200 text-gray-700 hover:bg-green-50"
+                                        className={`px-3 py-1.5 border-2 rounded-2xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
+                                                ? "text-white border-transparent"
+                                                : "border-2"
                                             }`}
+                                        style={{
+                                            background: category === cat ? colors.accent : colors.background,
+                                            borderColor: category === cat ? 'transparent' : colors.border,
+                                            color: category === cat ? 'white' : colors.textPrimary,
+                                        }}
                                     >
                                         {cat}
                                     </button>
@@ -772,96 +1369,189 @@ export default function FazerDivulgacao() {
 
                     {/* LOCALIZAÇÃO */}
                     <div className="space-y-3">
-                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                            <MapPinned className="w-3 h-3 text-green-500" />
+                        <label className="block text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: colors.textPrimary }}>
+                            <MapPinned className="w-3 h-3" style={{ color: colors.accent }} />
                             Localização (opcional)
                         </label>
 
-                        {(profileAddress || (profileLat != null && profileLng != null)) && !location && (
-                            <button
-                                onClick={useProfileAddress}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 text-blue-700 border-2 border-blue-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-blue-100 transition-all"
-                            >
-                                <MapPin size={14} />
-                                Usar endereço do perfil
-                            </button>
-                        )}
-
-                        {!location ? (
-                            <div className="space-y-3">
-                                <button
-                                    disabled={loadingLocation}
-                                    onClick={() => {
-                                        setLoadingLocation(true);
-                                        navigator.geolocation.getCurrentPosition(
-                                            (pos) => {
-                                                setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                                                fetchAddressFromCoords(pos.coords.latitude, pos.coords.longitude);
-                                                setLoadingLocation(false);
-                                            },
-                                            () => {
-                                                toast.error("Erro ao obter localização");
-                                                setLoadingLocation(false);
-                                            }
-                                        );
+                        {location ? (
+                            <div className="space-y-2">
+                                <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-2xl"
+                                    style={{
+                                        background: `${colors.surface}88`,
+                                        border: `1px solid ${colors.accent}44`,
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 py-3 bg-green-50 text-green-700 border-2 border-green-200 rounded-xl font-black uppercase text-[9px] tracking-wider hover:bg-green-100 transition-all"
                                 >
-                                    <MapPinned size={14} />
-                                    {loadingLocation ? "Buscando..." : "Usar minha localização atual"}
-                                </button>
-                                <div className="relative">
-                                    <input
-                                        placeholder="Ou digite o endereço..."
-                                        value={manualAddress}
-                                        onChange={(e) => setManualAddress(e.target.value)}
-                                        className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 text-sm focus:outline-none focus:border-green-500 transition-all"
-                                    />
-                                    {suggestions.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-green-200 rounded-xl overflow-hidden shadow-lg z-50">
-                                            {suggestions.map((s, i) => (
-                                                <div
-                                                    key={i}
-                                                    onClick={() => selectSuggestion(s)}
-                                                    className="p-3 hover:bg-green-50 cursor-pointer border-b border-green-100 last:border-0 text-sm text-gray-700"
-                                                >
-                                                    {s.place_name}
-                                                </div>
-                                            ))}
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                            <MoveVertical size={14} style={{ color: '#F97316' }} />
                                         </div>
-                                    )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
+                                            Localização selecionada
+                                        </span>
+                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                            {address || 'Carregando endereço...'}
+                                        </p>
+                                        {addressNumber && (
+                                            <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textSecondary }}>
+                                                Nº {addressNumber}
+                                            </p>
+                                        )}
+                                        {addressComplement && (
+                                            <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textSecondary }}>
+                                                "{addressComplement}"
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setLocation(null);
+                                            setAddress("");
+                                            setAddressNumber("");
+                                            setAddressComplement("");
+                                            setCity("");
+                                            setManualAddress("");
+                                            setSuggestions([]);
+                                        }}
+                                        className="text-xs font-bold hover:opacity-70 transition-opacity flex-shrink-0"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        <X size={14} />
+                                    </button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-4 bg-green-50/50 rounded-xl border border-green-200 space-y-2">
-                                <p className="text-sm font-medium text-gray-800">{address}</p>
-                                <button
-                                    onClick={() => {
-                                        setLocation(null);
-                                        setAddress("");
-                                        setCity("");
-                                        setManualAddress("");
-                                        setSuggestions([]);
-                                    }}
-                                    className="flex items-center gap-2 text-green-600 hover:text-green-700 text-[9px] uppercase font-black tracking-wider"
-                                >
-                                    <Edit3 size={12} />
-                                    Editar Local
-                                </button>
+                            <div className="space-y-3">
+                                <div className="flex gap-2">
+                                    <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
+                                        style={{
+                                            background: colors.background,
+                                            border: `1px solid ${colors.border}`,
+                                        }}
+                                    >
+                                        <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                            style={{ background: colors.background }}>
+                                            <Search size={14} style={{ color: colors.textSecondary }} />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={manualAddress}
+                                            onChange={(e) => setManualAddress(e.target.value)}
+                                            placeholder="Buscar endereço..."
+                                            className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
+                                            style={{ color: colors.textPrimary }}
+                                            disabled={isSearching}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress() }}
+                                        />
+                                        {manualAddress && (
+                                            <button
+                                                onClick={handleSearchAddress}
+                                                disabled={isSearching}
+                                                className="px-3 py-1 rounded-full text-xs font-bold transition-opacity hover:opacity-80 text-white"
+                                                style={{
+                                                    background: GRADIENT,
+                                                    boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)',
+                                                }}
+                                            >
+                                                {isSearching ? <Loader2 size={12} className="animate-spin" /> : 'Ir'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={handleGetCurrentLocation}
+                                        disabled={loadingLocation}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0 text-white"
+                                        style={{
+                                            background: GRADIENT,
+                                            boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)',
+                                        }}
+                                        title="Usar GPS"
+                                    >
+                                        {loadingLocation ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                                        <span className="hidden sm:inline">GPS</span>
+                                    </button>
+                                </div>
+
+                                {searchError && (
+                                    <p className="text-red-500 text-xs font-medium">{searchError}</p>
+                                )}
+
+                                {suggestions.length > 0 && (
+                                    <div className="rounded-2xl overflow-hidden border" style={{
+                                        background: colors.surface,
+                                        borderColor: colors.border,
+                                    }}>
+                                        {suggestions.map((s, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => selectSuggestion(s)}
+                                                className="p-3 cursor-pointer border-b last:border-0 text-sm transition-colors hover:bg-opacity-50"
+                                                style={{
+                                                    borderColor: colors.border,
+                                                    color: colors.textPrimary,
+                                                    background: colors.background,
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = colors.accentLight;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = colors.background;
+                                                }}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <MapPin size={14} className="flex-shrink-0 mt-0.5" style={{ color: colors.textSecondary }} />
+                                                    <span className="text-xs">{s.place_name}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {(profileAddress || (profileLat != null && profileLng != null)) && (
+                                    <button
+                                        onClick={useProfileAddress}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 border-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all hover:opacity-80"
+                                        style={{
+                                            background: `${colors.accent}11`,
+                                            borderColor: colors.accent,
+                                            color: colors.accent
+                                        }}
+                                    >
+                                        <Home size={14} />
+                                        Usar endereço do perfil
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {location && (
+                            <div className="flex items-center gap-2 text-[10px]" style={{ color: colors.textSecondary }}>
+                                <MapPin size={12} />
+                                <span>Lat: {location.lat.toFixed(6)} | Lng: {location.lng.toFixed(6)}</span>
                             </div>
                         )}
                     </div>
 
+                    {/* BOTÃO CRIAR - estilo pill igual ao OrderSection */}
                     <button
                         onClick={handleCreate}
                         disabled={loading}
-                        className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        style={{
+                            ...pillButtonFullStyle,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: '0 4px 14px rgba(249, 115, 22, 0.5)',
+                        }}
+                        className="hover:scale-[1.02] transition-transform disabled:opacity-50"
                     >
                         {loading ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                             <>
-                                <Megaphone className="w-4 h-4" />
+                                <Sparkles className="w-4 h-4" />
                                 Fazer Divulgação
                             </>
                         )}
@@ -872,36 +1562,44 @@ export default function FazerDivulgacao() {
             {/* Media Picker Modal */}
             {showMediaPicker && (
                 <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                    <div className="rounded-2xl max-w-md w-full p-6 shadow-2xl" style={{ background: colors.surface }}>
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-black text-gray-800">Escolher mídia</h3>
-                            <button onClick={() => setShowMediaPicker(false)} className="text-gray-500 hover:text-gray-700">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Escolher mídia</h3>
+                            <button onClick={() => setShowMediaPicker(false)} style={{ color: colors.textSecondary }}>
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => handleMediaSelection('image')}
-                                className="p-6 rounded-xl border-2 border-green-200 hover:border-green-500 hover:bg-green-50 transition-all flex flex-col items-center gap-2"
+                                className="p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 hover:bg-opacity-50"
+                                style={{
+                                    borderColor: colors.border,
+                                    background: colors.background,
+                                }}
                             >
-                                <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
-                                    <Camera className="w-7 h-7 text-green-600" />
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                    <Camera className="w-7 h-7" style={{ color: colors.accent }} />
                                 </div>
-                                <span className="font-bold text-gray-700 text-sm">Foto</span>
-                                <span className="text-[10px] text-gray-400">JPG, PNG, WEBP</span>
+                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>Foto</span>
+                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>JPG, PNG, WEBP</span>
                             </button>
                             <button
                                 onClick={() => handleMediaSelection('video')}
-                                className="p-6 rounded-xl border-2 border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all flex flex-col items-center gap-2"
+                                className="p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 hover:bg-opacity-50"
+                                style={{
+                                    borderColor: colors.border,
+                                    background: colors.background,
+                                }}
                             >
-                                <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-                                    <Video className="w-7 h-7 text-emerald-600" />
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                    <Video className="w-7 h-7" style={{ color: colors.accent }} />
                                 </div>
-                                <span className="font-bold text-gray-700 text-sm">Vídeo</span>
-                                <span className="text-[10px] text-gray-400">MP4, WEBM, MOV</span>
+                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>Vídeo</span>
+                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>MP4, WEBM, MOV</span>
                             </button>
                         </div>
-                        <p className="text-center text-[10px] text-gray-400 mt-4">
+                        <p className="text-center text-[10px] mt-4" style={{ color: colors.textSecondary }}>
                             Arquivos acima de 20MB serão comprimidos automaticamente
                         </p>
                     </div>

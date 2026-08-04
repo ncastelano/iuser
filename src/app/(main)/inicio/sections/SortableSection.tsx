@@ -1,82 +1,84 @@
-// src/app/(main)/inicio/SortableSection.tsx
+// src/app/(main)/inicio/sections/SortableSection.tsx
 
 'use client'
 
-import {
-    cloneElement,
-    ReactElement,
-} from 'react'
-
-import {
-    useSortable,
-} from '@dnd-kit/sortable'
-
-import {
-    CSS,
-} from '@dnd-kit/utilities'
-
-import {
-    GripVertical,
-} from 'lucide-react'
+import { ReactElement, cloneElement } from 'react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
+import { useTheme } from '@/app/theme'
 
 interface SortableSectionProps {
     id: string
     children: ReactElement
+    isEditing?: boolean
+    onMoveUp?: (id: string) => void
+    onMoveDown?: (id: string) => void
+    isFirst?: boolean
+    isLast?: boolean
 }
 
 export default function SortableSection({
     id,
     children,
+    isEditing = false,
+    onMoveUp,
+    onMoveDown,
+    isFirst = false,
+    isLast = false,
 }: SortableSectionProps) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging,
-    } = useSortable({
-        id,
-    })
+    const { colors } = useTheme()
 
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
+    // Botões de controle para mover a seção
+    const controls = isEditing ? (
+        <div className="flex items-center gap-1">
+            <button
+                type="button"
+                onClick={() => onMoveUp?.(id)}
+                disabled={isFirst}
+                className={`
+                    p-1.5 rounded-lg transition-all
+                    ${isFirst
+                        ? 'opacity-30 cursor-not-allowed'
+                        : 'hover:bg-white/20 cursor-pointer'
+                    }
+                `}
+                style={{
+                    color: isFirst ? colors.textSecondary : colors.accent,
+                }}
+                title="Mover para cima"
+            >
+                <ChevronUp className="w-4 h-4" />
+            </button>
+            <button
+                type="button"
+                onClick={() => onMoveDown?.(id)}
+                disabled={isLast}
+                className={`
+                    p-1.5 rounded-lg transition-all
+                    ${isLast
+                        ? 'opacity-30 cursor-not-allowed'
+                        : 'hover:bg-white/20 cursor-pointer'
+                    }
+                `}
+                style={{
+                    color: isLast ? colors.textSecondary : colors.accent,
+                }}
+                title="Mover para baixo"
+            >
+                <ChevronDown className="w-4 h-4" />
+            </button>
+        </div>
+    ) : null
+
+    // Se não estiver em modo de edição, renderiza apenas o children
+    if (!isEditing) {
+        return children
     }
 
-    const dragHandle = (
-        <button
-            type="button"
-            {...attributes}
-            {...listeners}
-            className="
-                p-2
-                rounded-lg
-                hover:bg-white/60
-                transition-colors
-                cursor-grab
-                active:cursor-grabbing
-            "
-        >
-            <GripVertical className="w-5 h-5 text-gray-500" />
-        </button>
-    )
-
+    // Em modo de edição, envolve com os controles
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            className={`
-                transition-all
-                duration-200
-                ${isDragging
-                    ? 'scale-105 opacity-80 z-50'
-                    : ''
-                }
-            `}
-        >
+        <div className="relative">
             {cloneElement(children, {
-                dragHandle,
+                dragHandle: controls,
             })}
         </div>
     )

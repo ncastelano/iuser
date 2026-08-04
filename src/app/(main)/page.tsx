@@ -1,19 +1,10 @@
 // src/app/(main)/page.tsx
+
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Store, Home, MapPin, LayoutDashboard } from 'lucide-react'
-import {
-    DndContext,
-    closestCenter,
-    DragEndEvent,
-} from '@dnd-kit/core'
-import {
-    SortableContext,
-    verticalListSortingStrategy,
-    arrayMove,
-} from '@dnd-kit/sortable'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
@@ -197,6 +188,34 @@ export default function HomePage() {
             }
         }
     }, [])
+
+    // ---------- FUNÇÕES DE MOVIMENTO (subir/descer) ----------
+    const moveSection = (id: string, direction: 'up' | 'down') => {
+        setSections((prev) => {
+            const index = prev.indexOf(id)
+            if (index === -1) return prev
+
+            // Não permite mover 'categorias'
+            if (id === 'categorias') return prev
+
+            const newIndex = direction === 'up' ? index - 1 : index + 1
+
+            // Verifica limites
+            if (newIndex < 0 || newIndex >= prev.length) return prev
+
+            // Se for mover para cima e a posição anterior for 'categorias', não permite
+            if (direction === 'up' && prev[newIndex] === 'categorias') return prev
+
+            // Se for mover para baixo e a posição posterior for 'categorias', não permite
+            if (direction === 'down' && prev[newIndex] === 'categorias') return prev
+
+            // Move o item
+            const newArray = [...prev]
+            const [removed] = newArray.splice(index, 1)
+            newArray.splice(newIndex, 0, removed)
+            return newArray
+        })
+    }
 
     // ---------- CARREGAR LOCALIZAÇÃO SALVA ----------
     useEffect(() => {
@@ -413,50 +432,19 @@ export default function HomePage() {
     }, [stores])
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
+    // CORRIGIDO: Não duplica a seção 'categorias'
     const displayedSections = useMemo(() => {
-        const normal: string[] = []
-        const breve: string[] = []
+        // Se não tiver 'categorias' nas seções, retorna todas
+        if (!sections.includes('categorias')) {
+            return sections
+        }
 
-        sections.forEach(s => {
-            if (breveMap[s]) {
-                breve.push(s)
-                return
-            }
-            normal.push(s)
-        })
+        // Remove 'categorias' da lista e coloca em primeiro
+        const withoutCategorias = sections.filter(s => s !== 'categorias')
+        return ['categorias', ...withoutCategorias]
+    }, [sections])
 
-        // Garante que categorias esteja sempre em primeiro
-        const hasCategorias = sections.includes('categorias')
-        const result = hasCategorias ? ['categorias'] : []
-
-        // Adiciona o resto (exceto categorias que já foi adicionada)
-        const rest = [...normal, ...breve].filter(s => s !== 'categorias')
-        result.push(...rest)
-
-        return result
-    }, [sections, breveMap])
-
-    // ---------- DRAG AND DROP ----------
-    function handleDragEnd(event: DragEndEvent) {
-        const { active, over } = event
-        if (!over || active.id === over.id) return
-        setSections((items) => {
-            const oldIndex = items.indexOf(active.id as string)
-            const newIndex = items.indexOf(over.id as string)
-
-            // Impede que 'categorias' seja movido para fora da primeira posição
-            if (active.id === 'categorias' && newIndex !== 0) {
-                return items // Não faz nada
-            }
-            // Impede que outro item seja movido para antes de 'categorias'
-            if (newIndex === 0 && active.id !== 'categorias') {
-                return items // Não faz nada
-            }
-
-            return arrayMove(items, oldIndex, newIndex)
-        })
-    }
-
+    // ---------- SALVAR ORDEM ----------
     const handleSaveOrder = () => {
         localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(sections))
         setEditMode(false)
@@ -625,7 +613,6 @@ export default function HomePage() {
         }
     }
 
-    // Função para abrir o dashboard da loja
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowConfig(false)
@@ -775,28 +762,33 @@ export default function HomePage() {
                             </div>
                         )}
 
+                        {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
                         {editMode ? (
-                            <DndContext
-                                collisionDetection={closestCenter}
-                                onDragEnd={handleDragEnd}
-                            >
-                                <SortableContext
-                                    items={sections}
-                                    strategy={verticalListSortingStrategy}
-                                >
-                                    <div className="space-y-6">
-                                        {sections.map((sectionId) => {
-                                            const section = renderSection(sectionId)
-                                            if (!section) return null
-                                            return (
-                                                <SortableSection key={sectionId} id={sectionId}>
-                                                    {section}
-                                                </SortableSection>
-                                            )
-                                        })}
-                                    </div>
-                                </SortableContext>
-                            </DndContext>
+                            <div className="space-y-6">
+                                {sections.map((sectionId, index) => {
+                                    const section = renderSection(sectionId)
+                                    if (!section) return null
+                                    const isFirst = index === 0
+                                    const isLast = index === sections.length - 1
+
+                                    // Se for 'categorias', não mostra botões de movimento
+                                    const isCategorias = sectionId === 'categorias'
+
+                                    return (
+                                        <SortableSection
+                                            key={sectionId}
+                                            id={sectionId}
+                                            isEditing={editMode}
+                                            onMoveUp={!isCategorias ? (id: string) => moveSection(id, 'up') : undefined}
+                                            onMoveDown={!isCategorias ? (id: string) => moveSection(id, 'down') : undefined}
+                                            isFirst={isFirst}
+                                            isLast={isLast}
+                                        >
+                                            {section}
+                                        </SortableSection>
+                                    )
+                                })}
+                            </div>
                         ) : (
                             <div className="space-y-6">
                                 {displayedSections.map((sectionId) => {
