@@ -44,7 +44,7 @@ const DEFAULT_SECTIONS = [
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
-const LOCATION_STORAGE_KEY = 'user_saved_location'
+// REMOVEMOS a constante LOCATION_STORAGE_KEY pois não vamos mais usar localStorage para localização
 
 // ---------- Função para formatar endereço ----------
 function formatAddress(address: string, addressNumber?: string): string {
@@ -137,7 +137,7 @@ export default function HomePage() {
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
 
-    const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [savedLocation, setSavedLocation] = useState<{ lat: number; lng: number; address: string; addressNumber?: string; addressComplement?: string } | null>(null)
     const [showLocationDialog, setShowLocationDialog] = useState(false)
     const [isSavingLocation, setIsSavingLocation] = useState(false)
 
@@ -217,29 +217,21 @@ export default function HomePage() {
         })
     }
 
-    // ---------- CARREGAR LOCALIZAÇÃO SALVA ----------
+    // ---------- CARREGAR LOCALIZAÇÃO DO PERFIL (NÃO DO LOCALSTORAGE) ----------
     useEffect(() => {
-        try {
-            const saved = localStorage.getItem(LOCATION_STORAGE_KEY)
-            if (saved) {
-                const parsed = JSON.parse(saved)
-                if (parsed && parsed.lat && parsed.lng) {
-                    setSavedLocation(parsed)
-                    console.log('[HomePage] ✅ Localização carregada do localStorage:', parsed.address)
-                }
-            }
-        } catch (e) {
-            console.warn('[HomePage] localStorage inválido, ignorando')
-        }
-
         const fetchLocationFromProfile = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) return
+                const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+                if (authError || !user) {
+                    console.log('[HomePage] Usuário não autenticado, sem localização')
+                    setSavedLocation(null)
+                    return
+                }
 
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('address, store_lat, store_lng')
+                    .select('address, address_number, address_complement, store_lat, store_lng')
                     .eq('id', user.id)
                     .maybeSingle()
 
@@ -247,6 +239,7 @@ export default function HomePage() {
                     if (error.code !== 'PGRST116') {
                         console.warn('[HomePage] Erro ao buscar perfil:', error.message)
                     }
+                    setSavedLocation(null)
                     return
                 }
 
@@ -254,21 +247,25 @@ export default function HomePage() {
                     const locationData = {
                         lat: profile.store_lat,
                         lng: profile.store_lng,
-                        address: profile.address || 'Local salvo'
+                        address: profile.address || 'Local salvo',
+                        addressNumber: profile.address_number || '',
+                        addressComplement: profile.address_complement || ''
                     }
                     setSavedLocation(locationData)
-                    localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
-                    console.log('[HomePage] ✅ Localização atualizada do perfil:', locationData.address)
+                    console.log('[HomePage] ✅ Localização carregada do perfil:', locationData.address)
+                } else {
+                    console.log('[HomePage] Perfil sem localização salva')
+                    setSavedLocation(null)
                 }
             } catch (err) {
-                console.warn('[HomePage] Não foi possível buscar perfil:', err)
+                console.warn('[HomePage] Erro ao buscar perfil:', err)
+                setSavedLocation(null)
             }
         }
 
-        if (profileSlug) {
-            fetchLocationFromProfile()
-        }
-    }, [profileSlug])
+        // Busca sempre que o profileSlug mudar (login/logout)
+        fetchLocationFromProfile()
+    }, [profileSlug]) // Depende do profileSlug que muda com login/logout
 
     // ---------- ANIMAÇÃO DO CARRINHO ----------
     useEffect(() => {
@@ -432,14 +429,11 @@ export default function HomePage() {
     }, [stores])
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
-    // CORRIGIDO: Não duplica a seção 'categorias'
     const displayedSections = useMemo(() => {
-        // Se não tiver 'categorias' nas seções, retorna todas
         if (!sections.includes('categorias')) {
             return sections
         }
 
-        // Remove 'categorias' da lista e coloca em primeiro
         const withoutCategorias = sections.filter(s => s !== 'categorias')
         return ['categorias', ...withoutCategorias]
     }, [sections])
@@ -456,7 +450,6 @@ export default function HomePage() {
             try {
                 const parsed = JSON.parse(saved)
                 if (Array.isArray(parsed)) {
-                    // Garante que categorias esteja em primeiro ao restaurar
                     const hasCategorias = parsed.includes('categorias')
                     let filtered = parsed.filter(s => s !== 'categorias')
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
@@ -477,7 +470,7 @@ export default function HomePage() {
         setEditMode((prev) => !prev)
     }
 
-    // ---------- SALVAR LOCALIZAÇÃO ----------
+    // ---------- SALVAR LOCALIZAÇÃO (APENAS NO BANCO) ----------
     const handleLocationSave = async (location: {
         lat: number;
         lng: number;
@@ -489,20 +482,12 @@ export default function HomePage() {
         console.log('🔵 INICIANDO SALVAMENTO')
 
         try {
-            const locationData = {
-                lat: location.lat,
-                lng: location.lng,
-                address: location.address,
-            }
-            setSavedLocation(locationData)
-            localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
-            console.log('✅ localStorage OK')
-
             const { data: { user }, error: authError } = await supabase.auth.getUser()
             console.log('🔵 Auth:', user?.id || 'NÃO LOGADO', authError || '')
 
             if (!user) {
                 console.log('⚠️ Não autenticado')
+                alert('Você precisa estar logado para salvar uma localização!')
                 setShowLocationDialog(false)
                 setIsSavingLocation(false)
                 return
@@ -532,7 +517,17 @@ export default function HomePage() {
                 alert('Erro ao salvar: ' + error.message)
             } else {
                 console.log('✅ Salvo com sucesso:', data)
-                alert('Localização salva!')
+                // Atualiza o estado local com os dados salvos
+                if (data) {
+                    setSavedLocation({
+                        lat: data.store_lat,
+                        lng: data.store_lng,
+                        address: data.address || 'Local salvo',
+                        addressNumber: data.address_number || '',
+                        addressComplement: data.address_complement || ''
+                    })
+                }
+                alert('Localização salva com sucesso!')
             }
         } catch (err) {
             console.error('❌ Erro inesperado:', err)
@@ -712,7 +707,7 @@ export default function HomePage() {
                             {isSavingLocation
                                 ? 'Salvando...'
                                 : savedLocation
-                                    ? formatAddress(savedLocation.address)
+                                    ? formatAddress(savedLocation.address, savedLocation.addressNumber)
                                     : 'Definir local'
                             }
                         </button>
@@ -771,7 +766,6 @@ export default function HomePage() {
                                     const isFirst = index === 0
                                     const isLast = index === sections.length - 1
 
-                                    // Se for 'categorias', não mostra botões de movimento
                                     const isCategorias = sectionId === 'categorias'
 
                                     return (
@@ -842,58 +836,10 @@ export default function HomePage() {
                             lat: savedLocation.lat,
                             lng: savedLocation.lng,
                             address: savedLocation.address,
-                            addressNumber: '',
-                            addressComplement: ''
+                            addressNumber: savedLocation.addressNumber || '',
+                            addressComplement: savedLocation.addressComplement || ''
                         } : null}
-                        onSave={async (location) => {
-                            setIsSavingLocation(true)
-
-                            try {
-                                const locationData = {
-                                    lat: location.lat,
-                                    lng: location.lng,
-                                    address: location.address,
-                                }
-                                setSavedLocation(locationData)
-                                localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(locationData))
-
-                                const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-                                if (!user) {
-                                    console.log('⚠️ Usuário não autenticado. Salvando apenas localmente.')
-                                    setShowLocationDialog(false)
-                                    setIsSavingLocation(false)
-                                    return
-                                }
-
-                                const { error } = await supabase
-                                    .from('profiles')
-                                    .upsert({
-                                        id: user.id,
-                                        address: location.address,
-                                        address_number: location.addressNumber,
-                                        address_complement: location.addressComplement,
-                                        store_lat: location.lat,
-                                        store_lng: location.lng,
-                                    }, {
-                                        onConflict: 'id',
-                                        ignoreDuplicates: false
-                                    })
-
-                                if (error) {
-                                    console.error('❌ Erro ao salvar no perfil:', error)
-                                    alert('Erro ao salvar: ' + error.message)
-                                } else {
-                                    console.log('✅ Localização salva com sucesso!')
-                                }
-                            } catch (err) {
-                                console.error('❌ Erro inesperado:', err)
-                                alert('Erro: ' + (err as Error).message)
-                            } finally {
-                                setIsSavingLocation(false)
-                                setShowLocationDialog(false)
-                            }
-                        }}
+                        onSave={handleLocationSave}
                         onClose={() => setShowLocationDialog(false)}
                     />
                 )}

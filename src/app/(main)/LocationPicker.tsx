@@ -5,50 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/theme'
 import { MapPin, X, Check, Navigation, Loader2, Search, Home, MoveVertical, Hash, FileText } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
-// Hook de autenticação - você precisa criar este contexto
-// Se já tiver um, importe ele no lugar
-function useAuth() {
-    const [user, setUser] = useState<any | null>(null)
-    const [isLoading, setIsLoading] = useState(true)
-
-    useEffect(() => {
-        // Verifica se o usuário está logado
-        const checkAuth = async () => {
-            try {
-                // Ajuste conforme sua implementação de autenticação
-                const token = localStorage.getItem('token')
-                if (token) {
-                    // Se tiver token, busca dados do usuário
-                    // const response = await fetch('/api/me', {
-                    //     headers: { Authorization: `Bearer ${token}` }
-                    // })
-                    // if (response.ok) {
-                    //     const userData = await response.json()
-                    //     setUser(userData)
-                    // } else {
-                    //     localStorage.removeItem('token')
-                    //     setUser(null)
-                    // }
-
-                    // Exemplo simples - substitua pela sua lógica
-                    setUser({ id: 1, name: 'Usuário' })
-                } else {
-                    setUser(null)
-                }
-            } catch (error) {
-                console.error('Erro ao verificar autenticação:', error)
-                setUser(null)
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        checkAuth()
-    }, [])
-
-    return { user, isLoading }
-}
+import { supabase } from '@/lib/supabase/client'
 
 interface LocationPickerProps {
     initialLocation: {
@@ -169,7 +126,9 @@ function extractStreetDisplay(fullAddress: string): string {
 export default function LocationPicker({ initialLocation, onSave, onClose }: LocationPickerProps) {
     const { colors } = useTheme()
     const router = useRouter()
-    const { user, isLoading: authLoading } = useAuth()
+
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+    const [authLoading, setAuthLoading] = useState(true)
 
     const mapContainerRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<any>(null)
@@ -201,43 +160,42 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
 
-    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO - Redireciona para login se não estiver logado
+    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO
     useEffect(() => {
-        if (!authLoading && !user) {
-            // Redireciona para a página de login
-            router.push('/login')
-            return
+        const checkAuth = async () => {
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser()
+                if (error || !user) {
+                    setIsAuthenticated(false)
+                } else {
+                    setIsAuthenticated(true)
+                }
+            } catch (err) {
+                console.error('Erro ao verificar autenticação:', err)
+                setIsAuthenticated(false)
+            } finally {
+                setAuthLoading(false)
+            }
         }
-    }, [user, authLoading, router])
 
-    // Mostra loading enquanto verifica autenticação
-    if (authLoading) {
-        return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
-                <div
-                    className="rounded-2xl p-6 sm:p-8 w-full max-w-sm shadow-2xl flex flex-col items-center gap-4"
-                    style={{
-                        background: `${colors.surface}ee`,
-                        backdropFilter: 'blur(20px) saturate(180%)',
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                >
-                    <Loader2 size={32} className="animate-spin" style={{ color: colors.accent }} />
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                        Verificando autenticação...
-                    </p>
-                </div>
-            </div>
-        )
-    }
+        checkAuth()
 
-    // Se não estiver autenticado, não renderiza nada (o useEffect vai redirecionar)
-    if (!user) {
-        return null
-    }
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                setIsAuthenticated(true)
+            } else if (event === 'SIGNED_OUT') {
+                setIsAuthenticated(false)
+                onClose()
+            }
+            setAuthLoading(false)
+        })
 
-    // Resolver endereço salvo se necessário
+        return () => {
+            subscription.unsubscribe()
+        }
+    }, [onClose])
+
+    // Resolver endereço salvo
     useEffect(() => {
         if (!initialLocation) return
 
@@ -253,155 +211,164 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 setSavedAddress(result.fullAddress)
             })
         }
-    }, [])
+    }, [initialLocation, savedPosition])
 
-    // Inicializar mapa
+    // 🗺️ INICIALIZAR MAPA
     useEffect(() => {
-        if (typeof window === 'undefined' || !mapContainerRef.current || initializedRef.current) return
+        // Se já inicializou ou não tem container, não faz nada
+        if (typeof window === 'undefined' || !mapContainerRef.current || initializedRef.current) {
+            return
+        }
 
+        // Marca como inicializado imediatamente
         initializedRef.current = true
 
         const initMap = async () => {
-            const L = (await import('leaflet')).default
-            await import('leaflet/dist/leaflet.css')
+            try {
+                const L = (await import('leaflet')).default
+                await import('leaflet/dist/leaflet.css')
 
-            delete (L.Icon.Default.prototype as any)._getIconUrl
-            L.Icon.Default.mergeOptions({
-                iconRetinaUrl: '',
-                iconUrl: '',
-                shadowUrl: '',
-            })
-
-            const map = L.map(mapContainerRef.current!, {
-                center: [selectedPosition.lat, selectedPosition.lng],
-                zoom: 15,
-                zoomControl: true,
-                attributionControl: false,
-            })
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-            }).addTo(map)
-
-            const blueIcon = L.divIcon({
-                className: '',
-                html: `<div style="width: 36px; height: 36px; position: relative;">
-                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
-                        <circle cx="12" cy="12" r="5" fill="white"/>
-                    </svg>
-                </div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36],
-            })
-
-            const orangeIcon = L.divIcon({
-                className: '',
-                html: `<div style="width: 36px; height: 36px; position: relative;">
-                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
-                        <circle cx="12" cy="12" r="5" fill="white"/>
-                    </svg>
-                </div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36],
-            })
-
-            const movableMarker = L.marker([selectedPosition.lat, selectedPosition.lng], {
-                icon: orangeIcon,
-                draggable: true,
-                zIndexOffset: 1000
-            }).addTo(map)
-
-            movableMarker.on('dragend', () => {
-                const pos = movableMarker.getLatLng()
-                const newPos = { lat: pos.lat, lng: pos.lng }
-                setSelectedPosition(newPos)
-                updatePolyline(map, savedPosition, newPos)
-
-                setResolvingAddress(true)
-                setError('')
-                reverseGeocode(newPos.lat, newPos.lng).then(result => {
-                    setNewAddress(result.fullAddress)
-                    if (result.extractedNumber && !newNumber) {
-                        setNewNumber(result.extractedNumber)
-                    }
-                    setResolvingAddress(false)
+                delete (L.Icon.Default.prototype as any)._getIconUrl
+                L.Icon.Default.mergeOptions({
+                    iconRetinaUrl: '',
+                    iconUrl: '',
+                    shadowUrl: '',
                 })
-            })
 
-            let savedMarker: any = null
-            if (savedPosition) {
-                savedMarker = L.marker([savedPosition.lat, savedPosition.lng], {
-                    icon: blueIcon,
-                    draggable: false,
-                    zIndexOffset: 500
+                const map = L.map(mapContainerRef.current!, {
+                    center: [selectedPosition.lat, selectedPosition.lng],
+                    zoom: 15,
+                    zoomControl: true,
+                    attributionControl: false,
+                })
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
                 }).addTo(map)
-                updatePolyline(map, savedPosition, selectedPosition)
-            }
 
-            mapInstanceRef.current = map
-            movableMarkerRef.current = movableMarker
-            savedMarkerRef.current = savedMarker
+                const blueIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="width: 36px; height: 36px; position: relative;">
+                        <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                            <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
+                            <circle cx="12" cy="12" r="5" fill="white"/>
+                        </svg>
+                    </div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 36],
+                })
 
-            map.on('moveend', () => {
-                if (isMovingRef.current) {
-                    isMovingRef.current = false
-                    return
-                }
+                const orangeIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="width: 36px; height: 36px; position: relative;">
+                        <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                            <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
+                            <circle cx="12" cy="12" r="5" fill="white"/>
+                        </svg>
+                    </div>`,
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 36],
+                })
 
-                const center = map.getCenter()
-                const newPos = { lat: center.lat, lng: center.lng }
-                movableMarker.setLatLng([newPos.lat, newPos.lng])
-                setSelectedPosition(newPos)
-                updatePolyline(map, savedPosition, newPos)
+                const movableMarker = L.marker([selectedPosition.lat, selectedPosition.lng], {
+                    icon: orangeIcon,
+                    draggable: true,
+                    zIndexOffset: 1000
+                }).addTo(map)
 
-                if (debounceTimerRef.current) {
-                    clearTimeout(debounceTimerRef.current)
-                }
+                movableMarker.on('dragend', () => {
+                    const pos = movableMarker.getLatLng()
+                    const newPos = { lat: pos.lat, lng: pos.lng }
+                    setSelectedPosition(newPos)
+                    updatePolyline(map, savedPosition, newPos)
 
-                setResolvingAddress(true)
-                setError('')
-
-                debounceTimerRef.current = setTimeout(async () => {
-                    try {
-                        const result = await reverseGeocode(newPos.lat, newPos.lng)
+                    setResolvingAddress(true)
+                    setError('')
+                    reverseGeocode(newPos.lat, newPos.lng).then(result => {
                         setNewAddress(result.fullAddress)
                         if (result.extractedNumber && !newNumber) {
                             setNewNumber(result.extractedNumber)
                         }
-                    } catch (err) {
-                        const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`
-                        setNewAddress(fallback)
-                    } finally {
                         setResolvingAddress(false)
-                    }
-                }, 500)
-            })
+                    })
+                })
 
-            setResolvingAddress(true)
-            try {
-                const result = await reverseGeocode(selectedPosition.lat, selectedPosition.lng)
-                setNewAddress(result.fullAddress)
-                if (result.extractedNumber) {
-                    setNewNumber(result.extractedNumber)
+                let savedMarker: any = null
+                if (savedPosition) {
+                    savedMarker = L.marker([savedPosition.lat, savedPosition.lng], {
+                        icon: blueIcon,
+                        draggable: false,
+                        zIndexOffset: 500
+                    }).addTo(map)
+                    updatePolyline(map, savedPosition, selectedPosition)
                 }
-            } catch (err) {
-                const fallback = `Local (${selectedPosition.lat.toFixed(4)}, ${selectedPosition.lng.toFixed(4)})`
-                setNewAddress(fallback)
-            } finally {
-                setResolvingAddress(false)
-            }
 
-            if (savedPosition) {
-                const bounds = L.latLngBounds(
-                    [savedPosition.lat, savedPosition.lng],
-                    [selectedPosition.lat, selectedPosition.lng]
-                )
-                map.fitBounds(bounds, { padding: [50, 50] })
-            }
+                mapInstanceRef.current = map
+                movableMarkerRef.current = movableMarker
+                savedMarkerRef.current = savedMarker
 
-            setMapReady(true)
+                map.on('moveend', () => {
+                    if (isMovingRef.current) {
+                        isMovingRef.current = false
+                        return
+                    }
+
+                    const center = map.getCenter()
+                    const newPos = { lat: center.lat, lng: center.lng }
+                    movableMarker.setLatLng([newPos.lat, newPos.lng])
+                    setSelectedPosition(newPos)
+                    updatePolyline(map, savedPosition, newPos)
+
+                    if (debounceTimerRef.current) {
+                        clearTimeout(debounceTimerRef.current)
+                    }
+
+                    setResolvingAddress(true)
+                    setError('')
+
+                    debounceTimerRef.current = setTimeout(async () => {
+                        try {
+                            const result = await reverseGeocode(newPos.lat, newPos.lng)
+                            setNewAddress(result.fullAddress)
+                            if (result.extractedNumber && !newNumber) {
+                                setNewNumber(result.extractedNumber)
+                            }
+                        } catch (err) {
+                            const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`
+                            setNewAddress(fallback)
+                        } finally {
+                            setResolvingAddress(false)
+                        }
+                    }, 500)
+                })
+
+                // Busca endereço inicial
+                setResolvingAddress(true)
+                try {
+                    const result = await reverseGeocode(selectedPosition.lat, selectedPosition.lng)
+                    setNewAddress(result.fullAddress)
+                    if (result.extractedNumber) {
+                        setNewNumber(result.extractedNumber)
+                    }
+                } catch (err) {
+                    const fallback = `Local (${selectedPosition.lat.toFixed(4)}, ${selectedPosition.lng.toFixed(4)})`
+                    setNewAddress(fallback)
+                } finally {
+                    setResolvingAddress(false)
+                }
+
+                if (savedPosition) {
+                    const bounds = L.latLngBounds(
+                        [savedPosition.lat, savedPosition.lng],
+                        [selectedPosition.lat, selectedPosition.lng]
+                    )
+                    map.fitBounds(bounds, { padding: [50, 50] })
+                }
+
+                setMapReady(true)
+            } catch (error) {
+                console.error('Erro ao inicializar mapa:', error)
+            }
         }
 
         initMap()
@@ -412,10 +379,12 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 mapInstanceRef.current.remove()
                 mapInstanceRef.current = null
             }
+            initializedRef.current = false
         }
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []) // Array vazio - executa apenas uma vez na montagem
 
-    const updatePolyline = (map: any, saved: { lat: number; lng: number } | null, selected: { lat: number; lng: number }) => {
+    const updatePolyline = useCallback((map: any, saved: { lat: number; lng: number } | null, selected: { lat: number; lng: number }) => {
         const L = (window as any).L
         if (!L || !map) return
 
@@ -435,7 +404,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                 }
             ).addTo(map)
         }
-    }
+    }, [])
 
     const flyTo = useCallback((lat: number, lng: number) => {
         if (!mapInstanceRef.current || !movableMarkerRef.current) return
@@ -444,9 +413,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         mapInstanceRef.current.flyTo([lat, lng], 16, { duration: 0.8 })
         movableMarkerRef.current.setLatLng([lat, lng])
         updatePolyline(mapInstanceRef.current, savedPosition, { lat, lng })
-    }, [savedPosition])
+    }, [savedPosition, updatePolyline])
 
-    const handleGetCurrentLocation = () => {
+    const handleGetCurrentLocation = useCallback(() => {
         if (!navigator.geolocation) {
             setError('Geolocalização não suportada')
             return
@@ -494,9 +463,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
             },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         )
-    }
+    }, [flyTo])
 
-    const handleSearchAddress = async () => {
+    const handleSearchAddress = useCallback(async () => {
         if (!searchQuery.trim()) return
 
         setLoading(true)
@@ -514,20 +483,17 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         }
 
         setLoading(false)
-    }
+    }, [searchQuery, flyTo])
 
-    const handleSave = () => {
-        // Validar número obrigatório
+    const handleSave = useCallback(() => {
         if (!newNumber.trim()) {
             setNumberError('O número é obrigatório')
             return
         }
         setNumberError('')
 
-        // Construir endereço completo com número e complemento
         let fullAddressWithDetails = newAddress
 
-        // Adicionar número se não estiver no endereço
         if (newNumber && !newAddress.includes(newNumber)) {
             const firstCommaIndex = fullAddressWithDetails.indexOf(',')
             if (firstCommaIndex !== -1) {
@@ -544,6 +510,33 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
             addressNumber: newNumber,
             addressComplement: newComplement
         })
+    }, [newNumber, newAddress, newComplement, selectedPosition, onSave])
+
+    // Loading
+    if (authLoading) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
+                <div
+                    className="rounded-2xl p-6 sm:p-8 w-full max-w-sm shadow-2xl flex flex-col items-center gap-4"
+                    style={{
+                        background: `${colors.surface}ee`,
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
+                    }}
+                >
+                    <Loader2 size={32} className="animate-spin" style={{ color: colors.accent }} />
+                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                        Verificando autenticação...
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    if (!isAuthenticated) {
+        router.push('/login')
+        return null
     }
 
     return (
@@ -558,13 +551,11 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     color: colors.textPrimary,
                 }}
             >
-                {/* Título */}
                 <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2">
                     <MapPin size={20} style={{ color: colors.accent }} />
                     Definir localização
                 </h3>
 
-                {/* Busca + GPS */}
                 <div className="flex gap-2 mb-3">
                     <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
                         style={{
@@ -612,7 +603,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     </button>
                 </div>
 
-                {/* Mapa */}
                 <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
                     style={{
                         border: `2px solid ${colors.border}`,
@@ -620,7 +610,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     }}
                 >
                     <div ref={mapContainerRef} className="w-full h-full" />
-
                     {!mapReady && (
                         <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
                             <Loader2 size={24} className="animate-spin" style={{ color: colors.accent }} />
@@ -628,9 +617,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     )}
                 </div>
 
-                {/* Cards de endereço */}
                 <div className="space-y-2 mb-3">
-                    {/* Localização Salva */}
                     {savedPosition && (
                         <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                             style={{
@@ -664,7 +651,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         </div>
                     )}
 
-                    {/* Nova Localização */}
                     <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                         style={{
                             background: `${colors.surface}88`,
@@ -693,10 +679,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     </div>
                 </div>
 
-                {/* Campos de detalhes */}
                 {!resolvingAddress && newAddress && (
                     <div className="space-y-2 mb-3">
-                        {/* Número (obrigatório) */}
                         <div className="px-3 py-2 rounded-xl"
                             style={{
                                 background: `${colors.surface}88`,
@@ -725,7 +709,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             )}
                         </div>
 
-                        {/* Complemento (opcional) */}
                         <div className="px-3 py-2 rounded-xl"
                             style={{
                                 background: `${colors.surface}88`,
@@ -757,7 +740,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
                 </p>
 
-                {/* Botões */}
                 <div className="flex gap-2 justify-end">
                     <button onClick={onClose} disabled={loading}
                         className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
