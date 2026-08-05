@@ -31,6 +31,8 @@ import StoreOperatingDays from './StoreOperatingDays'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosDaLoja from './compromissos/AtalhoCompromissosDaLoja'
 import StoreOrders from './StoreOrders'
+import StoreDeliverySettings from './StoreDeliverySettings'
+import StorePaymentMethods from './StorePaymentMethods'
 
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import StoreSchedule from './StoreSchedule'
@@ -71,12 +73,12 @@ export default function StoreDashboard({
     profileSlug,
     storeSlug,
     onBack,
-    onOrderCountsChange,  // <-- RECEBE DO PAI
+    onOrderCountsChange,
 }: {
     profileSlug: string
     storeSlug: string
     onBack?: () => void
-    onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void  // <-- MANTÉM A PROP
+    onOrderCountsChange?: (counts: { pending: number; preparing: number; ready: number }) => void
 }) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -383,7 +385,7 @@ export default function StoreDashboard({
                 <StoreOrders
                     storeId={store.id}
                     storeName={store.name}
-                    onOrderCountsChange={onOrderCountsChange}  // <-- PASSA DIRETO PARA StoreOrders
+                    onOrderCountsChange={onOrderCountsChange}
                 />
             </div>
 
@@ -542,6 +544,22 @@ export default function StoreDashboard({
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* ===== Configurações de Entrega ===== */}
+            <div className="mb-6 mt-4">
+                <StoreDeliverySettings
+                    storeId={store.id}
+                    onRefresh={loadDashboard}
+                />
+            </div>
+
+            {/* ===== Formas de Pagamento ===== */}
+            <div className="mb-6 mt-4">
+                <StorePaymentMethods
+                    storeId={store.id}
+                    onRefresh={loadDashboard}
+                />
             </div>
 
             {/* ===== Funcionários ===== */}
