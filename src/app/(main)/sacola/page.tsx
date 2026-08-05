@@ -175,6 +175,46 @@ export default function SacolaPage() {
     // ===== ESTADO DA TAB ATIVA =====
     const [activeTab, setActiveTab] = useState<string>('carrinho')
 
+    // ===== FUNÇÃO PARA SALVAR LOCALIZAÇÃO NO LOCALSTORAGE =====
+    const saveDeliveryLocationToStorage = useCallback((slug: string, location: {
+        address: string
+        lat: number
+        lng: number
+        isSaved: boolean
+    }) => {
+        try {
+            const key = `delivery_location_${currentUserId}_${slug}`
+            localStorage.setItem(key, JSON.stringify(location))
+        } catch (e) {
+            console.error('Erro ao salvar localização:', e)
+        }
+    }, [currentUserId])
+
+    // ===== FUNÇÃO PARA CARREGAR LOCALIZAÇÃO DO LOCALSTORAGE =====
+    const loadDeliveryLocationFromStorage = useCallback((slug: string) => {
+        try {
+            const key = `delivery_location_${currentUserId}_${slug}`
+            const saved = localStorage.getItem(key)
+            if (saved) {
+                return JSON.parse(saved)
+            }
+            return null
+        } catch (e) {
+            console.error('Erro ao carregar localização:', e)
+            return null
+        }
+    }, [currentUserId])
+
+    // ===== FUNÇÃO PARA REMOVER LOCALIZAÇÃO DO LOCALSTORAGE =====
+    const removeDeliveryLocationFromStorage = useCallback((slug: string) => {
+        try {
+            const key = `delivery_location_${currentUserId}_${slug}`
+            localStorage.removeItem(key)
+        } catch (e) {
+            console.error('Erro ao remover localização:', e)
+        }
+    }, [currentUserId])
+
     // ----- Funções auxiliares -----
     const fetchPendingReviews = useCallback(async (userId: string) => {
         setLoadingPendingReviews(true)
@@ -510,25 +550,34 @@ export default function SacolaPage() {
                 setPaymentMethodByStore(prev => ({ ...defaultPayment, ...prev }))
                 setStoreDeliveryInfo(deliveryInfo)
 
-                // Inicializa localização de entrega com a localização do perfil
+                // Inicializa localização de entrega com localStorage
                 const initialLocation = userLocation
                 if (initialLocation && userAddress) {
                     storeSlugs.forEach(slug => {
-                        setDeliveryLocationByStore(prev => ({
-                            ...prev,
-                            [slug]: {
-                                address: userAddress || '',
-                                lat: initialLocation.lat,
-                                lng: initialLocation.lng,
-                                isSaved: true,
-                            }
-                        }))
+                        // Verifica se já tem uma localização salva no localStorage
+                        const saved = loadDeliveryLocationFromStorage(slug)
+                        if (saved) {
+                            setDeliveryLocationByStore(prev => ({
+                                ...prev,
+                                [slug]: saved
+                            }))
+                        } else {
+                            setDeliveryLocationByStore(prev => ({
+                                ...prev,
+                                [slug]: {
+                                    address: userAddress || '',
+                                    lat: initialLocation.lat,
+                                    lng: initialLocation.lng,
+                                    isSaved: true,
+                                }
+                            }))
+                        }
                     })
                 }
             }
         }
         fetchConfigs()
-    }, [itemsByStore, userLocation, userAddress])
+    }, [itemsByStore, userLocation, userAddress, loadDeliveryLocationFromStorage])
 
     // Recarrega pendentes e avaliações quando o modal de review é fechado
     useEffect(() => {
@@ -593,7 +642,23 @@ export default function SacolaPage() {
     // ===== FUNÇÃO PARA ABRIR MODAL DE LOCALIZAÇÃO =====
     const openLocationModal = (slug: string) => {
         setLocationModalStore(slug)
-        const current = deliveryLocationByStore[slug]
+
+        // Primeiro verifica se tem no estado
+        let current = deliveryLocationByStore[slug]
+
+        // Se não tiver no estado, tenta carregar do localStorage
+        if (!current) {
+            const saved = loadDeliveryLocationFromStorage(slug)
+            if (saved) {
+                current = saved
+                // Atualiza o estado com o valor do localStorage
+                setDeliveryLocationByStore(prev => ({
+                    ...prev,
+                    [slug]: saved
+                }))
+            }
+        }
+
         setLocationSearchQuery(current?.address || userAddress || '')
         setSelectedLocation(current ? {
             lat: current.lat,
@@ -627,15 +692,20 @@ export default function SacolaPage() {
     const confirmLocation = () => {
         if (!selectedLocation || !locationModalStore) return
 
+        const locationData = {
+            address: selectedLocation.address,
+            lat: selectedLocation.lat,
+            lng: selectedLocation.lng,
+            isSaved: false,
+        }
+
         setDeliveryLocationByStore(prev => ({
             ...prev,
-            [locationModalStore!]: {
-                address: selectedLocation.address,
-                lat: selectedLocation.lat,
-                lng: selectedLocation.lng,
-                isSaved: false,
-            }
+            [locationModalStore!]: locationData
         }))
+
+        // Salva no localStorage
+        saveDeliveryLocationToStorage(locationModalStore, locationData)
 
         setShowLocationModal(false)
         setLocationModalStore(null)
@@ -645,15 +715,21 @@ export default function SacolaPage() {
     // ===== FUNÇÃO PARA USAR LOCAL SALVO =====
     const useSavedLocation = (slug: string) => {
         if (userLocation && userAddress) {
+            const locationData = {
+                address: userAddress,
+                lat: userLocation.lat,
+                lng: userLocation.lng,
+                isSaved: true,
+            }
+
             setDeliveryLocationByStore(prev => ({
                 ...prev,
-                [slug]: {
-                    address: userAddress,
-                    lat: userLocation.lat,
-                    lng: userLocation.lng,
-                    isSaved: true,
-                }
+                [slug]: locationData
             }))
+
+            // Remove do localStorage se existir (pois está usando o salvo do perfil)
+            removeDeliveryLocationFromStorage(slug)
+
             toast.success('Usando localização salva do perfil')
         }
     }
