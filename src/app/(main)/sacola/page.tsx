@@ -22,6 +22,9 @@ import {
     QrCode,
     CreditCard,
     Banknote,
+    X,
+    Navigation,
+    Search,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
@@ -57,6 +60,29 @@ function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): 
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+// ----- Geocodificação -----
+async function geocodeAddress(query: string): Promise<{ lat: number; lng: number; address: string } | null> {
+    try {
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        if (!token) return null
+        const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=BR`
+        )
+        const data = await res.json()
+        if (data?.features?.length > 0) {
+            const [lng, lat] = data.features[0].center
+            return {
+                lat,
+                lng,
+                address: data.features[0].place_name || query
+            }
+        }
+        return null
+    } catch {
+        return null
+    }
+}
+
 export default function SacolaPage() {
     const {
         itemsByStore,
@@ -81,10 +107,26 @@ export default function SacolaPage() {
     const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
     const [currentUserName, setCurrentUserName] = useState<string | null>(null)
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [userAddress, setUserAddress] = useState<string | null>(null)
+
+    // ===== ESTADO PARA LOCALIZAÇÃO DE ENTREGA (por loja) =====
+    const [deliveryLocationByStore, setDeliveryLocationByStore] = useState<Record<string, {
+        address: string
+        lat: number
+        lng: number
+        isSaved: boolean
+    }>>({})
+
+    // ===== MODAL DE SELECIONAR LOCAL =====
+    const [showLocationModal, setShowLocationModal] = useState(false)
+    const [locationModalStore, setLocationModalStore] = useState<string | null>(null)
+    const [locationSearchQuery, setLocationSearchQuery] = useState('')
+    const [locationSuggestions, setLocationSuggestions] = useState<any[]>([])
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [isSearchingLocation, setIsSearchingLocation] = useState(false)
 
     const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
     const [myPurchases, setMyPurchases] = useState<any[]>([])
-    const [userAddress, setUserAddress] = useState<string | null>(null)
     const [addressInput, setAddressInput] = useState('')
     const [isEditingAddress, setIsEditingAddress] = useState(false)
     const [finishedOrders, setFinishedOrders] = useState<any[]>([])
@@ -467,10 +509,26 @@ export default function SacolaPage() {
                 setDeliveryOptionByStore(prev => ({ ...defaultDelivery, ...prev }))
                 setPaymentMethodByStore(prev => ({ ...defaultPayment, ...prev }))
                 setStoreDeliveryInfo(deliveryInfo)
+
+                // Inicializa localização de entrega com a localização do perfil
+                const initialLocation = userLocation
+                if (initialLocation && userAddress) {
+                    storeSlugs.forEach(slug => {
+                        setDeliveryLocationByStore(prev => ({
+                            ...prev,
+                            [slug]: {
+                                address: userAddress || '',
+                                lat: initialLocation.lat,
+                                lng: initialLocation.lng,
+                                isSaved: true,
+                            }
+                        }))
+                    })
+                }
             }
         }
         fetchConfigs()
-    }, [itemsByStore])
+    }, [itemsByStore, userLocation, userAddress])
 
     // Recarrega pendentes e avaliações quando o modal de review é fechado
     useEffect(() => {
@@ -480,7 +538,7 @@ export default function SacolaPage() {
         }
     }, [reviewOrder.isOpen, currentUserId, fetchPendingReviews, fetchUserReviews])
 
-    // ===== FUNÇÃO CORRIGIDA PARA CALCULAR TOTAIS =====
+    // ===== FUNÇÃO PARA CALCULAR TOTAIS COM LOCALIZAÇÃO PERSONALIZADA =====
     const getStoreTotals = (slug: string) => {
         const items = itemsByStore[slug] || []
         const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
@@ -490,21 +548,20 @@ export default function SacolaPage() {
 
         if (deliveryOpt === 'entrega') {
             const info = storeDeliveryInfo[slug]
-            if (info) {
+            const deliveryLoc = deliveryLocationByStore[slug]
+
+            if (info && deliveryLoc) {
                 if (info.delivery_type === 'fixed') {
                     deliveryFee = Number(info.delivery_fee) || 0
                 } else if (info.delivery_type === 'distance') {
                     const feePerKm = Number(info.delivery_fee_per_km) || 0
                     const storeLat = info.store_lat
                     const storeLng = info.store_lng
-
-                    // Usa a localização do perfil se disponível
-                    const userLat = userLocation?.lat
-                    const userLng = userLocation?.lng
+                    const userLat = deliveryLoc.lat
+                    const userLng = deliveryLoc.lng
 
                     if (storeLat != null && storeLng != null && userLat != null && userLng != null) {
                         const dist = getDistanceKm(storeLat, storeLng, userLat, userLng)
-                        // Verifica se tem valor base
                         if (info.delivery_base_distance != null && info.delivery_base_fee != null) {
                             const baseDist = Number(info.delivery_base_distance) || 0
                             const baseFee = Number(info.delivery_base_fee) || 0
@@ -519,16 +576,86 @@ export default function SacolaPage() {
                         }
                         isCalculating = false
                     } else {
-                        // Se não tiver localização do usuário, mostra "a calcular"
                         isCalculating = true
                         deliveryFee = 0
                     }
                 }
+            } else {
+                isCalculating = true
+                deliveryFee = 0
             }
         }
 
         const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
+    }
+
+    // ===== FUNÇÃO PARA ABRIR MODAL DE LOCALIZAÇÃO =====
+    const openLocationModal = (slug: string) => {
+        setLocationModalStore(slug)
+        const current = deliveryLocationByStore[slug]
+        setLocationSearchQuery(current?.address || userAddress || '')
+        setSelectedLocation(current ? {
+            lat: current.lat,
+            lng: current.lng,
+            address: current.address
+        } : userLocation ? {
+            lat: userLocation.lat,
+            lng: userLocation.lng,
+            address: userAddress || ''
+        } : null)
+        setLocationSuggestions([])
+        setShowLocationModal(true)
+    }
+
+    // ===== FUNÇÃO PARA BUSCAR ENDEREÇO =====
+    const searchLocation = async () => {
+        if (!locationSearchQuery.trim()) return
+        setIsSearchingLocation(true)
+        const result = await geocodeAddress(locationSearchQuery.trim())
+        setIsSearchingLocation(false)
+
+        if (result) {
+            setSelectedLocation(result)
+            setLocationSuggestions([])
+        } else {
+            toast.error('Endereço não encontrado')
+        }
+    }
+
+    // ===== FUNÇÃO PARA CONFIRMAR LOCALIZAÇÃO =====
+    const confirmLocation = () => {
+        if (!selectedLocation || !locationModalStore) return
+
+        setDeliveryLocationByStore(prev => ({
+            ...prev,
+            [locationModalStore!]: {
+                address: selectedLocation.address,
+                lat: selectedLocation.lat,
+                lng: selectedLocation.lng,
+                isSaved: false,
+            }
+        }))
+
+        setShowLocationModal(false)
+        setLocationModalStore(null)
+        toast.success('Localização de entrega atualizada!')
+    }
+
+    // ===== FUNÇÃO PARA USAR LOCAL SALVO =====
+    const useSavedLocation = (slug: string) => {
+        if (userLocation && userAddress) {
+            setDeliveryLocationByStore(prev => ({
+                ...prev,
+                [slug]: {
+                    address: userAddress,
+                    lat: userLocation.lat,
+                    lng: userLocation.lng,
+                    isSaved: true,
+                }
+            }))
+            toast.success('Usando localização salva do perfil')
+        }
     }
 
     // ---- Handler de finalização por loja ----
@@ -539,6 +666,7 @@ export default function SacolaPage() {
         try {
             const items = itemsByStore[slug]
             const details = storeDetails[slug]
+            const deliveryLoc = deliveryLocationByStore[slug]
 
             const { data: storeDeliveryData } = await supabase
                 .from('stores')
@@ -573,37 +701,30 @@ export default function SacolaPage() {
             const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
             const paymentOpt = paymentMethodByStore[slug] || 'pix'
 
-            if (deliveryOpt === 'entrega' && !addressInput.trim()) {
-                toast.error('Informe o endereço de entrega.')
-                setCheckoutLoading(null)
-                return
-            }
-
-            const address = deliveryOpt === 'entrega' ? addressInput.trim() : 'Retirada no local'
-
-            let deliveryLat: number | null = null
-            let deliveryLng: number | null = null
-            if (deliveryOpt === 'entrega' && addressInput.trim()) {
-                try {
-                    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-                    if (token) {
-                        const res = await fetch(
-                            `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(addressInput)}.json?access_token=${token}&limit=1&country=BR`
-                        )
-                        const geoData = await res.json()
-                        if (geoData?.features?.length > 0) {
-                            const [lng, lat] = geoData.features[0].center
-                            deliveryLat = lat
-                            deliveryLng = lng
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[Checkout] Geocodificação falhou:', e)
+            if (deliveryOpt === 'entrega') {
+                if (!deliveryLoc) {
+                    toast.error('Selecione um endereço de entrega')
+                    setCheckoutLoading(null)
+                    return
+                }
+                if (!deliveryLoc.address.trim()) {
+                    toast.error('Informe o endereço de entrega.')
+                    setCheckoutLoading(null)
+                    return
                 }
             }
 
+            const address = deliveryOpt === 'entrega' ? deliveryLoc?.address || '' : 'Retirada no local'
+
+            let deliveryLat: number | null = null
+            let deliveryLng: number | null = null
+            if (deliveryOpt === 'entrega' && deliveryLoc) {
+                deliveryLat = deliveryLoc.lat
+                deliveryLng = deliveryLoc.lng
+            }
+
             let deliveryFee = 0
-            if (deliveryOpt === 'entrega') {
+            if (deliveryOpt === 'entrega' && deliveryLoc) {
                 const dtype = deliveryInfo.delivery_type
                 if (dtype === 'fixed') {
                     deliveryFee = Number(deliveryInfo.delivery_fee) || 0
@@ -613,7 +734,6 @@ export default function SacolaPage() {
                     const storeLng = deliveryInfo.store_lng
                     if (storeLat != null && storeLng != null && deliveryLat != null && deliveryLng != null) {
                         const dist = getDistanceKm(storeLat, storeLng, deliveryLat, deliveryLng)
-                        // Verifica se tem valor base
                         if (deliveryInfo.delivery_base_distance != null && deliveryInfo.delivery_base_fee != null) {
                             const baseDist = Number(deliveryInfo.delivery_base_distance) || 0
                             const baseFee = Number(deliveryInfo.delivery_base_fee) || 0
@@ -627,7 +747,7 @@ export default function SacolaPage() {
                             deliveryFee = dist * feePerKm
                         }
                     } else {
-                        toast.error('Não foi possível calcular a distância. Verifique o endereço.')
+                        toast.error('Não foi possível calcular a distância.')
                         setCheckoutLoading(null)
                         return
                     }
@@ -683,14 +803,6 @@ export default function SacolaPage() {
                 toast.error(`Erro ao salvar itens: ${itemsError.message}`)
                 setCheckoutLoading(null)
                 return
-            }
-
-            if (addressInput.trim()) {
-                await supabase
-                    .from('profiles')
-                    .update({ address: addressInput.trim() })
-                    .eq('id', currentUserId)
-                setUserAddress(addressInput.trim())
             }
 
             clearStoreCart(slug)
@@ -1151,6 +1263,7 @@ export default function SacolaPage() {
                                         const { itemsTotal, deliveryFee, finalTotal, isCalculating } = getStoreTotals(slug)
                                         const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
                                         const paymentOpt = paymentMethodByStore[slug] || 'pix'
+                                        const deliveryLoc = deliveryLocationByStore[slug]
 
                                         const canDelivery = config.accepts_delivery
                                         const canPickup = config.accepts_pickup
@@ -1271,21 +1384,40 @@ export default function SacolaPage() {
                                                             </div>
                                                             {deliveryOpt === 'entrega' && (
                                                                 <div className="mt-2">
-                                                                    {userAddress && !isEditingAddress ? (
-                                                                        <div className="flex items-center gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
-                                                                            <MapPin size={14} style={{ color: '#f97316' }} />
-                                                                            <span className="flex-1">{userAddress}</span>
-                                                                            <button onClick={() => setIsEditingAddress(true)} className="font-bold" style={{ color: '#f97316' }}>Mudar</button>
+                                                                    {deliveryLoc ? (
+                                                                        <div className="flex items-center justify-between gap-2 text-xs p-2 rounded-xl" style={{ background: '#f9731610', color: colors.textPrimary }}>
+                                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                                <MapPin size={14} style={{ color: '#f97316' }} />
+                                                                                <span className="truncate">{deliveryLoc.address}</span>
+                                                                                {deliveryLoc.isSaved && (
+                                                                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-600 flex-shrink-0">Salvo</span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="flex gap-1 flex-shrink-0">
+                                                                                {!deliveryLoc.isSaved && userLocation && userAddress && (
+                                                                                    <button
+                                                                                        onClick={() => useSavedLocation(slug)}
+                                                                                        className="text-[9px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 transition"
+                                                                                    >
+                                                                                        Usar salvo
+                                                                                    </button>
+                                                                                )}
+                                                                                <button
+                                                                                    onClick={() => openLocationModal(slug)}
+                                                                                    className="text-[9px] font-bold px-2 py-0.5 rounded bg-orange-500/20 text-orange-600 hover:bg-orange-500/30 transition"
+                                                                                >
+                                                                                    Alterar
+                                                                                </button>
+                                                                            </div>
                                                                         </div>
                                                                     ) : (
-                                                                        <input
-                                                                            type="text"
-                                                                            placeholder="Endereço de entrega"
-                                                                            className="w-full border rounded-full px-3 py-1.5 text-xs"
-                                                                            style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
-                                                                            value={addressInput}
-                                                                            onChange={(e) => setAddressInput(e.target.value)}
-                                                                        />
+                                                                        <button
+                                                                            onClick={() => openLocationModal(slug)}
+                                                                            className="w-full text-xs font-bold p-2 rounded-xl border-2 border-dashed border-orange-300 text-orange-600 hover:bg-orange-50 transition flex items-center justify-center gap-2"
+                                                                        >
+                                                                            <MapPin size={14} />
+                                                                            Selecionar endereço de entrega
+                                                                        </button>
                                                                     )}
                                                                 </div>
                                                             )}
@@ -1324,11 +1456,11 @@ export default function SacolaPage() {
                                                         </div>
                                                         <button
                                                             onClick={() => handleFinalizarLoja(slug)}
-                                                            disabled={checkoutLoading === slug || isCalculating}
+                                                            disabled={checkoutLoading === slug || isCalculating || (deliveryOpt === 'entrega' && !deliveryLoc)}
                                                             className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50"
                                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
-                                                            {checkoutLoading === slug ? 'Finalizando...' : isCalculating ? 'Calculando frete...' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
+                                                            {checkoutLoading === slug ? 'Finalizando...' : isCalculating ? 'Calculando frete...' : (deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
                                                         </button>
                                                     </div>
                                                 )}
@@ -1607,6 +1739,84 @@ export default function SacolaPage() {
                     </button>
                 </div>
             </main>
+
+            {/* ===== MODAL DE LOCALIZAÇÃO ===== */}
+            {showLocationModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: colors.surface, border: `2px solid ${colors.border}` }}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Selecionar Endereço de Entrega</h3>
+                            <button onClick={() => setShowLocationModal(false)} className="p-1 rounded-full hover:bg-black/5 transition">
+                                <X size={20} style={{ color: colors.textSecondary }} />
+                            </button>
+                        </div>
+
+                        {/* Localização salva */}
+                        {userLocation && userAddress && (
+                            <button
+                                onClick={() => {
+                                    if (locationModalStore) {
+                                        useSavedLocation(locationModalStore)
+                                    }
+                                    setShowLocationModal(false)
+                                }}
+                                className="w-full p-3 rounded-xl mb-3 border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-3"
+                                style={{ background: 'rgba(16,185,129,0.05)' }}
+                            >
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500/20">
+                                    <Home size={18} style={{ color: '#10b981' }} />
+                                </div>
+                                <div className="flex-1 text-left">
+                                    <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Endereço salvo no perfil</p>
+                                    <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{userAddress}</p>
+                                </div>
+                                <CheckCircle2 size={18} style={{ color: '#10b981' }} />
+                            </button>
+                        )}
+
+                        {/* Buscar endereço */}
+                        <div className="flex gap-2 mb-3">
+                            <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
+                                <Search size={16} style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="text"
+                                    value={locationSearchQuery}
+                                    onChange={(e) => setLocationSearchQuery(e.target.value)}
+                                    placeholder="Buscar endereço..."
+                                    className="flex-1 bg-transparent outline-none text-sm"
+                                    style={{ color: colors.textPrimary }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
+                                />
+                            </div>
+                            <button
+                                onClick={searchLocation}
+                                disabled={isSearchingLocation}
+                                className="px-4 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50"
+                                style={{ background: GRADIENT }}
+                            >
+                                {isSearchingLocation ? '...' : 'Buscar'}
+                            </button>
+                        </div>
+
+                        {/* Endereço selecionado */}
+                        {selectedLocation && (
+                            <div className="p-3 rounded-xl mb-3" style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}>
+                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Endereço selecionado</p>
+                                <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>{selectedLocation.address}</p>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={confirmLocation}
+                            disabled={!selectedLocation}
+                            className="w-full py-3 rounded-full font-black uppercase text-xs tracking-wider disabled:opacity-50"
+                            style={{ background: GRADIENT, color: '#ffffff' }}
+                        >
+                            Confirmar Endereço
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <ReviewModal
                 isOpen={reviewOrder.isOpen}
