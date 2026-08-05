@@ -1,4 +1,4 @@
-// src/app/(app)/calculo-da-entrega/page.tsx
+// src/app/(app)/calculo-de-corrida/page.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -7,25 +7,30 @@ import { useTheme } from '@/app/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import mapboxgl from 'mapbox-gl'
+import 'mapbox-gl/dist/mapbox-gl.css'
 import {
     ArrowLeft,
-    Home,
     MapPin,
-    Truck,
-    TrendingUp,
-    Search,
     Navigation,
     X,
     Loader2,
-    RefreshCw,
-    Map,
     Target,
-    Store,
     ChevronDown,
     ChevronUp,
+    DollarSign,
+    Route,
+    Calculator,
+    Bike,
+    Car,
+    Truck,
+    Footprints,
+    Gauge,
+    Timer,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase/client'
+
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
 
 // ===== GRADIENTE FIXO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -58,7 +63,7 @@ function hexToRgb(hex: string) {
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
-// ===== FUNÇÃO DE DISTÂNCIA HAVERSINE =====
+// ===== FUNÇÃO DE DISTÂNCIA =====
 function getDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371
     const dLat = (lat2 - lat1) * Math.PI / 180
@@ -90,18 +95,115 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lng: number
     }
 }
 
-interface StoreDeliveryConfig {
-    delivery_type: string | null
-    delivery_fee: number | null
-    delivery_fee_per_km: number | null
-    delivery_base_distance: number | null
-    delivery_base_fee: number | null
-    store_lat: number | null
-    store_lng: number | null
-    name: string
+// ===== REVERSE GEOCODIFICAÇÃO =====
+async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+    try {
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        if (!token) return null
+        const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&limit=1&country=BR`
+        )
+        const data = await res.json()
+        if (data?.features?.length > 0) {
+            return data.features[0].place_name
+        }
+        return null
+    } catch {
+        return null
+    }
 }
 
-export default function CalculoDaEntregaPage() {
+// ===== BUSCAR ROTA NO MAPBOX =====
+async function getRoute(origin: { lat: number; lng: number }, destination: { lat: number; lng: number }): Promise<{
+    distance: number;
+    duration: number;
+    geometry: any;
+} | null> {
+    try {
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        if (!token) return null
+
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&access_token=${token}`
+
+        const res = await fetch(url)
+        const data = await res.json()
+
+        if (data?.routes?.length > 0) {
+            const route = data.routes[0]
+            return {
+                distance: route.distance / 1000,
+                duration: route.duration / 60,
+                geometry: route.geometry,
+            }
+        }
+        return null
+    } catch (error) {
+        console.error('Erro ao buscar rota:', error)
+        return null
+    }
+}
+
+type VehicleType = 'bike' | 'car' | 'truck' | 'walk' | 'motorcycle'
+
+interface VehicleConfig {
+    icon: any
+    label: string
+    baseFee: number
+    perKm: number
+    perMinute: number
+    baseDistance: number
+    description: string
+}
+
+const VEHICLE_CONFIGS: Record<VehicleType, VehicleConfig> = {
+    bike: {
+        icon: Bike,
+        label: 'Bicicleta',
+        baseFee: 5,
+        perKm: 1.5,
+        perMinute: 0.3,
+        baseDistance: 3,
+        description: 'Ideal para entregas rápidas e curtas distâncias',
+    },
+    motorcycle: {
+        icon: Bike,
+        label: 'Moto',
+        baseFee: 7,
+        perKm: 2.0,
+        perMinute: 0.5,
+        baseDistance: 5,
+        description: 'Agilidade no trânsito para entregas urbanas',
+    },
+    car: {
+        icon: Car,
+        label: 'Carro',
+        baseFee: 10,
+        perKm: 2.5,
+        perMinute: 0.7,
+        baseDistance: 5,
+        description: 'Conforto e segurança para passageiros',
+    },
+    truck: {
+        icon: Truck,
+        label: 'Caminhão',
+        baseFee: 15,
+        perKm: 4.0,
+        perMinute: 1.0,
+        baseDistance: 5,
+        description: 'Para cargas pesadas e grandes volumes',
+    },
+    walk: {
+        icon: Footprints,
+        label: 'A pé',
+        baseFee: 3,
+        perKm: 1.0,
+        perMinute: 0.2,
+        baseDistance: 2,
+        description: 'Para entregas de curta distância a pé',
+    },
+}
+
+export default function CalculoDeCorridaPage() {
     const router = useRouter()
     const { colors } = useTheme()
     const { bgMode, customBgUrl } = useProfile()
@@ -117,263 +219,337 @@ export default function CalculoDaEntregaPage() {
     const [destinationAddress, setDestinationAddress] = useState('')
     const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null)
 
+    // ===== VEÍCULO =====
+    const [vehicleType, setVehicleType] = useState<VehicleType>('car')
+    const [customBaseFee, setCustomBaseFee] = useState<number>(10)
+    const [customPerKm, setCustomPerKm] = useState<number>(2.5)
+    const [customPerMinute, setCustomPerMinute] = useState<number>(0.7)
+    const [customBaseDistance, setCustomBaseDistance] = useState<number>(5)
+    const [useCustomValues, setUseCustomValues] = useState(false)
+
     // ===== RESULTADO =====
     const [distance, setDistance] = useState<number | null>(null)
-    const [deliveryFee, setDeliveryFee] = useState<number | null>(null)
-    const [storeConfig, setStoreConfig] = useState<StoreDeliveryConfig | null>(null)
-    const [storeId, setStoreId] = useState<string>('')
+    const [duration, setDuration] = useState<number | null>(null)
+    const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null)
+    const [priceBreakdown, setPriceBreakdown] = useState<{ label: string; value: number }[]>([])
+    const [routeGeometry, setRouteGeometry] = useState<any>(null)
 
     // ===== MAPA =====
     const mapContainerRef = useRef<HTMLDivElement>(null)
-    const mapInstanceRef = useRef<any>(null)
-    const originMarkerRef = useRef<any>(null)
-    const destinationMarkerRef = useRef<any>(null)
-    const polylineRef = useRef<any>(null)
-    const isMovingRef = useRef(false)
-    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const mapInstanceRef = useRef<mapboxgl.Map | null>(null)
+    const originMarkerRef = useRef<mapboxgl.Marker | null>(null)
+    const destinationMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const initializedRef = useRef(false)
 
     const [mapReady, setMapReady] = useState(false)
-    const [resolvingAddress, setResolvingAddress] = useState(false)
 
     // ===== SUGESTÕES =====
     const [originSuggestions, setOriginSuggestions] = useState<any[]>([])
     const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([])
+    const [originSelectedIndex, setOriginSelectedIndex] = useState(-1)
+    const [destinationSelectedIndex, setDestinationSelectedIndex] = useState(-1)
 
-    // ===== CARREGAR LOJAS DO USUÁRIO =====
-    const loadStores = useCallback(async () => {
-        setLoading(true)
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                toast.error('Faça login para acessar esta página')
-                router.push('/login')
-                return
-            }
-
-            const { data: stores, error } = await supabase
-                .from('stores')
-                .select('id, name, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng')
-                .eq('owner_id', user.id)
-                .eq('is_active', true)
-
-            if (error) {
-                toast.error('Erro ao carregar lojas')
-                setLoading(false)
-                return
-            }
-
-            if (!stores || stores.length === 0) {
-                toast.info('Você não tem lojas cadastradas')
-                setLoading(false)
-                return
-            }
-
-            const firstStore = stores[0]
-            setStoreId(firstStore.id)
-            setStoreConfig({
-                delivery_type: firstStore.delivery_type,
-                delivery_fee: firstStore.delivery_fee,
-                delivery_fee_per_km: firstStore.delivery_fee_per_km,
-                delivery_base_distance: firstStore.delivery_base_distance,
-                delivery_base_fee: firstStore.delivery_base_fee,
-                store_lat: firstStore.store_lat,
-                store_lng: firstStore.store_lng,
-                name: firstStore.name,
-            })
-
-            if (firstStore.store_lat && firstStore.store_lng) {
-                setOriginCoords({
-                    lat: firstStore.store_lat,
-                    lng: firstStore.store_lng,
-                })
-                try {
-                    const result = await geocodeAddress(`${firstStore.store_lat},${firstStore.store_lng}`)
-                    if (result) {
-                        setOriginAddress(result.address)
-                    } else {
-                        setOriginAddress(`Loja: ${firstStore.name}`)
-                    }
-                } catch {
-                    setOriginAddress(`Loja: ${firstStore.name}`)
-                }
-            }
-
-        } catch (err) {
-            console.error('Erro ao carregar lojas:', err)
-            toast.error('Erro ao carregar lojas')
-        } finally {
-            setLoading(false)
-        }
-    }, [router])
+    // Refs para os inputs
+    const originInputRef = useRef<HTMLInputElement>(null)
+    const destinationInputRef = useRef<HTMLInputElement>(null)
+    const originSuggestionsRef = useRef<HTMLDivElement>(null)
+    const destinationSuggestionsRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setMounted(true)
-        loadStores()
-    }, [loadStores])
-
-    // ===== INICIALIZAR MAPA =====
-    const initializeMap = useCallback(async () => {
-        if (initializedRef.current || !mapContainerRef.current || !originCoords) return
-
-        initializedRef.current = true
+        setLoading(false)
 
         try {
-            const L = (await import('leaflet')).default
-            await import('leaflet/dist/leaflet.css')
-
-            delete (L.Icon.Default.prototype as any)._getIconUrl
-            L.Icon.Default.mergeOptions({
-                iconRetinaUrl: '',
-                iconUrl: '',
-                shadowUrl: '',
-            })
-
-            const map = L.map(mapContainerRef.current!, {
-                center: [originCoords.lat, originCoords.lng],
-                zoom: 14,
-                zoomControl: true,
-                attributionControl: false,
-            })
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-            }).addTo(map)
-
-            // Ícone laranja (origem)
-            const orangeIcon = L.divIcon({
-                className: '',
-                html: `<div style="width: 36px; height: 36px; position: relative;">
-                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
-                        <circle cx="12" cy="12" r="5" fill="white"/>
-                    </svg>
-                </div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36],
-            })
-
-            // Ícone azul (destino)
-            const blueIcon = L.divIcon({
-                className: '',
-                html: `<div style="width: 36px; height: 36px; position: relative;">
-                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
-                        <circle cx="12" cy="12" r="5" fill="white"/>
-                    </svg>
-                </div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36],
-            })
-
-            // Marcador origem (fixo)
-            if (originCoords) {
-                const marker = L.marker([originCoords.lat, originCoords.lng], {
-                    icon: orangeIcon,
-                    zIndexOffset: 1000,
-                }).addTo(map)
-                marker.bindPopup('Origem (Loja)')
-                originMarkerRef.current = marker
+            const saved = localStorage.getItem('corrida_calc_config')
+            if (saved) {
+                const config = JSON.parse(saved)
+                setVehicleType(config.vehicleType || 'car')
+                setCustomBaseFee(config.customBaseFee || 10)
+                setCustomPerKm(config.customPerKm || 2.5)
+                setCustomPerMinute(config.customPerMinute || 0.7)
+                setCustomBaseDistance(config.customBaseDistance || 5)
+                setUseCustomValues(config.useCustomValues || false)
             }
-
-            // Marcador destino (arrastável)
-            const destinationMarker = L.marker([originCoords.lat, originCoords.lng], {
-                icon: blueIcon,
-                draggable: true,
-                zIndexOffset: 900,
-            }).addTo(map)
-            destinationMarker.bindPopup('Destino')
-
-            destinationMarker.on('dragend', () => {
-                const pos = destinationMarker.getLatLng()
-                const newPos = { lat: pos.lat, lng: pos.lng }
-                setDestinationCoords(newPos)
-                updatePolyline(map, originCoords, newPos)
-
-                setResolvingAddress(true)
-                geocodeAddress(`${newPos.lat},${newPos.lng}`).then(result => {
-                    if (result) {
-                        setDestinationAddress(result.address)
-                    } else {
-                        setDestinationAddress(`Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`)
-                    }
-                    setResolvingAddress(false)
-                }).catch(() => {
-                    setDestinationAddress(`Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`)
-                    setResolvingAddress(false)
-                })
-            })
-
-            destinationMarkerRef.current = destinationMarker
-
-            mapInstanceRef.current = map
-
-            // Atualizar polylina inicial
-            setTimeout(() => updateMapMarkers(), 300)
-            setMapReady(true)
-
-        } catch (error) {
-            console.error('Erro ao inicializar mapa:', error)
-            initializedRef.current = false
-        }
-    }, [originCoords])
-
-    useEffect(() => {
-        if (originCoords) {
-            initializeMap()
-        }
-
-        return () => {
-            if (mapInstanceRef.current) {
-                mapInstanceRef.current.remove()
-                mapInstanceRef.current = null
-            }
-            initializedRef.current = false
-            setMapReady(false)
-        }
-    }, [originCoords, initializeMap])
-
-    const updatePolyline = useCallback((map: any, origin: { lat: number; lng: number } | null, destination: { lat: number; lng: number } | null) => {
-        const L = (window as any).L
-        if (!L || !map) return
-
-        if (polylineRef.current) {
-            map.removeLayer(polylineRef.current)
-            polylineRef.current = null
-        }
-
-        if (origin && destination) {
-            polylineRef.current = L.polyline(
-                [[origin.lat, origin.lng], [destination.lat, destination.lng]],
-                {
-                    color: '#f97316',
-                    weight: 3,
-                    dashArray: '8, 8',
-                    opacity: 0.8,
-                }
-            ).addTo(map)
+        } catch (e) {
+            console.error('Erro ao carregar configurações:', e)
         }
     }, [])
 
-    const updateMapMarkers = useCallback(() => {
-        if (!mapInstanceRef.current) return
-
-        if (originCoords && destinationCoords) {
-            updatePolyline(mapInstanceRef.current, originCoords, destinationCoords)
+    // ===== CLICK FORA PARA FECHAR SUGESTÕES =====
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (originSuggestionsRef.current && !originSuggestionsRef.current.contains(event.target as Node) &&
+                originInputRef.current && !originInputRef.current.contains(event.target as Node)) {
+                setOriginSuggestions([])
+                setOriginSelectedIndex(-1)
+            }
+            if (destinationSuggestionsRef.current && !destinationSuggestionsRef.current.contains(event.target as Node) &&
+                destinationInputRef.current && !destinationInputRef.current.contains(event.target as Node)) {
+                setDestinationSuggestions([])
+                setDestinationSelectedIndex(-1)
+            }
         }
-    }, [originCoords, destinationCoords, updatePolyline])
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const saveConfig = useCallback(() => {
+        try {
+            localStorage.setItem('corrida_calc_config', JSON.stringify({
+                vehicleType,
+                customBaseFee,
+                customPerKm,
+                customPerMinute,
+                customBaseDistance,
+                useCustomValues,
+            }))
+            toast.success('Configurações salvas!')
+        } catch (e) {
+            console.error('Erro ao salvar configurações:', e)
+        }
+    }, [vehicleType, customBaseFee, customPerKm, customPerMinute, customBaseDistance, useCustomValues])
+
+    // ===== INICIALIZAR MAPA =====
+    const initializeMap = useCallback(() => {
+        if (initializedRef.current || !mapContainerRef.current) return
+
+        const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+        if (token) {
+            mapboxgl.accessToken = token
+        }
+
+        const center = originCoords || { lat: -15.7801, lng: -47.9292 }
+
+        const map = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [center.lng, center.lat],
+            zoom: 13,
+            attributionControl: false,
+        })
+
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right')
+
+        mapInstanceRef.current = map
+        initializedRef.current = true
+
+        map.on('load', () => {
+            setMapReady(true)
+            updateMapMarkers()
+        })
+
+    }, [originCoords])
+
+    useEffect(() => {
+        if (!mapContainerRef.current || initializedRef.current) return
+        const timer = setTimeout(initializeMap, 300)
+        return () => clearTimeout(timer)
+    }, [initializeMap])
 
     useEffect(() => {
         if (mapReady) {
             updateMapMarkers()
         }
-    }, [originCoords, destinationCoords, mapReady, updateMapMarkers])
+    }, [originCoords, destinationCoords, routeGeometry, mapReady])
+
+    const updateMapMarkers = useCallback(() => {
+        const map = mapInstanceRef.current
+        if (!map) return
+
+        if (originMarkerRef.current) {
+            originMarkerRef.current.remove()
+            originMarkerRef.current = null
+        }
+        if (destinationMarkerRef.current) {
+            destinationMarkerRef.current.remove()
+            destinationMarkerRef.current = null
+        }
+
+        if (map.getLayer('route-line')) {
+            map.removeLayer('route-line')
+        }
+        if (map.getSource('route')) {
+            map.removeSource('route')
+        }
+
+        if (originCoords) {
+            const el = document.createElement('div')
+            el.style.width = '36px'
+            el.style.height = '36px'
+            el.innerHTML = `<svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
+                <circle cx="12" cy="12" r="5" fill="white"/>
+            </svg>`
+
+            originMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+                .setLngLat([originCoords.lng, originCoords.lat])
+                .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Origem'))
+                .addTo(map)
+        }
+
+        if (destinationCoords) {
+            const el = document.createElement('div')
+            el.style.width = '36px'
+            el.style.height = '36px'
+            el.innerHTML = `<svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
+                <circle cx="12" cy="12" r="5" fill="white"/>
+            </svg>`
+
+            destinationMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+                .setLngLat([destinationCoords.lng, destinationCoords.lat])
+                .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Destino'))
+                .addTo(map)
+        }
+
+        if (originCoords && destinationCoords && routeGeometry) {
+            map.addSource('route', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    geometry: routeGeometry,
+                    properties: {},
+                },
+            })
+
+            map.addLayer({
+                id: 'route-line',
+                type: 'line',
+                source: 'route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round',
+                },
+                paint: {
+                    'line-color': '#f97316',
+                    'line-width': 4,
+                    'line-dasharray': [2, 2],
+                },
+            })
+
+            const bounds = new mapboxgl.LngLatBounds()
+            bounds.extend([originCoords.lng, originCoords.lat])
+            bounds.extend([destinationCoords.lng, destinationCoords.lat])
+            map.fitBounds(bounds, { padding: 60, maxZoom: 15 })
+        } else if (originCoords) {
+            map.flyTo({ center: [originCoords.lng, originCoords.lat], zoom: 13 })
+        }
+    }, [originCoords, destinationCoords, routeGeometry])
+
+    // ===== CALCULAR CORRIDA =====
+    const calculateRoute = useCallback(async () => {
+        if (!originCoords || !destinationCoords) {
+            toast.error('Selecione origem e destino')
+            return
+        }
+
+        setCalculating(true)
+
+        try {
+            const result = await getRoute(originCoords, destinationCoords)
+
+            if (result) {
+                const dist = result.distance
+                const dur = result.duration
+                setDistance(dist)
+                setDuration(dur)
+                setRouteGeometry(result.geometry)
+
+                // Calcular preço
+                const config = useCustomValues
+                    ? { baseFee: customBaseFee, perKm: customPerKm, perMinute: customPerMinute, baseDistance: customBaseDistance }
+                    : VEHICLE_CONFIGS[vehicleType]
+
+                let price = config.baseFee
+                const breakdown: { label: string; value: number }[] = [
+                    { label: 'Taxa base', value: config.baseFee },
+                ]
+
+                // Distância
+                let distanceCharge = 0
+                if (dist > config.baseDistance) {
+                    const extraKm = dist - config.baseDistance
+                    distanceCharge = extraKm * config.perKm
+                    price += distanceCharge
+                    breakdown.push({
+                        label: `${extraKm.toFixed(1)}km extra × R$ ${config.perKm.toFixed(2)}`,
+                        value: distanceCharge
+                    })
+                } else {
+                    breakdown.push({
+                        label: 'Distância incluída na base',
+                        value: 0
+                    })
+                }
+
+                // Tempo
+                const timeCharge = dur * config.perMinute
+                price += timeCharge
+                breakdown.push({
+                    label: `${Math.round(dur)}min × R$ ${config.perMinute.toFixed(2)}`,
+                    value: timeCharge
+                })
+
+                setEstimatedPrice(price)
+                setPriceBreakdown(breakdown)
+
+                toast.success('Rota calculada com sucesso!')
+            } else {
+                const dist = getDistanceKm(
+                    originCoords.lat,
+                    originCoords.lng,
+                    destinationCoords.lat,
+                    destinationCoords.lng
+                )
+                setDistance(dist)
+                setDuration(null)
+                setRouteGeometry(null)
+
+                const config = useCustomValues
+                    ? { baseFee: customBaseFee, perKm: customPerKm, perMinute: customPerMinute, baseDistance: customBaseDistance }
+                    : VEHICLE_CONFIGS[vehicleType]
+
+                let price = config.baseFee
+                const breakdown: { label: string; value: number }[] = [
+                    { label: 'Taxa base', value: config.baseFee },
+                ]
+
+                if (dist > config.baseDistance) {
+                    const extraKm = dist - config.baseDistance
+                    const distanceCharge = extraKm * config.perKm
+                    price += distanceCharge
+                    breakdown.push({
+                        label: `${extraKm.toFixed(1)}km extra × R$ ${config.perKm.toFixed(2)}`,
+                        value: distanceCharge
+                    })
+                }
+
+                setEstimatedPrice(price)
+                setPriceBreakdown(breakdown)
+
+                toast.warning('Rota não encontrada, usando distância em linha reta')
+            }
+
+            updateMapMarkers()
+        } catch (error) {
+            console.error('Erro ao calcular rota:', error)
+            toast.error('Erro ao calcular rota')
+        } finally {
+            setCalculating(false)
+        }
+    }, [originCoords, destinationCoords, vehicleType, customBaseFee, customPerKm, customPerMinute, customBaseDistance, useCustomValues, updateMapMarkers])
 
     // ===== BUSCAR ENDEREÇO =====
     const searchAddress = useCallback(async (query: string, type: 'origin' | 'destination') => {
         if (!query.trim() || query.length < 3) {
-            if (type === 'origin') setOriginSuggestions([])
-            else setDestinationSuggestions([])
+            if (type === 'origin') {
+                setOriginSuggestions([])
+                setOriginSelectedIndex(-1)
+            } else {
+                setDestinationSuggestions([])
+                setDestinationSelectedIndex(-1)
+            }
             return
         }
 
@@ -388,8 +564,10 @@ export default function CalculoDaEntregaPage() {
 
             if (type === 'origin') {
                 setOriginSuggestions(data.features || [])
+                setOriginSelectedIndex(-1)
             } else {
                 setDestinationSuggestions(data.features || [])
+                setDestinationSelectedIndex(-1)
             }
         } catch (e) {
             console.error('Erro ao buscar sugestões:', e)
@@ -405,87 +583,134 @@ export default function CalculoDaEntregaPage() {
             setOriginAddress(address)
             setOriginCoords({ lat, lng })
             setOriginSuggestions([])
+            setOriginSelectedIndex(-1)
+            originInputRef.current?.blur()
         } else {
             setDestinationAddress(address)
             setDestinationCoords({ lat, lng })
             setDestinationSuggestions([])
+            setDestinationSelectedIndex(-1)
+            setDistance(null)
+            setEstimatedPrice(null)
+            setRouteGeometry(null)
+            setDuration(null)
+            setPriceBreakdown([])
+            destinationInputRef.current?.blur()
+        }
+    }, [])
 
-            if (mapInstanceRef.current && destinationMarkerRef.current) {
-                destinationMarkerRef.current.setLatLng([lat, lng])
-                updatePolyline(mapInstanceRef.current, originCoords, { lat, lng })
+    // ===== NAVEGAÇÃO POR TECLADO =====
+    const handleKeyDown = (e: React.KeyboardEvent, type: 'origin' | 'destination') => {
+        const suggestions = type === 'origin' ? originSuggestions : destinationSuggestions
+        const selectedIndex = type === 'origin' ? originSelectedIndex : destinationSelectedIndex
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            if (suggestions.length > 0) {
+                const newIndex = (selectedIndex + 1) % suggestions.length
+                if (type === 'origin') {
+                    setOriginSelectedIndex(newIndex)
+                } else {
+                    setDestinationSelectedIndex(newIndex)
+                }
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            if (suggestions.length > 0) {
+                const newIndex = selectedIndex <= 0 ? suggestions.length - 1 : selectedIndex - 1
+                if (type === 'origin') {
+                    setOriginSelectedIndex(newIndex)
+                } else {
+                    setDestinationSelectedIndex(newIndex)
+                }
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault()
+            if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+                selectSuggestion(suggestions[selectedIndex], type)
+            }
+        } else if (e.key === 'Escape') {
+            if (type === 'origin') {
+                setOriginSuggestions([])
+                setOriginSelectedIndex(-1)
+                originInputRef.current?.blur()
+            } else {
+                setDestinationSuggestions([])
+                setDestinationSelectedIndex(-1)
+                destinationInputRef.current?.blur()
             }
         }
-    }, [originCoords, updatePolyline])
+    }
 
-    // ===== CALCULAR ENTREGA =====
-    const calculateDelivery = useCallback(async () => {
-        if (!originCoords || !destinationCoords || !storeConfig) {
-            toast.error('Preencha origem e destino')
+    // ===== USAR GPS =====
+    const useCurrentLocation = useCallback(async (type: 'origin' | 'destination') => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocalização não suportada')
             return
         }
 
-        setCalculating(true)
-
-        try {
-            const dist = getDistanceKm(
-                originCoords.lat,
-                originCoords.lng,
-                destinationCoords.lat,
-                destinationCoords.lng
-            )
-            setDistance(dist)
-
-            let fee = 0
-            const dtype = storeConfig.delivery_type
-
-            if (dtype === 'free') {
-                fee = 0
-            } else if (dtype === 'fixed') {
-                fee = Number(storeConfig.delivery_fee) || 0
-            } else if (dtype === 'distance') {
-                const feePerKm = Number(storeConfig.delivery_fee_per_km) || 0
-                const baseDist = Number(storeConfig.delivery_base_distance) || 0
-                const baseFee = Number(storeConfig.delivery_base_fee) || 0
-
-                if (baseDist > 0 && baseFee > 0) {
-                    if (dist <= baseDist) {
-                        fee = baseFee
-                    } else {
-                        const extraKm = dist - baseDist
-                        fee = baseFee + (extraKm * feePerKm)
-                    }
-                } else {
-                    fee = dist * feePerKm
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const coords = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
                 }
-            }
 
-            setDeliveryFee(fee)
-            updateMapMarkers()
-            toast.success('Cálculo realizado com sucesso!')
-        } catch (err) {
-            console.error('Erro ao calcular:', err)
-            toast.error('Erro ao calcular a entrega')
-        } finally {
-            setCalculating(false)
-        }
-    }, [originCoords, destinationCoords, storeConfig, updateMapMarkers])
+                let address = ''
+                try {
+                    const result = await reverseGeocode(coords.lat, coords.lng)
+                    if (result) {
+                        address = result
+                    } else {
+                        address = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+                    }
+                } catch {
+                    address = `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+                }
 
-    // ===== LIMPAR CAMPOS =====
+                if (type === 'origin') {
+                    setOriginAddress(address)
+                    setOriginCoords(coords)
+                    setOriginSuggestions([])
+                    setOriginSelectedIndex(-1)
+                } else {
+                    setDestinationAddress(address)
+                    setDestinationCoords(coords)
+                    setDestinationSuggestions([])
+                    setDestinationSelectedIndex(-1)
+                    setDistance(null)
+                    setEstimatedPrice(null)
+                    setRouteGeometry(null)
+                    setDuration(null)
+                    setPriceBreakdown([])
+                }
+                toast.success('Localização obtida!')
+            },
+            () => toast.error('Erro ao obter localização'),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        )
+    }, [])
+
+    // ===== LIMPAR =====
     const clearDestination = () => {
         setDestinationAddress('')
         setDestinationCoords(null)
         setDistance(null)
-        setDeliveryFee(null)
-
-        if (mapInstanceRef.current && destinationMarkerRef.current && originCoords) {
-            destinationMarkerRef.current.setLatLng([originCoords.lat, originCoords.lng])
-            updatePolyline(mapInstanceRef.current, originCoords, null)
-        }
+        setEstimatedPrice(null)
+        setRouteGeometry(null)
+        setDuration(null)
+        setPriceBreakdown([])
+        setDestinationSuggestions([])
+        setDestinationSelectedIndex(-1)
+        destinationInputRef.current?.focus()
     }
 
     const surfaceRgb = hexToRgb(colors.surface)
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
+    const currentConfig = useCustomValues
+        ? { baseFee: customBaseFee, perKm: customPerKm, perMinute: customPerMinute, baseDistance: customBaseDistance }
+        : VEHICLE_CONFIGS[vehicleType]
 
     if (!mounted || loading) {
         return (
@@ -509,10 +734,10 @@ export default function CalculoDaEntregaPage() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title="Cálculo de Entrega"
+                    title="Calculadora de Corrida"
                     showBack={true}
                     onBack={() => router.push('/')}
-                    greeting="Calcule o frete da sua loja"
+                    greeting="Calcule distância, tempo e preço"
                     avatarUrl={null}
                     loading={false}
                 />
@@ -528,7 +753,6 @@ export default function CalculoDaEntregaPage() {
                             boxShadow: colors.shadow,
                         }}
                     >
-                        {/* Cabeçalho com toggle */}
                         <button
                             onClick={() => setIsExpanded(!isExpanded)}
                             className="w-full flex items-center justify-between text-left"
@@ -548,24 +772,14 @@ export default function CalculoDaEntregaPage() {
                                         color: '#ffffff',
                                     }}
                                 >
-                                    <Truck size={24} />
+                                    <Route size={24} />
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                        Calcular Entrega
+                                        Calculadora de Corrida
                                     </h3>
                                     <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: textSecondary }}>
-                                        <span>{storeConfig?.name || 'Loja'}</span>
-                                        {storeConfig?.delivery_type && (
-                                            <>
-                                                <span>•</span>
-                                                <span className="text-orange-500">
-                                                    {storeConfig.delivery_type === 'free' && 'Grátis'}
-                                                    {storeConfig.delivery_type === 'fixed' && 'Fixo'}
-                                                    {storeConfig.delivery_type === 'distance' && 'Por distância'}
-                                                </span>
-                                            </>
-                                        )}
+                                        <span>Distância × Tempo × Valor</span>
                                     </div>
                                 </div>
                             </div>
@@ -580,105 +794,227 @@ export default function CalculoDaEntregaPage() {
 
                         {isExpanded && (
                             <>
-                                {/* Informações da loja */}
-                                {storeConfig && (
-                                    <div
-                                        className="rounded-2xl p-4"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                            border: `1px solid ${colors.border}`,
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                            >
-                                                <Store size={20} />
+                                {/* Configurações do Veículo */}
+                                <div
+                                    className="rounded-2xl p-4"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        border: `1px solid ${colors.border}`,
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Gauge size={16} style={{ color: '#f97316' }} />
+                                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: textSecondary }}>
+                                            Tipo de Veículo
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                        {Object.entries(VEHICLE_CONFIGS).map(([key, config]) => {
+                                            const Icon = config.icon
+                                            const isSelected = vehicleType === key && !useCustomValues
+                                            return (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => {
+                                                        setVehicleType(key as VehicleType)
+                                                        setUseCustomValues(false)
+                                                        const cfg = VEHICLE_CONFIGS[key as VehicleType]
+                                                        setCustomBaseFee(cfg.baseFee)
+                                                        setCustomPerKm(cfg.perKm)
+                                                        setCustomPerMinute(cfg.perMinute)
+                                                        setCustomBaseDistance(cfg.baseDistance)
+                                                    }}
+                                                    className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${isSelected ? 'ring-2' : ''}`}
+                                                    style={{
+                                                        background: isSelected ? '#f9731620' : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                        border: `1px solid ${isSelected ? '#f97316' : colors.border}`,
+                                                        color: isSelected ? '#f97316' : textSecondary,
+                                                    }}
+                                                >
+                                                    <Icon size={20} />
+                                                    <span className="text-[8px] font-bold mt-1">{config.label}</span>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <input
+                                            type="checkbox"
+                                            id="customValues"
+                                            checked={useCustomValues}
+                                            onChange={() => setUseCustomValues(!useCustomValues)}
+                                            className="rounded"
+                                            style={{ accentColor: '#f97316' }}
+                                        />
+                                        <label htmlFor="customValues" className="text-xs font-bold" style={{ color: textSecondary }}>
+                                            Usar valores personalizados
+                                        </label>
+                                    </div>
+
+                                    {useCustomValues && (
+                                        <div className="grid grid-cols-4 gap-2">
+                                            <div>
+                                                <label className="text-[8px] font-bold block mb-1" style={{ color: textSecondary }}>
+                                                    Taxa base (R$)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={customBaseFee}
+                                                    onChange={(e) => setCustomBaseFee(Number(e.target.value) || 0)}
+                                                    className="w-full p-1.5 rounded-full border text-xs text-center"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                        borderColor: colors.border,
+                                                        color: textPrimary,
+                                                    }}
+                                                />
                                             </div>
-                                            <div className="flex-1">
-                                                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>Loja selecionada</p>
-                                                <p className="text-sm font-black" style={{ color: textPrimary }}>{storeConfig.name}</p>
+                                            <div>
+                                                <label className="text-[8px] font-bold block mb-1" style={{ color: textSecondary }}>
+                                                    R$/km
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={customPerKm}
+                                                    onChange={(e) => setCustomPerKm(Number(e.target.value) || 0)}
+                                                    className="w-full p-1.5 rounded-full border text-xs text-center"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                        borderColor: colors.border,
+                                                        color: textPrimary,
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[8px] font-bold block mb-1" style={{ color: textSecondary }}>
+                                                    R$/min
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={customPerMinute}
+                                                    onChange={(e) => setCustomPerMinute(Number(e.target.value) || 0)}
+                                                    className="w-full p-1.5 rounded-full border text-xs text-center"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                        borderColor: colors.border,
+                                                        color: textPrimary,
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[8px] font-bold block mb-1" style={{ color: textSecondary }}>
+                                                    Km base
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={customBaseDistance}
+                                                    onChange={(e) => setCustomBaseDistance(Number(e.target.value) || 0)}
+                                                    className="w-full p-1.5 rounded-full border text-xs text-center"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                        borderColor: colors.border,
+                                                        color: textPrimary,
+                                                    }}
+                                                />
                                             </div>
                                         </div>
-                                        {storeConfig.delivery_type && (
-                                            <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-                                                <span className="px-3 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                                    {storeConfig.delivery_type === 'free' && 'Entrega grátis'}
-                                                    {storeConfig.delivery_type === 'fixed' && `R$ ${Number(storeConfig.delivery_fee).toFixed(2)} fixo`}
-                                                    {storeConfig.delivery_type === 'distance' && `Até ${storeConfig.delivery_base_distance || 0}km: R$ ${Number(storeConfig.delivery_base_fee || 0).toFixed(2)}`}
-                                                </span>
-                                                {storeConfig.delivery_type === 'distance' && storeConfig.delivery_fee_per_km && (
-                                                    <span className="px-3 py-1 rounded-full" style={{ background: '#3b82f620', color: '#3b82f6' }}>
-                                                        +R$ {Number(storeConfig.delivery_fee_per_km).toFixed(2)}/km
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                    )}
+
+                                    <button
+                                        onClick={saveConfig}
+                                        className="mt-2 px-4 py-1.5 rounded-full text-[10px] font-bold"
+                                        style={{ background: '#f9731620', color: '#f97316' }}
+                                    >
+                                        Salvar configurações
+                                    </button>
+                                </div>
 
                                 {/* Inputs */}
                                 <div className="space-y-4">
-                                    {/* Origem */}
                                     <div>
                                         <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>
                                             <div className="flex items-center gap-2">
                                                 <MapPin size={14} style={{ color: '#f97316' }} />
-                                                Origem (Loja)
+                                                Origem
                                             </div>
                                         </label>
-                                        <div className="flex-1 relative">
-                                            <div
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-full border"
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <div
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-full border"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                                        borderColor: colors.border,
+                                                    }}
+                                                >
+                                                    <MapPin size={16} style={{ color: '#f97316' }} />
+                                                    <input
+                                                        ref={originInputRef}
+                                                        type="text"
+                                                        value={originAddress}
+                                                        onChange={(e) => {
+                                                            setOriginAddress(e.target.value)
+                                                            searchAddress(e.target.value, 'origin')
+                                                        }}
+                                                        onKeyDown={(e) => handleKeyDown(e, 'origin')}
+                                                        placeholder="Endereço de origem"
+                                                        className="flex-1 bg-transparent outline-none text-sm"
+                                                        style={{ color: textPrimary }}
+                                                    />
+                                                    {originAddress && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setOriginAddress('')
+                                                                setOriginCoords(null)
+                                                                setOriginSuggestions([])
+                                                                setOriginSelectedIndex(-1)
+                                                                originInputRef.current?.focus()
+                                                            }}
+                                                            className="p-0.5 rounded-full hover:bg-black/5"
+                                                        >
+                                                            <X size={14} style={{ color: textSecondary }} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {originSuggestions.length > 0 && (
+                                                    <div
+                                                        ref={originSuggestionsRef}
+                                                        className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg z-20"
+                                                        style={{
+                                                            background: colors.surface,
+                                                            border: `1px solid ${colors.border}`,
+                                                        }}
+                                                    >
+                                                        {originSuggestions.map((feature, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => selectSuggestion(feature, 'origin')}
+                                                                className={`w-full text-left px-4 py-2 text-xs hover:bg-black/5 transition-colors ${i === originSelectedIndex ? 'bg-black/10' : ''}`}
+                                                                style={{ color: textPrimary }}
+                                                            >
+                                                                {feature.place_name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => useCurrentLocation('origin')}
+                                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 border"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
+                                                    color: textSecondary,
                                                 }}
+                                                title="Usar localização atual"
                                             >
-                                                <MapPin size={16} style={{ color: '#f97316' }} />
-                                                <input
-                                                    type="text"
-                                                    value={originAddress}
-                                                    onChange={(e) => {
-                                                        setOriginAddress(e.target.value)
-                                                        searchAddress(e.target.value, 'origin')
-                                                    }}
-                                                    placeholder="Endereço da loja"
-                                                    className="flex-1 bg-transparent outline-none text-sm"
-                                                    style={{ color: textPrimary }}
-                                                    readOnly={!!originCoords}
-                                                />
-                                            </div>
-                                            {originSuggestions.length > 0 && (
-                                                <div
-                                                    className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg z-20"
-                                                    style={{
-                                                        background: colors.surface,
-                                                        border: `1px solid ${colors.border}`,
-                                                    }}
-                                                >
-                                                    {originSuggestions.map((feature, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => selectSuggestion(feature, 'origin')}
-                                                            className="w-full text-left px-4 py-2 text-xs hover:bg-black/5 transition-colors"
-                                                            style={{ color: textPrimary }}
-                                                        >
-                                                            {feature.place_name}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                <Navigation size={18} />
+                                            </button>
                                         </div>
-                                        {originCoords && (
-                                            <p className="text-[9px] mt-1" style={{ color: textSecondary }}>
-                                                Lat: {originCoords.lat.toFixed(5)}, Lng: {originCoords.lng.toFixed(5)}
-                                            </p>
-                                        )}
                                     </div>
 
-                                    {/* Destino */}
                                     <div>
                                         <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: textSecondary }}>
                                             <div className="flex items-center gap-2">
@@ -686,61 +1022,73 @@ export default function CalculoDaEntregaPage() {
                                                 Destino
                                             </div>
                                         </label>
-                                        <div className="flex-1 relative">
-                                            <div
-                                                className="flex items-center gap-2 px-4 py-2.5 rounded-full border"
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <div
+                                                    className="flex items-center gap-2 px-4 py-2.5 rounded-full border"
+                                                    style={{
+                                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                                        borderColor: colors.border,
+                                                    }}
+                                                >
+                                                    <Target size={16} style={{ color: '#3b82f6' }} />
+                                                    <input
+                                                        ref={destinationInputRef}
+                                                        type="text"
+                                                        value={destinationAddress}
+                                                        onChange={(e) => {
+                                                            setDestinationAddress(e.target.value)
+                                                            searchAddress(e.target.value, 'destination')
+                                                        }}
+                                                        onKeyDown={(e) => handleKeyDown(e, 'destination')}
+                                                        placeholder="Endereço de destino"
+                                                        className="flex-1 bg-transparent outline-none text-sm"
+                                                        style={{ color: textPrimary }}
+                                                    />
+                                                    {destinationAddress && (
+                                                        <button
+                                                            onClick={clearDestination}
+                                                            className="p-0.5 rounded-full hover:bg-black/5"
+                                                        >
+                                                            <X size={14} style={{ color: textSecondary }} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {destinationSuggestions.length > 0 && (
+                                                    <div
+                                                        ref={destinationSuggestionsRef}
+                                                        className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg z-20"
+                                                        style={{
+                                                            background: colors.surface,
+                                                            border: `1px solid ${colors.border}`,
+                                                        }}
+                                                    >
+                                                        {destinationSuggestions.map((feature, i) => (
+                                                            <button
+                                                                key={i}
+                                                                onClick={() => selectSuggestion(feature, 'destination')}
+                                                                className={`w-full text-left px-4 py-2 text-xs hover:bg-black/5 transition-colors ${i === destinationSelectedIndex ? 'bg-black/10' : ''}`}
+                                                                style={{ color: textPrimary }}
+                                                            >
+                                                                {feature.place_name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => useCurrentLocation('destination')}
+                                                className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 border"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
+                                                    color: textSecondary,
                                                 }}
+                                                title="Usar localização atual"
                                             >
-                                                <MapPin size={16} style={{ color: '#3b82f6' }} />
-                                                <input
-                                                    type="text"
-                                                    value={destinationAddress}
-                                                    onChange={(e) => {
-                                                        setDestinationAddress(e.target.value)
-                                                        searchAddress(e.target.value, 'destination')
-                                                    }}
-                                                    placeholder="Endereço de entrega"
-                                                    className="flex-1 bg-transparent outline-none text-sm"
-                                                    style={{ color: textPrimary }}
-                                                />
-                                                {destinationAddress && (
-                                                    <button
-                                                        onClick={clearDestination}
-                                                        className="p-0.5 rounded-full hover:bg-black/5"
-                                                    >
-                                                        <X size={14} style={{ color: textSecondary }} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {destinationSuggestions.length > 0 && (
-                                                <div
-                                                    className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden shadow-lg z-20"
-                                                    style={{
-                                                        background: colors.surface,
-                                                        border: `1px solid ${colors.border}`,
-                                                    }}
-                                                >
-                                                    {destinationSuggestions.map((feature, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => selectSuggestion(feature, 'destination')}
-                                                            className="w-full text-left px-4 py-2 text-xs hover:bg-black/5 transition-colors"
-                                                            style={{ color: textPrimary }}
-                                                        >
-                                                            {feature.place_name}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                <Navigation size={18} />
+                                            </button>
                                         </div>
-                                        {destinationCoords && (
-                                            <p className="text-[9px] mt-1" style={{ color: textSecondary }}>
-                                                Lat: {destinationCoords.lat.toFixed(5)}, Lng: {destinationCoords.lng.toFixed(5)}
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
 
@@ -758,13 +1106,13 @@ export default function CalculoDaEntregaPage() {
                                         )}
                                     </div>
                                     <p className="text-[9px] mt-2 text-center" style={{ color: textSecondary }}>
-                                        🟠 Arraste o marcador azul para definir o destino
+                                        🟠 Origem • 🔵 Destino
                                     </p>
                                 </div>
 
                                 {/* Botão Calcular */}
                                 <button
-                                    onClick={calculateDelivery}
+                                    onClick={calculateRoute}
                                     disabled={!originCoords || !destinationCoords || calculating}
                                     style={{
                                         ...pillButtonFullStyle,
@@ -778,12 +1126,15 @@ export default function CalculoDaEntregaPage() {
                                     {calculating ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
-                                        'Calcular Entrega'
+                                        <>
+                                            <Calculator size={18} />
+                                            Calcular Rota e Preço
+                                        </>
                                     )}
                                 </button>
 
                                 {/* Resultado */}
-                                {distance !== null && deliveryFee !== null && (
+                                {distance !== null && estimatedPrice !== null && (
                                     <div
                                         className="rounded-2xl p-4 space-y-3"
                                         style={{
@@ -792,68 +1143,84 @@ export default function CalculoDaEntregaPage() {
                                         }}
                                     >
                                         <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: textSecondary }}>
-                                            Resultado do Cálculo
+                                            Resultado da Corrida
                                         </h4>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <div className="grid grid-cols-3 gap-2">
                                             <div
                                                 className="text-center p-3 rounded-xl"
                                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
                                             >
-                                                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>Distância</p>
-                                                <p className="text-2xl font-black" style={{ color: '#f97316' }}>
+                                                <div className="flex items-center justify-center gap-1 text-[8px] font-bold uppercase" style={{ color: textSecondary }}>
+                                                    <Route size={12} />
+                                                    Distância
+                                                </div>
+                                                <p className="text-xl font-black" style={{ color: '#f97316' }}>
                                                     {distance.toFixed(2)} km
                                                 </p>
                                             </div>
+                                            {duration !== null && (
+                                                <div
+                                                    className="text-center p-3 rounded-xl"
+                                                    style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
+                                                >
+                                                    <div className="flex items-center justify-center gap-1 text-[8px] font-bold uppercase" style={{ color: textSecondary }}>
+                                                        <Timer size={12} />
+                                                        Tempo
+                                                    </div>
+                                                    <p className="text-xl font-black" style={{ color: '#8b5cf6' }}>
+                                                        {Math.round(duration)} min
+                                                    </p>
+                                                </div>
+                                            )}
                                             <div
                                                 className="text-center p-3 rounded-xl"
                                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
                                             >
-                                                <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: textSecondary }}>Frete</p>
-                                                <p className="text-2xl font-black" style={{ color: '#10b981' }}>
-                                                    R$ {deliveryFee.toFixed(2)}
+                                                <div className="flex items-center justify-center gap-1 text-[8px] font-bold uppercase" style={{ color: textSecondary }}>
+                                                    <DollarSign size={12} />
+                                                    Preço
+                                                </div>
+                                                <p className="text-xl font-black" style={{ color: '#10b981' }}>
+                                                    R$ {estimatedPrice.toFixed(2)}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        {storeConfig?.delivery_type === 'distance' && (
+                                        {/* Detalhamento do preço */}
+                                        {priceBreakdown.length > 0 && (
                                             <div
-                                                className="p-3 rounded-xl text-[10px]"
+                                                className="p-3 rounded-xl text-[10px] space-y-1"
                                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
                                             >
-                                                <p style={{ color: textSecondary }}>
-                                                    Base: {storeConfig.delivery_base_distance || 0}km = R$ {Number(storeConfig.delivery_base_fee || 0).toFixed(2)}
-                                                    {distance > Number(storeConfig.delivery_base_distance || 0) && (
-                                                        <span>
-                                                            {' '}• Extra: {(distance - Number(storeConfig.delivery_base_distance || 0)).toFixed(2)}km × R$ {Number(storeConfig.delivery_fee_per_km || 0).toFixed(2)}
+                                                {priceBreakdown.map((item, index) => (
+                                                    <div key={index} className="flex justify-between" style={{ color: textSecondary }}>
+                                                        <span>{item.label}</span>
+                                                        <span className="font-bold" style={{ color: item.value > 0 ? '#f97316' : textSecondary }}>
+                                                            {item.value > 0 ? `R$ ${item.value.toFixed(2)}` : 'Incluído'}
                                                         </span>
-                                                    )}
-                                                </p>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between pt-1 border-t" style={{ borderColor: colors.border }}>
+                                                    <span className="font-bold" style={{ color: textPrimary }}>Total</span>
+                                                    <span className="font-bold" style={{ color: '#10b981' }}>R$ {estimatedPrice.toFixed(2)}</span>
+                                                </div>
                                             </div>
                                         )}
 
-                                        {storeConfig?.delivery_type === 'fixed' && (
-                                            <div
-                                                className="p-3 rounded-xl text-[10px]"
-                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
-                                            >
-                                                <p style={{ color: textSecondary }}>
-                                                    Taxa fixa: R$ {Number(storeConfig.delivery_fee || 0).toFixed(2)}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {storeConfig?.delivery_type === 'free' && (
-                                            <div
-                                                className="p-3 rounded-xl text-[10px]"
-                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)` }}
-                                            >
-                                                <p style={{ color: textSecondary }}>Entrega gratuita!</p>
-                                            </div>
-                                        )}
+                                        {/* Informações do veículo */}
+                                        <div
+                                            className="p-2 rounded-xl text-[9px] text-center"
+                                            style={{ background: '#f9731610' }}
+                                        >
+                                            <p style={{ color: textSecondary }}>
+                                                {useCustomValues
+                                                    ? 'Valores personalizados'
+                                                    : VEHICLE_CONFIGS[vehicleType].description}
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Dica */}
                                 <div
                                     className="p-3 rounded-xl text-xs"
                                     style={{
@@ -862,8 +1229,7 @@ export default function CalculoDaEntregaPage() {
                                     }}
                                 >
                                     <p style={{ color: textSecondary }}>
-                                        💡 Digite o endereço de destino ou arraste o marcador azul no mapa.
-                                        {!destinationCoords && ' O marcador azul pode ser arrastado para qualquer local no mapa.'}
+                                        💡 Digite os endereços ou clique no ícone de GPS. Use as setas ↑↓ para navegar nos resultados.
                                     </p>
                                 </div>
                             </>
