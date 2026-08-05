@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText, ChevronDown, ChevronUp, CreditCard, Wallet, Phone, Truck, LocateFixed } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -198,11 +198,18 @@ export default function EditarLoja() {
     const [deliveryBaseFee, setDeliveryBaseFee] = useState('7')
     const [deliveryExtraPerKm, setDeliveryExtraPerKm] = useState('2')
 
-    // ===== HORÁRIOS DE FUNCIONAMENTO (ESTILO StoreOperatingDays) =====
+    // ===== HORÁRIOS DE FUNCIONAMENTO =====
     const [weekly, setWeekly] = useState<any>(DEFAULT_WEEKLY)
     const [blockedDates, setBlockedDates] = useState<string[]>([])
     const [blockedDateInput, setBlockedDateInput] = useState('')
     const [isHoursExpanded, setIsHoursExpanded] = useState(false)
+
+    // ===== EXPAND STATES PARA CADA SEÇÃO =====
+    const [isLocationExpanded, setIsLocationExpanded] = useState(false)
+    const [isWhatsappExpanded, setIsWhatsappExpanded] = useState(false)
+    const [isDeliveryExpanded, setIsDeliveryExpanded] = useState(false)
+    const [isPaymentExpanded, setIsPaymentExpanded] = useState(false)
+    const [isPixExpanded, setIsPixExpanded] = useState(false)
 
     // LocationPicker inline states
     const [showMapPicker, setShowMapPicker] = useState(false)
@@ -796,8 +803,8 @@ export default function EditarLoja() {
                                 <input placeholder="minha-loja" value={storeSlug} onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} className="w-full px-4 py-3 bg-transparent text-gray-900 placeholder:text-gray-400 text-sm outline-none" />
                             </div>
                             {slugStatus === 'checking' && <p className="text-[9px] text-gray-400 ml-1 font-bold animate-pulse">Verificando...</p>}
-                            {slugStatus === 'available' && <p className="text-[9px] text-green-600 ml-1 font-bold">✓ Disponível!</p>}
-                            {slugStatus === 'taken' && <p className="text-[9px] text-red-500 ml-1 font-bold">✗ Já está em uso</p>}
+                            {slugStatus === 'available' && <p className="text-[9px] text-green-600 ml-1 font-bold">Disponível</p>}
+                            {slugStatus === 'taken' && <p className="text-[9px] text-red-500 ml-1 font-bold">Já está em uso</p>}
                         </div>
 
                         {/* Descrição */}
@@ -806,156 +813,300 @@ export default function EditarLoja() {
                             <textarea placeholder="Conte a história da sua marca..." value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 resize-none" />
                         </div>
 
-                        {/* Localização */}
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between ml-1">
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600">Localização da Sede</label>
-                                {location && <span className="text-[8px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">✓ Definida</span>}
-                            </div>
-
-                            {location ? (
-                                <div className="bg-white rounded-2xl border-2 border-orange-200 p-4 shadow-sm space-y-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                            <MapPin className="w-5 h-5 text-orange-500" />
+                        {/* ===== LOCALIZAÇÃO ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
+                            <button
+                                onClick={() => setIsLocationExpanded(!isLocationExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <LocateFixed size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">Localização da Sede</h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>{location ? 'Definida' : 'Não definida'}</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[9px] font-black uppercase text-gray-400 mb-1">Endereço Registrado</p>
-                                            <p className="text-sm font-bold text-gray-800 leading-tight">{address || 'Localização Definida'}</p>
-                                            {addressNumber && (
-                                                <p className="text-xs text-gray-500 mt-0.5">Nº {addressNumber}</p>
-                                            )}
-                                            {addressComplement && (
-                                                <p className="text-xs text-gray-500 mt-0.5 italic">"{addressComplement}"</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 pt-2 border-t border-orange-100">
-                                        <button onClick={openMapPicker} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-orange-200 rounded-xl text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 transition-all">
-                                            <Pencil className="w-3 h-3" />Alterar no Mapa
-                                        </button>
-                                        <button onClick={() => { setLocation(null); setAddress(''); setAddressNumber(''); setAddressComplement('') }} className="px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-[10px] font-black uppercase text-red-500 hover:bg-red-500 hover:text-white transition-all">
-                                            <Trash2 className="w-3 h-3" />
-                                        </button>
                                     </div>
                                 </div>
-                            ) : (
-                                <button onClick={openMapPicker} className="w-full p-6 bg-white border-2 border-dashed border-orange-200 hover:border-orange-500 text-gray-500 hover:text-orange-600 rounded-2xl transition-all flex flex-col items-center justify-center gap-3 font-bold text-sm">
-                                    <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
-                                        <MapPin className="w-6 h-6 text-orange-400" />
-                                    </div>
-                                    Definir Localização no Mapa
-                                </button>
-                            )}
-                        </div>
-
-                        {/* WhatsApp */}
-                        <div className="space-y-2">
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">WhatsApp (opcional)</label>
-                            <input placeholder="(00) 00000-0000" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-xl text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" />
-                            <p className="text-[9px] text-gray-400 ml-1 font-medium">Se vazio, usaremos o WhatsApp do seu perfil.</p>
-                        </div>
-
-                        {/* Configurações de Venda */}
-                        <div className="space-y-4">
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1">Configurações de Venda</label>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
-                                    <span className="text-xs font-bold text-gray-700">📍 Faz entrega</span>
-                                    <button onClick={() => setAcceptsDelivery(!acceptsDelivery)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsDelivery ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'}`} />
-                                    </button>
+                                <div className="flex items-center gap-2">
+                                    {isLocationExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
                                 </div>
-                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
-                                    <span className="text-xs font-bold text-gray-700">🏪 Retirada no local</span>
-                                    <button onClick={() => setAcceptsPickup(!acceptsPickup)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPickup ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPickup ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                            </div>
+                            </button>
 
-                            {acceptsDelivery && (
-                                <div className="ml-2 space-y-2">
-                                    <p className="text-[10px] font-bold text-gray-500">Tipo de entrega</p>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setDeliveryMode('free')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${deliveryMode === 'free' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Grátis</button>
-                                        <button onClick={() => setDeliveryMode('fixed')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${deliveryMode === 'fixed' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Valor Fixo</button>
-                                        <button onClick={() => setDeliveryMode('distance')} className={`px-3 py-1.5 rounded-full text-xs font-bold ${deliveryMode === 'distance' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Por Distância</button>
-                                    </div>
-
-                                    {deliveryMode === 'fixed' && (
-                                        <input type="number" value={fixedDeliveryFee} onChange={e => setFixedDeliveryFee(e.target.value)} placeholder="Valor da entrega (R$)" className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm" />
-                                    )}
-
-                                    {deliveryMode === 'distance' && (
-                                        <div className="space-y-2 bg-orange-50 p-3 rounded-xl border border-orange-200">
-                                            <p className="text-[10px] font-black text-orange-700">🚀 Tarifa com valor base</p>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div>
-                                                    <label className="text-[9px] text-gray-500 font-bold">Distância base (km)</label>
-                                                    <input type="number" value={deliveryBaseDistance} onChange={e => setDeliveryBaseDistance(e.target.value)} placeholder="5" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+                            {isLocationExpanded && (
+                                <div className="space-y-3 pt-2">
+                                    {location ? (
+                                        <div className="bg-white rounded-2xl border-2 border-orange-200 p-4 shadow-sm space-y-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                                    <MapPin className="w-5 h-5 text-orange-500" />
                                                 </div>
-                                                <div>
-                                                    <label className="text-[9px] text-gray-500 font-bold">Valor base (R$)</label>
-                                                    <input type="number" value={deliveryBaseFee} onChange={e => setDeliveryBaseFee(e.target.value)} placeholder="7" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-gray-500 font-bold">Valor extra por km (R$)</label>
-                                                    <input type="number" value={deliveryExtraPerKm} onChange={e => setDeliveryExtraPerKm(e.target.value)} placeholder="2" className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[9px] font-black uppercase text-gray-400 mb-1">Endereço Registrado</p>
+                                                    <p className="text-sm font-bold text-gray-800 leading-tight">{address || 'Localização Definida'}</p>
+                                                    {addressNumber && <p className="text-xs text-gray-500 mt-0.5">Nº {addressNumber}</p>}
+                                                    {addressComplement && <p className="text-xs text-gray-500 mt-0.5 italic">"{addressComplement}"</p>}
                                                 </div>
                                             </div>
-                                            <p className="text-[9px] text-gray-400">Ex: até {deliveryBaseDistance || '5'} km = R$ {deliveryBaseFee || '7'}, acima + R$ {deliveryExtraPerKm || '2'}/km</p>
+                                            <div className="flex gap-2 pt-2 border-t border-orange-100">
+                                                <button onClick={openMapPicker} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-orange-200 rounded-full text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 transition-all">
+                                                    <Pencil className="w-3 h-3" />Alterar no Mapa
+                                                </button>
+                                                <button onClick={() => { setLocation(null); setAddress(''); setAddressNumber(''); setAddressComplement('') }} className="px-4 py-2 bg-red-50 border border-red-100 rounded-full text-[10px] font-black uppercase text-red-500 hover:bg-red-500 hover:text-white transition-all">
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                         </div>
+                                    ) : (
+                                        <button onClick={openMapPicker} className="w-full p-6 bg-white border-2 border-dashed border-orange-200 hover:border-orange-500 text-gray-500 hover:text-orange-600 rounded-2xl transition-all flex flex-col items-center justify-center gap-3 font-bold text-sm">
+                                            <div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center">
+                                                <MapPin className="w-6 h-6 text-orange-400" />
+                                            </div>
+                                            Definir Localização no Mapa
+                                        </button>
                                     )}
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-3 gap-3 mt-2">
-                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
-                                    <span className="text-xs font-bold text-gray-700">💳 Cartão</span>
-                                    <button onClick={() => setAcceptsCard(!acceptsCard)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsCard ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsCard ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
-                                    <span className="text-xs font-bold text-gray-700">⚡ PIX</span>
-                                    <button onClick={() => setAcceptsPix(!acceptsPix)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPix ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPix ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                                <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-xl p-3">
-                                    <span className="text-xs font-bold text-gray-700">💵 Dinheiro</span>
-                                    <button onClick={() => setAcceptsCash(!acceptsCash)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsCash ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsCash ? 'right-1' : 'left-1'}`} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {acceptsPix && (
-                                <div className="ml-2 space-y-2">
-                                    <p className="text-[10px] font-bold text-gray-500">Chave Pix</p>
-                                    <select value={pixKeyType} onChange={e => setPixKeyType(e.target.value as any)} className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm">
-                                        <option value="cpf">CPF</option>
-                                        <option value="email">E-mail</option>
-                                        <option value="phone">Telefone</option>
-                                        <option value="random">Chave aleatória</option>
-                                    </select>
-                                    <input type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Digite a chave" className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm" />
                                 </div>
                             )}
                         </div>
 
-                        {/* ===== HORÁRIOS DE FUNCIONAMENTO (ESTILO StoreOperatingDays) ===== */}
-                        <div
-                            className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3"
-                            style={{
-                                background: `rgba(255,255,255,0.3)`,
-                                backdropFilter: 'blur(12px)',
-                                WebkitBackdropFilter: 'blur(12px)',
-                            }}
-                        >
-                            {/* Cabeçalho com toggle - PILL */}
+                        {/* ===== WHATSAPP ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
+                            <button
+                                onClick={() => setIsWhatsappExpanded(!isWhatsappExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <Phone size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">WhatsApp</h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>{whatsapp ? 'Definido' : 'Não definido'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isWhatsappExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
+                                </div>
+                            </button>
+
+                            {isWhatsappExpanded && (
+                                <div className="pt-2">
+                                    <input
+                                        placeholder="(00) 00000-0000"
+                                        value={whatsapp}
+                                        onChange={(e) => setWhatsapp(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white border-2 border-orange-200 rounded-full text-gray-900 placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                                    />
+                                    <p className="text-[9px] text-gray-400 mt-2 ml-1 font-medium">Se vazio, usaremos o WhatsApp do seu perfil.</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== CONFIGURAÇÕES DE ENTREGA ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
+                            <button
+                                onClick={() => setIsDeliveryExpanded(!isDeliveryExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <Truck size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">Configurações de Entrega</h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>{acceptsDelivery ? 'Entrega ativa' : 'Entrega desativada'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isDeliveryExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
+                                </div>
+                            </button>
+
+                            {isDeliveryExpanded && (
+                                <div className="space-y-4 pt-2">
+                                    <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-full p-3">
+                                        <span className="text-xs font-bold text-gray-700">Faz entrega</span>
+                                        <button onClick={() => setAcceptsDelivery(!acceptsDelivery)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsDelivery ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsDelivery ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {acceptsDelivery && (
+                                        <div className="ml-2 space-y-3">
+                                            <p className="text-[10px] font-bold text-gray-500">Tipo de entrega</p>
+                                            <div className="flex gap-2 flex-wrap">
+                                                <button onClick={() => setDeliveryMode('free')} className={`px-4 py-2 rounded-full text-xs font-bold ${deliveryMode === 'free' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Grátis</button>
+                                                <button onClick={() => setDeliveryMode('fixed')} className={`px-4 py-2 rounded-full text-xs font-bold ${deliveryMode === 'fixed' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Valor Fixo</button>
+                                                <button onClick={() => setDeliveryMode('distance')} className={`px-4 py-2 rounded-full text-xs font-bold ${deliveryMode === 'distance' ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}>Por Distância</button>
+                                            </div>
+
+                                            {deliveryMode === 'fixed' && (
+                                                <input type="number" value={fixedDeliveryFee} onChange={e => setFixedDeliveryFee(e.target.value)} placeholder="Valor da entrega (R$)" className="w-full bg-white border-2 border-orange-200 rounded-full px-4 py-2 text-sm" />
+                                            )}
+
+                                            {deliveryMode === 'distance' && (
+                                                <div className="space-y-3 bg-orange-50 p-4 rounded-2xl border border-orange-200">
+                                                    <p className="text-[10px] font-black text-orange-700">Tarifa com valor base</p>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <div>
+                                                            <label className="text-[9px] text-gray-500 font-bold">Distância base (km)</label>
+                                                            <input type="number" value={deliveryBaseDistance} onChange={e => setDeliveryBaseDistance(e.target.value)} placeholder="5" className="w-full bg-white border border-gray-200 rounded-full px-3 py-1.5 text-sm" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] text-gray-500 font-bold">Valor base (R$)</label>
+                                                            <input type="number" value={deliveryBaseFee} onChange={e => setDeliveryBaseFee(e.target.value)} placeholder="7" className="w-full bg-white border border-gray-200 rounded-full px-3 py-1.5 text-sm" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] text-gray-500 font-bold">Valor extra por km (R$)</label>
+                                                            <input type="number" value={deliveryExtraPerKm} onChange={e => setDeliveryExtraPerKm(e.target.value)} placeholder="2" className="w-full bg-white border border-gray-200 rounded-full px-3 py-1.5 text-sm" />
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-[9px] text-gray-400">Ex: até {deliveryBaseDistance || '5'} km = R$ {deliveryBaseFee || '7'}, acima + R$ {deliveryExtraPerKm || '2'}/km</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-full p-3">
+                                        <span className="text-xs font-bold text-gray-700">Retirada no local</span>
+                                        <button onClick={() => setAcceptsPickup(!acceptsPickup)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPickup ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPickup ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== FORMAS DE PAGAMENTO ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
+                            <button
+                                onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <CreditCard size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">Formas de Pagamento</h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>Cartão: {acceptsCard ? 'Sim' : 'Não'} • Pix: {acceptsPix ? 'Sim' : 'Não'} • Dinheiro: {acceptsCash ? 'Sim' : 'Não'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isPaymentExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
+                                </div>
+                            </button>
+
+                            {isPaymentExpanded && (
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-full p-3">
+                                        <span className="text-xs font-bold text-gray-700">Cartão</span>
+                                        <button onClick={() => setAcceptsCard(!acceptsCard)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsCard ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsCard ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-full p-3">
+                                        <span className="text-xs font-bold text-gray-700">Dinheiro</span>
+                                        <button onClick={() => setAcceptsCash(!acceptsCash)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsCash ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsCash ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== CHAVE PIX ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
+                            <button
+                                onClick={() => setIsPixExpanded(!isPixExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        <Wallet size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">Chave Pix</h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>{acceptsPix && pixKey ? 'Configurada' : 'Não configurada'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isPixExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
+                                </div>
+                            </button>
+
+                            {isPixExpanded && (
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between bg-white border-2 border-orange-200 rounded-full p-3">
+                                        <span className="text-xs font-bold text-gray-700">Aceita Pix</span>
+                                        <button onClick={() => setAcceptsPix(!acceptsPix)} className={`relative w-11 h-6 rounded-full transition-colors ${acceptsPix ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${acceptsPix ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+
+                                    {acceptsPix && (
+                                        <div className="ml-2 space-y-3">
+                                            <p className="text-[10px] font-bold text-gray-500">Tipo de Chave</p>
+                                            <select value={pixKeyType} onChange={e => setPixKeyType(e.target.value as any)} className="w-full bg-white border-2 border-orange-200 rounded-full px-4 py-2 text-sm">
+                                                <option value="cpf">CPF</option>
+                                                <option value="email">E-mail</option>
+                                                <option value="phone">Telefone</option>
+                                                <option value="random">Chave aleatória</option>
+                                            </select>
+                                            <input type="text" value={pixKey} onChange={e => setPixKey(e.target.value)} placeholder="Digite a chave" className="w-full bg-white border-2 border-orange-200 rounded-full px-4 py-2 text-sm" />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== HORÁRIOS DE FUNCIONAMENTO ===== */}
+                        <div className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3">
                             <button
                                 onClick={() => setIsHoursExpanded(!isHoursExpanded)}
                                 className="w-full flex items-center justify-between text-left"
@@ -968,19 +1119,11 @@ export default function EditarLoja() {
                                 }}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div
-                                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                        style={{
-                                            background: GRADIENT,
-                                            color: '#ffffff',
-                                        }}
-                                    >
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
                                         <Clock size={24} />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-black text-gray-900">
-                                            Dias de Funcionamento
-                                        </h3>
+                                        <h3 className="text-lg font-black text-gray-900">Dias de Funcionamento</h3>
                                         <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
                                             <span>{openDaysCount} dias abertos</span>
                                             <span>•</span>
@@ -989,58 +1132,25 @@ export default function EditarLoja() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {isHoursExpanded ? (
-                                        <ChevronUp size={22} className="text-gray-400" />
-                                    ) : (
-                                        <ChevronDown size={22} className="text-gray-400" />
-                                    )}
+                                    {isHoursExpanded ? <ChevronUp size={22} className="text-gray-400" /> : <ChevronDown size={22} className="text-gray-400" />}
                                 </div>
                             </button>
 
                             {isHoursExpanded && (
                                 <>
-                                    {/* Dias da semana */}
                                     <div className="space-y-3">
                                         {WEEKDAYS.map((day) => {
-                                            const dayConfig = weekly[day.id] || {
-                                                isOpen: false,
-                                                start: '08:00',
-                                                end: '18:00',
-                                                lunchStart: '',
-                                                lunchEnd: '',
-                                            }
+                                            const dayConfig = weekly[day.id] || { isOpen: false, start: '08:00', end: '18:00', lunchStart: '', lunchEnd: '' }
                                             const hasLunch = !!(dayConfig.lunchStart && dayConfig.lunchEnd)
 
                                             return (
-                                                <div
-                                                    key={day.id}
-                                                    className="p-4 rounded-2xl border border-gray-200"
-                                                    style={{
-                                                        background: `rgba(255,255,255,0.3)`,
-                                                    }}
-                                                >
+                                                <div key={day.id} className="p-4 rounded-2xl border border-gray-200" style={{ background: `rgba(255,255,255,0.3)` }}>
                                                     <div className="flex items-center justify-between mb-3">
-                                                        <span
-                                                            className="font-bold text-sm"
-                                                            style={{ color: dayConfig.isOpen ? '#111827' : '#6b7280' }}
-                                                        >
-                                                            {day.name}
-                                                        </span>
+                                                        <span className="font-bold text-sm" style={{ color: dayConfig.isOpen ? '#111827' : '#6b7280' }}>{day.name}</span>
                                                         <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                className="sr-only peer"
-                                                                checked={dayConfig.isOpen}
-                                                                onChange={(e) => updateDaySetting(day.id, 'isOpen', e.target.checked)}
-                                                            />
-                                                            <span
-                                                                className="absolute inset-0 rounded-full transition-colors duration-200"
-                                                                style={{ background: dayConfig.isOpen ? '#f97316' : '#e5e7eb' }}
-                                                            />
-                                                            <span
-                                                                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${dayConfig.isOpen ? 'translate-x-[18px]' : 'translate-x-0'
-                                                                    }`}
-                                                            />
+                                                            <input type="checkbox" className="sr-only peer" checked={dayConfig.isOpen} onChange={(e) => updateDaySetting(day.id, 'isOpen', e.target.checked)} />
+                                                            <span className="absolute inset-0 rounded-full transition-colors duration-200" style={{ background: dayConfig.isOpen ? '#f97316' : '#e5e7eb' }} />
+                                                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${dayConfig.isOpen ? 'translate-x-[18px]' : 'translate-x-0'}`} />
                                                         </label>
                                                     </div>
 
@@ -1048,94 +1158,32 @@ export default function EditarLoja() {
                                                         <div className="space-y-3">
                                                             <div className="flex gap-3">
                                                                 <div className="flex-1">
-                                                                    <span className="text-[10px] font-semibold text-gray-500">
-                                                                        Entrada
-                                                                    </span>
-                                                                    <input
-                                                                        type="time"
-                                                                        value={dayConfig.start}
-                                                                        onChange={(e) => updateDaySetting(day.id, 'start', e.target.value)}
-                                                                        className="w-full p-2 rounded-full border text-sm bg-white"
-                                                                        style={{
-                                                                            borderColor: '#e5e7eb',
-                                                                            color: '#111827',
-                                                                        }}
-                                                                    />
+                                                                    <span className="text-[10px] font-semibold text-gray-500">Entrada</span>
+                                                                    <input type="time" value={dayConfig.start} onChange={(e) => updateDaySetting(day.id, 'start', e.target.value)} className="w-full p-2 rounded-full border text-sm bg-white" style={{ borderColor: '#e5e7eb', color: '#111827' }} />
                                                                 </div>
                                                                 <div className="flex-1">
-                                                                    <span className="text-[10px] font-semibold text-gray-500">
-                                                                        Saída
-                                                                    </span>
-                                                                    <input
-                                                                        type="time"
-                                                                        value={dayConfig.end}
-                                                                        onChange={(e) => updateDaySetting(day.id, 'end', e.target.value)}
-                                                                        className="w-full p-2 rounded-full border text-sm bg-white"
-                                                                        style={{
-                                                                            borderColor: '#e5e7eb',
-                                                                            color: '#111827',
-                                                                        }}
-                                                                    />
+                                                                    <span className="text-[10px] font-semibold text-gray-500">Saída</span>
+                                                                    <input type="time" value={dayConfig.end} onChange={(e) => updateDaySetting(day.id, 'end', e.target.value)} className="w-full p-2 rounded-full border text-sm bg-white" style={{ borderColor: '#e5e7eb', color: '#111827' }} />
                                                                 </div>
                                                             </div>
 
-                                                            {/* Toggle almoço */}
                                                             <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    id={`lunch-config-${day.id}`}
-                                                                    checked={hasLunch}
-                                                                    onChange={(e) => {
-                                                                        if (e.target.checked) {
-                                                                            updateDaySetting(day.id, 'lunchStart', '12:00')
-                                                                            updateDaySetting(day.id, 'lunchEnd', '13:00')
-                                                                        } else {
-                                                                            updateDaySetting(day.id, 'lunchStart', '')
-                                                                            updateDaySetting(day.id, 'lunchEnd', '')
-                                                                        }
-                                                                    }}
-                                                                    className="rounded-full"
-                                                                    style={{ accentColor: '#f97316' }}
-                                                                />
-                                                                <label
-                                                                    htmlFor={`lunch-config-${day.id}`}
-                                                                    className="text-xs font-semibold cursor-pointer text-gray-500"
-                                                                >
-                                                                    Intervalo de Almoço
-                                                                </label>
+                                                                <input type="checkbox" id={`lunch-config-${day.id}`} checked={hasLunch} onChange={(e) => {
+                                                                    if (e.target.checked) { updateDaySetting(day.id, 'lunchStart', '12:00'); updateDaySetting(day.id, 'lunchEnd', '13:00') }
+                                                                    else { updateDaySetting(day.id, 'lunchStart', ''); updateDaySetting(day.id, 'lunchEnd', '') }
+                                                                }} className="rounded-full" style={{ accentColor: '#f97316' }} />
+                                                                <label htmlFor={`lunch-config-${day.id}`} className="text-xs font-semibold cursor-pointer text-gray-500">Intervalo de Almoço</label>
                                                             </div>
 
                                                             {hasLunch && (
                                                                 <div className="flex gap-3">
                                                                     <div className="flex-1">
-                                                                        <span className="text-[10px] font-semibold text-gray-500">
-                                                                            Início Almoço
-                                                                        </span>
-                                                                        <input
-                                                                            type="time"
-                                                                            value={dayConfig.lunchStart}
-                                                                            onChange={(e) => updateDaySetting(day.id, 'lunchStart', e.target.value)}
-                                                                            className="w-full p-2 rounded-full border text-sm bg-white"
-                                                                            style={{
-                                                                                borderColor: '#e5e7eb',
-                                                                                color: '#111827',
-                                                                            }}
-                                                                        />
+                                                                        <span className="text-[10px] font-semibold text-gray-500">Início Almoço</span>
+                                                                        <input type="time" value={dayConfig.lunchStart} onChange={(e) => updateDaySetting(day.id, 'lunchStart', e.target.value)} className="w-full p-2 rounded-full border text-sm bg-white" style={{ borderColor: '#e5e7eb', color: '#111827' }} />
                                                                     </div>
                                                                     <div className="flex-1">
-                                                                        <span className="text-[10px] font-semibold text-gray-500">
-                                                                            Fim Almoço
-                                                                        </span>
-                                                                        <input
-                                                                            type="time"
-                                                                            value={dayConfig.lunchEnd}
-                                                                            onChange={(e) => updateDaySetting(day.id, 'lunchEnd', e.target.value)}
-                                                                            className="w-full p-2 rounded-full border text-sm bg-white"
-                                                                            style={{
-                                                                                borderColor: '#e5e7eb',
-                                                                                color: '#111827',
-                                                                            }}
-                                                                        />
+                                                                        <span className="text-[10px] font-semibold text-gray-500">Fim Almoço</span>
+                                                                        <input type="time" value={dayConfig.lunchEnd} onChange={(e) => updateDaySetting(day.id, 'lunchEnd', e.target.value)} className="w-full p-2 rounded-full border text-sm bg-white" style={{ borderColor: '#e5e7eb', color: '#111827' }} />
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -1146,60 +1194,20 @@ export default function EditarLoja() {
                                         })}
                                     </div>
 
-                                    {/* Datas bloqueadas */}
                                     <div>
-                                        <label className="font-bold text-sm block mb-2 text-gray-900">
-                                            Datas Fechadas / Bloqueadas
-                                        </label>
+                                        <label className="font-bold text-sm block mb-2 text-gray-900">Datas Fechadas / Bloqueadas</label>
                                         <div className="flex gap-2 mb-3">
-                                            <input
-                                                type="date"
-                                                value={blockedDateInput}
-                                                onChange={(e) => setBlockedDateInput(e.target.value)}
-                                                className="flex-1 p-3 rounded-full border text-sm bg-white"
-                                                style={{
-                                                    borderColor: '#e5e7eb',
-                                                    color: '#111827',
-                                                }}
-                                            />
-                                            <button
-                                                onClick={addBlockedDate}
-                                                style={{
-                                                    ...pillButtonStyle,
-                                                    background: GRADIENT,
-                                                    color: '#ffffff',
-                                                }}
-                                                className="hover:opacity-80 transition-opacity"
-                                            >
-                                                Bloquear
-                                            </button>
+                                            <input type="date" value={blockedDateInput} onChange={(e) => setBlockedDateInput(e.target.value)} className="flex-1 p-3 rounded-full border text-sm bg-white" style={{ borderColor: '#e5e7eb', color: '#111827' }} />
+                                            <button onClick={addBlockedDate} style={{ ...pillButtonStyle, background: GRADIENT, color: '#ffffff' }} className="hover:opacity-80 transition-opacity">Bloquear</button>
                                         </div>
                                         {blockedDates.length > 0 && (
-                                            <div
-                                                className="flex flex-wrap gap-2 p-3 rounded-2xl max-h-32 overflow-y-auto border border-gray-200"
-                                                style={{
-                                                    background: `rgba(255,255,255,0.2)`,
-                                                }}
-                                            >
+                                            <div className="flex flex-wrap gap-2 p-3 rounded-2xl max-h-32 overflow-y-auto border border-gray-200" style={{ background: `rgba(255,255,255,0.2)` }}>
                                                 {blockedDates.map((d) => {
                                                     const [year, month, day] = d.split('-')
-                                                    const formatted = `${day}/${month}/${year}`
                                                     return (
-                                                        <span
-                                                            key={d}
-                                                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{
-                                                                background: '#ef444420',
-                                                                color: '#ef4444',
-                                                            }}
-                                                        >
-                                                            {formatted}
-                                                            <button
-                                                                onClick={() => removeBlockedDate(d)}
-                                                                className="hover:text-red-700 transition-colors"
-                                                            >
-                                                                <X size={12} />
-                                                            </button>
+                                                        <span key={d} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                                            {`${day}/${month}/${year}`}
+                                                            <button onClick={() => removeBlockedDate(d)} className="hover:text-red-700 transition-colors"><X size={12} /></button>
                                                         </span>
                                                     )
                                                 })}
@@ -1227,36 +1235,19 @@ export default function EditarLoja() {
             {/* Modal do Mapa */}
             {showMapPicker && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm">
-                    <div className="rounded-2xl p-3 sm:p-4 w-full max-w-lg shadow-2xl max-h-[95vh] overflow-y-auto"
-                        style={{
-                            background: '#ffffff',
-                            border: '2px solid #f97316',
-                        }}
-                    >
+                    <div className="rounded-2xl p-3 sm:p-4 w-full max-w-lg shadow-2xl max-h-[95vh] overflow-y-auto" style={{ background: '#ffffff', border: '2px solid #f97316' }}>
                         <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2 text-gray-900">
                             <MapPin size={20} className="text-orange-500" />
                             Definir Localização da Loja
                         </h3>
 
-                        {/* Busca + GPS */}
                         <div className="flex gap-2 mb-3">
                             <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold bg-orange-50 border border-orange-200">
                                 <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
                                     <Search size={14} className="text-orange-500" />
                                 </div>
-                                <input
-                                    type="text"
-                                    value={mapSearchQuery}
-                                    onChange={(e) => setMapSearchQuery(e.target.value)}
-                                    placeholder="Buscar endereço..."
-                                    className="flex-1 bg-transparent outline-none ml-1.5 text-xs text-gray-900"
-                                    onKeyDown={(e) => { if (e.key === 'Enter') handleMapSearch() }}
-                                />
-                                {mapSearchQuery && (
-                                    <button onClick={handleMapSearch} className="px-3 py-1 rounded-full text-xs font-bold bg-orange-500 text-white">
-                                        Ir
-                                    </button>
-                                )}
+                                <input type="text" value={mapSearchQuery} onChange={(e) => setMapSearchQuery(e.target.value)} placeholder="Buscar endereço..." className="flex-1 bg-transparent outline-none ml-1.5 text-xs text-gray-900" onKeyDown={(e) => { if (e.key === 'Enter') handleMapSearch() }} />
+                                {mapSearchQuery && <button onClick={handleMapSearch} className="px-3 py-1 rounded-full text-xs font-bold bg-orange-500 text-white">Ir</button>}
                             </div>
                             <button onClick={handleMapGPS} className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600 border border-orange-300 hover:bg-orange-200 transition-all flex-shrink-0">
                                 <Navigation size={14} />
@@ -1264,25 +1255,15 @@ export default function EditarLoja() {
                             </button>
                         </div>
 
-                        {/* Mapa */}
                         <div className="relative w-full h-52 sm:h-60 rounded-xl overflow-hidden mb-3 border-2 border-orange-200 bg-gray-100">
                             <div ref={mapContainerRef} className="w-full h-full" />
-                            {!mapReady && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                                    <Loader2 size={24} className="animate-spin text-orange-500" />
-                                </div>
-                            )}
+                            {!mapReady && <div className="absolute inset-0 flex items-center justify-center bg-gray-100"><Loader2 size={24} className="animate-spin text-orange-500" /></div>}
                         </div>
 
-                        {/* Cards de endereço */}
                         <div className="space-y-2 mb-3">
                             {location && (
                                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                                    <div className="flex-shrink-0 mt-0.5">
-                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                            <Home size={14} className="text-blue-500" />
-                                        </div>
-                                    </div>
+                                    <div className="flex-shrink-0 mt-0.5"><div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center"><Home size={14} className="text-blue-500" /></div></div>
                                     <div className="flex-1 min-w-0">
                                         <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">Localização atual</span>
                                         <p className="text-xs font-medium mt-0.5 break-words leading-relaxed text-gray-800">{address || 'Carregando...'}</p>
@@ -1290,60 +1271,38 @@ export default function EditarLoja() {
                                 </div>
                             )}
                             <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-orange-50 border border-orange-200">
-                                <div className="flex-shrink-0 mt-0.5">
-                                    <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                        <MoveVertical size={14} className="text-orange-500" />
-                                    </div>
-                                </div>
+                                <div className="flex-shrink-0 mt-0.5"><div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center"><MoveVertical size={14} className="text-orange-500" /></div></div>
                                 <div className="flex-1 min-w-0">
                                     <span className="text-[10px] font-semibold uppercase tracking-wider text-orange-400">Nova localização</span>
-                                    {mapResolving ? (
-                                        <p className="text-xs mt-0.5 text-gray-400">Obtendo endereço...</p>
-                                    ) : (
-                                        <p className="text-xs font-medium mt-0.5 break-words leading-relaxed text-gray-800">
-                                            {selectedMapAddress || 'Arraste o marcador laranja ou mova o mapa'}
-                                        </p>
-                                    )}
+                                    {mapResolving ? <p className="text-xs mt-0.5 text-gray-400">Obtendo endereço...</p> : <p className="text-xs font-medium mt-0.5 break-words leading-relaxed text-gray-800">{selectedMapAddress || 'Arraste o marcador laranja ou mova o mapa'}</p>}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Campos de detalhes */}
                         {!mapResolving && selectedMapAddress && (
                             <div className="space-y-2 mb-3">
                                 <div className="px-3 py-2 rounded-xl bg-white border" style={{ borderColor: mapNumberError ? '#EF4444' : '#e5e7eb' }}>
-                                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-                                        <Hash size={12} /> Número da casa/apto *
-                                    </label>
+                                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1"><Hash size={12} /> Número da casa/apto *</label>
                                     <input type="text" value={selectedMapNumber} onChange={(e) => { setSelectedMapNumber(e.target.value); setMapNumberError('') }} placeholder="Ex: 2836" className="w-full bg-transparent outline-none text-xs font-medium text-gray-900" />
                                     {mapNumberError && <p className="text-red-500 text-[10px] mt-1">{mapNumberError}</p>}
                                 </div>
                                 <div className="px-3 py-2 rounded-xl bg-white border border-gray-200">
-                                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
-                                        <FileText size={12} /> Complemento (opcional)
-                                    </label>
+                                    <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1"><FileText size={12} /> Complemento (opcional)</label>
                                     <input type="text" value={selectedMapComplement} onChange={(e) => setSelectedMapComplement(e.target.value)} placeholder="Ex: Casa com parede de cerâmica..." className="w-full bg-transparent outline-none text-xs font-medium text-gray-900" />
                                 </div>
                             </div>
                         )}
 
                         {mapError && <p className="text-red-500 text-xs font-medium mb-2 ml-1">{mapError}</p>}
-
-                        <p className="text-[10px] mb-3 ml-1 text-gray-400">
-                            💡 Arraste o marcador laranja ou o mapa para ajustar a localização
-                        </p>
+                        <p className="text-[10px] mb-3 ml-1 text-gray-400">Arraste o marcador laranja ou o mapa para ajustar a localização</p>
 
                         <div className="flex gap-2 justify-end">
                             <button onClick={() => setShowMapPicker(false)} className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200 transition-all">
-                                <div className="h-7 w-7 rounded-full flex items-center justify-center bg-gray-200">
-                                    <X size={14} />
-                                </div>
+                                <div className="h-7 w-7 rounded-full flex items-center justify-center bg-gray-200"><X size={14} /></div>
                                 <span className="ml-1.5">Cancelar</span>
                             </button>
                             <button onClick={handleMapConfirm} className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-orange-500 to-red-500 text-white hover:opacity-90 transition-all">
-                                <div className="h-7 w-7 rounded-full flex items-center justify-center bg-white/20">
-                                    <CheckCircle2 size={14} />
-                                </div>
+                                <div className="h-7 w-7 rounded-full flex items-center justify-center bg-white/20"><CheckCircle2 size={14} /></div>
                                 <span className="ml-1.5">Confirmar Localização</span>
                             </button>
                         </div>

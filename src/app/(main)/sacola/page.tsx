@@ -42,6 +42,8 @@ interface StoreDeliveryInfo {
     delivery_type: string | null
     delivery_fee: number | null
     delivery_fee_per_km: number | null
+    delivery_base_distance: number | null
+    delivery_base_fee: number | null
     store_lat: number | null
     store_lng: number | null
 }
@@ -78,6 +80,7 @@ export default function SacolaPage() {
     const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
     const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
     const [currentUserName, setCurrentUserName] = useState<string | null>(null)
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
     const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
     const [myPurchases, setMyPurchases] = useState<any[]>([])
@@ -225,7 +228,7 @@ export default function SacolaPage() {
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('profileSlug, avatar_url, name, address')
+                .select('profileSlug, avatar_url, name, address, store_lat, store_lng')
                 .eq('id', userId)
                 .single()
 
@@ -235,6 +238,9 @@ export default function SacolaPage() {
                 setCurrentUserName(profile.name)
                 setUserAddress(profile.address)
                 if (profile.address) setAddressInput(profile.address)
+                if (profile.store_lat && profile.store_lng) {
+                    setUserLocation({ lat: profile.store_lat, lng: profile.store_lng })
+                }
             }
 
             const { data: ordersData } = await supabase
@@ -418,7 +424,7 @@ export default function SacolaPage() {
         const fetchConfigs = async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, store_lat, store_lng')
+                .select('storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng')
                 .in('storeSlug', storeSlugs)
 
             if (data) {
@@ -440,6 +446,8 @@ export default function SacolaPage() {
                         delivery_type: s.delivery_type,
                         delivery_fee: s.delivery_fee,
                         delivery_fee_per_km: s.delivery_fee_per_km,
+                        delivery_base_distance: s.delivery_base_distance,
+                        delivery_base_fee: s.delivery_base_fee,
                         store_lat: s.store_lat,
                         store_lng: s.store_lng,
                     }
@@ -472,7 +480,58 @@ export default function SacolaPage() {
         }
     }, [reviewOrder.isOpen, currentUserId, fetchPendingReviews, fetchUserReviews])
 
-    // ---- Handler de finalização por loja (orders + order_items) ----
+    // ===== FUNÇÃO CORRIGIDA PARA CALCULAR TOTAIS =====
+    const getStoreTotals = (slug: string) => {
+        const items = itemsByStore[slug] || []
+        const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+        const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
+        let deliveryFee = 0
+        let isCalculating = false
+
+        if (deliveryOpt === 'entrega') {
+            const info = storeDeliveryInfo[slug]
+            if (info) {
+                if (info.delivery_type === 'fixed') {
+                    deliveryFee = Number(info.delivery_fee) || 0
+                } else if (info.delivery_type === 'distance') {
+                    const feePerKm = Number(info.delivery_fee_per_km) || 0
+                    const storeLat = info.store_lat
+                    const storeLng = info.store_lng
+
+                    // Usa a localização do perfil se disponível
+                    const userLat = userLocation?.lat
+                    const userLng = userLocation?.lng
+
+                    if (storeLat != null && storeLng != null && userLat != null && userLng != null) {
+                        const dist = getDistanceKm(storeLat, storeLng, userLat, userLng)
+                        // Verifica se tem valor base
+                        if (info.delivery_base_distance != null && info.delivery_base_fee != null) {
+                            const baseDist = Number(info.delivery_base_distance) || 0
+                            const baseFee = Number(info.delivery_base_fee) || 0
+                            if (dist <= baseDist) {
+                                deliveryFee = baseFee
+                            } else {
+                                const extraKm = dist - baseDist
+                                deliveryFee = baseFee + (extraKm * feePerKm)
+                            }
+                        } else {
+                            deliveryFee = dist * feePerKm
+                        }
+                        isCalculating = false
+                    } else {
+                        // Se não tiver localização do usuário, mostra "a calcular"
+                        isCalculating = true
+                        deliveryFee = 0
+                    }
+                }
+            }
+        }
+
+        const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
+        return { itemsTotal, deliveryFee, finalTotal, isCalculating }
+    }
+
+    // ---- Handler de finalização por loja ----
     const handleFinalizarLoja = async (slug: string) => {
         if (!currentUserId) return
         setCheckoutLoading(slug)
@@ -483,7 +542,7 @@ export default function SacolaPage() {
 
             const { data: storeDeliveryData } = await supabase
                 .from('stores')
-                .select('delivery_type, delivery_fee, delivery_fee_per_km, store_lat, store_lng')
+                .select('delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng')
                 .eq('storeSlug', slug)
                 .single()
 
@@ -491,6 +550,8 @@ export default function SacolaPage() {
                 delivery_type: null,
                 delivery_fee: null,
                 delivery_fee_per_km: null,
+                delivery_base_distance: null,
+                delivery_base_fee: null,
                 store_lat: null,
                 store_lng: null,
             }
@@ -552,7 +613,19 @@ export default function SacolaPage() {
                     const storeLng = deliveryInfo.store_lng
                     if (storeLat != null && storeLng != null && deliveryLat != null && deliveryLng != null) {
                         const dist = getDistanceKm(storeLat, storeLng, deliveryLat, deliveryLng)
-                        deliveryFee = dist * feePerKm
+                        // Verifica se tem valor base
+                        if (deliveryInfo.delivery_base_distance != null && deliveryInfo.delivery_base_fee != null) {
+                            const baseDist = Number(deliveryInfo.delivery_base_distance) || 0
+                            const baseFee = Number(deliveryInfo.delivery_base_fee) || 0
+                            if (dist <= baseDist) {
+                                deliveryFee = baseFee
+                            } else {
+                                const extraKm = dist - baseDist
+                                deliveryFee = baseFee + (extraKm * feePerKm)
+                            }
+                        } else {
+                            deliveryFee = dist * feePerKm
+                        }
                     } else {
                         toast.error('Não foi possível calcular a distância. Verifique o endereço.')
                         setCheckoutLoading(null)
@@ -873,7 +946,7 @@ export default function SacolaPage() {
         padding: '1.5rem',
     }
 
-    // ===== TABS - AGORA SEM SCROLL, APENAS SETA A TAB ATIVA =====
+    // ===== TABS =====
     const tabs = useMemo(() => {
         if (!currentUserId) return []
 
@@ -1015,25 +1088,6 @@ export default function SacolaPage() {
         )
     }
 
-    const getStoreTotals = (slug: string) => {
-        const items = itemsByStore[slug] || []
-        const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
-        const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
-        let deliveryFee = 0
-        if (deliveryOpt === 'entrega') {
-            const info = storeDeliveryInfo[slug]
-            if (info) {
-                if (info.delivery_type === 'fixed') {
-                    deliveryFee = info.delivery_fee || 0
-                } else if (info.delivery_type === 'distance') {
-                    return { itemsTotal, deliveryFee: -1, finalTotal: itemsTotal }
-                }
-            }
-        }
-        const finalTotal = deliveryFee >= 0 ? itemsTotal + deliveryFee : itemsTotal
-        return { itemsTotal, deliveryFee, finalTotal }
-    }
-
     if (!mounted || globalLoading) return <LoadingSpinner message="Carregando sacola" background={colors.background} />
 
     return (
@@ -1094,7 +1148,7 @@ export default function SacolaPage() {
                                         const details = storeDetails[slug]
                                         const items = itemsByStore[slug]
                                         const config = storeConfigs[slug] || {}
-                                        const { itemsTotal, deliveryFee, finalTotal } = getStoreTotals(slug)
+                                        const { itemsTotal, deliveryFee, finalTotal, isCalculating } = getStoreTotals(slug)
                                         const deliveryOpt = deliveryOptionByStore[slug] || 'retirada'
                                         const paymentOpt = paymentMethodByStore[slug] || 'pix'
 
@@ -1170,18 +1224,24 @@ export default function SacolaPage() {
                                                     {deliveryOpt === 'entrega' && (
                                                         <div className="flex justify-between">
                                                             <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
-                                                            {deliveryFee >= 0 ? (
-                                                                <span className="font-bold" style={{ color: '#f97316' }}>
-                                                                    {deliveryFee === 0 ? 'Grátis' : `R$ ${deliveryFee.toFixed(2)}`}
-                                                                </span>
+                                                            {isCalculating ? (
+                                                                <span className="italic animate-pulse" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                                            ) : deliveryFee === 0 ? (
+                                                                <span className="font-bold text-green-500">Grátis</span>
                                                             ) : (
-                                                                <span className="italic" style={{ color: colors.textSecondary }}>a calcular</span>
+                                                                <span className="font-bold" style={{ color: '#f97316' }}>
+                                                                    R$ {deliveryFee.toFixed(2)}
+                                                                </span>
                                                             )}
                                                         </div>
                                                     )}
                                                     <div className="flex justify-between pt-1 border-t" style={{ borderColor: colors.border }}>
                                                         <span className="font-bold" style={{ color: colors.textPrimary }}>Total</span>
-                                                        <span className="font-bold text-base" style={{ color: '#f97316' }}>R$ {finalTotal.toFixed(2)}</span>
+                                                        {isCalculating ? (
+                                                            <span className="font-bold text-base italic" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                                        ) : (
+                                                            <span className="font-bold text-base" style={{ color: '#f97316' }}>R$ {finalTotal.toFixed(2)}</span>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -1264,11 +1324,11 @@ export default function SacolaPage() {
                                                         </div>
                                                         <button
                                                             onClick={() => handleFinalizarLoja(slug)}
-                                                            disabled={checkoutLoading === slug}
-                                                            className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95"
+                                                            disabled={checkoutLoading === slug || isCalculating}
+                                                            className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50"
                                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                                         >
-                                                            {checkoutLoading === slug ? 'Finalizando...' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
+                                                            {checkoutLoading === slug ? 'Finalizando...' : isCalculating ? 'Calculando frete...' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
                                                         </button>
                                                     </div>
                                                 )}

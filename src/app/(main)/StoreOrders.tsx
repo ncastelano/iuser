@@ -1,7 +1,7 @@
 // app/(main)/StoreOrders.tsx
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
@@ -103,8 +103,6 @@ export default function StoreOrders({
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
     const [groupedOrders, setGroupedOrders] = useState<any[]>([])
     const [selectedOrder, setSelectedOrder] = useState<any>(null)
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
@@ -119,12 +117,24 @@ export default function StoreOrders({
     const [store, setStore] = useState<any>(null)
     const [isOrdersExpanded, setIsOrdersExpanded] = useState(true)
 
+    // Ref para evitar múltiplas chamadas
+    const isLoadingRef = useRef(false)
+    const isMountedRef = useRef(true)
+    const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
+    const [initialLoading, setInitialLoading] = useState(true)
+
+    // ===== LOAD ORDERS =====
     const loadOrders = useCallback(async () => {
         if (!storeId) return
-        setLoading(true)
+        if (isLoadingRef.current) {
+            console.log('[StoreOrders] Já está carregando, ignorando...')
+            return
+        }
+
+        isLoadingRef.current = true
 
         try {
-            // Buscar dados da loja
             const { data: storeData } = await supabase
                 .from('stores')
                 .select('id, owner_id, store_lat, store_lng')
@@ -134,7 +144,6 @@ export default function StoreOrders({
             if (storeData) {
                 setStore(storeData)
 
-                // Buscar dono da loja
                 if (storeData.owner_id) {
                     const { data: ownerData } = await supabase
                         .from('profiles')
@@ -144,7 +153,6 @@ export default function StoreOrders({
                     if (ownerData) setOwnerProfile({ name: ownerData.name, phone: ownerData.phone })
                 }
 
-                // Buscar funcionários
                 const { data: empData } = await supabase
                     .from('employees')
                     .select('*')
@@ -153,7 +161,6 @@ export default function StoreOrders({
                 setEmployees(empData || [])
             }
 
-            // Buscar pedidos
             const { data: ordersData, error: ordersError } = await supabase
                 .from('orders')
                 .select(`
@@ -187,7 +194,10 @@ export default function StoreOrders({
             if (ordersError) {
                 console.error('[StoreOrders] Erro ao buscar pedidos:', ordersError)
                 toast.error('Erro ao carregar pedidos')
-                setLoading(false)
+                if (isMountedRef.current) {
+                    setGroupedOrders([])
+                }
+                isLoadingRef.current = false
                 return
             }
 
@@ -212,16 +222,17 @@ export default function StoreOrders({
                 }
             }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-            setGroupedOrders(grouped)
+            if (isMountedRef.current) {
+                setGroupedOrders(grouped)
 
-            // Atualizar contadores
-            if (onOrderCountsChange) {
-                const counts = {
-                    pending: grouped.filter(o => o.status === 'pending').length,
-                    preparing: grouped.filter(o => o.status === 'preparing').length,
-                    ready: grouped.filter(o => o.status === 'ready').length,
+                if (onOrderCountsChange) {
+                    const counts = {
+                        pending: grouped.filter(o => o.status === 'pending').length,
+                        preparing: grouped.filter(o => o.status === 'preparing').length,
+                        ready: grouped.filter(o => o.status === 'ready').length,
+                    }
+                    onOrderCountsChange(counts)
                 }
-                onOrderCountsChange(counts)
             }
 
         } catch (err) {
@@ -229,121 +240,173 @@ export default function StoreOrders({
             toast.error('Erro ao carregar dados')
         }
 
-        setLoading(false)
+        isLoadingRef.current = false
+        if (initialLoading) {
+            setInitialLoading(false)
+        }
     }, [storeId, onOrderCountsChange])
 
+    // ===== FETCH EMPLOYEE ROUTES =====
     const fetchEmployeeRoutes = useCallback(async () => {
         if (!storeId) return
 
-        const { data: assignments, error: assignError } = await supabase
-            .from('delivery_assignments')
-            .select('employee_id, checkout_id, sequence_order, status')
-            .eq('store_id', storeId)
-            .order('sequence_order')
+        try {
+            const { data: assignments, error: assignError } = await supabase
+                .from('delivery_assignments')
+                .select('employee_id, checkout_id, sequence_order, status')
+                .eq('store_id', storeId)
+                .order('sequence_order')
 
-        if (assignError) {
-            console.error('[StoreOrders] Erro ao buscar atribuições:', assignError)
-            return
-        }
-        if (!assignments || assignments.length === 0) {
-            setEmployeeRoutes([])
-            setAssignmentMap(new Map())
-            return
-        }
+            if (assignError) {
+                console.error('[StoreOrders] Erro ao buscar atribuições:', assignError)
+                return
+            }
+            if (!assignments || assignments.length === 0) {
+                setEmployeeRoutes([])
+                setAssignmentMap(new Map())
+                return
+            }
 
-        const checkoutIds = [...new Set(assignments.map(a => a.checkout_id))]
+            const checkoutIds = [...new Set(assignments.map(a => a.checkout_id))]
 
-        const { data: orders, error: ordersError } = await supabase
-            .from('orders')
-            .select(`
-                checkout_id,
-                delivery_lat,
-                delivery_lng,
-                delivery_address,
-                buyer_name,
-                payment_method,
-                total_amount,
-                delivery_fee,
-                order_items (
-                    product_name,
-                    quantity
-                )
-            `)
-            .in('checkout_id', checkoutIds)
+            const { data: orders, error: ordersError } = await supabase
+                .from('orders')
+                .select(`
+                    checkout_id,
+                    delivery_lat,
+                    delivery_lng,
+                    delivery_address,
+                    buyer_name,
+                    payment_method,
+                    total_amount,
+                    delivery_fee,
+                    order_items (
+                        product_name,
+                        quantity
+                    )
+                `)
+                .in('checkout_id', checkoutIds)
 
-        if (ordersError) {
-            console.error('[StoreOrders] Erro ao buscar pedidos das rotas:', ordersError)
-            return
-        }
+            if (ordersError) {
+                console.error('[StoreOrders] Erro ao buscar pedidos das rotas:', ordersError)
+                return
+            }
 
-        const ordersMap = new Map<string, any>()
-        orders?.forEach(order => {
-            ordersMap.set(order.checkout_id, order)
-        })
-
-        const map = new Map<string, any[]>()
-        assignments.forEach(assignment => {
-            const order = ordersMap.get(assignment.checkout_id)
-            if (!map.has(assignment.employee_id)) map.set(assignment.employee_id, [])
-
-            const items = order ? (order.order_items || []).map((item: any) => ({
-                product_name: item.product_name,
-                quantity: item.quantity,
-            })) : []
-
-            map.get(assignment.employee_id)!.push({
-                checkout_id: assignment.checkout_id,
-                sequence: assignment.sequence_order,
-                status: assignment.status,
-                lat: order?.delivery_lat || null,
-                lng: order?.delivery_lng || null,
-                address: order?.delivery_address || '',
-                buyer: order?.buyer_name || '',
-                payment_method: order?.payment_method || '',
-                total_amount: order?.total_amount || 0,
-                delivery_fee: order?.delivery_fee || 0,
-                items,
+            const ordersMap = new Map<string, any>()
+            orders?.forEach(order => {
+                ordersMap.set(order.checkout_id, order)
             })
-        })
 
-        const routes: EmployeeRoute[] = Array.from(map.entries()).map(([eid, stops], idx) => {
-            const emp = employees.find(e => e.id === eid)
-            return {
-                employeeId: eid,
-                employeeName: emp?.name || 'Entregador',
-                color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
-                stops: stops.map(s => ({
-                    lat: s.lat,
-                    lng: s.lng,
-                    label: s.sequence.toString(),
-                    address: s.address || '',
-                    status: s.status,
-                    payment_method: s.payment_method,
-                    total_amount: s.total_amount,
-                    delivery_fee: s.delivery_fee,
-                    items: s.items,
-                })),
-            }
-        })
+            const map = new Map<string, any[]>()
+            assignments.forEach(assignment => {
+                const order = ordersMap.get(assignment.checkout_id)
+                if (!map.has(assignment.employee_id)) map.set(assignment.employee_id, [])
 
-        setEmployeeRoutes(routes)
+                const items = order ? (order.order_items || []).map((item: any) => ({
+                    product_name: item.product_name,
+                    quantity: item.quantity,
+                })) : []
 
-        const newMap = new Map<string, { employeeName: string; status: string }>()
-        assignments.forEach(a => {
-            const emp = employees.find(e => e.id === a.employee_id)
-            if (emp) {
-                newMap.set(a.checkout_id, {
-                    employeeName: emp.name,
-                    status: a.status
+                map.get(assignment.employee_id)!.push({
+                    checkout_id: assignment.checkout_id,
+                    sequence: assignment.sequence_order,
+                    status: assignment.status,
+                    lat: order?.delivery_lat || null,
+                    lng: order?.delivery_lng || null,
+                    address: order?.delivery_address || '',
+                    buyer: order?.buyer_name || '',
+                    payment_method: order?.payment_method || '',
+                    total_amount: order?.total_amount || 0,
+                    delivery_fee: order?.delivery_fee || 0,
+                    items,
                 })
+            })
+
+            const routes: EmployeeRoute[] = Array.from(map.entries()).map(([eid, stops], idx) => {
+                const emp = employees.find(e => e.id === eid)
+                return {
+                    employeeId: eid,
+                    employeeName: emp?.name || 'Entregador',
+                    color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
+                    stops: stops.map(s => ({
+                        lat: s.lat,
+                        lng: s.lng,
+                        label: s.sequence.toString(),
+                        address: s.address || '',
+                        status: s.status,
+                        payment_method: s.payment_method,
+                        total_amount: s.total_amount,
+                        delivery_fee: s.delivery_fee,
+                        items: s.items,
+                    })),
+                }
+            })
+
+            if (isMountedRef.current) {
+                setEmployeeRoutes(routes)
+
+                const newMap = new Map<string, { employeeName: string; status: string }>()
+                assignments.forEach(a => {
+                    const emp = employees.find(e => e.id === a.employee_id)
+                    if (emp) {
+                        newMap.set(a.checkout_id, {
+                            employeeName: emp.name,
+                            status: a.status
+                        })
+                    }
+                })
+                setAssignmentMap(newMap)
             }
-        })
-        setAssignmentMap(newMap)
+        } catch (err) {
+            console.error('[StoreOrders] Erro em fetchEmployeeRoutes:', err)
+        }
     }, [storeId, employees])
 
-    // Realtime
+    // ===== AUTO REFRESH A CADA 3 SEGUNDOS =====
+    const autoRefresh = useCallback(async () => {
+        if (isLoadingRef.current) return
+
+        setIsAutoRefreshing(true)
+
+        try {
+            await Promise.all([loadOrders(), fetchEmployeeRoutes()])
+        } catch (err) {
+            console.error('[StoreOrders] Erro no auto-refresh:', err)
+        } finally {
+            setIsAutoRefreshing(false)
+        }
+    }, [loadOrders, fetchEmployeeRoutes])
+
+    // ===== INICIAR AUTO REFRESH =====
     useEffect(() => {
         if (!storeId) return
+
+        if (autoRefreshIntervalRef.current) {
+            clearInterval(autoRefreshIntervalRef.current)
+            autoRefreshIntervalRef.current = null
+        }
+
+        autoRefreshIntervalRef.current = setInterval(() => {
+            autoRefresh()
+        }, 3000)
+
+        console.log('[StoreOrders] Auto-refresh iniciado a cada 3 segundos')
+
+        return () => {
+            if (autoRefreshIntervalRef.current) {
+                clearInterval(autoRefreshIntervalRef.current)
+                autoRefreshIntervalRef.current = null
+                console.log('[StoreOrders] Auto-refresh parado')
+            }
+        }
+    }, [storeId, autoRefresh])
+
+    // ===== REALTIME =====
+    useEffect(() => {
+        if (!storeId) return
+
+        isMountedRef.current = true
+        console.log('[StoreOrders] Conectando ao Realtime para pedidos da loja:', storeId)
 
         const ordersChannel = supabase
             .channel(`store-orders-${storeId}`)
@@ -351,6 +414,7 @@ export default function StoreOrders({
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${storeId}` },
                 () => {
+                    console.log('[StoreOrders] Mudança detectada nos pedidos')
                     loadOrders()
                 }
             )
@@ -361,31 +425,49 @@ export default function StoreOrders({
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${storeId}` },
-                () => fetchEmployeeRoutes()
+                () => {
+                    console.log('[StoreOrders] Mudança detectada nas atribuições')
+                    fetchEmployeeRoutes()
+                }
             )
             .subscribe()
 
         return () => {
+            isMountedRef.current = false
+            console.log('[StoreOrders] Desconectando do Realtime')
             supabase.removeChannel(ordersChannel)
             supabase.removeChannel(assignmentsChannel)
+
+            if (autoRefreshIntervalRef.current) {
+                clearInterval(autoRefreshIntervalRef.current)
+                autoRefreshIntervalRef.current = null
+            }
         }
     }, [storeId, loadOrders, fetchEmployeeRoutes])
 
+    // ===== CARREGAMENTO INICIAL =====
     useEffect(() => {
-        loadOrders()
-    }, [loadOrders])
+        if (storeId) {
+            loadOrders()
+        }
+    }, [storeId])
 
+    // ===== CARREGAR ROTAS INICIALMENTE =====
     useEffect(() => {
         if (storeId) {
             fetchEmployeeRoutes()
         }
-    }, [storeId, fetchEmployeeRoutes])
+    }, [storeId])
 
+    // ===== HANDLE REFRESH (manual) =====
     const handleRefresh = () => {
-        setRefreshing(true)
-        Promise.all([loadOrders(), fetchEmployeeRoutes()]).finally(() => setRefreshing(false))
+        setIsAutoRefreshing(true)
+        Promise.all([loadOrders(), fetchEmployeeRoutes()]).finally(() => {
+            setIsAutoRefreshing(false)
+        })
     }
 
+    // ===== HANDLE ORDER ACTION =====
     const handleOrderAction = async (status: string) => {
         if (!selectedOrder) return
 
@@ -409,6 +491,7 @@ export default function StoreOrders({
         }
     }
 
+    // ===== HANDLE ASSIGN DELIVERY =====
     const handleAssignDelivery = async (employeeId?: string) => {
         const empId = employeeId || selectedEmployeeId
         if (!empId || selectedOrderIds.size === 0 || !store) return
@@ -664,19 +747,8 @@ export default function StoreOrders({
         )
     }
 
-    if (loading) {
-        return (
-            <div
-                className="rounded-2xl p-6 text-center"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                    border: `1px solid ${colors.border}`,
-                }}
-            >
-                <p className="text-sm" style={{ color: colors.textSecondary }}>Carregando pedidos...</p>
-            </div>
-        )
-    }
+    // Determinar cor do ícone de refresh
+    const refreshIconColor = isAutoRefreshing ? '#22c55e' : colors.textSecondary
 
     return (
         <>
@@ -737,89 +809,113 @@ export default function StoreOrders({
                                 animation: shimmer 3s ease-in-out infinite;
                                 transform: translateX(-100%);
                             }
+                            @keyframes spin-smooth {
+                                0% { transform: rotate(0deg); }
+                                100% { transform: rotate(360deg); }
+                            }
+                            .animate-spin-smooth {
+                                animation: spin-smooth 0.8s linear infinite;
+                            }
                         `}</style>
                         <div className="shimmer-border" />
                     </>
                 )}
 
-                {/* Cabeçalho com toggle */}
-                <button
-                    onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                {/* Cabeçalho com toggle - CORRIGIDO: não tem mais button aninhado */}
+                <div
                     className="w-full flex items-center justify-between text-left relative z-10"
                     style={{
                         padding: '0.5rem 0.75rem',
                         borderRadius: '9999px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
                     }}
                 >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <ShoppingCart size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Pedidos na loja
-                            </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#3b82f6' }}>{newOrders.length}</span> pendentes
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#f59e0b' }}>{preparing.length}</span> preparo
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#8b5cf6' }}>{ready.length}</span> prontos
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>{finished.length}</span> finalizados
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                handleRefresh()
-                            }}
-                            className="p-1 rounded-full hover:bg-white/10 transition-colors"
-                            title="Atualizar"
-                        >
-                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} style={{ color: colors.textSecondary }} />
-                        </button>
-                        {groupedOrders.length > 0 && (
-                            <span
-                                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                    <button
+                        onClick={() => setIsOrdersExpanded(!isOrdersExpanded)}
+                        className="flex-1 flex items-center justify-between text-left"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: orderBorderColor.color !== 'transparent'
-                                        ? `${orderBorderColor.color}30`
-                                        : '#f9731620',
-                                    color: orderBorderColor.color !== 'transparent'
-                                        ? orderBorderColor.color
-                                        : '#f97316'
+                                    background: GRADIENT,
+                                    color: '#ffffff',
                                 }}
                             >
-                                {groupedOrders.length}
-                            </span>
-                        )}
-                        {isOrdersExpanded ? (
-                            <ChevronUp size={22} style={{ color: colors.textSecondary }} />
-                        ) : (
-                            <ChevronDown size={22} style={{ color: colors.textSecondary }} />
-                        )}
-                    </div>
-                </button>
+                                <ShoppingCart size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                    Pedidos na loja
+                                </h3>
+                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#3b82f6' }}>{newOrders.length}</span> pendentes
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#f59e0b' }}>{preparing.length}</span> preparo
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#8b5cf6' }}>{ready.length}</span> prontos
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                        <span className="font-bold" style={{ color: '#10b981' }}>{finished.length}</span> finalizados
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {groupedOrders.length > 0 && (
+                                <span
+                                    className="text-xs font-bold px-2 py-0.5 rounded-full"
+                                    style={{
+                                        background: orderBorderColor.color !== 'transparent'
+                                            ? `${orderBorderColor.color}30`
+                                            : '#f9731620',
+                                        color: orderBorderColor.color !== 'transparent'
+                                            ? orderBorderColor.color
+                                            : '#f97316'
+                                    }}
+                                >
+                                    {groupedOrders.length}
+                                </span>
+                            )}
+                            {isOrdersExpanded ? (
+                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                            ) : (
+                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
+                            )}
+                        </div>
+                    </button>
+
+                    {/* Botão de refresh SEPARADO - FORA do button principal */}
+                    <button
+                        onClick={handleRefresh}
+                        className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+                        title="Atualizar"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <RefreshCw
+                            size={16}
+                            className={isAutoRefreshing ? 'animate-spin-smooth' : ''}
+                            style={{
+                                color: refreshIconColor,
+                                transition: 'color 0.3s ease'
+                            }}
+                        />
+                    </button>
+                </div>
 
                 {isOrdersExpanded && (
                     <>
