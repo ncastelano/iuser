@@ -34,17 +34,19 @@ import StoreDashboard from './StoreDashboard'
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
     'categorias',
     'storeList',
     'productShowcase',
     'publicationShowcase',
+    'transporte',
+    'motorista',
     'settingsSection',
     'orderSection',
 ]
 
 const ORDER_STORAGE_KEY = 'homepage_sections_order'
-// REMOVEMOS a constante LOCATION_STORAGE_KEY pois não vamos mais usar localStorage para localização
 
 // ---------- Função para formatar endereço ----------
 function formatAddress(address: string, addressNumber?: string): string {
@@ -176,9 +178,11 @@ export default function HomePage() {
             try {
                 const parsed = JSON.parse(saved)
                 if (Array.isArray(parsed)) {
+                    // Remove duplicatas
+                    const unique = Array.from(new Set(parsed))
                     // Garante que 'categorias' esteja sempre em primeiro
-                    const hasCategorias = parsed.includes('categorias')
-                    let filtered = parsed.filter(s => s !== 'categorias')
+                    const hasCategorias = unique.includes('categorias')
+                    let filtered = unique.filter(s => s !== 'categorias')
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
                     const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
                     setSections(final)
@@ -192,25 +196,27 @@ export default function HomePage() {
     // ---------- FUNÇÕES DE MOVIMENTO (subir/descer) ----------
     const moveSection = (id: string, direction: 'up' | 'down') => {
         setSections((prev) => {
-            const index = prev.indexOf(id)
-            if (index === -1) return prev
+            // Remove duplicatas primeiro
+            const unique = Array.from(new Set(prev))
+            const index = unique.indexOf(id)
+            if (index === -1) return unique
 
             // Não permite mover 'categorias'
-            if (id === 'categorias') return prev
+            if (id === 'categorias') return unique
 
             const newIndex = direction === 'up' ? index - 1 : index + 1
 
             // Verifica limites
-            if (newIndex < 0 || newIndex >= prev.length) return prev
+            if (newIndex < 0 || newIndex >= unique.length) return unique
 
             // Se for mover para cima e a posição anterior for 'categorias', não permite
-            if (direction === 'up' && prev[newIndex] === 'categorias') return prev
+            if (direction === 'up' && unique[newIndex] === 'categorias') return unique
 
             // Se for mover para baixo e a posição posterior for 'categorias', não permite
-            if (direction === 'down' && prev[newIndex] === 'categorias') return prev
+            if (direction === 'down' && unique[newIndex] === 'categorias') return unique
 
             // Move o item
-            const newArray = [...prev]
+            const newArray = [...unique]
             const [removed] = newArray.splice(index, 1)
             newArray.splice(newIndex, 0, removed)
             return newArray
@@ -265,7 +271,7 @@ export default function HomePage() {
 
         // Busca sempre que o profileSlug mudar (login/logout)
         fetchLocationFromProfile()
-    }, [profileSlug]) // Depende do profileSlug que muda com login/logout
+    }, [profileSlug])
 
     // ---------- ANIMAÇÃO DO CARRINHO ----------
     useEffect(() => {
@@ -428,41 +434,55 @@ export default function HomePage() {
         }
     }, [stores])
 
+    // ===== FUNÇÃO PARA ATUALIZAR OS BADGES EM TEMPO REAL =====
+    const handleOrderCountsChange = (counts: { pending: number; preparing: number; ready: number }) => {
+        // Atualiza os contadores da loja específica
+        setStoreOrderCounts(prev => {
+            // Encontra qual loja está sendo atualizada
+            // Como o StoreOrders recebe o storeId, precisamos identificar qual loja
+            // Vamos atualizar a loja que está com o dashboard aberto
+            if (showStoreDashboard) {
+                const store = stores.find(s => s.slug === showStoreDashboard.slug)
+                if (store) {
+                    return {
+                        ...prev,
+                        [store.id]: counts
+                    }
+                }
+            }
+            return prev
+        })
+    }
+
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
     const displayedSections = useMemo(() => {
-        if (!sections.includes('categorias')) {
-            return sections
+        // Remove duplicatas primeiro
+        const uniqueSections = Array.from(new Set(sections))
+
+        if (!uniqueSections.includes('categorias')) {
+            return uniqueSections
         }
 
-        const withoutCategorias = sections.filter(s => s !== 'categorias')
+        // Remove 'categorias' da lista e coloca em primeiro
+        const withoutCategorias = uniqueSections.filter(s => s !== 'categorias')
         return ['categorias', ...withoutCategorias]
     }, [sections])
 
     // ---------- SALVAR ORDEM ----------
     const handleSaveOrder = () => {
-        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(sections))
+        // Remove duplicatas antes de salvar
+        const uniqueSections = Array.from(new Set(sections))
+        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(uniqueSections))
+        setSections(uniqueSections)
         setEditMode(false)
     }
 
+    // ---------- RESTAURAR ORDEM PADRÃO ----------
     const handleRestoreOrder = () => {
-        const saved = localStorage.getItem(ORDER_STORAGE_KEY)
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved)
-                if (Array.isArray(parsed)) {
-                    const hasCategorias = parsed.includes('categorias')
-                    let filtered = parsed.filter(s => s !== 'categorias')
-                    const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
-                    const final = hasCategorias ? ['categorias', ...filtered, ...missing] : [...filtered, ...missing]
-                    setSections(final)
-                    setEditMode(false)
-                    return
-                }
-            } catch {
-                // Ignora erros
-            }
-        }
-        setSections(DEFAULT_SECTIONS)
+        // Garante que não há duplicatas
+        const uniqueDefault = Array.from(new Set(DEFAULT_SECTIONS))
+        setSections(uniqueDefault)
+        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(uniqueDefault))
         setEditMode(false)
     }
 
@@ -561,6 +581,7 @@ export default function HomePage() {
                         onSave={handleSaveOrder}
                         onRestore={handleRestoreOrder}
                         disabled={loading}
+                        defaultOrder={DEFAULT_SECTIONS}
                     />
                 )
             case 'categorias':
@@ -739,6 +760,7 @@ export default function HomePage() {
                         profileSlug={profileSlug || ''}
                         storeSlug={showStoreDashboard.slug}
                         onBack={() => setShowStoreDashboard(null)}
+                        onOrderCountsChange={handleOrderCountsChange} // <-- PASSA A FUNÇÃO
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
@@ -760,11 +782,13 @@ export default function HomePage() {
                         {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
                         {editMode ? (
                             <div className="space-y-6">
-                                {sections.map((sectionId, index) => {
+                                {/* Remove duplicatas antes de mapear */}
+                                {Array.from(new Set(sections)).map((sectionId, index) => {
                                     const section = renderSection(sectionId)
                                     if (!section) return null
+                                    const uniqueSections = Array.from(new Set(sections))
                                     const isFirst = index === 0
-                                    const isLast = index === sections.length - 1
+                                    const isLast = index === uniqueSections.length - 1
 
                                     const isCategorias = sectionId === 'categorias'
 

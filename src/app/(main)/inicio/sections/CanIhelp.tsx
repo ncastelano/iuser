@@ -64,10 +64,13 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         // Usar a cor da categoria OU laranja como fallback
                         const iconColor = cat.color || '#f97316'
 
+                        // Verifica se é a categoria social para usar rota especial
+                        const href = cat.slug === 'social' ? '/social' : `/lojas/${cat.slug}`
+
                         return (
                             <Link
                                 key={cat.slug}
-                                href={`/lojas/${cat.slug}`}
+                                href={href}
                                 className="flex flex-col items-center justify-center p-1 transition-all duration-200 hover:scale-105 active:scale-95"
                                 style={{
                                     aspectRatio: '1 / 1',

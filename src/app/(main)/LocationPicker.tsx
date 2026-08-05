@@ -127,8 +127,9 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const { colors } = useTheme()
     const router = useRouter()
 
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-    const [authLoading, setAuthLoading] = useState(true)
+    // Simplificar autenticação - usar apenas um estado
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+    const [authChecked, setAuthChecked] = useState(false)
 
     const mapContainerRef = useRef<HTMLDivElement>(null)
     const mapInstanceRef = useRef<any>(null)
@@ -160,40 +161,22 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
 
-    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO
+    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO - SIMPLIFICADA
     useEffect(() => {
         const checkAuth = async () => {
             try {
-                const { data: { user }, error } = await supabase.auth.getUser()
-                if (error || !user) {
-                    setIsAuthenticated(false)
-                } else {
-                    setIsAuthenticated(true)
-                }
+                const { data: { user } } = await supabase.auth.getUser()
+                setIsAuthenticated(!!user)
             } catch (err) {
                 console.error('Erro ao verificar autenticação:', err)
                 setIsAuthenticated(false)
             } finally {
-                setAuthLoading(false)
+                setAuthChecked(true)
             }
         }
 
         checkAuth()
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN') {
-                setIsAuthenticated(true)
-            } else if (event === 'SIGNED_OUT') {
-                setIsAuthenticated(false)
-                onClose()
-            }
-            setAuthLoading(false)
-        })
-
-        return () => {
-            subscription.unsubscribe()
-        }
-    }, [onClose])
+    }, [])
 
     // Resolver endereço salvo
     useEffect(() => {
@@ -214,175 +197,175 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     }, [initialLocation, savedPosition])
 
     // 🗺️ INICIALIZAR MAPA
-    useEffect(() => {
-        // Se já inicializou ou não tem container, não faz nada
-        if (typeof window === 'undefined' || !mapContainerRef.current || initializedRef.current) {
+    const initializeMap = useCallback(async () => {
+        if (initializedRef.current || !mapContainerRef.current || !authChecked || !isAuthenticated) {
             return
         }
 
-        // Marca como inicializado imediatamente
         initializedRef.current = true
 
-        const initMap = async () => {
-            try {
-                const L = (await import('leaflet')).default
-                await import('leaflet/dist/leaflet.css')
+        try {
+            const L = (await import('leaflet')).default
+            await import('leaflet/dist/leaflet.css')
 
-                delete (L.Icon.Default.prototype as any)._getIconUrl
-                L.Icon.Default.mergeOptions({
-                    iconRetinaUrl: '',
-                    iconUrl: '',
-                    shadowUrl: '',
+            delete (L.Icon.Default.prototype as any)._getIconUrl
+            L.Icon.Default.mergeOptions({
+                iconRetinaUrl: '',
+                iconUrl: '',
+                shadowUrl: '',
+            })
+
+            const map = L.map(mapContainerRef.current!, {
+                center: [selectedPosition.lat, selectedPosition.lng],
+                zoom: 15,
+                zoomControl: true,
+                attributionControl: false,
+            })
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+            }).addTo(map)
+
+            const blueIcon = L.divIcon({
+                className: '',
+                html: `<div style="width: 36px; height: 36px; position: relative;">
+                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
+                        <circle cx="12" cy="12" r="5" fill="white"/>
+                    </svg>
+                </div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+            })
+
+            const orangeIcon = L.divIcon({
+                className: '',
+                html: `<div style="width: 36px; height: 36px; position: relative;">
+                    <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                        <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
+                        <circle cx="12" cy="12" r="5" fill="white"/>
+                    </svg>
+                </div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+            })
+
+            const movableMarker = L.marker([selectedPosition.lat, selectedPosition.lng], {
+                icon: orangeIcon,
+                draggable: true,
+                zIndexOffset: 1000
+            }).addTo(map)
+
+            movableMarker.on('dragend', () => {
+                const pos = movableMarker.getLatLng()
+                const newPos = { lat: pos.lat, lng: pos.lng }
+                setSelectedPosition(newPos)
+                updatePolyline(map, savedPosition, newPos)
+
+                setResolvingAddress(true)
+                setError('')
+                reverseGeocode(newPos.lat, newPos.lng).then(result => {
+                    setNewAddress(result.fullAddress)
+                    if (result.extractedNumber && !newNumber) {
+                        setNewNumber(result.extractedNumber)
+                    }
+                    setResolvingAddress(false)
                 })
+            })
 
-                const map = L.map(mapContainerRef.current!, {
-                    center: [selectedPosition.lat, selectedPosition.lng],
-                    zoom: 15,
-                    zoomControl: true,
-                    attributionControl: false,
-                })
-
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
+            let savedMarker: any = null
+            if (savedPosition) {
+                savedMarker = L.marker([savedPosition.lat, savedPosition.lng], {
+                    icon: blueIcon,
+                    draggable: false,
+                    zIndexOffset: 500
                 }).addTo(map)
+                updatePolyline(map, savedPosition, selectedPosition)
+            }
 
-                const blueIcon = L.divIcon({
-                    className: '',
-                    html: `<div style="width: 36px; height: 36px; position: relative;">
-                        <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                            <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#3B82F6" stroke="white" stroke-width="2.5"/>
-                            <circle cx="12" cy="12" r="5" fill="white"/>
-                        </svg>
-                    </div>`,
-                    iconSize: [36, 36],
-                    iconAnchor: [18, 36],
-                })
+            mapInstanceRef.current = map
+            movableMarkerRef.current = movableMarker
+            savedMarkerRef.current = savedMarker
 
-                const orangeIcon = L.divIcon({
-                    className: '',
-                    html: `<div style="width: 36px; height: 36px; position: relative;">
-                        <svg width="36" height="36" viewBox="0 0 24 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
-                            <path d="M12 0C5.383 0 0 5.383 0 12c0 9 12 24 12 24s12-15 12-24C24 5.383 18.617 0 12 0z" fill="#F97316" stroke="white" stroke-width="2.5"/>
-                            <circle cx="12" cy="12" r="5" fill="white"/>
-                        </svg>
-                    </div>`,
-                    iconSize: [36, 36],
-                    iconAnchor: [18, 36],
-                })
+            map.on('moveend', () => {
+                if (isMovingRef.current) {
+                    isMovingRef.current = false
+                    return
+                }
 
-                const movableMarker = L.marker([selectedPosition.lat, selectedPosition.lng], {
-                    icon: orangeIcon,
-                    draggable: true,
-                    zIndexOffset: 1000
-                }).addTo(map)
+                const center = map.getCenter()
+                const newPos = { lat: center.lat, lng: center.lng }
+                movableMarker.setLatLng([newPos.lat, newPos.lng])
+                setSelectedPosition(newPos)
+                updatePolyline(map, savedPosition, newPos)
 
-                movableMarker.on('dragend', () => {
-                    const pos = movableMarker.getLatLng()
-                    const newPos = { lat: pos.lat, lng: pos.lng }
-                    setSelectedPosition(newPos)
-                    updatePolyline(map, savedPosition, newPos)
+                if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current)
+                }
 
-                    setResolvingAddress(true)
-                    setError('')
-                    reverseGeocode(newPos.lat, newPos.lng).then(result => {
+                setResolvingAddress(true)
+                setError('')
+
+                debounceTimerRef.current = setTimeout(async () => {
+                    try {
+                        const result = await reverseGeocode(newPos.lat, newPos.lng)
                         setNewAddress(result.fullAddress)
                         if (result.extractedNumber && !newNumber) {
                             setNewNumber(result.extractedNumber)
                         }
+                    } catch (err) {
+                        const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`
+                        setNewAddress(fallback)
+                    } finally {
                         setResolvingAddress(false)
-                    })
-                })
-
-                let savedMarker: any = null
-                if (savedPosition) {
-                    savedMarker = L.marker([savedPosition.lat, savedPosition.lng], {
-                        icon: blueIcon,
-                        draggable: false,
-                        zIndexOffset: 500
-                    }).addTo(map)
-                    updatePolyline(map, savedPosition, selectedPosition)
-                }
-
-                mapInstanceRef.current = map
-                movableMarkerRef.current = movableMarker
-                savedMarkerRef.current = savedMarker
-
-                map.on('moveend', () => {
-                    if (isMovingRef.current) {
-                        isMovingRef.current = false
-                        return
                     }
+                }, 500)
+            })
 
-                    const center = map.getCenter()
-                    const newPos = { lat: center.lat, lng: center.lng }
-                    movableMarker.setLatLng([newPos.lat, newPos.lng])
-                    setSelectedPosition(newPos)
-                    updatePolyline(map, savedPosition, newPos)
-
-                    if (debounceTimerRef.current) {
-                        clearTimeout(debounceTimerRef.current)
-                    }
-
-                    setResolvingAddress(true)
-                    setError('')
-
-                    debounceTimerRef.current = setTimeout(async () => {
-                        try {
-                            const result = await reverseGeocode(newPos.lat, newPos.lng)
-                            setNewAddress(result.fullAddress)
-                            if (result.extractedNumber && !newNumber) {
-                                setNewNumber(result.extractedNumber)
-                            }
-                        } catch (err) {
-                            const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`
-                            setNewAddress(fallback)
-                        } finally {
-                            setResolvingAddress(false)
-                        }
-                    }, 500)
-                })
-
-                // Busca endereço inicial
-                setResolvingAddress(true)
-                try {
-                    const result = await reverseGeocode(selectedPosition.lat, selectedPosition.lng)
-                    setNewAddress(result.fullAddress)
-                    if (result.extractedNumber) {
-                        setNewNumber(result.extractedNumber)
-                    }
-                } catch (err) {
-                    const fallback = `Local (${selectedPosition.lat.toFixed(4)}, ${selectedPosition.lng.toFixed(4)})`
-                    setNewAddress(fallback)
-                } finally {
-                    setResolvingAddress(false)
+            // Busca endereço inicial
+            setResolvingAddress(true)
+            try {
+                const result = await reverseGeocode(selectedPosition.lat, selectedPosition.lng)
+                setNewAddress(result.fullAddress)
+                if (result.extractedNumber) {
+                    setNewNumber(result.extractedNumber)
                 }
-
-                if (savedPosition) {
-                    const bounds = L.latLngBounds(
-                        [savedPosition.lat, savedPosition.lng],
-                        [selectedPosition.lat, selectedPosition.lng]
-                    )
-                    map.fitBounds(bounds, { padding: [50, 50] })
-                }
-
-                setMapReady(true)
-            } catch (error) {
-                console.error('Erro ao inicializar mapa:', error)
+            } catch (err) {
+                const fallback = `Local (${selectedPosition.lat.toFixed(4)}, ${selectedPosition.lng.toFixed(4)})`
+                setNewAddress(fallback)
+            } finally {
+                setResolvingAddress(false)
             }
-        }
 
-        initMap()
-
-        return () => {
-            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-            if (mapInstanceRef.current) {
-                mapInstanceRef.current.remove()
-                mapInstanceRef.current = null
+            if (savedPosition) {
+                const bounds = L.latLngBounds(
+                    [savedPosition.lat, savedPosition.lng],
+                    [selectedPosition.lat, selectedPosition.lng]
+                )
+                map.fitBounds(bounds, { padding: [50, 50] })
             }
+
+            setMapReady(true)
+        } catch (error) {
+            console.error('Erro ao inicializar mapa:', error)
             initializedRef.current = false
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []) // Array vazio - executa apenas uma vez na montagem
+    }, [selectedPosition, savedPosition, newNumber, authChecked, isAuthenticated])
+
+    // Executa a inicialização quando autenticado e container disponível
+    useEffect(() => {
+        if (!authChecked || !isAuthenticated || !mapContainerRef.current) {
+            return
+        }
+
+        const timer = setTimeout(() => {
+            if (!initializedRef.current) {
+                initializeMap()
+            }
+        }, 200)
+
+        return () => clearTimeout(timer)
+    }, [authChecked, isAuthenticated, initializeMap])
 
     const updatePolyline = useCallback((map: any, saved: { lat: number; lng: number } | null, selected: { lat: number; lng: number }) => {
         const L = (window as any).L
@@ -512,8 +495,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         })
     }, [newNumber, newAddress, newComplement, selectedPosition, onSave])
 
-    // Loading
-    if (authLoading) {
+    // Loading enquanto verifica autenticação
+    if (!authChecked) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
                 <div

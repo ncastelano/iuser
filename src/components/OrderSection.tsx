@@ -1,3 +1,4 @@
+// src/components/OrderSection.tsx
 'use client'
 
 import { ReactNode, useState, useEffect } from 'react'
@@ -14,6 +15,7 @@ interface OrderSectionProps {
     onSave: () => void
     onRestore: () => void
     disabled?: boolean
+    defaultOrder?: string[] // Nova prop para a ordem padrão
 }
 
 function hexToRgb(hex: string) {
@@ -33,6 +35,7 @@ export default function OrderSection({
     onSave,
     onRestore,
     disabled = false,
+    defaultOrder = [], // Valor padrão vazio
 }: OrderSectionProps) {
     const { colors } = useTheme()
     const [mounted, setMounted] = useState(false)
@@ -123,6 +126,19 @@ export default function OrderSection({
         boxShadow: 'none',
     }
 
+    // Função para restaurar com confirmação
+    const handleRestore = () => {
+        if (defaultOrder.length === 0) {
+            // Se não tiver ordem padrão definida, usa o comportamento antigo
+            onRestore()
+            return
+        }
+
+        if (window.confirm('Deseja restaurar a ordem padrão das seções?')) {
+            onRestore()
+        }
+    }
+
     return (
         <section>
             <div
@@ -138,7 +154,7 @@ export default function OrderSection({
                 <div className="flex items-center gap-4">
                     {dragHandle && <div>{dragHandle}</div>}
 
-                    {/* Ícone com gradiente laranja-vermelho - igual ao ButtonSettingsHome */}
+                    {/* Ícone com gradiente laranja-vermelho */}
                     <div
                         className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{
@@ -157,6 +173,11 @@ export default function OrderSection({
                         <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
                             Personalize a ordem das seções na sua página inicial.
                         </p>
+                        {defaultOrder.length > 0 && (
+                            <p className="text-xs mt-0.5 opacity-60" style={{ color: colors.textSecondary }}>
+                                {defaultOrder.length} seções disponíveis
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -203,16 +224,17 @@ export default function OrderSection({
                         </button>
 
                         <button
-                            onClick={onRestore}
+                            onClick={handleRestore}
                             className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
                             style={{
                                 background: 'transparent',
                                 color: colors.textSecondary,
                                 border: `1px solid ${colors.border}`,
                             }}
+                            title="Restaurar ordem padrão"
                         >
                             <RotateCcw size={16} />
-                            Restaurar
+                            Restaurar Padrão
                         </button>
                     </div>
                 )}
@@ -229,6 +251,9 @@ export default function OrderSection({
                             Salvar Ordem
                         </strong>
                         .
+                        {defaultOrder.length > 0 && (
+                            <span> Clique em <strong style={{ color: '#f97316' }}>Restaurar Padrão</strong> para voltar à ordem original.</span>
+                        )}
                     </p>
                 </div>
             )}

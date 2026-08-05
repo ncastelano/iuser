@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText } from 'lucide-react'
+import { Camera, MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -17,6 +17,45 @@ const DAYS_OF_WEEK = [
     { key: 'sat', label: 'Sábado' },
     { key: 'sun', label: 'Domingo' },
 ]
+
+// ===== CONFIGURAÇÃO DE HORÁRIOS =====
+const WEEKDAYS = [
+    { id: '1', name: 'Segunda-feira' },
+    { id: '2', name: 'Terça-feira' },
+    { id: '3', name: 'Quarta-feira' },
+    { id: '4', name: 'Quinta-feira' },
+    { id: '5', name: 'Sexta-feira' },
+    { id: '6', name: 'Sábado' },
+    { id: '0', name: 'Domingo' },
+]
+
+const DEFAULT_WEEKLY = {
+    '1': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '2': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '3': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '4': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '5': { isOpen: true, start: '08:00', end: '18:00', lunchStart: '12:00', lunchEnd: '13:00' },
+    '6': { isOpen: false, start: '09:00', end: '13:00', lunchStart: '', lunchEnd: '' },
+    '0': { isOpen: false, start: '09:00', end: '13:00', lunchStart: '', lunchEnd: '' },
+}
+
+// ===== GRADIENTE FIXO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.75rem 1.25rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.875rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+}
 
 // ---------- Funções de geocodificação ----------
 const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
@@ -111,6 +150,12 @@ async function reverseGeocode(lat: number, lng: number): Promise<{
     }
 }
 
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+}
+
 export default function EditarLoja() {
     const router = useRouter()
     const params = useParams()
@@ -153,7 +198,11 @@ export default function EditarLoja() {
     const [deliveryBaseFee, setDeliveryBaseFee] = useState('7')
     const [deliveryExtraPerKm, setDeliveryExtraPerKm] = useState('2')
 
-    const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
+    // ===== HORÁRIOS DE FUNCIONAMENTO (ESTILO StoreOperatingDays) =====
+    const [weekly, setWeekly] = useState<any>(DEFAULT_WEEKLY)
+    const [blockedDates, setBlockedDates] = useState<string[]>([])
+    const [blockedDateInput, setBlockedDateInput] = useState('')
+    const [isHoursExpanded, setIsHoursExpanded] = useState(false)
 
     // LocationPicker inline states
     const [showMapPicker, setShowMapPicker] = useState(false)
@@ -238,7 +287,15 @@ export default function EditarLoja() {
                 setFixedDeliveryFee('')
             }
 
-            setBusinessHours(store.business_hours || {})
+            // Carregar horários no formato StoreOperatingDays
+            if (store.business_hours) {
+                const oh = store.business_hours
+                setWeekly(oh.weekly ?? DEFAULT_WEEKLY)
+                setBlockedDates(oh.blocked_dates ?? [])
+            } else {
+                setWeekly(DEFAULT_WEEKLY)
+                setBlockedDates([])
+            }
 
             if (store.logo_url) {
                 const url = supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
@@ -535,23 +592,28 @@ export default function EditarLoja() {
         setShowMapPicker(true)
     }
 
-    // ----- FUNÇÕES DE LOCALIZAÇÃO (GPS simples) -----
-    const fetchAddressFromCoords = async (lat: number, lng: number) => {
-        try {
-            const result = await reverseGeocode(lat, lng)
-            setAddress(result.fullAddress)
-            if (result.extractedNumber) setAddressNumber(result.extractedNumber)
-        } catch (e) { console.error(e) }
+    // ===== FUNÇÕES DE HORÁRIOS =====
+    const updateDaySetting = (dayId: string, field: string, value: any) => {
+        setWeekly((prev: any) => ({
+            ...prev,
+            [dayId]: { ...prev[dayId], [field]: value },
+        }))
     }
 
-    const setTimeForDay = (day: string, type: 'open' | 'close', value: string) => {
-        setBusinessHours(prev => ({ ...prev, [day]: { ...(prev[day] || { open: '', close: '' }), [type]: value } }))
-    }
-    const clearDay = (day: string) => {
-        setBusinessHours(prev => { const n = { ...prev }; delete n[day]; return n })
+    const addBlockedDate = () => {
+        if (!blockedDateInput) return
+        if (blockedDates.includes(blockedDateInput)) return
+        setBlockedDates((prev) => [...prev, blockedDateInput].sort())
+        setBlockedDateInput('')
     }
 
-    // ----- SALVAR ALTERAÇÕES -----
+    const removeBlockedDate = (dateStr: string) => {
+        setBlockedDates((prev) => prev.filter((d) => d !== dateStr))
+    }
+
+    const openDaysCount = Object.values(weekly).filter((day: any) => day.isOpen).length
+
+    // ===== SALVAR ALTERAÇÕES =====
     const handleUpdate = async () => {
         if (!name || !storeSlug || !storeId) {
             alert('Preencha os campos obrigatórios.')
@@ -599,6 +661,12 @@ export default function EditarLoja() {
             ? `SRID=4326;POINT(${location.lng} ${location.lat})`
             : null
 
+        // Salvar horários no formato StoreOperatingDays
+        const hoursConfig = {
+            weekly,
+            blocked_dates: blockedDates,
+        }
+
         const updateData: any = {
             name,
             storeSlug,
@@ -620,7 +688,7 @@ export default function EditarLoja() {
             delivery_fee_per_km: savedFeePerKm,
             delivery_base_distance: savedBaseDistance,
             delivery_base_fee: savedBaseFee,
-            business_hours: businessHours,
+            business_hours: hoursConfig,
             store_lat: location ? location.lat : null,
             store_lng: location ? location.lng : null,
         }
@@ -655,6 +723,14 @@ export default function EditarLoja() {
     }
 
     if (pageLoading) return <LoadingSpinner />
+
+    const surfaceRgb = hexToRgb('#ffffff')
+    const colors = {
+        surface: '#ffffff',
+        border: '#e5e7eb',
+        textPrimary: '#111827',
+        textSecondary: '#6b7280',
+    }
 
     return (
         <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
@@ -870,23 +946,268 @@ export default function EditarLoja() {
                             )}
                         </div>
 
-                        {/* Horários de Funcionamento */}
-                        <div className="space-y-3">
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-gray-600 ml-1 flex items-center gap-2">
-                                <Clock size={14} /> Horários de Funcionamento
-                            </label>
-                            {DAYS_OF_WEEK.map(day => {
-                                const current = businessHours[day.key] || { open: '', close: '' }
-                                return (
-                                    <div key={day.key} className="flex items-center gap-2">
-                                        <span className="w-20 text-xs font-bold text-gray-700">{day.label}</span>
-                                        <input type="time" value={current.open} onChange={e => setTimeForDay(day.key, 'open', e.target.value)} className="bg-white border-2 border-orange-200 rounded-lg px-2 py-1 text-xs flex-1" />
-                                        <span className="text-xs text-gray-400">-</span>
-                                        <input type="time" value={current.close} onChange={e => setTimeForDay(day.key, 'close', e.target.value)} className="bg-white border-2 border-orange-200 rounded-lg px-2 py-1 text-xs flex-1" />
-                                        <button onClick={() => clearDay(day.key)} className="text-xs text-red-400">Fechado</button>
+                        {/* ===== HORÁRIOS DE FUNCIONAMENTO (ESTILO StoreOperatingDays) ===== */}
+                        <div
+                            className="rounded-2xl border-2 border-orange-200 bg-white/30 backdrop-blur-sm p-4 space-y-3"
+                            style={{
+                                background: `rgba(255,255,255,0.3)`,
+                                backdropFilter: 'blur(12px)',
+                                WebkitBackdropFilter: 'blur(12px)',
+                            }}
+                        >
+                            {/* Cabeçalho com toggle - PILL */}
+                            <button
+                                onClick={() => setIsHoursExpanded(!isHoursExpanded)}
+                                className="w-full flex items-center justify-between text-left"
+                                style={{
+                                    padding: '0.5rem 0.75rem',
+                                    borderRadius: '9999px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                        }}
+                                    >
+                                        <Clock size={24} />
                                     </div>
-                                )
-                            })}
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">
+                                            Dias de Funcionamento
+                                        </h3>
+                                        <div className="flex items-center gap-2 text-xs mt-0.5 text-gray-500">
+                                            <span>{openDaysCount} dias abertos</span>
+                                            <span>•</span>
+                                            <span>{blockedDates.length} datas bloqueadas</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isHoursExpanded ? (
+                                        <ChevronUp size={22} className="text-gray-400" />
+                                    ) : (
+                                        <ChevronDown size={22} className="text-gray-400" />
+                                    )}
+                                </div>
+                            </button>
+
+                            {isHoursExpanded && (
+                                <>
+                                    {/* Dias da semana */}
+                                    <div className="space-y-3">
+                                        {WEEKDAYS.map((day) => {
+                                            const dayConfig = weekly[day.id] || {
+                                                isOpen: false,
+                                                start: '08:00',
+                                                end: '18:00',
+                                                lunchStart: '',
+                                                lunchEnd: '',
+                                            }
+                                            const hasLunch = !!(dayConfig.lunchStart && dayConfig.lunchEnd)
+
+                                            return (
+                                                <div
+                                                    key={day.id}
+                                                    className="p-4 rounded-2xl border border-gray-200"
+                                                    style={{
+                                                        background: `rgba(255,255,255,0.3)`,
+                                                    }}
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <span
+                                                            className="font-bold text-sm"
+                                                            style={{ color: dayConfig.isOpen ? '#111827' : '#6b7280' }}
+                                                        >
+                                                            {day.name}
+                                                        </span>
+                                                        <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                className="sr-only peer"
+                                                                checked={dayConfig.isOpen}
+                                                                onChange={(e) => updateDaySetting(day.id, 'isOpen', e.target.checked)}
+                                                            />
+                                                            <span
+                                                                className="absolute inset-0 rounded-full transition-colors duration-200"
+                                                                style={{ background: dayConfig.isOpen ? '#f97316' : '#e5e7eb' }}
+                                                            />
+                                                            <span
+                                                                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${dayConfig.isOpen ? 'translate-x-[18px]' : 'translate-x-0'
+                                                                    }`}
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    {dayConfig.isOpen && (
+                                                        <div className="space-y-3">
+                                                            <div className="flex gap-3">
+                                                                <div className="flex-1">
+                                                                    <span className="text-[10px] font-semibold text-gray-500">
+                                                                        Entrada
+                                                                    </span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={dayConfig.start}
+                                                                        onChange={(e) => updateDaySetting(day.id, 'start', e.target.value)}
+                                                                        className="w-full p-2 rounded-full border text-sm bg-white"
+                                                                        style={{
+                                                                            borderColor: '#e5e7eb',
+                                                                            color: '#111827',
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <span className="text-[10px] font-semibold text-gray-500">
+                                                                        Saída
+                                                                    </span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={dayConfig.end}
+                                                                        onChange={(e) => updateDaySetting(day.id, 'end', e.target.value)}
+                                                                        className="w-full p-2 rounded-full border text-sm bg-white"
+                                                                        style={{
+                                                                            borderColor: '#e5e7eb',
+                                                                            color: '#111827',
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Toggle almoço */}
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    id={`lunch-config-${day.id}`}
+                                                                    checked={hasLunch}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            updateDaySetting(day.id, 'lunchStart', '12:00')
+                                                                            updateDaySetting(day.id, 'lunchEnd', '13:00')
+                                                                        } else {
+                                                                            updateDaySetting(day.id, 'lunchStart', '')
+                                                                            updateDaySetting(day.id, 'lunchEnd', '')
+                                                                        }
+                                                                    }}
+                                                                    className="rounded-full"
+                                                                    style={{ accentColor: '#f97316' }}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`lunch-config-${day.id}`}
+                                                                    className="text-xs font-semibold cursor-pointer text-gray-500"
+                                                                >
+                                                                    Intervalo de Almoço
+                                                                </label>
+                                                            </div>
+
+                                                            {hasLunch && (
+                                                                <div className="flex gap-3">
+                                                                    <div className="flex-1">
+                                                                        <span className="text-[10px] font-semibold text-gray-500">
+                                                                            Início Almoço
+                                                                        </span>
+                                                                        <input
+                                                                            type="time"
+                                                                            value={dayConfig.lunchStart}
+                                                                            onChange={(e) => updateDaySetting(day.id, 'lunchStart', e.target.value)}
+                                                                            className="w-full p-2 rounded-full border text-sm bg-white"
+                                                                            style={{
+                                                                                borderColor: '#e5e7eb',
+                                                                                color: '#111827',
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex-1">
+                                                                        <span className="text-[10px] font-semibold text-gray-500">
+                                                                            Fim Almoço
+                                                                        </span>
+                                                                        <input
+                                                                            type="time"
+                                                                            value={dayConfig.lunchEnd}
+                                                                            onChange={(e) => updateDaySetting(day.id, 'lunchEnd', e.target.value)}
+                                                                            className="w-full p-2 rounded-full border text-sm bg-white"
+                                                                            style={{
+                                                                                borderColor: '#e5e7eb',
+                                                                                color: '#111827',
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {/* Datas bloqueadas */}
+                                    <div>
+                                        <label className="font-bold text-sm block mb-2 text-gray-900">
+                                            Datas Fechadas / Bloqueadas
+                                        </label>
+                                        <div className="flex gap-2 mb-3">
+                                            <input
+                                                type="date"
+                                                value={blockedDateInput}
+                                                onChange={(e) => setBlockedDateInput(e.target.value)}
+                                                className="flex-1 p-3 rounded-full border text-sm bg-white"
+                                                style={{
+                                                    borderColor: '#e5e7eb',
+                                                    color: '#111827',
+                                                }}
+                                            />
+                                            <button
+                                                onClick={addBlockedDate}
+                                                style={{
+                                                    ...pillButtonStyle,
+                                                    background: GRADIENT,
+                                                    color: '#ffffff',
+                                                }}
+                                                className="hover:opacity-80 transition-opacity"
+                                            >
+                                                Bloquear
+                                            </button>
+                                        </div>
+                                        {blockedDates.length > 0 && (
+                                            <div
+                                                className="flex flex-wrap gap-2 p-3 rounded-2xl max-h-32 overflow-y-auto border border-gray-200"
+                                                style={{
+                                                    background: `rgba(255,255,255,0.2)`,
+                                                }}
+                                            >
+                                                {blockedDates.map((d) => {
+                                                    const [year, month, day] = d.split('-')
+                                                    const formatted = `${day}/${month}/${year}`
+                                                    return (
+                                                        <span
+                                                            key={d}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+                                                            style={{
+                                                                background: '#ef444420',
+                                                                color: '#ef4444',
+                                                            }}
+                                                        >
+                                                            {formatted}
+                                                            <button
+                                                                onClick={() => removeBlockedDate(d)}
+                                                                className="hover:text-red-700 transition-colors"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </span>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Botões */}

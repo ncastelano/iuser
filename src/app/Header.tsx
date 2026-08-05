@@ -34,9 +34,11 @@ interface HeaderProps {
     showSearch?: boolean
     searchPlaceholder?: string
     onSearch?: (query: string) => void
-    profileSlug?: string | null
+    searchValue?: string
+    searchRef?: React.RefObject<HTMLInputElement>
     onSearchFocus?: () => void
-    onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+    onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void  // <-- ALTERADO: agora recebe o evento
+    profileSlug?: string | null
     onHomeClick?: () => void
     locationElement?: React.ReactNode
 }
@@ -52,9 +54,11 @@ export default function Header({
     showSearch = false,
     searchPlaceholder = 'Buscar...',
     onSearch,
-    profileSlug,
+    searchValue = '',
+    searchRef,
     onSearchFocus,
     onSearchBlur,
+    profileSlug,
     onHomeClick,
     locationElement,
 }: HeaderProps) {
@@ -85,7 +89,6 @@ export default function Header({
     }
     const surfaceRgb = hexToRgb(colors.surface)
 
-    // Gradiente de fundo com cores do tema (mantido para transparência)
     const gradientBg = `linear-gradient(to bottom, 
     rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
     rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
@@ -99,7 +102,6 @@ export default function Header({
             return tab.statusColor
         }
         if (tab.isActive) {
-            // Gradiente laranja para vermelho nos tabs ativos
             return 'linear-gradient(135deg, #f97316, #dc2626)'
         }
         return `${colors.surface}88`
@@ -322,11 +324,13 @@ export default function Header({
                         >
                             <Search size={14} style={{ color: colors.textSecondary }} />
                             <input
+                                ref={searchRef}
                                 type="text"
                                 placeholder={searchPlaceholder}
+                                value={searchValue}
                                 onChange={(e) => onSearch?.(e.target.value)}
                                 onFocus={onSearchFocus}
-                                onBlur={onSearchBlur}
+                                onBlur={onSearchBlur}  // <-- Agora passa o evento corretamente
                                 className="flex-1 bg-transparent outline-none"
                                 style={{ color: colors.textPrimary }}
                             />
@@ -342,6 +346,26 @@ export default function Header({
                 .scrollbar-hide {
                     -ms-overflow-style: none;
                     scrollbar-width: none;
+                }
+                input::placeholder {
+                    color: ${colors.textSecondary} !important;
+                    opacity: 0.7;
+                }
+                input::-webkit-input-placeholder {
+                    color: ${colors.textSecondary} !important;
+                    opacity: 0.7;
+                }
+                input::-moz-placeholder {
+                    color: ${colors.textSecondary} !important;
+                    opacity: 0.7;
+                }
+                input:-ms-input-placeholder {
+                    color: ${colors.textSecondary} !important;
+                    opacity: 0.7;
+                }
+                input:-moz-placeholder {
+                    color: ${colors.textSecondary} !important;
+                    opacity: 0.7;
                 }
             `}</style>
         </div>

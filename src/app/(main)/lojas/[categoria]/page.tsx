@@ -11,7 +11,6 @@ import {
     Loader2,
     Store,
     MapPin,
-    ShoppingBag,
     AlertCircle,
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -20,7 +19,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
 import { categoriasMap } from '@/lib/categorias'
-import { isStoreOpenNow, getStoreStatusText, type BusinessHours } from '@/lib/storeHours'
+import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 
 // ===== TIPAGEM =====
 interface StoreFromDB {
@@ -65,38 +64,12 @@ export default function ListaCategoriaPage() {
 
     const [searchQuery, setSearchQuery] = useState('')
     const [stores, setStores] = useState<StoreFromDB[]>([])
-    const [profiles, setProfiles] = useState<any[]>([])
     const [loadingData, setLoadingData] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     // ===== CARREGAR LOJAS =====
     const loadStores = useCallback(async () => {
         if (!categoria) return
-
-        // Categoria "social" → busca perfis
-        if (categoria === 'social') {
-            setLoadingData(true)
-            setError(null)
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id, name, avatar_url, "profileSlug"')
-                .order('created_at', { ascending: false })
-                .limit(50)
-
-            if (!error && data) {
-                const mapped = data.map((p: any) => ({
-                    ...p,
-                    avatar_url: p.avatar_url
-                        ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
-                        : null,
-                }))
-                setProfiles(mapped)
-            } else {
-                setError('Erro ao carregar perfis')
-            }
-            setLoadingData(false)
-            return
-        }
 
         setLoadingData(true)
         setError(null)
@@ -219,16 +192,6 @@ export default function ListaCategoriaPage() {
         )
     }, [stores, searchQuery])
 
-    const filteredProfiles = useMemo(() => {
-        if (!searchQuery.trim()) return profiles
-        const q = searchQuery.toLowerCase()
-        return profiles.filter(
-            (p) =>
-                p.name?.toLowerCase().includes(q) ||
-                p.profileSlug?.toLowerCase().includes(q)
-        )
-    }, [profiles, searchQuery])
-
     // ===== FALLBACK =====
     const info = categoriasMap[categoria as string]
     if (!categoria || !info) {
@@ -274,7 +237,7 @@ export default function ListaCategoriaPage() {
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                     showSearch={true}
-                    searchPlaceholder={categoria === 'social' ? 'Filtrar perfis...' : 'Filtrar lojas...'}
+                    searchPlaceholder="Filtrar lojas..."
                     onSearch={setSearchQuery}
                 />
 
@@ -313,86 +276,8 @@ export default function ListaCategoriaPage() {
                         </div>
                     )}
 
-                    {/* CATEGORIA SOCIAL */}
-                    {categoria === 'social' && !loadingData && !error && (
-                        <>
-                            {filteredProfiles.length === 0 ? (
-                                <div
-                                    className="rounded-2xl p-6 flex flex-col items-center gap-3 mt-4"
-                                    style={{
-                                        background: cardBg,
-                                        backdropFilter: 'blur(12px)',
-                                        border: `1px solid ${colors.border}`,
-                                    }}
-                                >
-                                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                        {searchQuery ? 'Nenhum perfil encontrado para esta busca.' : 'Nenhum perfil disponível.'}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {filteredProfiles.map((profile) => (
-                                        <Link
-                                            key={profile.id}
-                                            href={`/${profile.profileSlug}`}
-                                            className="block group"
-                                        >
-                                            <div
-                                                className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl"
-                                                style={{
-                                                    background: cardBg,
-                                                    backdropFilter: 'blur(12px)',
-                                                    borderColor: colors.border,
-                                                    boxShadow: colors.shadow,
-                                                }}
-                                            >
-                                                <div className="flex gap-4 items-center">
-                                                    <div
-                                                        className="w-16 h-16 rounded-full overflow-hidden shrink-0"
-                                                        style={{ background: `${colors.surface}44` }}
-                                                    >
-                                                        {profile.avatar_url ? (
-                                                            <img src={profile.avatar_url} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div
-                                                                className="w-full h-full flex items-center justify-center text-2xl font-black"
-                                                                style={{ color: colors.textSecondary }}
-                                                            >
-                                                                {profile.name?.charAt(0) || '?'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>
-                                                            {profile.name}
-                                                        </h3>
-                                                        <p className="text-sm mt-1" style={{ color: colors.accent }}>
-                                                            @{profile.profileSlug}
-                                                        </p>
-                                                        <div className="mt-2">
-                                                            <span
-                                                                className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider"
-                                                                style={{ background: `${categoryColor}20`, color: categoryColor }}
-                                                            >
-                                                                {info.nome}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <ChevronRight
-                                                        className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors"
-                                                        style={{ color: colors.textSecondary }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {/* DEMAIS CATEGORIAS */}
-                    {categoria !== 'social' && !loadingData && !error && (
+                    {/* LOJAS */}
+                    {!loadingData && !error && (
                         <>
                             {filteredStores.length === 0 ? (
                                 <div
