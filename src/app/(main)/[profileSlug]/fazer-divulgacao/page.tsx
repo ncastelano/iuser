@@ -25,13 +25,17 @@ import {
     MoveVertical,
     Home,
     Loader2,
+    Film,
+    Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "@/app/theme";
 import AnimatedBackgroundiUser from "@/components/AnimatedBackground";
 import { useProfile } from "@/app/contexts/ProfileContext";
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { toBlobURL, fetchFile } from '@ffmpeg/util';
 
-type MediaType = "image" | "video" | null;
+type MediaType = "image" | "video" | "gif" | null;
 
 // Tipo para o botão
 type ButtonDisplay = {
@@ -68,10 +72,10 @@ const PRESET_BUTTONS = [
     { name: "Reddit", color: "#FF4500", text: "Reddit" },
 ];
 
-// Gradiente fixo laranja-vermelho (igual ao OrderSection)
+// Gradiente fixo laranja-vermelho
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)';
 
-// Style para botões pill (igual ao OrderSection)
+// Style para botões pill
 const pillButtonStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -252,6 +256,9 @@ export default function FazerDivulgacao() {
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const videoInputRef = useRef<HTMLInputElement | null>(null);
+    const coverInputRef = useRef<HTMLInputElement | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const ffmpegRef = useRef<FFmpeg | null>(null);
 
     const [profileId, setProfileId] = useState<string | null>(null);
     const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null);
@@ -277,6 +284,20 @@ export default function FazerDivulgacao() {
     const [videoFile, setVideoFile] = useState<File | null>(null);
     const [videoPreview, setVideoPreview] = useState<string | null>(null);
 
+    // Capa (thumbnail) separada para vídeos
+    const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+    const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+    const [activeCoverType, setActiveCoverType] = useState<'image' | 'gif' | null>(null);
+
+    // Estados para GIF
+    const [isGeneratingGif, setIsGeneratingGif] = useState(false);
+    const [gifPreview, setGifPreview] = useState<string | null>(null);
+    const [gifFile, setGifFile] = useState<File | null>(null);
+    const [gifDuration, setGifDuration] = useState(5);
+    const [gifStartTime, setGifStartTime] = useState(0);
+    const [videoDuration, setVideoDuration] = useState(0);
+    const [showGifControls, setShowGifControls] = useState(false);
+
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [address, setAddress] = useState("");
     const [addressNumber, setAddressNumber] = useState("");
@@ -296,6 +317,170 @@ export default function FazerDivulgacao() {
 
     // Estado para WhatsApp Button
     const [useWhatsappButton, setUseWhatsappButton] = useState(false);
+
+    // Inicializar FFmpeg
+    useEffect(() => {
+        const initFFmpeg = async () => {
+            try {
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                const ffmpeg = new FFmpeg();
+
+                await ffmpeg.load({
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                });
+
+                ffmpegRef.current = ffmpeg;
+                console.log('FFmpeg carregado com sucesso!');
+                toast.success('Processador de vídeo carregado!');
+            } catch (error) {
+                console.error('Erro ao inicializar FFmpeg:', error);
+                toast.error('Erro ao carregar processador de vídeo. Recarregue a página.');
+            }
+        };
+
+        const timer = setTimeout(() => {
+            initFFmpeg();
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    // Função para gerar GIF do vídeo - CORRIGIDA DEFINITIVAMENTE
+    const generateGifFromVideo = async () => {
+        if (!videoFile) {
+            toast.error('Selecione um vídeo primeiro');
+            return;
+        }
+
+        if (!ffmpegRef.current) {
+            toast.error('Processador de vídeo não está disponível. Aguarde o carregamento.');
+            return;
+        }
+
+        setIsGeneratingGif(true);
+        toast.info('🔄 Gerando GIF... Isso pode levar alguns segundos');
+
+        try {
+            const ffmpeg = ffmpegRef.current;
+
+            if (!ffmpeg.loaded) {
+                toast.info('Carregando processador de vídeo...');
+                await ffmpeg.load();
+            }
+
+            const videoData = await fetchFile(videoFile);
+            await ffmpeg.writeFile('input.mp4', videoData);
+
+            // Comando FFmpeg com dimensões pares (-2) para evitar falhas de renderização
+            const fps = 12;
+            const duration = Math.min(gifDuration, Math.max(0.5, videoDuration - gifStartTime));
+
+            if (duration <= 0) {
+                toast.error('Duração do GIF inválida. Ajuste o tempo de início.');
+                setIsGeneratingGif(false);
+                return;
+            }
+
+            await ffmpeg.exec([
+                '-ss', gifStartTime.toFixed(2),
+                '-t', duration.toFixed(2),
+                '-i', 'input.mp4',
+                '-vf', `fps=${fps},scale=480:-2:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
+                '-loop', '0',
+                '-y',
+                'output.gif'
+            ]);
+
+            const files = await ffmpeg.listDir('/');
+
+            console.log(files);
+            // Ler o arquivo GIF gerado
+            const gifData = await ffmpeg.readFile('output.gif');
+
+            let uint8Data: Uint8Array;
+            if (gifData instanceof Uint8Array) {
+                uint8Data = gifData;
+            } else if (typeof gifData === 'string') {
+                uint8Data = new TextEncoder().encode(gifData);
+            } else {
+                uint8Data = new Uint8Array(gifData as any);
+            }
+
+            if (!uint8Data || uint8Data.length === 0) {
+                throw new Error('GIF gerado está vazio. Tente ajustar o tempo de início do vídeo.');
+            }
+
+            // Garante cópia limpa do ArrayBuffer puro para o Blob
+            const copyUint8 = new Uint8Array(uint8Data.length);
+            copyUint8.set(uint8Data);
+            const gifBlob = new Blob([copyUint8.buffer], { type: 'image/gif' });
+            if (gifBlob.size === 0) {
+                throw new Error('Blob do GIF está vazio');
+            }
+
+            const gifUrl = URL.createObjectURL(gifBlob);
+            const gifFileName = `gif_${Date.now()}.gif`;
+            const gifFileObj = new File([gifBlob], gifFileName, { type: 'image/gif' });
+
+            setGifPreview(gifUrl);
+            setGifFile(gifFileObj);
+            setActiveCoverType('gif');
+            // FECHA O PAINEL DE CONTROLE DO GIF APÓS GERAR
+            setShowGifControls(false);
+
+            toast.success('🎬 GIF de capa em alta qualidade gerado com sucesso!');
+
+            // Limpar arquivos temporários
+            try {
+                await ffmpeg.deleteFile('input.mp4');
+                await ffmpeg.deleteFile('output.gif');
+            } catch (e) {
+                console.log('Erro ao deletar arquivos temporários:', e);
+            }
+
+        } catch (error: any) {
+            console.error('Erro detalhado ao gerar GIF:', error);
+
+            // Mensagem de erro mais amigável
+            let errorMsg = 'Erro ao gerar GIF. ';
+            if (error.message) {
+                if (error.message.includes('codec')) {
+                    errorMsg += 'O vídeo pode estar em um formato incompatível. Tente usar MP4.';
+                } else if (error.message.includes('empty') || error.message.includes('vazio')) {
+                    errorMsg += 'O GIF gerado está vazio. Tente ajustar o tempo de início.';
+                } else {
+                    errorMsg += error.message;
+                }
+            }
+            toast.error(errorMsg);
+
+            // Tentar limpar arquivos temporários
+            try {
+                if (ffmpegRef.current) {
+                    await ffmpegRef.current.deleteFile('input.mp4').catch(() => { });
+                    await ffmpegRef.current.deleteFile('output.gif').catch(() => { });
+                }
+            } catch (e) {
+                // Ignorar
+            }
+        } finally {
+            setIsGeneratingGif(false);
+        }
+    };
+
+    // Função para resetar o estado do GIF de capa
+    const resetGifState = () => {
+        if (gifPreview) {
+            URL.revokeObjectURL(gifPreview);
+        }
+        setGifPreview(null);
+        setGifFile(null);
+        if (activeCoverType === 'gif') {
+            setActiveCoverType(coverImagePreview ? 'image' : null);
+        }
+        toast.info('GIF de capa removido');
+    };
 
     const getAvatarUrl = (avatarPath: string | null): string | null => {
         if (!avatarPath) return null;
@@ -318,18 +503,36 @@ export default function FazerDivulgacao() {
         }
     };
 
-    const handleMediaSelection = (type: 'image' | 'video') => {
+    const handleMediaSelection = (type: 'image' | 'video' | 'gif') => {
         setShowMediaPicker(false);
         if (type === 'image') {
             fileInputRef.current?.click();
-        } else {
+        } else if (type === 'video') {
             videoInputRef.current?.click();
+        } else {
+            fileInputRef.current?.click();
         }
     };
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Verificar se é GIF
+        if (file.type === 'image/gif') {
+            const sizeMB = file.size / (1024 * 1024);
+            if (sizeMB > 20) {
+                toast.error('GIF muito grande! Máximo 20MB.');
+                return;
+            }
+
+            setGifFile(file);
+            const url = URL.createObjectURL(file);
+            setGifPreview(url);
+            setMediaType('gif');
+            toast.success('GIF selecionado!');
+            return;
+        }
 
         const sizeMB = file.size / (1024 * 1024);
         if (sizeMB > 300) {
@@ -376,24 +579,56 @@ export default function FazerDivulgacao() {
         setUploadProgress(0);
 
         try {
-            let processedFile = file;
-            if (sizeMB > 20) {
-                toast.info('Comprimindo vídeo... (pode levar alguns segundos)');
-                processedFile = file;
-                toast.success('Vídeo selecionado!');
-            }
-
-            setVideoFile(processedFile);
-            const url = URL.createObjectURL(processedFile);
+            setVideoFile(file);
+            const url = URL.createObjectURL(file);
             setVideoPreview(url);
             setMediaType('video');
-            toast.success('Vídeo selecionado!');
+            // NÃO ABRE O PAINEL DE GIF AUTOMATICAMENTE
+            // O usuário clica em "Criar Capa" para abrir
+            toast.success('Vídeo selecionado! Escolha uma capa abaixo.');
         } catch (error) {
             console.error('Erro ao processar vídeo:', error);
             toast.error('Erro ao processar vídeo. Tente novamente.');
         } finally {
             setUploading(false);
             setUploadProgress(0);
+        }
+    };
+
+    const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const sizeMB = file.size / (1024 * 1024);
+
+        setUploading(true);
+        try {
+            let processedFile = file;
+            if (sizeMB > 20) {
+                toast.info('Comprimindo imagem de capa...');
+                processedFile = await compressImage(file, 20);
+            }
+            setCoverImageFile(processedFile);
+            const url = URL.createObjectURL(processedFile);
+            setCoverImagePreview(url);
+            setActiveCoverType('image');
+            toast.success('Capa adicionada!');
+        } catch (error) {
+            toast.error('Erro ao processar capa. Tente novamente.');
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        setVideoDuration(video.duration);
+        setGifDuration(Math.min(5, video.duration));
+    };
+
+    const handleVideoSeek = (time: number) => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = time;
         }
     };
 
@@ -659,8 +894,78 @@ export default function FazerDivulgacao() {
             return;
         }
 
-        let imagePath: string | null = null;
-        if (imageFile) {
+        // ===== UPLOAD DE MÍDIA =====
+        let imagePath: string | null = null; // image_url = thumbnail/capa no grid
+        let videoPath: string | null = null; // video_url = conteúdo do vídeo
+
+        if (videoFile) {
+            // Se existir arquivo de vídeo, a publicação é SEMPRE do tipo Vídeo (media_type = 'video')
+            // 1. Upload da Capa escolhida/ativa (GIF de alta qualidade gerado OU foto de capa customizada)
+            const useGif = activeCoverType === 'gif' && gifFile;
+
+            if (useGif && gifFile) {
+                const gifFileName = `cover_gif_${Date.now()}.gif`;
+                const { data: gifData, error: gifError } = await supabase.storage
+                    .from("product-images")
+                    .upload(gifFileName, gifFile);
+                if (gifError) {
+                    toast.error("Erro ao enviar GIF de capa: " + gifError.message);
+                    setLoading(false);
+                    return;
+                }
+                if (gifData) imagePath = gifData.path;
+            } else if (coverImageFile) {
+                const coverExt = coverImageFile.name.split(".").pop();
+                const coverFileName = `cover_${Date.now()}.${coverExt}`;
+                const { data: coverData, error: coverError } = await supabase.storage
+                    .from("product-images")
+                    .upload(coverFileName, coverImageFile);
+                if (coverError) {
+                    toast.error("Erro ao enviar capa: " + coverError.message);
+                    setLoading(false);
+                    return;
+                }
+                if (coverData) imagePath = coverData.path;
+            } else if (gifFile) {
+                // Fallback: se tem GIF mas activeCoverType não é 'gif', usa GIF mesmo assim
+                const gifFileName = `cover_gif_${Date.now()}.gif`;
+                const { data: gifData, error: gifError } = await supabase.storage
+                    .from("product-images")
+                    .upload(gifFileName, gifFile);
+                if (gifError) {
+                    toast.error("Erro ao enviar GIF de capa: " + gifError.message);
+                    setLoading(false);
+                    return;
+                }
+                if (gifData) imagePath = gifData.path;
+            }
+
+            // 2. Upload do Vídeo principal (OBRIGATÓRIO MANTIDO)
+            const fileExt = videoFile.name.split(".").pop();
+            const fileName = `${Date.now()}-video.${fileExt}`;
+            const { data: videoDataRes, error: videoUploadError } = await supabase.storage
+                .from("product-videos")
+                .upload(fileName, videoFile);
+            if (videoUploadError) {
+                toast.error("Erro ao enviar vídeo: " + videoUploadError.message);
+                setLoading(false);
+                return;
+            }
+            if (videoDataRes) videoPath = videoDataRes.path;
+        } else if (gifFile) {
+            // Post puro de GIF (sem vídeo)
+            const fileName = `gif_${Date.now()}.gif`;
+            const { data, error: uploadError } = await supabase.storage
+                .from("product-images")
+                .upload(fileName, gifFile);
+            if (uploadError) {
+                toast.error("Erro ao enviar GIF: " + uploadError.message);
+                setLoading(false);
+                return;
+            }
+            if (data) imagePath = data.path;
+        } else if (imageFile) {
+            // Post de imagem estática
             const fileExt = imageFile.name.split(".").pop();
             const fileName = `${Date.now()}.${fileExt}`;
             const { data, error: uploadError } = await supabase.storage
@@ -672,21 +977,6 @@ export default function FazerDivulgacao() {
                 return;
             }
             if (data) imagePath = data.path;
-        }
-
-        let videoPath: string | null = null;
-        if (videoFile && mediaType === 'video') {
-            const fileExt = videoFile.name.split(".").pop();
-            const fileName = `${Date.now()}-video.${fileExt}`;
-            const { data, error: uploadError } = await supabase.storage
-                .from("product-videos")
-                .upload(fileName, videoFile);
-            if (uploadError) {
-                toast.error("Erro ao enviar vídeo: " + uploadError.message);
-                setLoading(false);
-                return;
-            }
-            if (data) videoPath = data.path;
         }
 
         let slug = title
@@ -753,6 +1043,8 @@ export default function FazerDivulgacao() {
             };
         }
 
+        const finalMediaType = videoFile ? 'video' : (gifFile ? 'gif' : 'image');
+
         const { error } = await supabase.from("products").insert({
             name: title,
             slug,
@@ -761,9 +1053,9 @@ export default function FazerDivulgacao() {
             type: null,
             price_type: "fixed",
             listing_type: "publication",
-            image_url: mediaType === 'image' ? imagePath : (imagePath || null),
-            video_url: mediaType === 'video' ? videoPath : null,
-            media_type: mediaType,
+            image_url: imagePath,       // thumbnail/capa sempre em image_url para o grid
+            video_url: videoPath,       // vídeo mantido integralmente em video_url
+            media_type: finalMediaType,
             store_id: null,
             owner_id: profileId,
             owner_image_url: profileAvatarUrl,
@@ -790,8 +1082,10 @@ export default function FazerDivulgacao() {
         return () => {
             if (preview) URL.revokeObjectURL(preview);
             if (videoPreview) URL.revokeObjectURL(videoPreview);
+            if (gifPreview) URL.revokeObjectURL(gifPreview);
+            if (coverImagePreview) URL.revokeObjectURL(coverImagePreview);
         };
-    }, [preview, videoPreview]);
+    }, [preview, videoPreview, gifPreview, coverImagePreview]);
 
     const getButtonDisplay = (): ButtonDisplay => {
         if (useWhatsappButton && profileWhatsapp) {
@@ -814,7 +1108,7 @@ export default function FazerDivulgacao() {
 
     const buttonDisplay = getButtonDisplay();
 
-    // ===== ESTILO GLASSMORPHISM (igual ao OrderSection) =====
+    // ===== ESTILO GLASSMORPHISM =====
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`;
 
     const glassStyle = {
@@ -827,10 +1121,328 @@ export default function FazerDivulgacao() {
         padding: '1.5rem',
     };
 
-    const glassInputStyle = {
-        background: `rgba(255, 255, 255, 0.06)`,
-        borderColor: `rgba(255, 255, 255, 0.12)`,
-        color: colors.textPrimary,
+    // Preview do conteúdo principal (vídeo ou GIF)
+    const renderMediaPreview = () => {
+        if (mediaType === 'gif' && gifPreview && !videoFile) {
+            return (
+                <div className="relative rounded-2xl overflow-hidden border-2" style={{ borderColor: colors.accent }}>
+                    <img
+                        src={gifPreview}
+                        className="w-full max-h-80 object-contain"
+                        alt="GIF Preview"
+                        style={{ imageRendering: 'pixelated' }}
+                    />
+                    <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                        <Film className="w-3 h-3" />
+                        GIF Animado
+                    </div>
+                    <button
+                        onClick={resetGifState}
+                        className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full hover:bg-black/90 transition-colors"
+                    >
+                        <X className="w-4 h-4 text-white" />
+                    </button>
+                </div>
+            );
+        }
+
+        if (videoFile && videoPreview) {
+            return (
+                <div className="space-y-3">
+                    {/* Player de Vídeo */}
+                    <div className="relative rounded-2xl overflow-hidden border-2" style={{ borderColor: colors.accent }}>
+                        <video
+                            ref={videoRef}
+                            src={videoPreview}
+                            className="w-full max-h-72 object-contain"
+                            controls
+                            onLoadedMetadata={handleVideoMetadata}
+                        />
+                        <div className="absolute top-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                            <Video className="w-3 h-3" />
+                            Vídeo Principal
+                        </div>
+                        <button
+                            onClick={() => {
+                                setVideoFile(null);
+                                setVideoPreview(null);
+                                setMediaType(null);
+                                setGifPreview(null);
+                                setGifFile(null);
+                                setShowGifControls(false);
+                                setCoverImageFile(null);
+                                setCoverImagePreview(null);
+                                setActiveCoverType(null);
+                            }}
+                            className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full hover:bg-black/90 transition-colors"
+                        >
+                            <X className="w-4 h-4 text-white" />
+                        </button>
+                    </div>
+
+                    {/* Capa do Vídeo (para o Grid) */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5" style={{ color: colors.textSecondary }}>
+                                <Camera className="w-3 h-3" />
+                                Capa da Publicação (exibida na grade)
+                            </span>
+                            {(gifPreview || coverImagePreview) && (
+                                <span className="text-[9px] font-bold opacity-70" style={{ color: colors.textSecondary }}>
+                                    Clique na capa para ativar
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Grade de 2 colunas sempre mantida lado a lado */}
+                        <div className="grid grid-cols-2 gap-2">
+                            {/* COLUNA 1: Selecionar uma capa (Foto Estática) */}
+                            {coverImagePreview ? (
+                                <div
+                                    onClick={() => setActiveCoverType('image')}
+                                    className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${activeCoverType === 'image' ? 'ring-2 ring-orange-500 scale-[1.02]' : 'opacity-80 hover:opacity-100'
+                                        }`}
+                                    style={{
+                                        borderColor: activeCoverType === 'image' ? colors.accent : colors.border,
+                                    }}
+                                >
+                                    <img src={coverImagePreview} className="w-full h-24 object-cover" alt="Foto de Capa" />
+                                    <div className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 bg-black/80 rounded text-white text-[8px] font-bold flex items-center justify-between">
+                                        <span className="flex items-center gap-1">
+                                            <ImageIcon className="w-2.5 h-2.5 text-blue-400" /> Foto
+                                        </span>
+                                        {activeCoverType === 'image' && (
+                                            <span className="text-[7px] bg-orange-500 text-white px-1 rounded uppercase">Ativa</span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCoverImageFile(null);
+                                            setCoverImagePreview(null);
+                                            if (activeCoverType === 'image') {
+                                                setActiveCoverType(gifPreview ? 'gif' : null);
+                                            }
+                                        }}
+                                        className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-white hover:bg-black/90 z-10"
+                                        title="Remover foto"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    onClick={() => coverInputRef.current?.click()}
+                                    className="h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02]"
+                                    style={{ borderColor: colors.border, background: colors.background }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f97316'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border; }}
+                                >
+                                    <Camera className="w-5 h-5" style={{ color: colors.accent }} />
+                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Selecionar uma capa</span>
+                                    <span className="text-[8px]" style={{ color: colors.textSecondary }}>Escolher imagem</span>
+                                </div>
+                            )}
+
+                            {/* COLUNA 2: Criar Capa (GIF Gerado) */}
+                            {gifPreview ? (
+                                <div
+                                    onClick={() => setActiveCoverType('gif')}
+                                    className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${activeCoverType === 'gif' ? 'ring-2 ring-orange-500 scale-[1.02]' : 'opacity-80 hover:opacity-100'
+                                        }`}
+                                    style={{
+                                        borderColor: activeCoverType === 'gif' ? '#f97316' : colors.border,
+                                    }}
+                                >
+                                    <img src={gifPreview} className="w-full h-24 object-cover" alt="GIF de Capa" />
+                                    <div className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 bg-black/80 rounded text-white text-[8px] font-bold flex items-center justify-between">
+                                        <span className="flex items-center gap-1">
+                                            <Film className="w-2.5 h-2.5 text-orange-400" /> GIF
+                                        </span>
+                                        {activeCoverType === 'gif' && (
+                                            <span className="text-[7px] bg-orange-500 text-white px-1 rounded uppercase">Ativa</span>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            resetGifState();
+                                        }}
+                                        className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-white hover:bg-black/90 z-10"
+                                        title="Remover GIF"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    onClick={() => setShowGifControls(true)}
+                                    className="h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-[1.02]"
+                                    style={{ borderColor: colors.border, background: colors.background }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#f97316'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border; }}
+                                >
+                                    <Film className="w-5 h-5" style={{ color: '#f97316' }} />
+                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Criar Capa</span>
+                                    <span className="text-[8px]" style={{ color: colors.textSecondary }}>Gerar do vídeo</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <input
+                            ref={coverInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleCoverImageUpload}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        if (preview) {
+            return (
+                <div className="relative rounded-2xl overflow-hidden border-2" style={{ borderColor: colors.accent }}>
+                    <img src={preview} className="w-full max-h-80 object-contain" alt="Preview" />
+                    <button
+                        onClick={() => {
+                            setImageFile(null);
+                            setPreview(null);
+                            setMediaType(null);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full hover:bg-black/90 transition-colors"
+                    >
+                        <X className="w-4 h-4 text-white" />
+                    </button>
+                </div>
+            );
+        }
+
+        return null;
+    };
+
+    // Painel de controle do GIF - SÓ APARECE QUANDO showGifControls É true
+    const renderGifControls = () => {
+        if (!showGifControls || !videoFile) return null;
+
+        return (
+            <div className="mt-3 p-4 rounded-2xl border" style={{
+                background: colors.background,
+                borderColor: colors.border,
+            }}>
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Film className="w-4 h-4" style={{ color: colors.accent }} />
+                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                            Gerar GIF de Capa (Alta Qualidade)
+                        </span>
+                    </div>
+                    <button
+                        onClick={generateGifFromVideo}
+                        disabled={isGeneratingGif || !ffmpegRef.current}
+                        className="px-4 py-2 rounded-full text-xs font-bold text-white transition-all hover:scale-105 disabled:opacity-50 flex items-center gap-2"
+                        style={{
+                            background: GRADIENT,
+                            boxShadow: '0 2px 8px rgba(249, 115, 22, 0.4)',
+                        }}
+                    >
+                        {isGeneratingGif ? (
+                            <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Gerando...
+                            </>
+                        ) : (
+                            <>
+                                <Film className="w-3 h-3" />
+                                {gifPreview ? 'Gerar Novo GIF' : 'Gerar GIF'}
+                            </>
+                        )}
+                    </button>
+                </div>
+
+                {videoDuration > 0 && (
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <Clock className="w-3 h-3" style={{ color: colors.textSecondary }} />
+                            <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                Duração do vídeo: {Math.round(videoDuration)}s
+                            </span>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                Início do GIF: {gifStartTime.toFixed(1)}s
+                            </label>
+                            <input
+                                type="range"
+                                min={0}
+                                max={Math.max(0, videoDuration - 1)}
+                                step={0.1}
+                                value={gifStartTime}
+                                onChange={(e) => {
+                                    const time = parseFloat(e.target.value);
+                                    setGifStartTime(time);
+                                    handleVideoSeek(time);
+                                }}
+                                className="w-full h-1 rounded-full appearance-none cursor-pointer"
+                                style={{
+                                    background: GRADIENT,
+                                }}
+                            />
+                            <div className="flex justify-between text-[8px]" style={{ color: colors.textSecondary }}>
+                                <span>0s</span>
+                                <span>{Math.round(videoDuration)}s</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                Duração do GIF: {gifDuration}s (máx. 5s)
+                            </label>
+                            <input
+                                type="range"
+                                min={1}
+                                max={Math.min(5, videoDuration - gifStartTime)}
+                                step={0.5}
+                                value={gifDuration}
+                                onChange={(e) => setGifDuration(parseFloat(e.target.value))}
+                                className="w-full h-1 rounded-full appearance-none cursor-pointer"
+                                style={{
+                                    background: GRADIENT,
+                                }}
+                            />
+                        </div>
+
+                        <p className="text-[8px] mt-1" style={{ color: colors.textSecondary }}>
+                            💡 Dica: GIFs são ótimos para mostrar prévias rápidas do seu conteúdo!
+                        </p>
+                        <p className="text-[8px] mt-1" style={{ color: colors.textSecondary }}>
+                            ⚠️ Use vídeos em formato MP4 para melhor compatibilidade.
+                        </p>
+                    </div>
+                )}
+
+                {!ffmpegRef.current && (
+                    <p className="text-xs text-yellow-500 mt-2">
+                        ⚠️ Carregando processador de vídeo... Aguarde um momento.
+                    </p>
+                )}
+
+                {/* Botão para fechar o painel de GIF */}
+                <button
+                    onClick={() => setShowGifControls(false)}
+                    className="mt-3 w-full py-2 rounded-full text-xs font-bold transition-all hover:opacity-70"
+                    style={{
+                        background: colors.background,
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textSecondary,
+                    }}
+                >
+                    Fechar painel
+                </button>
+            </div>
+        );
     };
 
     return (
@@ -842,7 +1454,7 @@ export default function FazerDivulgacao() {
 
             {/* ===== CONTEÚDO ===== */}
             <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full min-h-dvh">
-                {/* HEADER - glassmorphism com gradiente no ícone */}
+                {/* HEADER */}
                 <div
                     className="flex items-center gap-3 mb-6 p-3 rounded-full"
                     style={{
@@ -904,9 +1516,28 @@ export default function FazerDivulgacao() {
                             className="relative w-full"
                             style={{ paddingBottom: '100%' }}
                         >
-                            {mediaType === 'video' && videoPreview ? (
-                                <video src={videoPreview} className="absolute inset-0 w-full h-full object-cover" />
+                            {/* Capa do cartaz: usa activeCoverType para decidir qual exibir */}
+                            {videoFile ? (
+                                // Para vídeos: usa a capa ativa (GIF ou imagem)
+                                (activeCoverType === 'gif' && gifPreview) ? (
+                                    <img src={gifPreview} className="absolute inset-0 w-full h-full object-cover" alt="Capa GIF" />
+                                ) : (activeCoverType === 'image' && coverImagePreview) ? (
+                                    <img src={coverImagePreview} className="absolute inset-0 w-full h-full object-cover" alt="Capa Foto" />
+                                ) : gifPreview ? (
+                                    // Fallback: se tem GIF mas não está ativo, mostra o GIF
+                                    <img src={gifPreview} className="absolute inset-0 w-full h-full object-cover" alt="Capa GIF" />
+                                ) : coverImagePreview ? (
+                                    // Fallback: se tem imagem mas não está ativa, mostra a imagem
+                                    <img src={coverImagePreview} className="absolute inset-0 w-full h-full object-cover" alt="Capa Foto" />
+                                ) : (
+                                    // Se não tem capa, mostra o vídeo
+                                    <video src={videoPreview || undefined} className="absolute inset-0 w-full h-full object-cover" muted />
+                                )
+                            ) : mediaType === 'gif' && gifPreview ? (
+                                // GIF puro (sem vídeo)
+                                <img src={gifPreview} className="absolute inset-0 w-full h-full object-cover" alt="GIF" />
                             ) : preview ? (
+                                // Imagem estática
                                 <img src={preview} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center text-4xl font-black" style={{ color: colors.textSecondary }}>
@@ -914,7 +1545,6 @@ export default function FazerDivulgacao() {
                                 </div>
                             )}
 
-                            {/* Overlay com texto sobre a imagem */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex flex-col justify-end p-3">
                                 <h4 className="text-xs font-bold text-white truncate">
                                     {title || "Título da Publicação"}
@@ -924,14 +1554,34 @@ export default function FazerDivulgacao() {
                                 </p>
                             </div>
 
-                            {mediaType === 'video' && (
+                            {videoFile && activeCoverType === 'gif' && gifPreview && (
+                                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/80 text-orange-400 flex items-center gap-1 border border-orange-500/30">
+                                    <Film className="w-3 h-3" />
+                                    Vídeo + GIF
+                                </span>
+                            )}
+
+                            {videoFile && activeCoverType === 'image' && coverImagePreview && (
+                                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
+                                    <Video className="w-3 h-3" />
+                                    Vídeo + Foto
+                                </span>
+                            )}
+
+                            {videoFile && !gifPreview && !coverImagePreview && (
                                 <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
                                     <Video className="w-3 h-3" />
                                     Vídeo
                                 </span>
                             )}
 
-                            {/* BOTÃO DO CARTAZ */}
+                            {!videoFile && mediaType === 'gif' && (
+                                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[7px] font-black bg-black/70 text-white flex items-center gap-1">
+                                    <Film className="w-3 h-3" />
+                                    GIF
+                                </span>
+                            )}
+
                             {buttonDisplay && (
                                 <div className="absolute top-3 right-3 z-20">
                                     <button
@@ -959,18 +1609,20 @@ export default function FazerDivulgacao() {
                     </p>
                 </div>
 
-                {/* FORMULÁRIO - Glassmorphism com cores do tema */}
+                {/* FORMULÁRIO */}
                 <div style={glassStyle} className="space-y-6">
-                    {/* CAPA - IMAGEM/VIDEO */}
+                    {/* CAPA */}
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">
                             <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                                 Capa
                             </label>
-                            <span className="text-[8px]" style={{ color: colors.textSecondary }}>Máx. 20MB</span>
+                            <span className="text-[8px]" style={{ color: colors.textSecondary }}>
+                                {mediaType === 'gif' ? 'GIF' : mediaType === 'video' ? 'Máx. 300MB' : 'Máx. 20MB'}
+                            </span>
                         </div>
 
-                        {!preview && !videoPreview ? (
+                        {!preview && !videoPreview && !gifPreview ? (
                             <div
                                 onClick={() => setShowMediaPicker(true)}
                                 className="w-full h-48 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all group cursor-pointer"
@@ -1000,50 +1652,57 @@ export default function FazerDivulgacao() {
                                         </div>
                                         <div className="text-center">
                                             <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>Adicionar capa</p>
-                                            <p className="text-xs" style={{ color: colors.textSecondary }}>Imagem ou vídeo (máx. 20MB)</p>
-                                            <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>Arquivos acima de 20MB serão comprimidos</p>
+                                            <p className="text-xs" style={{ color: colors.textSecondary }}>Imagem, vídeo ou GIF (máx. 20MB)</p>
+                                            <p className="text-[10px] mt-1" style={{ color: colors.textSecondary }}>Vídeos podem ser convertidos em GIF</p>
                                         </div>
                                     </>
                                 )}
                             </div>
                         ) : (
-                            <div className="relative rounded-2xl overflow-hidden border-2" style={{ borderColor: colors.accent }}>
-                                {mediaType === 'video' && videoPreview ? (
-                                    <video src={videoPreview} className="w-full max-h-80 object-contain" controls />
-                                ) : (
-                                    <img src={preview || ''} className="w-full max-h-80 object-contain" alt="Preview" />
-                                )}
-                                <button
-                                    onClick={() => {
-                                        setImageFile(null);
-                                        setPreview(null);
-                                        setVideoFile(null);
-                                        setVideoPreview(null);
-                                        setMediaType(null);
-                                    }}
-                                    className="absolute top-2 right-2 p-1.5 bg-black/70 rounded-full hover:bg-black/90 transition-colors"
-                                >
-                                    <X className="w-4 h-4 text-white" />
-                                </button>
-                                {mediaType === 'video' && (
-                                    <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                            <>
+                                {renderMediaPreview()}
+
+                                {/* Painel de GIF aparece APENAS quando showGifControls é true */}
+                                {renderGifControls()}
+
+                                {mediaType === 'video' && videoFile && (
+                                    <div className="flex items-center gap-2 text-[10px] mt-2" style={{ color: colors.textSecondary }}>
                                         <Video className="w-3 h-3" />
-                                        Vídeo
-                                    </span>
+                                        <span>{(videoFile.size / (1024 * 1024)).toFixed(1)}MB</span>
+                                        {videoDuration > 0 && (
+                                            <>
+                                                <span>•</span>
+                                                <span>{Math.round(videoDuration)}s</span>
+                                            </>
+                                        )}
+                                        {!coverImageFile && !gifFile && (
+                                            <span className="ml-1 px-2 py-0.5 rounded-full text-[8px] font-bold" style={{ background: '#f9731622', color: '#f97316' }}>
+                                                ⚠ Adicione uma capa
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {mediaType === 'gif' && gifFile && (
+                                    <div className="flex items-center gap-2 text-[10px] mt-2" style={{ color: colors.textSecondary }}>
+                                        <Film className="w-3 h-3" />
+                                        <span>{(gifFile.size / (1024 * 1024)).toFixed(1)}MB</span>
+                                        <span>•</span>
+                                        <span>{gifDuration}s</span>
+                                    </div>
                                 )}
                                 {mediaType === 'image' && imageFile && (
-                                    <span className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded-lg text-white text-xs flex items-center gap-1">
+                                    <div className="flex items-center gap-2 text-[10px] mt-2" style={{ color: colors.textSecondary }}>
                                         <Camera className="w-3 h-3" />
-                                        {(imageFile.size / (1024 * 1024)).toFixed(1)}MB
-                                    </span>
+                                        <span>{(imageFile.size / (1024 * 1024)).toFixed(1)}MB</span>
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )}
 
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept="image/*,image/gif"
                             className="hidden"
                             onChange={handleImageUpload}
                         />
@@ -1140,7 +1799,6 @@ export default function FazerDivulgacao() {
                                     borderColor: colors.border,
                                 }}
                             >
-                                {/* Pré-modelos */}
                                 <div className="space-y-2">
                                     <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                                         Botões
@@ -1169,7 +1827,6 @@ export default function FazerDivulgacao() {
 
                                 <div className="border-t border-dashed" style={{ borderColor: colors.border }} />
 
-                                {/* Opção WhatsApp do Perfil */}
                                 {profileWhatsapp && (
                                     <div className="space-y-2">
                                         <label className="flex items-center gap-3 cursor-pointer">
@@ -1198,7 +1855,6 @@ export default function FazerDivulgacao() {
                                     </div>
                                 )}
 
-                                {/* Opção Personalizado */}
                                 <div className="space-y-2">
                                     <label className="flex items-center gap-3 cursor-pointer">
                                         <input
@@ -1280,8 +1936,8 @@ export default function FazerDivulgacao() {
                                                                 setSelectedPreset(null);
                                                             }}
                                                             className={`w-10 h-10 rounded-full transition-all hover:scale-110 ${buttonColor === color.value
-                                                                    ? 'ring-2 ring-offset-2 scale-110'
-                                                                    : ''
+                                                                ? 'ring-2 ring-offset-2 scale-110'
+                                                                : ''
                                                                 }`}
                                                             style={{
                                                                 backgroundColor: color.value,
@@ -1295,7 +1951,6 @@ export default function FazerDivulgacao() {
                                     )}
                                 </div>
 
-                                {/* Preview do botão */}
                                 {buttonDisplay && (
                                     <div className="p-3 rounded-2xl border" style={{
                                         background: colors.background,
@@ -1351,8 +2006,8 @@ export default function FazerDivulgacao() {
                                         key={cat}
                                         onClick={() => setCategory(cat)}
                                         className={`px-3 py-1.5 border-2 rounded-2xl font-black text-[9px] uppercase tracking-wider transition-all ${category === cat
-                                                ? "text-white border-transparent"
-                                                : "border-2"
+                                            ? "text-white border-transparent"
+                                            : "border-2"
                                             }`}
                                         style={{
                                             background: category === cat ? colors.accent : colors.background,
@@ -1535,7 +2190,7 @@ export default function FazerDivulgacao() {
                         )}
                     </div>
 
-                    {/* BOTÃO CRIAR - estilo pill igual ao OrderSection */}
+                    {/* BOTÃO CRIAR */}
                     <button
                         onClick={handleCreate}
                         disabled={loading}
@@ -1569,39 +2224,69 @@ export default function FazerDivulgacao() {
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+
+                        <div className="grid grid-cols-3 gap-3">
+                            {/* Foto */}
                             <button
                                 onClick={() => handleMediaSelection('image')}
-                                className="p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 hover:bg-opacity-50"
+                                className="p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2"
                                 style={{
-                                    borderColor: colors.border,
+                                    borderColor: mediaType === 'image' ? colors.accent : colors.border,
                                     background: colors.background,
                                 }}
                             >
-                                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
-                                    <Camera className="w-7 h-7" style={{ color: colors.accent }} />
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                    <Camera className="w-6 h-6" style={{ color: colors.accent }} />
                                 </div>
-                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>Foto</span>
-                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>JPG, PNG, WEBP</span>
+                                <span className="font-bold text-xs" style={{ color: colors.textPrimary }}>Foto</span>
+                                <span className="text-[8px] text-center" style={{ color: colors.textSecondary }}>JPG, PNG, WEBP</span>
                             </button>
+
+                            {/* Vídeo com capa */}
                             <button
                                 onClick={() => handleMediaSelection('video')}
-                                className="p-6 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 hover:bg-opacity-50"
+                                className="p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2"
                                 style={{
-                                    borderColor: colors.border,
+                                    borderColor: mediaType === 'video' ? colors.accent : colors.border,
                                     background: colors.background,
                                 }}
                             >
-                                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
-                                    <Video className="w-7 h-7" style={{ color: colors.accent }} />
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                    <Video className="w-6 h-6" style={{ color: colors.accent }} />
                                 </div>
-                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>Vídeo</span>
-                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>MP4, WEBM, MOV</span>
+                                <span className="font-bold text-xs" style={{ color: colors.textPrimary }}>Vídeo</span>
+                                <span className="text-[8px] text-center" style={{ color: colors.textSecondary }}>MP4, WEBM + capa</span>
+                            </button>
+
+                            {/* GIF */}
+                            <button
+                                onClick={() => {
+                                    fileInputRef.current?.click();
+                                    setShowMediaPicker(false);
+                                }}
+                                className="p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2"
+                                style={{
+                                    borderColor: mediaType === 'gif' ? colors.accent : colors.border,
+                                    background: colors.background,
+                                }}
+                            >
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: colors.accentLight }}>
+                                    <Film className="w-6 h-6" style={{ color: colors.accent }} />
+                                </div>
+                                <span className="font-bold text-xs" style={{ color: colors.textPrimary }}>GIF</span>
+                                <span className="text-[8px] text-center" style={{ color: colors.textSecondary }}>Escolher GIF</span>
                             </button>
                         </div>
-                        <p className="text-center text-[10px] mt-4" style={{ color: colors.textSecondary }}>
-                            Arquivos acima de 20MB serão comprimidos automaticamente
-                        </p>
+
+                        {/* Dica sobre vídeo com capa */}
+                        <div className="mt-4 p-3 rounded-xl" style={{ background: `${colors.accent}11`, border: `1px solid ${colors.accent}33` }}>
+                            <p className="text-[10px] font-bold" style={{ color: colors.accent }}>💡 Sobre o Vídeo</p>
+                            <p className="text-[9px] mt-1" style={{ color: colors.textSecondary }}>
+                                Ao escolher um vídeo, você poderá adicionar uma <strong>imagem de capa</strong> (thumbnail)
+                                que aparece na listagem das publicações.
+                                Você também pode gerar um <strong>GIF animado</strong> do vídeo para usar como capa.
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
