@@ -35,55 +35,72 @@ function usePublications() {
     useEffect(() => {
         const fetchPublications = async () => {
             setLoading(true)
-            const { data: storesList, error: storesErr } = await supabase
-                .from('stores')
-                .select('id, name, storeSlug, logo_url')
+            try {
+                // Busca lojas
+                const { data: storesList, error: storesErr } = await supabase
+                    .from('stores')
+                    .select('id, name, storeSlug, logo_url')
 
-            if (storesErr) {
-                console.error('[FeaturedPublications] Erro ao buscar lojas:', storesErr)
-                setLoading(false)
-                return
-            }
-            const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
-
-            const { data: publicationsList, error: pubErr } = await supabase
-                .from('products')
-                .select('id, image_url, store_id')
-                .eq('listing_type', 'publication')
-                .eq('is_active', true)
-                .order('view_count', { ascending: false })
-
-            if (pubErr) {
-                console.error('[FeaturedPublications] Erro ao buscar publicações:', pubErr)
-                setLoading(false)
-                return
-            }
-            if (!publicationsList || publicationsList.length === 0) {
-                setPublications([])
-                setLoading(false)
-                return
-            }
-
-            const cards: PublicationCard[] = publicationsList.map(pub => {
-                const store = storeMap.get(pub.store_id)
-                const logoUrl = store?.logo_url
-                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                    : null
-                const imageUrl = pub.image_url
-                    ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
-                    : null
-                return {
-                    id: pub.id,
-                    imageUrl,
-                    storeName: store?.name ?? 'Loja desconhecida',
-                    storeSlug: store?.storeSlug ?? '#',
-                    storeLogoUrl: logoUrl,
+                if (storesErr) {
+                    console.error('[FeaturedPublications] Erro ao buscar lojas:', storesErr)
+                    setLoading(false)
+                    return
                 }
-            })
+                const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
 
-            setPublications(cards)
-            setLoading(false)
+                // Busca publicações ativas
+                const { data: publicationsList, error: pubErr } = await supabase
+                    .from('products')
+                    .select('id, image_url, store_id')
+                    .eq('listing_type', 'publication')
+                    .eq('is_active', true)
+                    .order('view_count', { ascending: false })
+                    .limit(20)
+
+                if (pubErr) {
+                    console.error('[FeaturedPublications] Erro ao buscar publicações:', pubErr)
+                    setLoading(false)
+                    return
+                }
+
+                if (!publicationsList || publicationsList.length === 0) {
+                    console.log('[FeaturedPublications] Nenhuma publicação encontrada')
+                    setPublications([])
+                    setLoading(false)
+                    return
+                }
+
+                console.log(`[FeaturedPublications] ${publicationsList.length} publicações encontradas`)
+
+                const cards: PublicationCard[] = publicationsList.map(pub => {
+                    const store = storeMap.get(pub.store_id)
+
+                    const imageUrl = pub.image_url
+                        ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
+                        : null
+
+                    const logoUrl = store?.logo_url
+                        ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                        : null
+
+                    return {
+                        id: pub.id, // 👈 USA O ID DIRETO
+                        imageUrl,
+                        storeName: store?.name ?? 'Loja desconhecida',
+                        storeSlug: store?.storeSlug ?? '#',
+                        storeLogoUrl: logoUrl,
+                    }
+                })
+
+                console.log('[FeaturedPublications] Cards gerados:', cards.map(c => ({ id: c.id, storeName: c.storeName })))
+                setPublications(cards)
+            } catch (error) {
+                console.error('[FeaturedPublications] Erro inesperado:', error)
+            } finally {
+                setLoading(false)
+            }
         }
+
         fetchPublications()
     }, [])
 
@@ -135,10 +152,12 @@ export default function FeaturedPublications({
 
     // Aplica maxItems se fornecido
     const displayPublications = useMemo(() => {
-        if (maxItems && publications.length > maxItems) {
-            return publications.slice(0, maxItems)
-        }
-        return publications
+        const result = maxItems && publications.length > maxItems
+            ? publications.slice(0, maxItems)
+            : publications
+
+        console.log('[FeaturedPublications] displayPublications:', result.length, 'itens')
+        return result
     }, [publications, maxItems])
 
     const [currentIndex, setCurrentIndex] = useState(0)
@@ -214,9 +233,16 @@ export default function FeaturedPublications({
 
     // ===== HANDLE CLICK - VAI PARA /publicacoes/{id} =====
     const handlePublicationClick = (pub: PublicationCard) => {
+        console.log('[FeaturedPublications] 📱 Clicou na publicação:', {
+            id: pub.id,
+            storeName: pub.storeName,
+            url: `/publicacoes/${pub.id}`
+        })
+
         if (onPublicationClick) {
             onPublicationClick(pub.id)
         } else {
+            // 👈 NAVEGA USANDO O ID
             router.push(`/publicacoes/${pub.id}`)
         }
     }
@@ -244,7 +270,10 @@ export default function FeaturedPublications({
         )
     }
 
-    if (!publications.length) return null
+    if (!publications.length) {
+        console.log('[FeaturedPublications] Nenhuma publicação para exibir')
+        return null
+    }
 
     // ===== RENDER =====
     return (
@@ -260,6 +289,12 @@ export default function FeaturedPublications({
                     <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
                         {title}
                     </h2>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{
+                        background: `${colors.accent}20`,
+                        color: colors.accent
+                    }}>
+                        {publications.length}
+                    </span>
                 </div>
 
                 {/* Botão "Ver todos" estilo PILLS - vai para /publicacoes */}
@@ -299,6 +334,7 @@ export default function FeaturedPublications({
                                         src={pub.imageUrl}
                                         alt={pub.storeName}
                                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                        loading="lazy"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                                 </>
@@ -325,6 +361,11 @@ export default function FeaturedPublications({
                                         {pub.storeName}
                                     </h3>
                                 </div>
+                            </div>
+
+                            {/* Badge com ID para debug */}
+                            <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded text-[8px] font-mono bg-black/60 text-white/70 backdrop-blur-sm">
+                                {pub.id.slice(0, 8)}
                             </div>
 
                             {/* Efeito de brilho no hover */}
