@@ -391,8 +391,31 @@ export default function AllPublicationsPage() {
     }, [loading, hasMore, loadingMore, loadMore])
 
     // ===== HANDLE PUBLICATION CLICK =====
+    // ===== HANDLE PUBLICATION CLICK - VAI PARA /publicacoes/{slug} =====
     const handlePublicationClick = (pub: PublicationCard) => {
-        router.push(`/${pub.storeSlug}?produto=${pub.id}`)
+        // Busca o slug da publicação
+        const publicationSlug = pub.id // fallback: usa o ID se não tiver slug
+
+        // Tenta buscar o slug real da publicação
+        const fetchSlug = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('slug')
+                    .eq('id', pub.id)
+                    .single()
+
+                if (!error && data?.slug) {
+                    router.push(`/publicacoes/${data.slug}`)
+                } else {
+                    router.push(`/publicacoes/${pub.id}`)
+                }
+            } catch {
+                router.push(`/publicacoes/${pub.id}`)
+            }
+        }
+
+        fetchSlug()
     }
 
     // ===== RENDER =====

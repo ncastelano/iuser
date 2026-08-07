@@ -27,47 +27,43 @@ export async function proxy(request: NextRequest) {
 
     const firstSegment = segments[0]
 
-    // Se já tem 3 ou mais segmentos, provavelmente já está no formato
-    // /profileSlug/storeSlug/slug — não reescrever
-    if (segments.length >= 3) return NextResponse.next()
-
+    // ============================================================
+    // APENAS VALIDAR SE O PRIMEIRO SEGMENTO É UM PERFIL OU LOJA
+    // NÃO REESCREVER NADA!
+    // ============================================================
     try {
-        // Verifica se o PRIMEIRO segmento é um profileSlug válido
+        // Verifica se é um profileSlug
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('profileSlug')
             .eq('profileSlug', firstSegment)
             .maybeSingle()
 
-        // Se o primeiro segmento é um profileSlug, a URL já está no formato correto — não reescrever
-        if (profile) return NextResponse.next()
+        if (profile) {
+            // É um perfil - deixa passar
+            console.log(`[Proxy] ${firstSegment} é um perfil ✅`)
+            return NextResponse.next()
+        }
 
-        // Procura se o primeiro segmento é um storeSlug (URL encurtada)
+        // Verifica se é um storeSlug
         const { data: store } = await supabaseAdmin
             .from('stores')
-            .select('storeSlug, owner_id')
+            .select('storeSlug')
             .eq('storeSlug', firstSegment)
             .maybeSingle()
 
         if (store) {
-            // Busca o profileSlug do dono
-            const { data: ownerProfile } = await supabaseAdmin
-                .from('profiles')
-                .select('profileSlug')
-                .eq('id', store.owner_id)
-                .single()
-
-            if (ownerProfile?.profileSlug) {
-                // Reescreve preservando segmentos extras: /loja/slug -> /perfil/loja/slug
-                const restPath = segments.slice(1).join('/')
-                const newUrl = request.nextUrl.clone()
-                newUrl.pathname = restPath
-                    ? `/${ownerProfile.profileSlug}/${store.storeSlug}/${restPath}`
-                    : `/${ownerProfile.profileSlug}/${store.storeSlug}`
-
-                return NextResponse.rewrite(newUrl)
-            }
+            // É uma loja - deixa passar
+            console.log(`[Proxy] ${firstSegment} é uma loja ✅`)
+            return NextResponse.next()
         }
+
+        // Se não for perfil nem loja, redireciona para 404
+        console.log(`[Proxy] ${firstSegment} não encontrado ❌`)
+        const notFoundUrl = request.nextUrl.clone()
+        notFoundUrl.pathname = '/404'
+        return NextResponse.rewrite(notFoundUrl)
+
     } catch (error) {
         console.error('Proxy error:', error)
     }

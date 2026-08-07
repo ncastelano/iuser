@@ -1,3 +1,5 @@
+// components/FeaturedPublications.tsx
+
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
@@ -12,6 +14,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 // ---------- Tipos ----------
 interface PublicationCard {
     id: string
+    slug: string
     imageUrl: string | null
     storeName: string
     storeSlug: string
@@ -24,7 +27,7 @@ interface FeaturedPublicationsProps {
     title?: string
     maxItems?: number
     className?: string
-    onPublicationClick?: (productId: string) => void
+    onPublicationClick?: (productId: string, slug: string) => void
 }
 
 // ---------- Hook de dados ----------
@@ -48,10 +51,10 @@ function usePublications() {
                 }
                 const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
 
-                // Busca publicações ativas
+                // Busca publicações ativas (incluindo slug)
                 const { data: publicationsList, error: pubErr } = await supabase
                     .from('products')
-                    .select('id, image_url, store_id')
+                    .select('id, slug, image_url, store_id')
                     .eq('listing_type', 'publication')
                     .eq('is_active', true)
                     .order('view_count', { ascending: false })
@@ -84,7 +87,8 @@ function usePublications() {
                         : null
 
                     return {
-                        id: pub.id, // 👈 USA O ID DIRETO
+                        id: pub.id,
+                        slug: pub.slug || pub.id,  // Fallback para ID se slug não existir
                         imageUrl,
                         storeName: store?.name ?? 'Loja desconhecida',
                         storeSlug: store?.storeSlug ?? '#',
@@ -92,7 +96,7 @@ function usePublications() {
                     }
                 })
 
-                console.log('[FeaturedPublications] Cards gerados:', cards.map(c => ({ id: c.id, storeName: c.storeName })))
+                console.log('[FeaturedPublications] Cards gerados:', cards.map(c => ({ id: c.id, slug: c.slug, storeName: c.storeName })))
                 setPublications(cards)
             } catch (error) {
                 console.error('[FeaturedPublications] Erro inesperado:', error)
@@ -231,20 +235,32 @@ export default function FeaturedPublications({
                 : itemsPerView >= 3 ? 'grid-cols-3'
                     : 'grid-cols-2'
 
-    // ===== HANDLE CLICK - VAI PARA /publicacoes/{id} =====
+    // ===== HANDLE CLICK - VAI PARA /publicacoes/{slug} =====
+    // ===== HANDLE PUBLICATION CLICK - VAI PARA /publicacoes/{slug} =====
     const handlePublicationClick = (pub: PublicationCard) => {
-        console.log('[FeaturedPublications] 📱 Clicou na publicação:', {
-            id: pub.id,
-            storeName: pub.storeName,
-            url: `/publicacoes/${pub.id}`
-        })
+        // Busca o slug da publicação
+        const publicationSlug = pub.id // fallback: usa o ID se não tiver slug
 
-        if (onPublicationClick) {
-            onPublicationClick(pub.id)
-        } else {
-            // 👈 NAVEGA USANDO O ID
-            router.push(`/publicacoes/${pub.id}`)
+        // Tenta buscar o slug real da publicação
+        const fetchSlug = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('products')
+                    .select('slug')
+                    .eq('id', pub.id)
+                    .single()
+
+                if (!error && data?.slug) {
+                    router.push(`/publicacoes/${data.slug}`)
+                } else {
+                    router.push(`/publicacoes/${pub.id}`)
+                }
+            } catch {
+                router.push(`/publicacoes/${pub.id}`)
+            }
         }
+
+        fetchSlug()
     }
 
     // ===== LOADING =====
@@ -297,7 +313,7 @@ export default function FeaturedPublications({
                     </span>
                 </div>
 
-                {/* Botão "Ver todos" estilo PILLS - vai para /publicacoes */}
+                {/* Botão "Ver todos" - vai para a lista de publicações */}
                 {hasPublications && (
                     <button
                         onClick={() => router.push('/publicacoes')}
@@ -314,7 +330,7 @@ export default function FeaturedPublications({
                 )}
             </div>
 
-            {/* Grid de publicações */}
+            {/* Grid de publicações - CADA CARD VAI PARA A PÁGINA INDIVIDUAL */}
             <div className="relative">
                 <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
                     {currentItems.map((pub, idx) => (
@@ -363,9 +379,9 @@ export default function FeaturedPublications({
                                 </div>
                             </div>
 
-                            {/* Badge com ID para debug */}
+                            {/* Badge com slug para debug */}
                             <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded text-[8px] font-mono bg-black/60 text-white/70 backdrop-blur-sm">
-                                {pub.id.slice(0, 8)}
+                                {pub.slug ? pub.slug.slice(0, 12) : 'sem-slug'}
                             </div>
 
                             {/* Efeito de brilho no hover */}
