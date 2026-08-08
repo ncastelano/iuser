@@ -1,9 +1,10 @@
+// src/app/SearchResultsSection.tsx
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Star, Clock, ChevronRight, Search, Loader2 } from 'lucide-react'
+import { Star, Clock, ChevronRight, Search, Loader2, User } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
 
@@ -38,98 +39,111 @@ function formatPrepTime(store: any): string {
     return `${store.prep_time_max} min`
 }
 
-export default function SearchResultsSection({
-    dragHandle,
-    searchQuery,
-    onSearchSelect,
-}: {
-    dragHandle?: React.ReactNode
+interface SearchResultsSectionProps {
     searchQuery: string
     onSearchSelect?: (query: string) => void
-}) {
+}
+
+export default function SearchResultsSection({ searchQuery, onSearchSelect }: SearchResultsSectionProps) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(false)
     const [profiles, setProfiles] = useState<any[]>([])
+    const [stores, setStores] = useState<any[]>([])
     const [storesByCategory, setStoresByCategory] = useState<Record<string, any[]>>({})
+    const [hasSearched, setHasSearched] = useState(false)
+    const [displayQuery, setDisplayQuery] = useState('')
 
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Efeito de busca
     useEffect(() => {
-        if (!searchQuery.trim()) {
+        const trimmed = searchQuery.trim()
+
+        setDisplayQuery(trimmed)
+
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current)
+            debounceTimerRef.current = null
+        }
+
+        if (!trimmed) {
             setProfiles([])
+            setStores([])
             setStoresByCategory({})
+            setHasSearched(false)
+            setLoading(false)
             return
         }
 
-        const fetchResults = async () => {
-            setLoading(true)
-            const query = searchQuery.trim()
+        setHasSearched(true)
+        setLoading(true)
 
-            const { data: profilesData, error: profilesError } = await supabase
-                .from('profiles')
-                .select('id, name, avatar_url, "profileSlug"')
-                .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%`)
-                .limit(10)
+        debounceTimerRef.current = setTimeout(async () => {
+            const query = trimmed
 
-            if (profilesError) console.error('Erro ao buscar perfis:', profilesError)
-
-            const mappedProfiles = (profilesData || []).map((p: any) => ({
-                ...p,
-                avatar_url: p.avatar_url
-                    ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
-                    : null,
-            }))
-            setProfiles(mappedProfiles)
-
-            const { data: storesData, error: storesError } = await supabase
-                .from('stores')
-                .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category, owner_id')
-                .or(`name.ilike.%${query}%,description.ilike.%${query}%,"storeSlug".ilike.%${query}%,category.ilike.%${query}%`)
-                .limit(30)
-
-            if (storesError) console.error('Erro ao buscar lojas:', storesError)
-
-            const ownerIds = [...new Set((storesData || []).map(s => s.owner_id).filter(Boolean))]
-            let profilesMap: Record<string, string> = {}
-            if (ownerIds.length) {
-                const { data: profilesData, error: profError } = await supabase
+            try {
+                // 1. Buscar perfis
+                const { data: profilesData, error: profilesError } = await supabase
                     .from('profiles')
-                    .select('id, "profileSlug"')
-                    .in('id', ownerIds)
+                    .select('id, name, avatar_url, "profileSlug"')
+                    .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%`)
+                    .limit(10)
 
-                if (profError) console.error('Erro ao buscar profileSlug dos donos:', profError)
-                else profilesMap = Object.fromEntries((profilesData || []).map(p => [p.id, p.profileSlug]))
+                if (profilesError) {
+                    console.error('Erro ao buscar perfis:', profilesError)
+                }
+
+                const mappedProfiles = (profilesData || []).map((p: any) => ({
+                    ...p,
+                    avatar_url: p.avatar_url
+                        ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
+                        : null,
+                }))
+                setProfiles(mappedProfiles)
+
+                // 2. Buscar lojas (agora sem precisar do owner_id)
+                const { data: storesData, error: storesError } = await supabase
+                    .from('stores')
+                    .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
+                    .or(`name.ilike.%${query}%,description.ilike.%${query}%,"storeSlug".ilike.%${query}%,category.ilike.%${query}%`)
+                    .limit(30)
+
+                if (storesError) {
+                    console.error('Erro ao buscar lojas:', storesError)
+                }
+
+                // 3. Mapear lojas (sem precisar do ownerSlug)
+                const mappedStores = (storesData || []).map((s: any) => ({
+                    ...s,
+                    logo_url: s.logo_url
+                        ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                        : null,
+                }))
+                setStores(mappedStores)
+
+                // 4. Agrupar por categoria
+                const grouped: Record<string, any[]> = {}
+                for (const store of mappedStores) {
+                    const cat = getCategoryForStore(store)
+                    if (!grouped[cat]) grouped[cat] = []
+                    grouped[cat].push(store)
+                }
+                setStoresByCategory(grouped)
+
+            } catch (err) {
+                console.error('Erro na busca:', err)
+            } finally {
+                setLoading(false)
             }
+        }, 300)
 
-            const mappedStores = (storesData || []).map((s: any) => ({
-                ...s,
-                logo_url: s.logo_url
-                    ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
-                    : null,
-                profiles: { profileSlug: profilesMap[s.owner_id] || null },
-            }))
-
-            const grouped: Record<string, any[]> = {}
-            for (const store of mappedStores) {
-                const cat = getCategoryForStore(store)
-                if (!grouped[cat]) grouped[cat] = []
-                grouped[cat].push(store)
+        return () => {
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current)
+                debounceTimerRef.current = null
             }
-
-            setStoresByCategory(grouped)
-            setLoading(false)
         }
-
-        fetchResults()
     }, [searchQuery])
 
-    // Sem termo → não renderiza nada
-    if (!searchQuery.trim()) return null
-
-    const hasResults = profiles.length > 0 || Object.keys(storesByCategory).length > 0
-
-    // Funções auxiliares para salvar clique no histórico
     const handleProfileClick = (profile: any) => {
         addRecentClick({
             type: 'profile',
@@ -138,33 +152,52 @@ export default function SearchResultsSection({
             imageUrl: profile.avatar_url,
             url: `/${profile.profileSlug}`,
         })
+        if (onSearchSelect) {
+            onSearchSelect('')
+        }
     }
 
-    const handleStoreClick = (store: any, ownerSlug: string) => {
+    const handleStoreClick = (store: any) => {
+        // Agora usa apenas o storeSlug
         addRecentClick({
             type: 'store',
             id: store.id,
             name: store.name,
             imageUrl: store.logo_url,
-            url: `/${ownerSlug}/${store.storeSlug}`,
+            url: `/${store.storeSlug}`,
         })
+        if (onSearchSelect) {
+            onSearchSelect('')
+        }
     }
 
     const hexToRgb = (hex: string) => {
         const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+        const num = parseInt(clean, 16)
+        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
     }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
+    const hasResults = profiles.length > 0 || Object.keys(storesByCategory).length > 0
+
+    if (!displayQuery) {
+        return null
+    }
+
+    const totalResults = profiles.length + Object.values(storesByCategory).reduce((acc, arr) => acc + arr.length, 0)
+
     return (
         <section>
             <div className="flex items-center gap-2 mb-4">
-                {dragHandle}
                 <h2 className="text-xl font-black" style={{ color: colors.textPrimary }}>
-                    Resultados da busca
+                    Resultados para "{displayQuery}"
                 </h2>
+                {hasSearched && !loading && (
+                    <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                        {totalResults} resultados
+                    </span>
+                )}
             </div>
 
             {loading && (
@@ -177,18 +210,23 @@ export default function SearchResultsSection({
                 <div className="rounded-2xl p-6 flex flex-col items-center gap-3" style={{ background: cardBg, backdropFilter: 'blur(12px)', border: `1px solid ${colors.border}` }}>
                     <Search className="w-8 h-8" style={{ color: colors.textSecondary }} />
                     <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                        Nenhum resultado encontrado para "{searchQuery}".
+                        Nenhum resultado encontrado para "{displayQuery}".
+                    </p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        Tente buscar por outro termo ou verifique a ortografia.
                     </p>
                 </div>
             )}
 
             {!loading && hasResults && (
                 <div className="space-y-6">
+                    {/* Perfis */}
                     {profiles.length > 0 && (
                         <div>
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider" style={{ background: '#3b82f620', color: '#3b82f6' }}>
-                                    Social
+                                <User size={16} style={{ color: '#3b82f6' }} />
+                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#3b82f6' }}>
+                                    Perfis
                                 </span>
                             </div>
                             <div className="space-y-3">
@@ -223,6 +261,7 @@ export default function SearchResultsSection({
                         </div>
                     )}
 
+                    {/* Lojas agrupadas por categoria */}
                     {Object.entries(storesByCategory).map(([slug, stores]) => {
                         const catInfo = categoriasInfo.find(c => c.slug === slug)
                         const titulo = catInfo?.titulo || 'Outros'
@@ -231,19 +270,22 @@ export default function SearchResultsSection({
                         return (
                             <div key={slug}>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider" style={{ background: `${color}20`, color }}>
+                                    <span className="text-xs font-black uppercase tracking-wider" style={{ color }}>
                                         {titulo}
+                                    </span>
+                                    <span className="text-[10px] font-bold opacity-60" style={{ color }}>
+                                        ({stores.length})
                                     </span>
                                 </div>
                                 <div className="space-y-3">
                                     {stores.map((store) => {
-                                        const ownerSlug = store.profiles?.profileSlug || 'perfil'
-                                        const storeUrl = `/${ownerSlug}/${store.storeSlug}`
+                                        // URL agora usa apenas o storeSlug
+                                        const storeUrl = `/${store.storeSlug}`
                                         return (
                                             <Link
                                                 key={store.id}
                                                 href={storeUrl}
-                                                onClick={() => handleStoreClick(store, ownerSlug)}
+                                                onClick={() => handleStoreClick(store)}
                                                 className="block group"
                                             >
                                                 <div className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
@@ -260,7 +302,7 @@ export default function SearchResultsSection({
                                                         <div className="flex-1 min-w-0">
                                                             <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h3>
                                                             <p className="text-xs line-clamp-2 mt-1" style={{ color: colors.textSecondary }}>{store.description || 'Sem descrição'}</p>
-                                                            <p className="text-[10px] mt-1 font-mono" style={{ color: colors.textSecondary }}>/{ownerSlug}/{store.storeSlug}</p>
+                                                            <p className="text-[10px] mt-1 font-mono" style={{ color: colors.textSecondary }}>/{store.storeSlug}</p>
                                                             <div className="flex items-center gap-4 mt-3">
                                                                 <div className="flex items-center gap-1">
                                                                     <Star size={14} className="text-yellow-400 fill-yellow-400" />

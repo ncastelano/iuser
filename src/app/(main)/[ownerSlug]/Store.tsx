@@ -27,6 +27,7 @@ import {
     ImageIcon,
     Send,
     Trash2,
+    AlertCircle,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
@@ -116,6 +117,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
     const [showAllHours, setShowAllHours] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
+    const [showClosedAlert, setShowClosedAlert] = useState(false)
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -164,8 +166,26 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         cursor: 'pointer',
     }
 
-    const glassBg = 'rgba(255, 255, 255, 0.08)'
-    const glassBgLight = 'rgba(255, 255, 255, 0.06)'
+    // ========== STATUS (DEFINIDO ANTES DOS CALLBACKS) ==========
+    const isStoreOpen = useMemo(() => {
+        if (!owner) return false
+        return isStoreOpenNow(owner.business_hours)
+    }, [owner])
+
+    const statusText = useMemo(() => {
+        if (!owner) return ''
+        return getStoreStatusText(owner.business_hours)
+    }, [owner])
+
+    const nextAvailable = useMemo(() => {
+        if (!owner?.business_hours) return null
+        const next = getNextOpeningInfo(owner.business_hours)
+        if (!next) return null
+        return {
+            day: next.dayLabel,
+            open: next.time,
+        }
+    }, [owner?.business_hours])
 
     // ========== CARRINHO ==========
     const storeKey = useMemo(() => {
@@ -203,12 +223,21 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         [itemsByStore, ownerSlug]
     )
 
+    // ========== INCREASE QUANTITY (com validação de loja aberta) ==========
     const increaseQuantity = useCallback(
         (product: any) => {
             if (!owner) return
+
+            // VERIFICA SE A LOJA ESTÁ ABERTA ANTES DE ADICIONAR
+            if (!isStoreOpen) {
+                setShowClosedAlert(true)
+                toast.error('🕐 Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
+                return
+            }
+
             addItem(ownerSlug, { name: owner.name, logo_url: owner.avatar_url ?? null }, product)
         },
-        [owner, ownerSlug, addItem]
+        [owner, ownerSlug, addItem, isStoreOpen] // isStoreOpen está definido antes
     )
 
     const decreaseQuantity = useCallback(
@@ -224,27 +253,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         },
         [ownerSlug, removeItem]
     )
-
-    // ========== STATUS ==========
-    const isStoreOpen = useMemo(() => {
-        if (!owner) return false
-        return isStoreOpenNow(owner.business_hours)
-    }, [owner])
-
-    const statusText = useMemo(() => {
-        if (!owner) return ''
-        return getStoreStatusText(owner.business_hours)
-    }, [owner])
-
-    const nextAvailable = useMemo(() => {
-        if (!owner?.business_hours) return null
-        const next = getNextOpeningInfo(owner.business_hours)
-        if (!next) return null
-        return {
-            day: next.dayLabel,
-            open: next.time,
-        }
-    }, [owner?.business_hours])
 
     // ========== FILTRO ==========
     const filteredProducts = useMemo(() => {
@@ -449,6 +457,13 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         const isPublication = product.listing_type === 'publication'
         if (isPublication) {
             router.push(`/${ownerSlug}/${productIdentifier}`)
+            return
+        }
+
+        // VERIFICA SE A LOJA ESTÁ ABERTA ANTES DE ADICIONAR AO CARRINHO
+        if (!isStoreOpen) {
+            setShowClosedAlert(true)
+            toast.error('🕐 Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
             return
         }
 
@@ -677,6 +692,19 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                 .animate-pulse-status {
                     animation: pulse-status 2s ease-in-out infinite;
                 }
+                @keyframes slideDownAlert {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-20px) scale(0.95);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+                .animate-slide-down-alert {
+                    animation: slideDownAlert 0.3s ease-out;
+                }
             `}</style>
 
             {showScheduleModal && owner && (
@@ -698,9 +726,44 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                 </div>
             )}
 
-            {/* ===== CARD DA LOJA (TUDO ACIMA DAS TABS) ===== */}
+            {/* ===== ALERTA DE LOJA FECHADA ===== */}
+            {showClosedAlert && !isStoreOpen && (
+                <div
+                    className="rounded-2xl p-4 animate-slide-down-alert"
+                    style={{
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '2px solid #ef4444',
+                        backdropFilter: 'blur(12px)',
+                    }}
+                >
+                    <div className="flex items-start gap-3">
+                        <AlertCircle size={20} style={{ color: '#ef4444' }} className="flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                            <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
+                                🕐 Loja fechada no momento
+                            </p>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                {statusText}
+                                {nextAvailable && (
+                                    <span className="block mt-1 font-bold" style={{ color: '#f97316' }}>
+                                        Abre {nextAvailable.day} às {nextAvailable.open}
+                                    </span>
+                                )}
+                            </p>
+                            <button
+                                onClick={() => setShowClosedAlert(false)}
+                                className="mt-2 text-[10px] font-bold uppercase hover:underline"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== CARD DA LOJA ===== */}
             <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
-                {/* HEADER DA LOJA */}
                 <div className="flex items-center gap-4">
                     <div className="flex-shrink-0">
                         <div
@@ -750,11 +813,15 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                 <Clock className="w-3.5 h-3.5" />
                                 <span className="truncate max-w-[200px]">{statusText}</span>
                             </button>
+                            {!isStoreOpen && nextAvailable && (
+                                <span className="text-[10px] font-bold" style={{ color: '#f97316' }}>
+                                    Abre {nextAvailable.day} às {nextAvailable.open}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* DESCRIÇÃO */}
                 {owner.description && (
                     <div className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
                         {expandedDesc || owner.description.length <= DESC_LIMIT
@@ -772,7 +839,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* AÇÕES */}
                 <div className="flex flex-wrap items-center gap-3 pt-2">
                     {owner.address && (
                         <button
@@ -787,21 +853,28 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
                     {owner.allow_scheduling && (
                         <button
-                            onClick={() => setShowScheduleModal(true)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''
-                                }`}
+                            onClick={() => {
+                                if (!isStoreOpen) {
+                                    setShowClosedAlert(true)
+                                    toast.error('🕐 Loja fechada no momento. Não é possível agendar.')
+                                    return
+                                }
+                                setShowScheduleModal(true)
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable && isStoreOpen ? 'animate-pulse-status' : ''}`}
                             style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                border: `1px solid #f97316`,
-                                boxShadow: `0 8px 18px #f9731650`,
+                                background: isStoreOpen ? GRADIENT : colors.border,
+                                color: isStoreOpen ? '#ffffff' : colors.textSecondary,
+                                border: `1px solid ${isStoreOpen ? '#f97316' : colors.border}`,
+                                boxShadow: isStoreOpen ? `0 8px 18px #f9731650` : 'none',
+                                cursor: isStoreOpen ? 'pointer' : 'not-allowed',
                             }}
                         >
                             <Calendar className="w-4 h-4" />
                             <span>
-                                {nextAvailable
-                                    ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
-                                    : 'Agendar'}
+                                {isStoreOpen
+                                    ? (nextAvailable ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}` : 'Agendar')
+                                    : 'Indisponível'}
                             </span>
                         </button>
                     )}
@@ -809,8 +882,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     {currentUserId && currentUserId !== owner.id && (
                         <button
                             onClick={handleFollowToggle}
-                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''
-                                }`}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 ${isFollowing ? 'border-2' : ''}`}
                             style={isFollowing ? {
                                 borderColor: '#f97316',
                                 color: '#f97316',
@@ -837,6 +909,29 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                         </a>
                     )}
                 </div>
+
+                {!isStoreOpen && (
+                    <div
+                        className="rounded-xl p-4 text-center"
+                        style={{
+                            background: 'rgba(239, 68, 68, 0.08)',
+                            border: `1px dashed #ef4444`,
+                        }}
+                    >
+                        <AlertCircle size={20} style={{ color: '#ef4444' }} className="mx-auto mb-2" />
+                        <p className="text-xs font-bold" style={{ color: '#ef4444' }}>
+                            Loja fechada no momento
+                        </p>
+                        <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
+                            Não é possível adicionar produtos ao carrinho
+                        </p>
+                        {nextAvailable && (
+                            <p className="text-[10px] font-bold mt-1" style={{ color: '#f97316' }}>
+                                Abre {nextAvailable.day} às {nextAvailable.open}
+                            </p>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ===== TABS ===== */}
@@ -851,8 +946,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as TabType)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'
-                                }`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide transition-all duration-300 ${isActive ? 'shadow-lg scale-[1.02]' : 'hover:bg-white/5'}`}
                             style={
                                 isActive
                                     ? {
@@ -887,6 +981,11 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                             <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
                                 Produtos
                             </h3>
+                            {!isStoreOpen && (
+                                <span className="text-[8px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#ef444420', color: '#ef4444' }}>
+                                    Fechado
+                                </span>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2 mb-4">
@@ -962,13 +1061,24 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                             const quantity = getProductQuantity(product.id)
                                             const isHourly = product.price_type === 'hourly'
                                             const hasImage = !!product.image_url
+                                            const productIsDisabled = !isStoreOpen && !isOwner
+
+                                            const handleAddToCart = (e: React.MouseEvent) => {
+                                                e.stopPropagation()
+                                                if (productIsDisabled) {
+                                                    setShowClosedAlert(true)
+                                                    toast.error('🕐 Loja fechada no momento. Não é possível adicionar ao carrinho.')
+                                                    return
+                                                }
+                                                handleProductClick(product)
+                                            }
 
                                             if (!hasImage) {
                                                 return (
                                                     <div
                                                         key={product.id}
                                                         onClick={() => handleProductClick(product)}
-                                                        className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''}`}
+                                                        className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                         style={{
                                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                             borderColor: isSelected ? '#22c55e' : colors.border,
@@ -1036,9 +1146,10 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                     </div>
                                                                 ) : (
                                                                     <button
-                                                                        onClick={e => { e.stopPropagation(); handleProductClick(product) }}
+                                                                        onClick={handleAddToCart}
                                                                         className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                        style={{ background: GRADIENT }}
+                                                                        style={{ background: productIsDisabled ? colors.border : GRADIENT }}
+                                                                        disabled={productIsDisabled}
                                                                     >
                                                                         <Plus size={12} />
                                                                     </button>
@@ -1053,8 +1164,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                 <div
                                                     key={product.id}
                                                     onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-400/20' : ''
-                                                        }`}
+                                                    className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                     style={{
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         borderColor: isSelected ? '#22c55e' : colors.border,
@@ -1073,6 +1183,13 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                 style={{ background: 'rgba(0,0,0,0.3)', color: '#fff' }}>
                                                                 {product.type === 'physical' ? 'Físico' : product.type === 'service' ? 'Serviço' : 'Digital'}
                                                             </span>
+                                                        )}
+                                                        {productIsDisabled && (
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                                                                <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
+                                                                    Fechado
+                                                                </span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                     <div className="p-2">
@@ -1137,9 +1254,10 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                 </div>
                                                             ) : (
                                                                 <button
-                                                                    onClick={e => { e.stopPropagation(); handleProductClick(product) }}
+                                                                    onClick={handleAddToCart}
                                                                     className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                    style={{ background: GRADIENT }}
+                                                                    style={{ background: productIsDisabled ? colors.border : GRADIENT }}
+                                                                    disabled={productIsDisabled}
                                                                 >
                                                                     <Plus size={12} />
                                                                 </button>
@@ -1447,7 +1565,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                     </span>
                                                 </div>
                                                 <div className="mt-0.5">
-                                                    {/* ===== ESTRELINHAS AQUI ===== */}
                                                     <RatingStars value={rating.rating} size={12} />
                                                     {!rating.is_anonymous && rating.products?.name && (
                                                         <span className="ml-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase" style={{ background: '#f9731620', color: '#f97316' }}>

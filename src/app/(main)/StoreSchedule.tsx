@@ -17,6 +17,11 @@ import {
     Plus,
     Minus,
     Trash2,
+    Sparkles,
+    ArrowRight,
+    AlertCircle,
+    Eye,
+    EyeOff,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -75,6 +80,25 @@ interface Props {
     onSuccess?: () => void
 }
 
+// ===== GRADIENTE FIXO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== STYLE PARA BOTÕES PILL =====
+const pillButtonStyle = {
+    padding: '0.5rem 1rem',
+    borderRadius: '9999px',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+    border: 'none',
+    textDecoration: 'none',
+}
+
 export default function StoreSchedule({
     storeId: initialStoreId,
     storeName: initialStoreName,
@@ -117,9 +141,161 @@ export default function StoreSchedule({
     const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
     const [isEditingNote, setIsEditingNote] = useState(false)
     const [submitting, setSubmitting] = useState(false)
+    const [validationError, setValidationError] = useState<string | null>(null)
+    const [showCalendar, setShowCalendar] = useState(false)
+
+    // ===== ESTADOS DE AUTENTICAÇÃO =====
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
+    const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
+    const [currentUserName, setCurrentUserName] = useState<string | null>(null)
+    const [authLoading, setAuthLoading] = useState(false)
+    const [authError, setAuthError] = useState<string | null>(null)
+    const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+    const [authEmail, setAuthEmail] = useState('')
+    const [authPassword, setAuthPassword] = useState('')
+    const [authConfirmPassword, setAuthConfirmPassword] = useState('')
+    const [authName, setAuthName] = useState('')
+    const [authProfileSlug, setAuthProfileSlug] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
+    const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null)
+    const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const [isAuthenticated, setIsAuthenticated] = useState(false)
+    const [authInitialized, setAuthInitialized] = useState(false)
 
     const hoje = new Date()
     const todayStr = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`
+
+    // ===== VERIFICAR AUTENTICAÇÃO =====
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                setCurrentUserId(user.id)
+                setIsAuthenticated(true)
+
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('profileSlug, avatar_url, name')
+                    .eq('id', user.id)
+                    .single()
+
+                if (profile) {
+                    setCurrentUserSlug(profile.profileSlug)
+                    setCurrentUserAvatar(profile.avatar_url)
+                    setCurrentUserName(profile.name)
+                }
+            } else {
+                setIsAuthenticated(false)
+                setCurrentUserId(null)
+            }
+            setAuthInitialized(true)
+        }
+        checkAuth()
+    }, [])
+
+    // ===== VERIFICAR DISPONIBILIDADE DO SLUG =====
+    useEffect(() => {
+        if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
+        if (authProfileSlug.length < 3) {
+            setIsSlugAvailable(null)
+            return
+        }
+        slugTimeoutRef.current = setTimeout(async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('profileSlug')
+                .eq('profileSlug', authProfileSlug)
+                .single()
+            setIsSlugAvailable(!data)
+        }, 500)
+        return () => {
+            if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
+        }
+    }, [authProfileSlug])
+
+    // ===== FUNÇÕES DE AUTENTICAÇÃO =====
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: authPassword,
+        })
+        if (error) {
+            setAuthError('Email ou senha inválidos')
+            setAuthLoading(false)
+            return
+        }
+        if (data.user) {
+            setCurrentUserId(data.user.id)
+            setIsAuthenticated(true)
+
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('profileSlug, avatar_url, name')
+                .eq('id', data.user.id)
+                .single()
+
+            if (profile) {
+                setCurrentUserSlug(profile.profileSlug)
+                setCurrentUserAvatar(profile.avatar_url)
+                setCurrentUserName(profile.name)
+            }
+            toast.success('Login realizado com sucesso!')
+        }
+        setAuthLoading(false)
+    }
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+        if (authPassword !== authConfirmPassword) {
+            setAuthError('As senhas não coincidem')
+            setAuthLoading(false)
+            return
+        }
+        if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
+            setAuthError('O link do perfil deve conter apenas letras, números e hifens')
+            setAuthLoading(false)
+            return
+        }
+        const { data: slugCheck } = await supabase
+            .from('profiles')
+            .select('profileSlug')
+            .eq('profileSlug', authProfileSlug)
+            .single()
+        if (slugCheck) {
+            setAuthError('Este link de perfil já está em uso')
+            setAuthLoading(false)
+            return
+        }
+        const { data, error } = await supabase.auth.signUp({
+            email: authEmail,
+            password: authPassword,
+            options: { data: { full_name: authName, slug: authProfileSlug } },
+        })
+        if (error) {
+            setAuthError(error.message)
+            setAuthLoading(false)
+            return
+        }
+        if (data.user) {
+            await supabase.from('profiles').upsert({
+                id: data.user.id,
+                name: authName,
+                profileSlug: authProfileSlug,
+            })
+            setCurrentUserId(data.user.id)
+            setIsAuthenticated(true)
+            setCurrentUserSlug(authProfileSlug)
+            setCurrentUserName(authName)
+            toast.success('Conta criada com sucesso!')
+        }
+        setAuthLoading(false)
+    }
 
     // Duração total baseada nos itens selecionados
     const selectedDuration = useMemo(() => {
@@ -205,6 +381,8 @@ export default function StoreSchedule({
         setShowDropdown(false)
         setAppointmentNote('')
         setSelectedItems([])
+        setValidationError(null)
+        setShowCalendar(false)
         setStep('datetime')
     }
 
@@ -242,11 +420,15 @@ export default function StoreSchedule({
             return [...prev, { product, quantity: 1 }]
         })
         setIsEditingNote(false)
+        setValidationError(null)
     }
 
     const removeFromSelection = (productId: string) => {
         setSelectedItems(prev => prev.filter(item => item.product.id !== productId))
         setIsEditingNote(false)
+        if (selectedItems.length <= 1) {
+            setValidationError('Selecione pelo menos um serviço')
+        }
     }
 
     const updateItemQuantity = (productId: string, delta: number) => {
@@ -262,6 +444,7 @@ export default function StoreSchedule({
                 .filter(Boolean) as SelectedItem[]
         })
         setIsEditingNote(false)
+        setValidationError(null)
     }
 
     // ---------- Configuração de horários ----------
@@ -281,6 +464,69 @@ export default function StoreSchedule({
             blocked_dates: [],
         }
     }, [scheduleConfig])
+
+    // ---------- FUNÇÃO PARA ENCONTRAR PRÓXIMOS HORÁRIOS DISPONÍVEIS ----------
+    const getNextAvailableSlots = useMemo(() => {
+        if (!target || !config.is_active || selectedItems.length === 0) return []
+
+        const slots: { date: Date; time: string; dateStr: string }[] = []
+        const now = new Date()
+        const maxDays = 30
+        const slotInterval = config.slot_interval || 60
+
+        for (let d = 0; d < maxDays; d++) {
+            const date = new Date(now)
+            date.setDate(date.getDate() + d)
+            const dateStr = date.toISOString().split('T')[0]
+
+            if (dateStr < todayStr) continue
+            if (config.blocked_dates && config.blocked_dates.includes(dateStr)) continue
+
+            const dayOfWeek = date.getDay().toString()
+            const dayConfig = config.weekly?.[dayOfWeek]
+
+            if (!dayConfig || !dayConfig.isOpen) continue
+
+            const startMinutes = toMinutes(dayConfig.start || "08:00")
+            const endMinutes = toMinutes(dayConfig.end || "18:00")
+            const lunchStart = dayConfig.lunchStart ? toMinutes(dayConfig.lunchStart) : null
+            const lunchEnd = dayConfig.lunchEnd ? toMinutes(dayConfig.lunchEnd) : null
+
+            const relevantAppointments = appointments.filter(a =>
+                a.date === dateStr && a.status !== 'cancelled' && a.store_id === target.id
+            )
+
+            const isToday = date.toDateString() === now.toDateString()
+            const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+            for (let m = startMinutes; m + selectedDuration <= endMinutes; m += slotInterval) {
+                if (lunchStart !== null && lunchEnd !== null) {
+                    const slotEnd = m + selectedDuration
+                    if ((m >= lunchStart && m < lunchEnd) || (slotEnd > lunchStart && slotEnd <= lunchEnd)) continue
+                }
+
+                if (isToday && m <= currentMinutes) continue
+
+                const hasConflict = relevantAppointments.some(a => {
+                    const aStart = toMinutes(a.time)
+                    const aEnd = aStart + (a.duration_minutes || 60)
+                    return m < aEnd && aStart < (m + selectedDuration)
+                })
+
+                if (!hasConflict) {
+                    slots.push({
+                        date: new Date(date),
+                        time: fromMinutes(m),
+                        dateStr: dateStr,
+                    })
+                }
+            }
+
+            if (slots.length >= 5) break
+        }
+
+        return slots.slice(0, 5)
+    }, [target, config, appointments, selectedDuration, todayStr, selectedItems.length])
 
     // ---------- Todos os slots do dia (livres + ocupados) ----------
     const allSlots = useMemo(() => {
@@ -349,7 +595,7 @@ export default function StoreSchedule({
     // ---------- Mapa de vagas livres por dia ----------
     const freeSlotsByDate = useMemo(() => {
         const map: Record<string, number> = {}
-        if (!target) return map
+        if (!target || selectedItems.length === 0) return map
 
         const cfg = config
         if (!cfg.is_active) return map
@@ -407,17 +653,20 @@ export default function StoreSchedule({
             map[dateStr] = freeCount
         }
         return map
-    }, [config, appointments, target, selectedDuration, calendarMonth, calendarYear, todayStr])
+    }, [config, appointments, target, selectedDuration, calendarMonth, calendarYear, todayStr, selectedItems.length])
 
     const diasDoMes = new Date(calendarYear, calendarMonth + 1, 0).getDate()
     const primeiroDia = new Date(calendarYear, calendarMonth, 1).getDay()
 
     const goBack = () => {
-        if (step === 'confirm') setStep('datetime')
-        else if (step === 'datetime') {
+        if (step === 'confirm') {
+            setStep('datetime')
+            setValidationError(null)
+        } else if (step === 'datetime') {
             if (initialStoreId) {
                 setSelectedDate(null)
                 setSelectedTime(null)
+                setShowCalendar(false)
             } else {
                 setTarget(null)
                 setStep('search')
@@ -427,9 +676,38 @@ export default function StoreSchedule({
         }
     }
 
+    // ---------- VALIDAÇÃO ANTES DE CONFIRMAR (INCLUI VERIFICAÇÃO DE AUTENTICAÇÃO) ----------
+    const handleConfirmClick = () => {
+        // 1. Verifica se está autenticado
+        if (!isAuthenticated) {
+            setValidationError('⚠️ Você precisa estar logado para agendar')
+            // Rola para o topo para mostrar o formulário de login
+            const authSection = document.getElementById('auth-section')
+            if (authSection) {
+                authSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+            return
+        }
+
+        // 2. Verifica se há itens selecionados
+        if (selectedItems.length === 0) {
+            setValidationError('⚠️ Selecione pelo menos um serviço ou produto para agendar')
+            const serviceSection = document.getElementById('service-selection')
+            if (serviceSection) {
+                serviceSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+            return
+        }
+
+        // 3. Se passou na validação, chama o handleConfirm
+        handleConfirm()
+    }
+
     async function handleConfirm() {
         if (!selectedDate || !selectedTime || !target) return
         setSubmitting(true)
+
+        // Pega o usuário novamente para garantir
         const { data: session } = await supabase.auth.getSession()
         const uid = session.session?.user?.id
         if (!uid) {
@@ -437,6 +715,7 @@ export default function StoreSchedule({
             setSubmitting(false)
             return
         }
+
         const dateStr = selectedDate.toISOString().split('T')[0]
         const note = appointmentNote.trim() || 'Compromisso'
 
@@ -499,19 +778,39 @@ export default function StoreSchedule({
         return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
     }
     const surfaceRgb = hexToRgb(colors.surface)
+    const borderColor = colors.border
+    const textPrimary = colors.textPrimary
+    const textSecondary = colors.textSecondary
+    const accentColor = colors.accent
 
     const title = step === 'search' ? 'Buscar loja' : step === 'datetime' ? `Agendar em ${target?.name || ''}` : 'Confirmar'
 
+    const formatDate = (date: Date) => {
+        return date.toLocaleDateString('pt-BR', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short'
+        })
+    }
+
+    const hasSelectedDateTime = selectedDate && selectedTime
+
+    // Se não estiver autenticado, mostra o formulário de login
+    const showAuthForm = !isAuthenticated && step === 'confirm'
+
     return (
         <div
-            className="w-full max-w-md mx-auto rounded-3xl shadow-sm"
-            style={{ background: colors.background }}
+            className="w-full max-w-md mx-auto rounded-3xl shadow-sm max-h-[95vh] overflow-y-auto"
+            style={{
+                background: colors.background,
+                overscrollBehavior: 'contain'
+            }}
         >
             <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-black" style={{ color: colors.textPrimary }}>{title}</h3>
+                    <h3 className="text-xl font-black" style={{ color: textPrimary }}>{title}</h3>
                     {onClose && (
-                        <button onClick={onClose} className="text-2xl" style={{ color: colors.textSecondary }}>×</button>
+                        <button onClick={onClose} className="text-2xl" style={{ color: textSecondary }}>×</button>
                     )}
                 </div>
 
@@ -529,14 +828,14 @@ export default function StoreSchedule({
                                 width: '100%',
                                 padding: '16px 20px',
                                 borderRadius: 18,
-                                border: `1px solid ${colors.border}`,
+                                border: `1px solid ${borderColor}`,
                                 fontSize: 16,
                                 outline: 'none',
                                 background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                color: colors.textPrimary,
+                                color: textPrimary,
                             }}
                         />
-                        {searching && <Search size={18} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: colors.textSecondary }} />}
+                        {searching && <Search size={18} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', color: textSecondary }} />}
                         {showDropdown && results.length > 0 && (
                             <div
                                 style={{
@@ -551,7 +850,7 @@ export default function StoreSchedule({
                                     zIndex: 10,
                                     maxHeight: 260,
                                     overflowY: 'auto',
-                                    border: `1px solid ${colors.border}`,
+                                    border: `1px solid ${borderColor}`,
                                 }}
                             >
                                 {results.map(item => {
@@ -571,7 +870,7 @@ export default function StoreSchedule({
                                                 background: 'transparent',
                                                 cursor: 'pointer',
                                                 textAlign: 'left',
-                                                color: colors.textPrimary,
+                                                color: textPrimary,
                                             }}
                                         >
                                             {logoUrl && !isBroken ? (
@@ -583,7 +882,7 @@ export default function StoreSchedule({
                                                         height: 42,
                                                         borderRadius: '50%',
                                                         objectFit: 'cover',
-                                                        border: `2px solid ${colors.border}`,
+                                                        border: `2px solid ${borderColor}`,
                                                     }}
                                                     onError={() => setBrokenImgIds(prev => new Set(prev).add(item.id))}
                                                 />
@@ -593,11 +892,11 @@ export default function StoreSchedule({
                                                         width: 42,
                                                         height: 42,
                                                         borderRadius: '50%',
-                                                        background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                                        background: GRADIENT,
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        color: colors.accentText,
+                                                        color: '#ffffff',
                                                         fontWeight: 800,
                                                     }}
                                                 >
@@ -606,7 +905,7 @@ export default function StoreSchedule({
                                             )}
                                             <div>
                                                 <p style={{ fontWeight: 700, margin: 0 }}>{item.name}</p>
-                                                <p style={{ color: colors.textSecondary, fontSize: 13, margin: 0 }}>@{item.slug}</p>
+                                                <p style={{ color: textSecondary, fontSize: 13, margin: 0 }}>@{item.slug}</p>
                                             </div>
                                         </button>
                                     )
@@ -626,7 +925,7 @@ export default function StoreSchedule({
                                 borderRadius: 28,
                                 padding: 24,
                                 marginBottom: 24,
-                                border: `1px solid ${colors.border}`,
+                                border: `1px solid ${borderColor}`,
                             }}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
@@ -636,11 +935,11 @@ export default function StoreSchedule({
                                             width: 52,
                                             height: 52,
                                             borderRadius: 16,
-                                            background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
+                                            background: GRADIENT,
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            color: colors.accentText,
+                                            color: '#ffffff',
                                         }}
                                     >
                                         <Store size={24} />
@@ -654,14 +953,14 @@ export default function StoreSchedule({
                                             height: 52,
                                             borderRadius: 16,
                                             objectFit: 'cover',
-                                            border: `2px solid ${colors.border}`,
+                                            border: `2px solid ${borderColor}`,
                                         }}
                                         onError={() => setTargetImgError(true)}
                                     />
                                 )}
                                 <div style={{ flex: 1 }}>
-                                    <p style={{ fontWeight: 800, fontSize: 18, color: colors.textPrimary }}>{target.name}</p>
-                                    <p style={{ color: colors.textSecondary, fontSize: 14 }}>Agendamento na loja</p>
+                                    <p style={{ fontWeight: 800, fontSize: 18, color: textPrimary }}>{target.name}</p>
+                                    <p style={{ color: textSecondary, fontSize: 14 }}>Agendamento na loja</p>
                                 </div>
                                 {!initialStoreId && (
                                     <button
@@ -670,7 +969,7 @@ export default function StoreSchedule({
                                             background: 'transparent',
                                             border: 'none',
                                             cursor: 'pointer',
-                                            color: colors.textSecondary,
+                                            color: textSecondary,
                                         }}
                                     >
                                         <X size={20} />
@@ -678,18 +977,73 @@ export default function StoreSchedule({
                                 )}
                             </div>
 
-                            {/* Lista horizontal de produtos (catálogo) */}
-                            <div style={{ marginBottom: 16 }}>
+                            {/* ===== RESUMO DO AGENDAMENTO SE JÁ TIVER DATA/HORA ===== */}
+                            {hasSelectedDateTime && (
+                                <div
+                                    style={{
+                                        background: `linear-gradient(135deg, ${accentColor}10, ${accentColor}05)`,
+                                        borderRadius: 12,
+                                        padding: '12px 16px',
+                                        marginBottom: 16,
+                                        border: `1px solid ${accentColor}30`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                    }}
+                                >
+                                    <div>
+                                        <span style={{ fontSize: 10, color: textSecondary, fontWeight: 600 }}>
+                                            DATA E HORA SELECIONADAS
+                                        </span>
+                                        <p style={{ fontWeight: 700, fontSize: 14, color: textPrimary, margin: 0 }}>
+                                            {selectedDate?.toLocaleDateString('pt-BR', {
+                                                day: 'numeric',
+                                                month: 'short'
+                                            })} • {selectedTime}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedDate(null)
+                                            setSelectedTime(null)
+                                            setShowCalendar(false)
+                                        }}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: textSecondary,
+                                            padding: '4px 8px',
+                                            borderRadius: 8,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                        }}
+                                    >
+                                        Alterar
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ===== SELEÇÃO DE SERVIÇOS ===== */}
+                            <div id="service-selection" style={{ marginBottom: 16 }}>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 mb-2 block">
-                                    Selecione os serviços
+                                    Selecione os serviços <span style={{ color: '#ef4444' }}>*</span>
                                 </label>
                                 {loadingProducts ? (
-                                    <div style={{ padding: 12, textAlign: 'center', color: colors.textSecondary }}>
+                                    <div style={{ padding: 12, textAlign: 'center', color: textSecondary }}>
                                         Carregando...
                                     </div>
                                 ) : storeProducts.length === 0 ? (
-                                    <div style={{ padding: 12, textAlign: 'center', color: colors.textSecondary }}>
-                                        Nenhum serviço disponível.
+                                    <div style={{
+                                        padding: 16,
+                                        textAlign: 'center',
+                                        color: textSecondary,
+                                        border: `1px dashed ${borderColor}`,
+                                        borderRadius: 12,
+                                    }}>
+                                        <Store size={24} style={{ margin: '0 auto 8px', opacity: 0.5 }} />
+                                        <p style={{ fontSize: 13, fontWeight: 600 }}>Nenhum serviço disponível</p>
+                                        <p style={{ fontSize: 11, opacity: 0.7 }}>Esta loja ainda não cadastrou serviços</p>
                                     </div>
                                 ) : (
                                     <div
@@ -714,14 +1068,14 @@ export default function StoreSchedule({
                                                         padding: '10px 14px',
                                                         borderRadius: 16,
                                                         border: isInSelection
-                                                            ? `2px solid ${colors.accent}`
-                                                            : `1px solid ${colors.border}`,
+                                                            ? `2px solid ${accentColor}`
+                                                            : `1px solid ${borderColor}`,
                                                         background: isInSelection
-                                                            ? `${colors.accent}15`
+                                                            ? `${accentColor}15`
                                                             : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         cursor: 'pointer',
                                                         textAlign: 'left',
-                                                        color: colors.textPrimary,
+                                                        color: textPrimary,
                                                         display: 'flex',
                                                         flexDirection: 'column',
                                                         gap: 4,
@@ -731,21 +1085,21 @@ export default function StoreSchedule({
                                                     <span style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>
                                                         {product.name}
                                                     </span>
-                                                    <div style={{ display: 'flex', gap: 8, fontSize: 11, color: colors.textSecondary }}>
+                                                    <div style={{ display: 'flex', gap: 8, fontSize: 11, color: textSecondary }}>
                                                         {product.duration_minutes && (
                                                             <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                                                 <Clock size={12} /> {product.duration_minutes}min
                                                             </span>
                                                         )}
                                                         {product.price !== undefined && product.price > 0 && (
-                                                            <span style={{ fontWeight: 700, color: colors.accent }}>
+                                                            <span style={{ fontWeight: 700, color: accentColor }}>
                                                                 R$ {product.price.toFixed(2)}
                                                             </span>
                                                         )}
                                                     </div>
                                                     {isInSelection && (
-                                                        <span style={{ fontSize: 10, color: colors.accent, fontWeight: 700 }}>
-                                                            Adicionado
+                                                        <span style={{ fontSize: 10, color: accentColor, fontWeight: 700 }}>
+                                                            ✓ Adicionado
                                                         </span>
                                                     )}
                                                 </button>
@@ -754,6 +1108,27 @@ export default function StoreSchedule({
                                     </div>
                                 )}
                             </div>
+
+                            {/* ===== VALIDAÇÃO DE ERRO ===== */}
+                            {validationError && (
+                                <div
+                                    style={{
+                                        padding: '10px 14px',
+                                        borderRadius: 12,
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                        marginBottom: 12,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <AlertCircle size={16} style={{ color: '#ef4444' }} />
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>
+                                        {validationError}
+                                    </span>
+                                </div>
+                            )}
 
                             {/* Itens selecionados com quantidades */}
                             {selectedItems.length > 0 && (
@@ -772,14 +1147,14 @@ export default function StoreSchedule({
                                                     padding: '8px 12px',
                                                     borderRadius: 12,
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                                    border: `1px solid ${colors.border}`,
+                                                    border: `1px solid ${borderColor}`,
                                                 }}
                                             >
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: colors.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <p style={{ fontWeight: 700, fontSize: 13, margin: 0, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                         {item.product.name}
                                                     </p>
-                                                    <p style={{ fontSize: 11, color: colors.textSecondary, margin: 0 }}>
+                                                    <p style={{ fontSize: 11, color: textSecondary, margin: 0 }}>
                                                         {item.product.duration_minutes || 60} min cada
                                                     </p>
                                                 </div>
@@ -791,12 +1166,12 @@ export default function StoreSchedule({
                                                             height: 24,
                                                             borderRadius: '50%',
                                                             border: 'none',
-                                                            background: colors.border,
+                                                            background: borderColor,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
                                                             cursor: 'pointer',
-                                                            color: colors.textPrimary,
+                                                            color: textPrimary,
                                                         }}
                                                     >
                                                         <Minus size={14} />
@@ -811,12 +1186,12 @@ export default function StoreSchedule({
                                                             height: 24,
                                                             borderRadius: '50%',
                                                             border: 'none',
-                                                            background: colors.accent,
+                                                            background: accentColor,
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
                                                             cursor: 'pointer',
-                                                            color: colors.accentText,
+                                                            color: '#ffffff',
                                                         }}
                                                     >
                                                         <Plus size={14} />
@@ -842,7 +1217,7 @@ export default function StoreSchedule({
                                                 </div>
                                             </div>
                                         ))}
-                                        <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: colors.accent }}>
+                                        <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: accentColor }}>
                                             Duração total: {selectedDuration} min
                                         </div>
                                     </div>
@@ -864,11 +1239,11 @@ export default function StoreSchedule({
                                         padding: '14px 18px',
                                         paddingRight: 40,
                                         borderRadius: 16,
-                                        border: `1px solid ${colors.border}`,
+                                        border: `1px solid ${borderColor}`,
                                         fontSize: 15,
                                         outline: 'none',
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                        color: colors.textPrimary,
+                                        color: textPrimary,
                                     }}
                                 />
                                 <button
@@ -884,7 +1259,7 @@ export default function StoreSchedule({
                                         background: 'transparent',
                                         border: 'none',
                                         cursor: 'pointer',
-                                        color: isEditingNote ? colors.accent : colors.textSecondary,
+                                        color: isEditingNote ? accentColor : textSecondary,
                                     }}
                                     title="Reverter para nota automática"
                                 >
@@ -893,223 +1268,381 @@ export default function StoreSchedule({
                             </div>
                         </div>
 
-                        {/* CALENDÁRIO */}
-                        <div
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                                backdropFilter: 'blur(12px)',
-                                borderRadius: 28,
-                                padding: 24,
-                                marginBottom: 24,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
+                        {/* ===== CARD DE SUGESTÕES DE HORÁRIOS (aparece apenas se tiver serviços selecionados) ===== */}
+                        {selectedItems.length > 0 && getNextAvailableSlots.length > 0 && !hasSelectedDateTime && !showCalendar && (
                             <div
                                 style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
+                                    background: `linear-gradient(135deg, ${accentColor}15, ${accentColor}05)`,
+                                    borderRadius: 16,
+                                    padding: '16px',
                                     marginBottom: 20,
+                                    border: `1px solid ${accentColor}30`,
                                 }}
                             >
-                                <button
-                                    onClick={() => {
-                                        if (calendarMonth === 0) {
-                                            setCalendarMonth(11)
-                                            setCalendarYear(y => y - 1)
-                                        } else setCalendarMonth(m => m - 1)
-                                    }}
-                                    style={{
-                                        border: 'none',
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                        borderRadius: 14,
-                                        width: 40,
-                                        height: 40,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    <ChevronLeft size={20} color={colors.textPrimary} />
-                                </button>
-                                <strong style={{ fontSize: 19, color: colors.textPrimary, fontWeight: 800 }}>
-                                    {meses[calendarMonth]} {calendarYear}
-                                </strong>
-                                <button
-                                    onClick={() => {
-                                        if (calendarMonth === 11) {
-                                            setCalendarMonth(0)
-                                            setCalendarYear(y => y + 1)
-                                        } else setCalendarMonth(m => m + 1)
-                                    }}
-                                    style={{
-                                        border: 'none',
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                        borderRadius: 14,
-                                        width: 40,
-                                        height: 40,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                    }}
-                                >
-                                    <ChevronRight size={20} color={colors.textPrimary} />
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                    <Sparkles size={16} style={{ color: accentColor }} />
+                                    <span style={{ fontWeight: 700, fontSize: 13, color: textPrimary }}>
+                                        Sugestões de horários
+                                    </span>
+                                    <span style={{ fontSize: 10, color: textSecondary, marginLeft: 'auto' }}>
+                                        próximos disponíveis
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {getNextAvailableSlots.map((slot, index) => {
+                                        const isSelected = selectedDate &&
+                                            selectedDate.toDateString() === slot.date.toDateString() &&
+                                            selectedTime === slot.time
+
+                                        return (
+                                            <button
+                                                key={`${slot.dateStr}-${slot.time}`}
+                                                onClick={() => {
+                                                    setSelectedDate(slot.date)
+                                                    setSelectedTime(slot.time)
+                                                    setValidationError(null)
+                                                    setStep('confirm')
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    padding: '10px 14px',
+                                                    borderRadius: 12,
+                                                    background: isSelected
+                                                        ? accentColor
+                                                        : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                                    border: `1px solid ${isSelected ? accentColor : borderColor}`,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    width: '100%',
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <span style={{
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        color: isSelected ? '#ffffff' : textPrimary
+                                                    }}>
+                                                        {formatDate(slot.date)}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: 10,
+                                                        color: isSelected ? '#ffffff' : textSecondary,
+                                                        opacity: 0.7
+                                                    }}>
+                                                        •
+                                                    </span>
+                                                    <span style={{
+                                                        fontWeight: 700,
+                                                        fontSize: 15,
+                                                        color: isSelected ? '#ffffff' : textPrimary
+                                                    }}>
+                                                        {slot.time}
+                                                    </span>
+                                                </div>
+                                                <ArrowRight
+                                                    size={16}
+                                                    style={{
+                                                        color: isSelected ? '#ffffff' : accentColor,
+                                                        opacity: isSelected ? 1 : 0.6
+                                                    }}
+                                                />
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
+                        )}
+
+                        {/* ===== BOTÃO PARA VER CALENDÁRIO (PILL STYLE) ===== */}
+                        {!hasSelectedDateTime && (
+                            <div style={{ marginBottom: 20 }}>
+                                {!showCalendar ? (
+                                    <button
+                                        onClick={() => {
+                                            if (selectedItems.length === 0) {
+                                                setValidationError('⚠️ Selecione pelo menos um serviço primeiro')
+                                                const serviceSection = document.getElementById('service-selection')
+                                                if (serviceSection) {
+                                                    serviceSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                                }
+                                                return
+                                            }
+                                            setShowCalendar(true)
+                                        }}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            width: '100%',
+                                            background: GRADIENT,
+                                            color: '#ffffff',
+                                            boxShadow: `0 4px 12px ${accentColor}40`,
+                                            fontSize: '0.875rem',
+                                            padding: '0.75rem 1.5rem',
+                                        }}
+                                        className="hover:scale-105 transition-transform"
+                                    >
+                                        <Eye size={18} />
+                                        Ver calendário completo
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => setShowCalendar(false)}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            width: '100%',
+                                            background: 'transparent',
+                                            border: `1px solid ${borderColor}`,
+                                            color: textSecondary,
+                                            fontSize: '0.875rem',
+                                            padding: '0.75rem 1.5rem',
+                                        }}
+                                        className="hover:opacity-70 transition-opacity"
+                                    >
+                                        <X size={16} />
+                                        Fechar calendário
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ===== CALENDÁRIO ===== */}
+                        {showCalendar && !hasSelectedDateTime && (
                             <div
                                 style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(7,1fr)',
-                                    gap: 10,
-                                    marginBottom: 10,
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                                    backdropFilter: 'blur(12px)',
+                                    borderRadius: 28,
+                                    padding: 24,
+                                    marginBottom: 24,
+                                    border: `1px solid ${borderColor}`,
+                                    animation: 'slideDown 0.3s ease-out',
                                 }}
                             >
-                                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                                    <div
-                                        key={d}
+                                <style>{`
+                                    @keyframes slideDown {
+                                        from {
+                                            opacity: 0;
+                                            transform: translateY(-10px);
+                                        }
+                                        to {
+                                            opacity: 1;
+                                            transform: translateY(0);
+                                        }
+                                    }
+                                `}</style>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: 20,
+                                    }}
+                                >
+                                    <button
+                                        onClick={() => {
+                                            if (calendarMonth === 0) {
+                                                setCalendarMonth(11)
+                                                setCalendarYear(y => y - 1)
+                                            } else setCalendarMonth(m => m - 1)
+                                        }}
                                         style={{
-                                            textAlign: 'center',
-                                            fontWeight: 700,
-                                            fontSize: 13,
-                                            color: colors.textSecondary,
+                                            border: 'none',
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            borderRadius: 14,
+                                            width: 40,
+                                            height: 40,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
                                         }}
                                     >
-                                        {d}
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 10 }}>
-                                {Array.from({ length: primeiroDia }).map((_, i) => (
-                                    <div key={i} />
-                                ))}
-                                {Array.from({ length: diasDoMes }).map((_, i) => {
-                                    const dia = i + 1
-                                    const date = new Date(calendarYear, calendarMonth, dia)
-                                    const dateStr = date.toISOString().split('T')[0]
-                                    const occupiedCount = eventsByDate[dateStr] || 0
-                                    const freeCount = freeSlotsByDate[dateStr] || 0
-                                    const isPast = dateStr < todayStr
-                                    const isSelected =
-                                        selectedDate?.toDateString() === date.toDateString()
-
-                                    const status =
-                                        freeCount > 0
-                                            ? 'available'
-                                            : occupiedCount > 0
-                                                ? 'full'
-                                                : isPast
-                                                    ? 'past'
-                                                    : 'closed'
-                                    let bgStyle = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`
-                                    let textColorStyle = colors.textPrimary
-                                    if (isSelected) {
-                                        bgStyle = colors.accent
-                                        textColorStyle = colors.accentText
-                                    } else if (isPast) {
-                                        bgStyle = 'transparent'
-                                        textColorStyle = colors.textSecondary
-                                    } else if (status === 'available') {
-                                        bgStyle = 'rgba(59, 130, 246, 0.25)'
-                                        textColorStyle = '#3b82f6'
-                                    } else if (status === 'full') {
-                                        bgStyle = 'rgba(239, 68, 68, 0.25)'
-                                        textColorStyle = '#ef4444'
-                                    }
-
-                                    return (
-                                        <button
-                                            key={dia}
-                                            disabled={isPast}
-                                            onClick={() => {
-                                                setSelectedDate(date)
-                                                setSelectedTime(null)
-                                            }}
+                                        <ChevronLeft size={20} color={textPrimary} />
+                                    </button>
+                                    <strong style={{ fontSize: 19, color: textPrimary, fontWeight: 800 }}>
+                                        {meses[calendarMonth]} {calendarYear}
+                                    </strong>
+                                    <button
+                                        onClick={() => {
+                                            if (calendarMonth === 11) {
+                                                setCalendarMonth(0)
+                                                setCalendarYear(y => y + 1)
+                                            } else setCalendarMonth(m => m + 1)
+                                        }}
+                                        style={{
+                                            border: 'none',
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            borderRadius: 14,
+                                            width: 40,
+                                            height: 40,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        <ChevronRight size={20} color={textPrimary} />
+                                    </button>
+                                </div>
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(7,1fr)',
+                                        gap: 10,
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+                                        <div
+                                            key={d}
                                             style={{
-                                                height: 42,
-                                                border: isSelected
-                                                    ? `2px solid ${colors.accent}`
-                                                    : 'none',
-                                                borderRadius: 14,
-                                                background: bgStyle,
-                                                color: textColorStyle,
-                                                cursor: isPast ? 'default' : 'pointer',
-                                                position: 'relative',
-                                                fontWeight: 600,
-                                                fontSize: 15,
+                                                textAlign: 'center',
+                                                fontWeight: 700,
+                                                fontSize: 13,
+                                                color: textSecondary,
                                             }}
                                         >
-                                            {dia}
-                                            {freeCount > 0 && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: -5,
-                                                        left: -5,
-                                                        background: '#22c55e',
-                                                        color: '#fff',
-                                                        width: 20,
-                                                        height: 20,
-                                                        borderRadius: '50%',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        fontSize: 11,
-                                                        fontWeight: 800,
-                                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                                    }}
-                                                >
-                                                    {freeCount}
-                                                </div>
-                                            )}
-                                            {occupiedCount > 0 && (
-                                                <div
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: -5,
-                                                        right: -5,
-                                                        background: '#ef4444',
-                                                        color: '#fff',
-                                                        width: 20,
-                                                        height: 20,
-                                                        borderRadius: '50%',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        fontSize: 11,
-                                                        fontWeight: 800,
-                                                        boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                                    }}
-                                                >
-                                                    {occupiedCount}
-                                                </div>
-                                            )}
-                                        </button>
-                                    )
-                                })}
-                            </div>
-                        </div>
+                                            {d}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 10 }}>
+                                    {Array.from({ length: primeiroDia }).map((_, i) => (
+                                        <div key={i} />
+                                    ))}
+                                    {Array.from({ length: diasDoMes }).map((_, i) => {
+                                        const dia = i + 1
+                                        const date = new Date(calendarYear, calendarMonth, dia)
+                                        const dateStr = date.toISOString().split('T')[0]
+                                        const occupiedCount = eventsByDate[dateStr] || 0
+                                        const freeCount = freeSlotsByDate[dateStr] || 0
+                                        const isPast = dateStr < todayStr
+                                        const isSelected =
+                                            selectedDate?.toDateString() === date.toDateString()
 
-                        {selectedDate && (
+                                        const status =
+                                            freeCount > 0
+                                                ? 'available'
+                                                : occupiedCount > 0
+                                                    ? 'full'
+                                                    : isPast
+                                                        ? 'past'
+                                                        : 'closed'
+                                        let bgStyle = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`
+                                        let textColorStyle = textPrimary
+                                        if (isSelected) {
+                                            bgStyle = accentColor
+                                            textColorStyle = '#ffffff'
+                                        } else if (isPast) {
+                                            bgStyle = 'transparent'
+                                            textColorStyle = textSecondary
+                                        } else if (status === 'available') {
+                                            bgStyle = 'rgba(59, 130, 246, 0.25)'
+                                            textColorStyle = '#3b82f6'
+                                        } else if (status === 'full') {
+                                            bgStyle = 'rgba(239, 68, 68, 0.25)'
+                                            textColorStyle = '#ef4444'
+                                        }
+
+                                        return (
+                                            <button
+                                                key={dia}
+                                                disabled={isPast || freeCount === 0}
+                                                onClick={() => {
+                                                    setSelectedDate(date)
+                                                    setSelectedTime(null)
+                                                    setValidationError(null)
+                                                }}
+                                                style={{
+                                                    height: 42,
+                                                    border: isSelected
+                                                        ? `2px solid ${accentColor}`
+                                                        : 'none',
+                                                    borderRadius: 14,
+                                                    background: bgStyle,
+                                                    color: textColorStyle,
+                                                    cursor: (isPast || freeCount === 0) ? 'default' : 'pointer',
+                                                    position: 'relative',
+                                                    fontWeight: 600,
+                                                    fontSize: 15,
+                                                }}
+                                            >
+                                                {dia}
+                                                {freeCount > 0 && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: -5,
+                                                            left: -5,
+                                                            background: '#22c55e',
+                                                            color: '#fff',
+                                                            width: 20,
+                                                            height: 20,
+                                                            borderRadius: '50%',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            fontSize: 11,
+                                                            fontWeight: 800,
+                                                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                                        }}
+                                                    >
+                                                        {freeCount}
+                                                    </div>
+                                                )}
+                                                {occupiedCount > 0 && (
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: -5,
+                                                            right: -5,
+                                                            background: '#ef4444',
+                                                            color: '#fff',
+                                                            width: 20,
+                                                            height: 20,
+                                                            borderRadius: '50%',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            fontSize: 11,
+                                                            fontWeight: 800,
+                                                            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                                                        }}
+                                                    >
+                                                        {occupiedCount}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ===== HORÁRIOS DO DIA SELECIONADO ===== */}
+                        {selectedDate && !hasSelectedDateTime && (
                             <div>
                                 <h3
                                     style={{
                                         fontWeight: 800,
                                         fontSize: 18,
                                         marginBottom: 16,
-                                        color: colors.textPrimary,
+                                        color: textPrimary,
                                     }}
                                 >
-                                    Horários
+                                    Horários para {selectedDate.toLocaleDateString('pt-BR', {
+                                        day: 'numeric',
+                                        month: 'long'
+                                    })}
                                 </h3>
                                 {allSlots.length === 0 ? (
                                     <div
                                         style={{
                                             padding: 28,
                                             textAlign: 'center',
-                                            color: colors.textSecondary,
-                                            border: `1px dashed ${colors.border}`,
+                                            color: textSecondary,
+                                            border: `1px dashed ${borderColor}`,
                                             borderRadius: 20,
                                         }}
                                     >
@@ -1140,6 +1673,7 @@ export default function StoreSchedule({
                                                         key={slot.time}
                                                         onClick={() => {
                                                             setSelectedTime(slot.time)
+                                                            setValidationError(null)
                                                             setStep('confirm')
                                                         }}
                                                         style={{
@@ -1147,18 +1681,18 @@ export default function StoreSchedule({
                                                             borderRadius: 18,
                                                             border:
                                                                 selectedTime === slot.time
-                                                                    ? `2px solid ${colors.accent}`
-                                                                    : `1px solid ${colors.border}`,
+                                                                    ? `2px solid ${accentColor}`
+                                                                    : `1px solid ${borderColor}`,
                                                             background:
                                                                 selectedTime === slot.time
-                                                                    ? colors.accent
+                                                                    ? accentColor
                                                                     : `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                                                             fontWeight: 700,
                                                             cursor: 'pointer',
                                                             color:
                                                                 selectedTime === slot.time
-                                                                    ? colors.accentText
-                                                                    : colors.textPrimary,
+                                                                    ? '#ffffff'
+                                                                    : textPrimary,
                                                             fontSize: 15,
                                                         }}
                                                     >
@@ -1176,15 +1710,15 @@ export default function StoreSchedule({
                                                         style={{
                                                             padding: '12px 10px',
                                                             borderRadius: 18,
-                                                            border: `1px solid ${colors.border}`,
+                                                            border: `1px solid ${borderColor}`,
                                                             background: isPublic
-                                                                ? `${colors.accent}20`
+                                                                ? `${accentColor}20`
                                                                 : 'rgba(239, 68, 68, 0.15)',
                                                             display: 'flex',
                                                             flexDirection: 'column',
                                                             alignItems: 'center',
                                                             gap: 6,
-                                                            color: colors.textPrimary,
+                                                            color: textPrimary,
                                                             fontSize: 13,
                                                             fontWeight: 600,
                                                             cursor: 'default',
@@ -1199,7 +1733,7 @@ export default function StoreSchedule({
                                                                     display: 'flex',
                                                                     alignItems: 'center',
                                                                     gap: 4,
-                                                                    color: colors.accent,
+                                                                    color: accentColor,
                                                                 }}
                                                             >
                                                                 {avatar && (
@@ -1242,235 +1776,400 @@ export default function StoreSchedule({
                     </>
                 )}
 
-                {/* CONFIRMAÇÃO */}
+                {/* ===== TELA DE CONFIRMAÇÃO COM LOGIN ===== */}
                 {step === 'confirm' && selectedDate && selectedTime && target && (
                     <div style={{ textAlign: 'center' }}>
-                        <div
-                            style={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: 20,
-                                background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                margin: '0 auto 24px',
-                                boxShadow: `0 10px 30px ${colors.accent}40`,
-                            }}
-                        >
-                            <Calendar size={34} color={colors.accentText} />
-                        </div>
-                        <h2
-                            style={{
-                                fontWeight: 800,
-                                fontSize: 24,
-                                color: colors.textPrimary,
-                                marginBottom: 12,
-                            }}
-                        >
-                            {appointmentNote || 'Compromisso'}
-                        </h2>
-                        <p style={{ color: colors.textSecondary, marginBottom: 24 }}>{target.name}</p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 14,
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                    borderRadius: 18,
-                                    padding: 18,
-                                    border: `1px solid ${colors.border}`,
-                                }}
-                            >
-                                <Calendar size={22} color={colors.accent} />
-                                <div style={{ textAlign: 'left' }}>
-                                    <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>
-                                        Data
-                                    </p>
-                                    <p style={{ color: colors.textSecondary, fontSize: 14 }}>
-                                        {selectedDate.toLocaleDateString('pt-BR', {
-                                            weekday: 'long',
-                                            day: 'numeric',
-                                            month: 'long',
-                                        })}
-                                    </p>
-                                </div>
-                            </div>
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 14,
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                    borderRadius: 18,
-                                    padding: 18,
-                                    border: `1px solid ${colors.border}`,
-                                }}
-                            >
-                                <Clock size={22} color={colors.accent} />
-                                <div style={{ textAlign: 'left' }}>
-                                    <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15 }}>
-                                        Horário
-                                    </p>
-                                    <p style={{ color: colors.textSecondary, fontSize: 14 }}>
-                                        {selectedTime}
-                                    </p>
-                                </div>
-                            </div>
-                            {selectedItems.length > 0 && (
+                        {/* ===== SE NÃO ESTIVER AUTENTICADO, MOSTRA O FORMULÁRIO DE LOGIN ===== */}
+                        {!isAuthenticated ? (
+                            <div id="auth-section" className="space-y-4">
                                 <div
                                     style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                        borderRadius: 18,
-                                        padding: 18,
-                                        border: `1px solid ${colors.border}`,
-                                        textAlign: 'left',
-                                    }}
-                                >
-                                    <p style={{ fontWeight: 700, color: colors.textPrimary, fontSize: 15, marginBottom: 8 }}>
-                                        Serviços
-                                    </p>
-                                    {selectedItems.map(item => (
-                                        <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: colors.textSecondary, marginBottom: 4 }}>
-                                            <span>{item.product.name}</span>
-                                            <span>x{item.quantity}</span>
-                                        </div>
-                                    ))}
-                                    <div style={{ borderTop: `1px solid ${colors.border}`, marginTop: 8, paddingTop: 8, fontWeight: 700, color: colors.accent }}>
-                                        Duração total: {selectedDuration} min
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Toggle Público/Privado */}
-                            <div
-                                style={{
-                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                    borderRadius: 18,
-                                    padding: '10px 14px',
-                                    border: `1px solid ${colors.border}`,
-                                }}
-                            >
-                                <div
-                                    style={{
+                                        width: 72,
+                                        height: 72,
+                                        borderRadius: 20,
+                                        background: GRADIENT,
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'space-between',
+                                        justifyContent: 'center',
+                                        margin: '0 auto 16px',
+                                        boxShadow: `0 10px 30px ${accentColor}40`,
                                     }}
                                 >
-                                    <span
+                                    <Lock size={34} color="#ffffff" />
+                                </div>
+                                <h2 style={{ fontWeight: 800, fontSize: 20, color: textPrimary }}>
+                                    Identifique-se para agendar
+                                </h2>
+                                <p style={{ color: textSecondary, fontSize: 13 }}>
+                                    Faça login ou crie uma conta para confirmar seu agendamento
+                                </p>
+
+                                {authError && (
+                                    <div className="p-3 rounded-full text-[10px] font-black text-center" style={{ background: '#f9731620', color: '#f97316' }}>
+                                        ⚠️ {authError}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setAuthMode('login')}
+                                        className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'login' ? 'shadow-sm' : ''}`}
+                                        style={authMode === 'login' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: textSecondary, border: `2px solid ${borderColor}` }}
+                                    >
+                                        Entrar
+                                    </button>
+                                    <button
+                                        onClick={() => setAuthMode('register')}
+                                        className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'register' ? 'shadow-sm' : ''}`}
+                                        style={authMode === 'register' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: textSecondary, border: `2px solid ${borderColor}` }}
+                                    >
+                                        Criar Conta
+                                    </button>
+                                </div>
+
+                                {authMode === 'login' ? (
+                                    <form onSubmit={handleLogin} className="space-y-3">
+                                        <input
+                                            type="email"
+                                            placeholder="seu@email.com"
+                                            className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                            style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                            value={authEmail}
+                                            onChange={(e) => setAuthEmail(e.target.value)}
+                                            required
+                                            autoComplete="email"
+                                        />
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder="sua senha"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm pr-10"
+                                                style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                                value={authPassword}
+                                                onChange={(e) => setAuthPassword(e.target.value)}
+                                                required
+                                                autoComplete="current-password"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2"
+                                                style={{ color: textSecondary }}
+                                            >
+                                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={authLoading}
+                                            className="w-full py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all disabled:opacity-50"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                        >
+                                            {authLoading ? 'Entrando...' : 'Entrar'}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <form onSubmit={handleRegister} className="space-y-3">
+                                        <input
+                                            type="text"
+                                            placeholder="Nome Completo"
+                                            className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                            style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                            value={authName}
+                                            onChange={(e) => setAuthName(e.target.value)}
+                                            required
+                                            autoComplete="name"
+                                        />
+                                        <div className="flex items-center gap-1 border-2 rounded-full px-3" style={{ background: colors.surface, borderColor: borderColor }}>
+                                            <span className="text-[9px] font-black" style={{ color: textSecondary }}>iuser.com.br/</span>
+                                            <input
+                                                type="text"
+                                                placeholder="seu-perfil"
+                                                className="flex-1 py-2.5 bg-transparent text-sm outline-none"
+                                                style={{ color: textPrimary }}
+                                                value={authProfileSlug}
+                                                onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                required
+                                                autoComplete="off"
+                                            />
+                                            {isSlugAvailable !== null && (
+                                                <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
+                                                    {isSlugAvailable ? '✓' : '✗'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <input
+                                            type="email"
+                                            placeholder="seu@email.com"
+                                            className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                            style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                            value={authEmail}
+                                            onChange={(e) => setAuthEmail(e.target.value)}
+                                            required
+                                            autoComplete="email"
+                                        />
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            placeholder="Senha"
+                                            className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                            style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                            value={authPassword}
+                                            onChange={(e) => setAuthPassword(e.target.value)}
+                                            required
+                                            autoComplete="new-password"
+                                        />
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            placeholder="Confirmar senha"
+                                            className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                            style={{ background: colors.surface, borderColor: borderColor, color: textPrimary }}
+                                            value={authConfirmPassword}
+                                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                                            required
+                                            autoComplete="new-password"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={authLoading || isSlugAvailable === false}
+                                            className="w-full py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all disabled:opacity-50"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                        >
+                                            {authLoading ? 'Criando...' : 'Criar Conta'}
+                                        </button>
+                                    </form>
+                                )}
+
+                                <button
+                                    onClick={goBack}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        width: '100%',
+                                        background: 'transparent',
+                                        border: `1px solid ${borderColor}`,
+                                        color: textSecondary,
+                                        fontSize: '0.875rem',
+                                        padding: '0.75rem 1.5rem',
+                                    }}
+                                    className="hover:opacity-70 transition-opacity"
+                                >
+                                    Voltar
+                                </button>
+                            </div>
+                        ) : (
+                            // ===== USUÁRIO AUTENTICADO - MOSTRA CONFIRMAÇÃO =====
+                            <>
+                                <div
+                                    style={{
+                                        width: 72,
+                                        height: 72,
+                                        borderRadius: 20,
+                                        background: GRADIENT,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        margin: '0 auto 24px',
+                                        boxShadow: `0 10px 30px ${accentColor}40`,
+                                    }}
+                                >
+                                    <Calendar size={34} color="#ffffff" />
+                                </div>
+                                <h2
+                                    style={{
+                                        fontWeight: 800,
+                                        fontSize: 24,
+                                        color: textPrimary,
+                                        marginBottom: 4,
+                                    }}
+                                >
+                                    {appointmentNote || 'Compromisso'}
+                                </h2>
+                                <p style={{ color: textSecondary, fontSize: 13, marginBottom: 16 }}>
+                                    {target.name} • {currentUserSlug && `@${currentUserSlug}`}
+                                </p>
+
+                                {selectedItems.length === 0 && (
+                                    <div
                                         style={{
-                                            fontWeight: 600,
-                                            color: colors.textPrimary,
-                                            fontSize: 15,
+                                            padding: '12px 16px',
+                                            borderRadius: 12,
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            marginBottom: 16,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            textAlign: 'left',
                                         }}
                                     >
-                                        {isPublic
-                                            ? 'Compromisso público'
-                                            : 'Compromisso privado'}
-                                    </span>
+                                        <AlertCircle size={16} style={{ color: '#ef4444' }} />
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>
+                                            ⚠️ Nenhum serviço selecionado. Volte e escolha pelo menos um serviço.
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
                                     <div
                                         style={{
                                             display: 'flex',
-                                            gap: 4,
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                                            borderRadius: 16,
-                                            padding: 3,
+                                            alignItems: 'center',
+                                            gap: 14,
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            borderRadius: 18,
+                                            padding: 18,
+                                            border: `1px solid ${borderColor}`,
                                         }}
                                     >
-                                        <button
-                                            onClick={() => setIsPublic(false)}
+                                        <Calendar size={22} color={accentColor} />
+                                        <div style={{ textAlign: 'left' }}>
+                                            <p style={{ fontWeight: 700, color: textPrimary, fontSize: 15 }}>Data</p>
+                                            <p style={{ color: textSecondary, fontSize: 14 }}>
+                                                {selectedDate.toLocaleDateString('pt-BR', {
+                                                    weekday: 'long',
+                                                    day: 'numeric',
+                                                    month: 'long',
+                                                })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 14,
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            borderRadius: 18,
+                                            padding: 18,
+                                            border: `1px solid ${borderColor}`,
+                                        }}
+                                    >
+                                        <Clock size={22} color={accentColor} />
+                                        <div style={{ textAlign: 'left' }}>
+                                            <p style={{ fontWeight: 700, color: textPrimary, fontSize: 15 }}>Horário</p>
+                                            <p style={{ color: textSecondary, fontSize: 14 }}>{selectedTime}</p>
+                                        </div>
+                                    </div>
+                                    {selectedItems.length > 0 && (
+                                        <div
                                             style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 6,
-                                                padding: '6px 14px',
-                                                borderRadius: 14,
-                                                border: 'none',
-                                                background: !isPublic
-                                                    ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`
-                                                    : 'transparent',
-                                                color: !isPublic
-                                                    ? colors.accentText
-                                                    : colors.textSecondary,
-                                                fontWeight: 700,
-                                                fontSize: 13,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s',
+                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                                borderRadius: 18,
+                                                padding: 18,
+                                                border: `1px solid ${borderColor}`,
+                                                textAlign: 'left',
                                             }}
                                         >
-                                            <Lock size={14} />
-                                            <span>Privado</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setIsPublic(true)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 6,
-                                                padding: '6px 14px',
-                                                borderRadius: 14,
-                                                border: 'none',
-                                                background: isPublic
-                                                    ? `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`
-                                                    : 'transparent',
-                                                color: isPublic
-                                                    ? colors.accentText
-                                                    : colors.textSecondary,
-                                                fontWeight: 700,
-                                                fontSize: 13,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s',
-                                            }}
-                                        >
-                                            <Earth size={14} />
-                                            <span>Público</span>
-                                        </button>
+                                            <p style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 8 }}>Serviços</p>
+                                            {selectedItems.map(item => (
+                                                <div key={item.product.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: textSecondary, marginBottom: 4 }}>
+                                                    <span>{item.product.name}</span>
+                                                    <span>x{item.quantity}</span>
+                                                </div>
+                                            ))}
+                                            <div style={{ borderTop: `1px solid ${borderColor}`, marginTop: 8, paddingTop: 8, fontWeight: 700, color: accentColor }}>
+                                                Duração total: {selectedDuration} min
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Toggle Público/Privado */}
+                                    <div
+                                        style={{
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                            borderRadius: 18,
+                                            padding: '10px 14px',
+                                            border: `1px solid ${borderColor}`,
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span style={{ fontWeight: 600, color: textPrimary, fontSize: 15 }}>
+                                                {isPublic ? 'Compromisso público' : 'Compromisso privado'}
+                                            </span>
+                                            <div style={{ display: 'flex', gap: 4, background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`, borderRadius: 16, padding: 3 }}>
+                                                <button
+                                                    onClick={() => setIsPublic(false)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 6,
+                                                        padding: '6px 14px',
+                                                        borderRadius: 14,
+                                                        border: 'none',
+                                                        background: !isPublic ? GRADIENT : 'transparent',
+                                                        color: !isPublic ? '#ffffff' : textSecondary,
+                                                        fontWeight: 700,
+                                                        fontSize: 13,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s',
+                                                    }}
+                                                >
+                                                    <Lock size={14} /> <span>Privado</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsPublic(true)}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 6,
+                                                        padding: '6px 14px',
+                                                        borderRadius: 14,
+                                                        border: 'none',
+                                                        background: isPublic ? GRADIENT : 'transparent',
+                                                        color: isPublic ? '#ffffff' : textSecondary,
+                                                        fontWeight: 700,
+                                                        fontSize: 13,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s',
+                                                    }}
+                                                >
+                                                    <Earth size={14} /> <span>Público</span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <button
-                                onClick={goBack}
-                                style={{
-                                    flex: 1,
-                                    padding: '16px 20px',
-                                    borderRadius: 18,
-                                    border: `1px solid ${colors.border}`,
-                                    background: 'transparent',
-                                    color: colors.textPrimary,
-                                    fontWeight: 700,
-                                    fontSize: 16,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                Voltar
-                            </button>
-                            <button
-                                onClick={handleConfirm}
-                                disabled={submitting}
-                                style={{
-                                    flex: 1,
-                                    background: `linear-gradient(135deg, ${colors.accent}, ${colors.accent}dd)`,
-                                    color: colors.accentText,
-                                    border: 'none',
-                                    borderRadius: 18,
-                                    padding: '16px 20px',
-                                    fontWeight: 800,
-                                    fontSize: 16,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 8,
-                                    opacity: submitting ? 0.7 : 1,
-                                }}
-                            >
-                                <Check size={20} /> {submitting ? 'Salvando...' : 'Confirmar'}
-                            </button>
-                        </div>
+
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <button
+                                        onClick={goBack}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            flex: 1,
+                                            background: 'transparent',
+                                            border: `1px solid ${borderColor}`,
+                                            color: textSecondary,
+                                            fontSize: '0.875rem',
+                                            padding: '0.75rem 1.5rem',
+                                        }}
+                                        className="hover:opacity-70 transition-opacity"
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={handleConfirmClick}
+                                        disabled={submitting || selectedItems.length === 0}
+                                        style={{
+                                            ...pillButtonStyle,
+                                            flex: 1,
+                                            background: selectedItems.length === 0 ? borderColor : GRADIENT,
+                                            color: selectedItems.length === 0 ? textSecondary : '#ffffff',
+                                            fontSize: '0.875rem',
+                                            padding: '0.75rem 1.5rem',
+                                            opacity: (submitting || selectedItems.length === 0) ? 0.5 : 1,
+                                            cursor: selectedItems.length === 0 ? 'not-allowed' : 'pointer',
+                                        }}
+                                        className="hover:scale-105 transition-transform"
+                                    >
+                                        <Check size={20} /> {submitting ? 'Salvando...' : 'Confirmar'}
+                                    </button>
+                                </div>
+                                {selectedItems.length === 0 && (
+                                    <p style={{ fontSize: 11, color: '#ef4444', marginTop: 8, fontWeight: 600 }}>
+                                        ⚠️ Selecione um serviço para confirmar
+                                    </p>
+                                )}
+                            </>
+                        )}
                     </div>
                 )}
             </div>

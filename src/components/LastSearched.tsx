@@ -1,3 +1,4 @@
+// src/components/LastSearched.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -40,9 +41,13 @@ export function addRecentClick(item: RecentClickItem) {
     const updated = [item, ...filtered]
     saveRecentClicks(updated)
 }
+
+interface LastSearchedProps {
+    onItemClick?: (item: RecentClickItem) => void
+}
 // --------------------------------------------------
 
-export default function LastSearched() {
+export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const [items, setItems] = useState<RecentClickItem[]>([])
@@ -62,6 +67,15 @@ export default function LastSearched() {
     const clearAll = () => {
         setItems([])
         saveRecentClicks([])
+    }
+
+    const handleItemClick = (item: RecentClickItem) => {
+        if (onItemClick) {
+            onItemClick(item)
+        } else {
+            // Fallback: usa o router diretamente
+            router.push(item.url)
+        }
     }
 
     if (items.length === 0) return null
@@ -88,7 +102,7 @@ export default function LastSearched() {
                 </div>
                 <button
                     onClick={clearAll}
-                    className="text-xs font-semibold"
+                    className="text-xs font-semibold hover:underline"
                     style={{ color: colors.textSecondary }}
                 >
                     Limpar tudo
@@ -99,7 +113,7 @@ export default function LastSearched() {
                 {items.map((item) => (
                     <button
                         key={`${item.type}-${item.id}`}
-                        onClick={() => router.push(item.url)}
+                        onClick={() => handleItemClick(item)}
                         className="group inline-flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all duration-200 whitespace-nowrap flex-shrink-0 min-w-[140px] max-w-[200px]"
                         style={{
                             background: chipBg,
@@ -149,7 +163,7 @@ export default function LastSearched() {
                                 e.stopPropagation()
                                 removeItem(item)
                             }}
-                            className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
                             title="Remover"
                         >
                             <X size={12} style={{ color: colors.textSecondary }} />
@@ -159,4 +173,4 @@ export default function LastSearched() {
             </div>
         </div>
     )
-}   
+}

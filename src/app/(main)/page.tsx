@@ -159,7 +159,9 @@ export default function HomePage() {
         },
     }), [])
 
+    // REFS
     const lastSearchedRef = useRef<HTMLDivElement>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
 
     const totalCartItems = useMemo(() => {
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
@@ -169,8 +171,6 @@ export default function HomePage() {
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
-
-    // ===== ADICIONAR ESTADO DE LOADING DOS STATUS =====
     const [loadingStatus, setLoadingStatus] = useState(true)
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
@@ -180,9 +180,7 @@ export default function HomePage() {
             try {
                 const parsed = JSON.parse(saved)
                 if (Array.isArray(parsed)) {
-                    // Remove duplicatas
                     const unique = Array.from(new Set(parsed))
-                    // Garante que 'categorias' esteja sempre em primeiro
                     const hasCategorias = unique.includes('categorias')
                     let filtered = unique.filter(s => s !== 'categorias')
                     const missing = DEFAULT_SECTIONS.filter(s => !filtered.includes(s))
@@ -198,26 +196,16 @@ export default function HomePage() {
     // ---------- FUNÇÕES DE MOVIMENTO (subir/descer) ----------
     const moveSection = (id: string, direction: 'up' | 'down') => {
         setSections((prev) => {
-            // Remove duplicatas primeiro
             const unique = Array.from(new Set(prev))
             const index = unique.indexOf(id)
             if (index === -1) return unique
-
-            // Não permite mover 'categorias'
             if (id === 'categorias') return unique
 
             const newIndex = direction === 'up' ? index - 1 : index + 1
-
-            // Verifica limites
             if (newIndex < 0 || newIndex >= unique.length) return unique
-
-            // Se for mover para cima e a posição anterior for 'categorias', não permite
             if (direction === 'up' && unique[newIndex] === 'categorias') return unique
-
-            // Se for mover para baixo e a posição posterior for 'categorias', não permite
             if (direction === 'down' && unique[newIndex] === 'categorias') return unique
 
-            // Move o item
             const newArray = [...unique]
             const [removed] = newArray.splice(index, 1)
             newArray.splice(newIndex, 0, removed)
@@ -225,14 +213,12 @@ export default function HomePage() {
         })
     }
 
-    // ---------- CARREGAR LOCALIZAÇÃO DO PERFIL (NÃO DO LOCALSTORAGE) ----------
+    // ---------- CARREGAR LOCALIZAÇÃO DO PERFIL ----------
     useEffect(() => {
         const fetchLocationFromProfile = async () => {
             try {
                 const { data: { user }, error: authError } = await supabase.auth.getUser()
-
                 if (authError || !user) {
-                    console.log('[HomePage] Usuário não autenticado, sem localização')
                     setSavedLocation(null)
                     return
                 }
@@ -260,9 +246,7 @@ export default function HomePage() {
                         addressComplement: profile.address_complement || ''
                     }
                     setSavedLocation(locationData)
-                    console.log('[HomePage] ✅ Localização carregada do perfil:', locationData.address)
                 } else {
-                    console.log('[HomePage] Perfil sem localização salva')
                     setSavedLocation(null)
                 }
             } catch (err) {
@@ -271,7 +255,6 @@ export default function HomePage() {
             }
         }
 
-        // Busca sempre que o profileSlug mudar (login/logout)
         fetchLocationFromProfile()
     }, [profileSlug])
 
@@ -287,7 +270,7 @@ export default function HomePage() {
     // ---------- PEDIDOS (comprador) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
-            setLoadingStatus(true) // Inicia o loading
+            setLoadingStatus(true)
             try {
                 const { data: { user } } = await supabase.auth.getUser()
                 if (!user) {
@@ -314,7 +297,6 @@ export default function HomePage() {
 
                 if (paidOrders && paidOrders.length > 0) {
                     const orderIds = paidOrders.map(o => o.id)
-
                     const { data: orderItems } = await supabase
                         .from('order_items')
                         .select('product_id')
@@ -322,7 +304,6 @@ export default function HomePage() {
 
                     if (orderItems && orderItems.length > 0) {
                         const productIds = orderItems.map(item => item.product_id)
-
                         const { data: reviews } = await supabase
                             .from('product_reviews')
                             .select('product_id')
@@ -341,12 +322,12 @@ export default function HomePage() {
             } catch (err) {
                 console.error('[HomePage] Erro ao buscar status dos pedidos:', err)
             } finally {
-                setLoadingStatus(false) // Finaliza o loading
+                setLoadingStatus(false)
             }
         }
 
         fetchOrderStatuses()
-    }, [profileSlug]) // Re-executa quando o usuário mudar
+    }, [profileSlug])
 
     // ---------- LOJAS DO USUÁRIO ----------
     useEffect(() => {
@@ -448,11 +429,7 @@ export default function HomePage() {
 
     // ===== FUNÇÃO PARA ATUALIZAR OS BADGES EM TEMPO REAL =====
     const handleOrderCountsChange = (counts: { pending: number; preparing: number; ready: number }) => {
-        // Atualiza os contadores da loja específica
         setStoreOrderCounts(prev => {
-            // Encontra qual loja está sendo atualizada
-            // Como o StoreOrders recebe o storeId, precisamos identificar qual loja
-            // Vamos atualizar a loja que está com o dashboard aberto
             if (showStoreDashboard) {
                 const store = stores.find(s => s.slug === showStoreDashboard.slug)
                 if (store) {
@@ -468,21 +445,16 @@ export default function HomePage() {
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------
     const displayedSections = useMemo(() => {
-        // Remove duplicatas primeiro
         const uniqueSections = Array.from(new Set(sections))
-
         if (!uniqueSections.includes('categorias')) {
             return uniqueSections
         }
-
-        // Remove 'categorias' da lista e coloca em primeiro
         const withoutCategorias = uniqueSections.filter(s => s !== 'categorias')
         return ['categorias', ...withoutCategorias]
     }, [sections])
 
     // ---------- SALVAR ORDEM ----------
     const handleSaveOrder = () => {
-        // Remove duplicatas antes de salvar
         const uniqueSections = Array.from(new Set(sections))
         localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(uniqueSections))
         setSections(uniqueSections)
@@ -491,7 +463,6 @@ export default function HomePage() {
 
     // ---------- RESTAURAR ORDEM PADRÃO ----------
     const handleRestoreOrder = () => {
-        // Garante que não há duplicatas
         const uniqueDefault = Array.from(new Set(DEFAULT_SECTIONS))
         setSections(uniqueDefault)
         localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(uniqueDefault))
@@ -511,21 +482,15 @@ export default function HomePage() {
         addressComplement?: string;
     }) => {
         setIsSavingLocation(true)
-        console.log('🔵 INICIANDO SALVAMENTO')
-
         try {
             const { data: { user }, error: authError } = await supabase.auth.getUser()
-            console.log('🔵 Auth:', user?.id || 'NÃO LOGADO', authError || '')
-
             if (!user) {
-                console.log('⚠️ Não autenticado')
                 alert('Você precisa estar logado para salvar uma localização!')
                 setShowLocationDialog(false)
                 setIsSavingLocation(false)
                 return
             }
 
-            console.log('🔵 Tentando upsert...')
             const { data, error } = await supabase
                 .from('profiles')
                 .upsert({
@@ -542,14 +507,9 @@ export default function HomePage() {
                 .select('address, address_number, address_complement, store_lat, store_lng')
                 .single()
 
-            console.log('🔵 Resultado:', { data, error })
-
             if (error) {
-                console.error('❌ Erro no upsert:', error)
                 alert('Erro ao salvar: ' + error.message)
             } else {
-                console.log('✅ Salvo com sucesso:', data)
-                // Atualiza o estado local com os dados salvos
                 if (data) {
                     setSavedLocation({
                         lat: data.store_lat,
@@ -562,7 +522,6 @@ export default function HomePage() {
                 alert('Localização salva com sucesso!')
             }
         } catch (err) {
-            console.error('❌ Erro inesperado:', err)
             alert('Erro: ' + (err as Error).message)
         } finally {
             setIsSavingLocation(false)
@@ -703,8 +662,6 @@ export default function HomePage() {
     }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
-
-    // ===== CALCULAR SE DEVE MOSTRAR O BOTÃO SACOLA =====
     const shouldShowSacola = !showProfile && !showStoreDashboard
 
     return (
@@ -723,9 +680,16 @@ export default function HomePage() {
                     tabs={tabs}
                     showSearch={isSearchVisible}
                     searchPlaceholder="Buscar restaurantes, mercados..."
-                    onSearch={setSearchQuery}
-                    onSearchFocus={() => setSearchFocused(true)}
+                    searchValue={searchQuery}
+                    searchRef={searchInputRef}
+                    onSearch={(query) => {
+                        setSearchQuery(query)
+                    }}
+                    onSearchFocus={() => {
+                        setSearchFocused(true)
+                    }}
                     onSearchBlur={(e) => {
+                        // Verifica se o clique foi no LastSearched
                         if (lastSearchedRef.current?.contains(e.relatedTarget as Node)) {
                             return
                         }
@@ -784,11 +748,22 @@ export default function HomePage() {
                                 {searchQuery.trim() ? (
                                     <SearchResultsSection
                                         searchQuery={searchQuery}
-                                        onSearchSelect={setSearchQuery}
+                                        onSearchSelect={(query) => {
+                                            setSearchQuery(query)
+                                            setSearchFocused(false)
+                                            // Foca no input após selecionar
+                                            searchInputRef.current?.focus()
+                                        }}
                                     />
                                 ) : (
                                     <div ref={lastSearchedRef}>
-                                        <LastSearched />
+                                        <LastSearched
+                                            onItemClick={(item) => {
+                                                if (item.url) {
+                                                    router.push(item.url)
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -803,7 +778,6 @@ export default function HomePage() {
                                     const uniqueSections = Array.from(new Set(sections))
                                     const isFirst = index === 0
                                     const isLast = index === uniqueSections.length - 1
-
                                     const isCategorias = sectionId === 'categorias'
 
                                     return (
@@ -833,10 +807,9 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== SACOLA BUTTON - VISÍVEL APENAS QUANDO NÃO ESTÁ EM DASHBOARD ===== */}
+                {/* ===== SACOLA BUTTON ===== */}
                 {shouldShowSacola && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                        {/* Mostra um placeholder enquanto carrega os status */}
                         {loadingStatus ? (
                             <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
                                 <ShoppingCart size={24} style={{ color: '#ffffff' }} />

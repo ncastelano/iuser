@@ -25,6 +25,8 @@ import {
     X,
     Navigation,
     Search,
+    Clock,
+    AlertCircle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
@@ -36,6 +38,7 @@ import { useTheme } from '@/app/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -163,6 +166,7 @@ export default function SacolaPage() {
         accepts_pix: boolean
         accepts_card: boolean
         accepts_cash: boolean
+        business_hours?: BusinessHours
     }>>({})
 
     // Opções selecionadas por loja
@@ -506,7 +510,7 @@ export default function SacolaPage() {
         const fetchConfigs = async () => {
             const { data } = await supabase
                 .from('stores')
-                .select('storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng')
+                .select('storeSlug, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng, business_hours')
                 .in('storeSlug', storeSlugs)
 
             if (data) {
@@ -522,6 +526,7 @@ export default function SacolaPage() {
                         accepts_pix: s.accepts_pix,
                         accepts_card: s.accepts_card,
                         accepts_cash: s.accepts_cash,
+                        business_hours: s.business_hours,
                     }
 
                     deliveryInfo[s.storeSlug] = {
@@ -554,7 +559,6 @@ export default function SacolaPage() {
                 const initialLocation = userLocation
                 if (initialLocation && userAddress) {
                     storeSlugs.forEach(slug => {
-                        // Verifica se já tem uma localização salva no localStorage
                         const saved = loadDeliveryLocationFromStorage(slug)
                         if (saved) {
                             setDeliveryLocationByStore(prev => ({
@@ -639,19 +643,30 @@ export default function SacolaPage() {
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
     }
 
+    // ===== FUNÇÃO PARA VERIFICAR SE A LOJA ESTÁ ABERTA =====
+    const getStoreStatus = (slug: string) => {
+        const config = storeConfigs[slug]
+        if (!config || !config.business_hours) {
+            return { isOpen: true, statusText: 'Aberto', nextOpening: null }
+        }
+
+        const isOpen = isStoreOpenNow(config.business_hours)
+        const statusText = getStoreStatusText(config.business_hours)
+        const nextOpening = getNextOpeningInfo(config.business_hours)
+
+        return { isOpen, statusText, nextOpening }
+    }
+
     // ===== FUNÇÃO PARA ABRIR MODAL DE LOCALIZAÇÃO =====
     const openLocationModal = (slug: string) => {
         setLocationModalStore(slug)
 
-        // Primeiro verifica se tem no estado
         let current = deliveryLocationByStore[slug]
 
-        // Se não tiver no estado, tenta carregar do localStorage
         if (!current) {
             const saved = loadDeliveryLocationFromStorage(slug)
             if (saved) {
                 current = saved
-                // Atualiza o estado com o valor do localStorage
                 setDeliveryLocationByStore(prev => ({
                     ...prev,
                     [slug]: saved
@@ -704,7 +719,6 @@ export default function SacolaPage() {
             [locationModalStore!]: locationData
         }))
 
-        // Salva no localStorage
         saveDeliveryLocationToStorage(locationModalStore, locationData)
 
         setShowLocationModal(false)
@@ -727,7 +741,6 @@ export default function SacolaPage() {
                 [slug]: locationData
             }))
 
-            // Remove do localStorage se existir (pois está usando o salvo do perfil)
             removeDeliveryLocationFromStorage(slug)
 
             toast.success('Usando localização salva do perfil')
@@ -737,6 +750,18 @@ export default function SacolaPage() {
     // ---- Handler de finalização por loja ----
     const handleFinalizarLoja = async (slug: string) => {
         if (!currentUserId) return
+
+        // VERIFICA SE A LOJA ESTÁ ABERTA
+        const { isOpen, statusText, nextOpening } = getStoreStatus(slug)
+        if (!isOpen) {
+            let message = '🕐 Loja fechada no momento.'
+            if (nextOpening) {
+                message += ` Abre ${nextOpening.dayLabel} às ${nextOpening.time}.`
+            }
+            toast.error(message)
+            return
+        }
+
         setCheckoutLoading(slug)
 
         try {
@@ -1105,7 +1130,7 @@ export default function SacolaPage() {
         return grouped
     }, [myPurchases, filteredPurchases, searchQuery])
 
-    // Contagem de pedidos únicos por status (apenas pendente, preparando, pronto)
+    // Contagem de pedidos únicos por status
     const activeOrderCounts = useMemo(() => {
         const uniqueCheckoutIds = new Set<string>()
         const counts: Record<string, number> = { pending: 0, preparing: 0, ready: 0 }
@@ -1341,6 +1366,12 @@ export default function SacolaPage() {
                                         const paymentOpt = paymentMethodByStore[slug] || 'pix'
                                         const deliveryLoc = deliveryLocationByStore[slug]
 
+                                        // ===== VERIFICA STATUS DA LOJA =====
+                                        const { isOpen, statusText, nextOpening } = getStoreStatus(slug)
+                                        const isStoreOpen = isOpen
+                                        const statusColor = isStoreOpen ? '#22c55e' : '#ef4444'
+                                        const statusIcon = isStoreOpen ? '🟢' : '🔴'
+
                                         const canDelivery = config.accepts_delivery
                                         const canPickup = config.accepts_pickup
                                         const canPix = config.accepts_pix
@@ -1360,6 +1391,24 @@ export default function SacolaPage() {
                                                         <h3 className="text-sm font-black uppercase tracking-wide" style={{ color: colors.textPrimary }}>{details?.name || slug}</h3>
                                                     </div>
                                                     <span className="text-lg font-black" style={{ color: '#f97316' }}>R$ {itemsTotal.toFixed(2)}</span>
+                                                </div>
+
+                                                {/* ===== STATUS DA LOJA ===== */}
+                                                <div
+                                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
+                                                    style={{
+                                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                                        color: statusColor,
+                                                        border: `1px solid ${statusColor}30`,
+                                                    }}
+                                                >
+                                                    <Clock size={14} />
+                                                    <span>{statusIcon} {statusText}</span>
+                                                    {!isStoreOpen && nextOpening && (
+                                                        <span style={{ opacity: 0.7 }}>
+                                                            • Abre {nextOpening.dayLabel} às {nextOpening.time}
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="space-y-3 mb-4">
@@ -1532,12 +1581,26 @@ export default function SacolaPage() {
                                                         </div>
                                                         <button
                                                             onClick={() => handleFinalizarLoja(slug)}
-                                                            disabled={checkoutLoading === slug || isCalculating || (deliveryOpt === 'entrega' && !deliveryLoc)}
+                                                            disabled={checkoutLoading === slug || isCalculating || (deliveryOpt === 'entrega' && !deliveryLoc) || !isStoreOpen}
                                                             className="w-full py-3 rounded-full font-black uppercase text-sm tracking-wider transition shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50"
-                                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                                            style={{
+                                                                background: isStoreOpen ? GRADIENT : colors.border,
+                                                                color: isStoreOpen ? '#ffffff' : colors.textSecondary,
+                                                                cursor: isStoreOpen ? 'pointer' : 'not-allowed',
+                                                            }}
                                                         >
-                                                            {checkoutLoading === slug ? 'Finalizando...' : isCalculating ? 'Calculando frete...' : (deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' : `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
+                                                            {checkoutLoading === slug ? 'Finalizando...' :
+                                                                isCalculating ? 'Calculando frete...' :
+                                                                    (deliveryOpt === 'entrega' && !deliveryLoc) ? 'Selecione o endereço' :
+                                                                        !isStoreOpen ? '🕐 Loja fechada' :
+                                                                            `Finalizar Pedido (R$ ${finalTotal.toFixed(2)})`}
                                                         </button>
+                                                        {!isStoreOpen && nextOpening && (
+                                                            <p className="text-[10px] text-center mt-1" style={{ color: '#ef4444' }}>
+                                                                <Clock size={12} className="inline mr-1" />
+                                                                Abre {nextOpening.dayLabel} às {nextOpening.time}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>

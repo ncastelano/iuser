@@ -37,7 +37,7 @@ interface HeaderProps {
     searchValue?: string
     searchRef?: React.RefObject<HTMLInputElement>
     onSearchFocus?: () => void
-    onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void  // <-- ALTERADO: agora recebe o evento
+    onSearchBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
     profileSlug?: string | null
     onHomeClick?: () => void
     locationElement?: React.ReactNode
@@ -328,9 +328,16 @@ export default function Header({
                                 type="text"
                                 placeholder={searchPlaceholder}
                                 value={searchValue}
-                                onChange={(e) => onSearch?.(e.target.value)}
+                                onChange={(e) => {
+                                    const value = e.target.value
+                                    onSearch?.(value)
+                                }}
                                 onFocus={onSearchFocus}
-                                onBlur={onSearchBlur}  // <-- Agora passa o evento corretamente
+                                onBlur={(e) => {
+                                    if (onSearchBlur) {
+                                        onSearchBlur(e)
+                                    }
+                                }}
                                 className="flex-1 bg-transparent outline-none"
                                 style={{ color: colors.textPrimary }}
                             />
