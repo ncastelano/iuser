@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
@@ -839,7 +839,7 @@ export default function HomePage() {
                         {/* Mostra um placeholder enquanto carrega os status */}
                         {loadingStatus ? (
                             <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
-                                <ShoppingBag size={24} style={{ color: '#ffffff' }} />
+                                <ShoppingCart size={24} style={{ color: '#ffffff' }} />
                             </div>
                         ) : (
                             <SacolaButton
