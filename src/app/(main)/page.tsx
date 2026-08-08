@@ -1,10 +1,9 @@
 // src/app/(main)/page.tsx
-
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
@@ -171,6 +170,9 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
 
+    // ===== ADICIONAR ESTADO DE LOADING DOS STATUS =====
+    const [loadingStatus, setLoadingStatus] = useState(true)
+
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
         const saved = localStorage.getItem(ORDER_STORAGE_KEY)
@@ -285,56 +287,66 @@ export default function HomePage() {
     // ---------- PEDIDOS (comprador) ----------
     useEffect(() => {
         const fetchOrderStatuses = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            setLoadingStatus(true) // Inicia o loading
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) {
+                    setLoadingStatus(false)
+                    return
+                }
 
-            const { data: orders } = await supabase
-                .from('orders')
-                .select('status')
-                .eq('buyer_id', user.id)
+                const { data: orders } = await supabase
+                    .from('orders')
+                    .select('status')
+                    .eq('buyer_id', user.id)
 
-            if (orders) {
-                setPendingCount(orders.filter(o => o.status === 'pending').length)
-                setPreparingCount(orders.filter(o => o.status === 'preparing').length)
-                setReadyCount(orders.filter(o => o.status === 'ready').length)
-            }
+                if (orders) {
+                    setPendingCount(orders.filter(o => o.status === 'pending').length)
+                    setPreparingCount(orders.filter(o => o.status === 'preparing').length)
+                    setReadyCount(orders.filter(o => o.status === 'ready').length)
+                }
 
-            const { data: paidOrders } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('buyer_id', user.id)
-                .eq('status', 'paid')
+                const { data: paidOrders } = await supabase
+                    .from('orders')
+                    .select('id')
+                    .eq('buyer_id', user.id)
+                    .eq('status', 'paid')
 
-            if (paidOrders && paidOrders.length > 0) {
-                const orderIds = paidOrders.map(o => o.id)
+                if (paidOrders && paidOrders.length > 0) {
+                    const orderIds = paidOrders.map(o => o.id)
 
-                const { data: orderItems } = await supabase
-                    .from('order_items')
-                    .select('product_id')
-                    .in('order_id', orderIds)
-
-                if (orderItems && orderItems.length > 0) {
-                    const productIds = orderItems.map(item => item.product_id)
-
-                    const { data: reviews } = await supabase
-                        .from('product_reviews')
+                    const { data: orderItems } = await supabase
+                        .from('order_items')
                         .select('product_id')
-                        .eq('profile_id', user.id)
-                        .in('product_id', productIds)
+                        .in('order_id', orderIds)
 
-                    const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
-                    const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
-                    setPendingReviewsCount(pending)
+                    if (orderItems && orderItems.length > 0) {
+                        const productIds = orderItems.map(item => item.product_id)
+
+                        const { data: reviews } = await supabase
+                            .from('product_reviews')
+                            .select('product_id')
+                            .eq('profile_id', user.id)
+                            .in('product_id', productIds)
+
+                        const reviewedIds = new Set(reviews?.map(r => r.product_id) || [])
+                        const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
+                        setPendingReviewsCount(pending)
+                    } else {
+                        setPendingReviewsCount(0)
+                    }
                 } else {
                     setPendingReviewsCount(0)
                 }
-            } else {
-                setPendingReviewsCount(0)
+            } catch (err) {
+                console.error('[HomePage] Erro ao buscar status dos pedidos:', err)
+            } finally {
+                setLoadingStatus(false) // Finaliza o loading
             }
         }
 
         fetchOrderStatuses()
-    }, [])
+    }, [profileSlug]) // Re-executa quando o usuário mudar
 
     // ---------- LOJAS DO USUÁRIO ----------
     useEffect(() => {
@@ -692,6 +704,9 @@ export default function HomePage() {
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
 
+    // ===== CALCULAR SE DEVE MOSTRAR O BOTÃO SACOLA =====
+    const shouldShowSacola = !showProfile && !showStoreDashboard
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -760,7 +775,7 @@ export default function HomePage() {
                         profileSlug={profileSlug || ''}
                         storeSlug={showStoreDashboard.slug}
                         onBack={() => setShowStoreDashboard(null)}
-                        onOrderCountsChange={handleOrderCountsChange} // <-- PASSA A FUNÇÃO
+                        onOrderCountsChange={handleOrderCountsChange}
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
@@ -782,7 +797,6 @@ export default function HomePage() {
                         {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
                         {editMode ? (
                             <div className="space-y-6">
-                                {/* Remove duplicatas antes de mapear */}
                                 {Array.from(new Set(sections)).map((sectionId, index) => {
                                     const section = renderSection(sectionId)
                                     if (!section) return null
@@ -819,19 +833,26 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* SacolaButton - visível apenas quando NÃO está no ProfileDashboard */}
-                {!showProfile && !showStoreDashboard && (
+                {/* ===== SACOLA BUTTON - VISÍVEL APENAS QUANDO NÃO ESTÁ EM DASHBOARD ===== */}
+                {shouldShowSacola && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                        <SacolaButton
-                            totalItems={totalCartItems}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                        />
+                        {/* Mostra um placeholder enquanto carrega os status */}
+                        {loadingStatus ? (
+                            <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
+                                <ShoppingBag size={24} style={{ color: '#ffffff' }} />
+                            </div>
+                        ) : (
+                            <SacolaButton
+                                totalItems={totalCartItems}
+                                statusCounts={{
+                                    pending: pendingCount,
+                                    preparing: preparingCount,
+                                    ready: readyCount,
+                                    reviews: pendingReviewsCount,
+                                }}
+                                animate={cartAnimating}
+                            />
+                        )}
                     </div>
                 )}
 
