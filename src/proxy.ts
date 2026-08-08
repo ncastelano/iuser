@@ -8,15 +8,30 @@ const supabaseAdmin = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// ===== ROTAS QUE DEVEM SER IGNORADAS PELO PROXY =====
+const IGNORED_ROUTES = [
+    '/',
+    '/sacola',
+    '/criar-loja',
+    '/login',
+    '/registro',
+    '/404',
+    '/500',
+]
+
 export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     const pathname = url.pathname
 
-    // Ignorar rotas internas, API, etc.
+    // Verificar se a rota está na lista de ignorados
+    if (IGNORED_ROUTES.includes(pathname)) {
+        return NextResponse.next()
+    }
+
+    // Verificar se é um arquivo estático ou API
     if (
         pathname.startsWith('/_next') ||
         pathname.startsWith('/api') ||
-        pathname === '/' ||
         pathname.includes('.')
     ) {
         return NextResponse.next()
@@ -27,10 +42,6 @@ export async function proxy(request: NextRequest) {
 
     const firstSegment = segments[0]
 
-    // ============================================================
-    // APENAS VALIDAR SE O PRIMEIRO SEGMENTO É UM PERFIL OU LOJA
-    // NÃO REESCREVER NADA!
-    // ============================================================
     try {
         // Verifica se é um profileSlug
         const { data: profile } = await supabaseAdmin
@@ -40,7 +51,6 @@ export async function proxy(request: NextRequest) {
             .maybeSingle()
 
         if (profile) {
-            // É um perfil - deixa passar
             console.log(`[Proxy] ${firstSegment} é um perfil ✅`)
             return NextResponse.next()
         }
@@ -53,7 +63,6 @@ export async function proxy(request: NextRequest) {
             .maybeSingle()
 
         if (store) {
-            // É uma loja - deixa passar
             console.log(`[Proxy] ${firstSegment} é uma loja ✅`)
             return NextResponse.next()
         }
