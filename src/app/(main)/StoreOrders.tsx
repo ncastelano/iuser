@@ -14,13 +14,16 @@ import {
     ChevronUp,
     Clock,
     RefreshCw,
+    CheckCircle,
+    Package,
+    Truck,
 } from 'lucide-react'
 import { OrderModal } from '../../components/OrderModal'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
+const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#ffffffff', '#eab308']
 
 interface DeliveryStop {
     lat: number | null
@@ -92,6 +95,11 @@ const pillButtonStyle = {
     transition: 'all 0.2s ease',
     cursor: 'pointer',
     border: 'none',
+}
+
+const pillButtonFullStyle = {
+    ...pillButtonStyle,
+    flex: 1,
 }
 
 export default function StoreOrders({
@@ -644,39 +652,6 @@ export default function StoreOrders({
         }
     }
 
-    // Calcular cores da borda
-    const orderBorderColor = useMemo(() => {
-        const pending = groupedOrders.filter(o => o.status === 'pending').length
-        const preparing = groupedOrders.filter(o => o.status === 'preparing').length
-        const ready = groupedOrders.filter(o => o.status === 'ready').length
-
-        if (pending > 0) {
-            return {
-                color: '#3b82f6',
-                glow: '0 0 20px rgba(59, 130, 246, 0.3), 0 0 40px rgba(59, 130, 246, 0.15)',
-                border: '2px solid #3b82f6'
-            }
-        } else if (preparing > 0) {
-            return {
-                color: '#f59e0b',
-                glow: '0 0 20px rgba(245, 158, 11, 0.3), 0 0 40px rgba(245, 158, 11, 0.15)',
-                border: '2px solid #f59e0b'
-            }
-        } else if (ready > 0) {
-            return {
-                color: '#8b5cf6',
-                glow: '0 0 20px rgba(139, 92, 246, 0.3), 0 0 40px rgba(139, 92, 246, 0.15)',
-                border: '2px solid #8b5cf6'
-            }
-        } else {
-            return {
-                color: 'transparent',
-                glow: 'none',
-                border: 'none'
-            }
-        }
-    }, [groupedOrders])
-
     const newOrders = groupedOrders.filter(o => o.status === 'pending')
     const preparing = groupedOrders.filter(o => o.status === 'preparing')
     const ready = groupedOrders.filter(o => o.status === 'ready')
@@ -684,70 +659,92 @@ export default function StoreOrders({
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // Componente OrderItem
-    const OrderItem = ({ order, showAssignButton = true }: { order: any; showAssignButton?: boolean }) => {
-        const isInPerson = !order.buyer_profile_slug
-        const channelLabel = isInPerson ? 'v. presencial' : 'v. online'
-        const channelColor = isInPerson ? '#22c55e' : '#3b82f6'
-        const channelBg = isInPerson ? '#22c55e15' : '#3b82f615'
-
-        return (
-            <div
-                className="flex items-center justify-between p-2 rounded-lg mb-1"
-                style={{ background: channelBg }}
-            >
-                <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                    <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5">
-                            {isInPerson ? (
-                                <>
-                                    <Store size={12} style={{ color: '#22c55e' }} />
-                                    <span className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {order.buyer_name || 'Presencial'}
-                                    </span>
-                                </>
-                            ) : (
-                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    @{order.buyer_profile_slug}
-                                </span>
-                            )}
-                            <span
-                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                style={{ background: channelBg, color: channelColor }}
-                            >
-                                {channelLabel}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs mt-0.5">
-                            <span style={{ color: colors.textPrimary }}>
-                                R$ {order.totalPrice.toFixed(2)}
-                            </span>
-                            {order.deliveryFee > 0 && (
-                                <span style={{ color: colors.textSecondary }}>
-                                    frete R$ {order.deliveryFee.toFixed(2)}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="text-right" />
-                </div>
-                {showAssignButton && !isInPerson && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            setSingleAssignOpen({ order })
-                        }}
-                        className="ml-2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
-                        title="Atribuir entregador"
-                    >
-                        <Send size={14} style={{ color: colors.accent }} />
-                    </button>
-                )}
-            </div>
-        )
+    // ===== CORES POR STATUS =====
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'pending': return '#3b82f6'
+            case 'preparing': return '#f59e0b'
+            case 'ready': return '#8b5cf6'
+            case 'paid': return '#10b981'
+            default: return colors.accent
+        }
     }
 
-    // Determinar cor do ícone de refresh
+    const getStatusGradient = (status: string) => {
+        switch (status) {
+            case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
+            case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
+            case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
+            case 'paid': return 'linear-gradient(135deg, #059669, #064e3b)'
+            default: return GRADIENT
+        }
+    }
+
+    const getStatusLabel = (status: string) => {
+        switch (status) {
+            case 'pending': return 'Pendente'
+            case 'preparing': return 'Preparando'
+            case 'ready': return 'Pronto'
+            case 'paid': return 'Finalizado'
+            default: return status
+        }
+    }
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'pending': return Clock
+            case 'preparing': return Package
+            case 'ready': return CheckCircle
+            case 'paid': return Truck
+            default: return Clock
+        }
+    }
+
+    // ===== COR DO CARD PAI BASEADA NO STATUS PREDOMINANTE =====
+    const getCardStatus = useMemo(() => {
+        if (groupedOrders.length === 0) return 'idle'
+
+        const counts = {
+            pending: groupedOrders.filter(o => o.status === 'pending').length,
+            preparing: groupedOrders.filter(o => o.status === 'preparing').length,
+            ready: groupedOrders.filter(o => o.status === 'ready').length,
+            paid: groupedOrders.filter(o => o.status === 'paid').length,
+        }
+
+        // Prioridade: pending > preparing > ready > paid
+        if (counts.pending > 0) return 'pending'
+        if (counts.preparing > 0) return 'preparing'
+        if (counts.ready > 0) return 'ready'
+        if (counts.paid > 0) return 'paid'
+        return 'idle'
+    }, [groupedOrders])
+
+    const cardStatusColor = useMemo(() => {
+        switch (getCardStatus) {
+            case 'pending': return '#3b82f6'
+            case 'preparing': return '#f59e0b'
+            case 'ready': return '#8b5cf6'
+            case 'paid': return '#10b981'
+            default: return 'transparent'
+        }
+    }, [getCardStatus])
+
+    const cardGlow = useMemo(() => {
+        if (cardStatusColor === 'transparent') return colors.shadow
+        return `0 0 20px ${cardStatusColor}30, 0 0 40px ${cardStatusColor}15`
+    }, [cardStatusColor, colors.shadow])
+
+    const cardBorder = useMemo(() => {
+        if (cardStatusColor === 'transparent') return `1px solid ${colors.border}`
+        return `2px solid ${cardStatusColor}`
+    }, [cardStatusColor, colors.border])
+
+    const cardAnimation = useMemo(() => {
+        if (cardStatusColor === 'transparent') return 'none'
+        return 'borderPulse 2s ease-in-out infinite'
+    }, [cardStatusColor])
+
+    // ===== COR DO ÍCONE DE REFRESH =====
     const refreshIconColor = isAutoRefreshing ? '#22c55e' : colors.textSecondary
 
     return (
@@ -758,70 +755,45 @@ export default function StoreOrders({
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    border: orderBorderColor.border || `1px solid ${colors.border}`,
-                    boxShadow: orderBorderColor.glow || colors.shadow,
-                    animation: orderBorderColor.color !== 'transparent' ? 'borderPulse 2s ease-in-out infinite' : 'none',
+                    border: cardBorder,
+                    boxShadow: cardGlow,
+                    animation: cardAnimation,
                     transition: 'all 0.5s ease',
                 }}
             >
-                {orderBorderColor.color !== 'transparent' && (
-                    <>
-                        <style>{`
-                            @keyframes borderPulse {
-                                0%, 100% { 
-                                    box-shadow: ${orderBorderColor.glow};
-                                    border-color: ${orderBorderColor.color};
-                                }
-                                50% { 
-                                    box-shadow: 0 0 30px ${orderBorderColor.color}60, 0 0 60px ${orderBorderColor.color}30;
-                                    border-color: ${orderBorderColor.color}dd;
-                                }
-                            }
-                            @keyframes shimmer {
-                                0% { transform: translateX(-100%) rotate(0deg); }
-                                100% { transform: translateX(100%) rotate(0deg); }
-                            }
-                            .shimmer-border {
-                                position: absolute;
-                                top: -2px;
-                                left: -2px;
-                                right: -2px;
-                                bottom: -2px;
-                                border-radius: 1rem;
-                                overflow: hidden;
-                                pointer-events: none;
-                            }
-                            .shimmer-border::before {
-                                content: '';
-                                position: absolute;
-                                top: 0;
-                                left: 0;
-                                right: 0;
-                                bottom: 0;
-                                background: linear-gradient(
-                                    90deg,
-                                    transparent 0%,
-                                    ${orderBorderColor.color}33 25%,
-                                    ${orderBorderColor.color}66 50%,
-                                    ${orderBorderColor.color}33 75%,
-                                    transparent 100%
-                                );
-                                animation: shimmer 3s ease-in-out infinite;
-                                transform: translateX(-100%);
-                            }
-                            @keyframes spin-smooth {
-                                0% { transform: rotate(0deg); }
-                                100% { transform: rotate(360deg); }
-                            }
-                            .animate-spin-smooth {
-                                animation: spin-smooth 0.8s linear infinite;
-                            }
-                        `}</style>
-                        <div className="shimmer-border" />
-                    </>
-                )}
+                <style>{`
+                    @keyframes borderPulse {
+                        0%, 100% { 
+                            box-shadow: ${cardGlow};
+                            border-color: ${cardStatusColor};
+                        }
+                        50% { 
+                            box-shadow: 0 0 30px ${cardStatusColor}60, 0 0 60px ${cardStatusColor}30;
+                            border-color: ${cardStatusColor}dd;
+                        }
+                    }
+                    @keyframes pulse-order {
+                        0%, 100% { 
+                            transform: scale(1);
+                        }
+                        50% { 
+                            transform: scale(1.01);
+                        }
+                    }
+                    @keyframes shimmer-order {
+                        0% { transform: translateX(-100%) rotate(0deg); }
+                        100% { transform: translateX(100%) rotate(0deg); }
+                    }
+                    @keyframes spin-smooth {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+                    .animate-spin-smooth {
+                        animation: spin-smooth 0.8s linear infinite;
+                    }
+                `}</style>
 
-                {/* Cabeçalho com toggle - CORRIGIDO: não tem mais button aninhado */}
+                {/* Cabeçalho com toggle */}
                 <div
                     className="w-full flex items-center justify-between text-left relative z-10"
                     style={{
@@ -836,6 +808,7 @@ export default function StoreOrders({
                             background: 'transparent',
                             border: 'none',
                             cursor: 'pointer',
+                            transition: 'all 0.2s ease',
                         }}
                     >
                         <div className="flex items-center gap-3">
@@ -876,11 +849,11 @@ export default function StoreOrders({
                                 <span
                                     className="text-xs font-bold px-2 py-0.5 rounded-full"
                                     style={{
-                                        background: orderBorderColor.color !== 'transparent'
-                                            ? `${orderBorderColor.color}30`
+                                        background: cardStatusColor !== 'transparent'
+                                            ? `${cardStatusColor}30`
                                             : '#f9731620',
-                                        color: orderBorderColor.color !== 'transparent'
-                                            ? orderBorderColor.color
+                                        color: cardStatusColor !== 'transparent'
+                                            ? cardStatusColor
                                             : '#f97316'
                                     }}
                                 >
@@ -895,7 +868,7 @@ export default function StoreOrders({
                         </div>
                     </button>
 
-                    {/* Botão de refresh SEPARADO - FORA do button principal */}
+                    {/* Botão de refresh SEPARADO */}
                     <button
                         onClick={handleRefresh}
                         className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
@@ -904,6 +877,7 @@ export default function StoreOrders({
                             background: 'transparent',
                             border: 'none',
                             cursor: 'pointer',
+                            transition: 'all 0.2s ease',
                         }}
                     >
                         <RefreshCw
@@ -919,25 +893,26 @@ export default function StoreOrders({
 
                 {isOrdersExpanded && (
                     <>
-                        <div className="flex flex-wrap items-center justify-between gap-2 relative z-10">
-                            {selectedOrderIds.size > 0 && (
+                        {/* Botão de atribuição múltipla */}
+                        {selectedOrderIds.size > 0 && (
+                            <div className="flex flex-wrap items-center gap-3 relative z-10">
                                 <button
                                     onClick={() => setShowAssignModal(true)}
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 active:scale-95"
                                     style={{
-                                        ...pillButtonStyle,
+                                        ...pillButtonFullStyle,
                                         background: GRADIENT,
                                         color: '#ffffff',
                                         boxShadow: `0 4px 12px #f9731640`,
                                     }}
-                                    className="hover:scale-105 transition-transform"
                                 >
                                     <Send size={14} />
                                     Atribuir {selectedOrderIds.size}
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        )}
 
-                        {/* Lista de pedidos */}
+                        {/* Lista de pedidos como botões PILL */}
                         {groupedOrders.length === 0 ? (
                             <div
                                 className="rounded-xl p-6 text-center relative z-10"
@@ -954,79 +929,105 @@ export default function StoreOrders({
                             <div className="space-y-4 relative z-10">
                                 {newOrders.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#3b82f6' }}>
+                                            <Clock size={12} />
                                             Novos ({newOrders.length})
                                         </h4>
-                                        {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}
+                                        <div className="space-y-3">
+                                            {newOrders.map((order: any) => (
+                                                <OrderButton
+                                                    key={order.checkout_id}
+                                                    order={order}
+                                                    assignmentMap={assignmentMap}
+                                                    setSelectedOrder={setSelectedOrder}
+                                                    setSingleAssignOpen={setSingleAssignOpen}
+                                                    getStatusColor={getStatusColor}
+                                                    getStatusGradient={getStatusGradient}
+                                                    getStatusLabel={getStatusLabel}
+                                                    getStatusIcon={getStatusIcon}
+                                                    formatAssignmentStatus={formatAssignmentStatus}
+                                                    isInPerson={!order.buyer_profile_slug}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
                                 {preparing.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#f59e0b' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#f59e0b' }}>
+                                            <Package size={12} />
                                             Em Preparo ({preparing.length})
                                         </h4>
-                                        {preparing.map(order => {
-                                            const isAssigned = assignmentMap.has(order.checkout_id)
-                                            return (
-                                                <div key={order.checkout_id} className="mb-1">
-                                                    <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                    {isAssigned && (
-                                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
-                                                            <span className="text-[10px]" style={{ color: '#f97316' }}>
-                                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                            </span>
-                                                            <button
-                                                                onClick={() => setSingleAssignOpen({ order })}
-                                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                                            >
-                                                                Trocar entregador
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
+                                        <div className="space-y-3">
+                                            {preparing.map((order: any) => (
+                                                <OrderButton
+                                                    key={order.checkout_id}
+                                                    order={order}
+                                                    assignmentMap={assignmentMap}
+                                                    setSelectedOrder={setSelectedOrder}
+                                                    setSingleAssignOpen={setSingleAssignOpen}
+                                                    getStatusColor={getStatusColor}
+                                                    getStatusGradient={getStatusGradient}
+                                                    getStatusLabel={getStatusLabel}
+                                                    getStatusIcon={getStatusIcon}
+                                                    formatAssignmentStatus={formatAssignmentStatus}
+                                                    isInPerson={!order.buyer_profile_slug}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
                                 {ready.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                                            <CheckCircle size={12} />
                                             Prontos ({ready.length})
                                         </h4>
-                                        {ready.map(order => {
-                                            const isAssigned = assignmentMap.has(order.checkout_id)
-                                            return (
-                                                <div key={order.checkout_id} className="mb-1">
-                                                    <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                    {isAssigned && (
-                                                        <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
-                                                            <span className="text-[10px]" style={{ color: '#f97316' }}>
-                                                                🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                            </span>
-                                                            <button
-                                                                onClick={() => setSingleAssignOpen({ order })}
-                                                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                                            >
-                                                                Trocar entregador
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
+                                        <div className="space-y-3">
+                                            {ready.map((order: any) => (
+                                                <OrderButton
+                                                    key={order.checkout_id}
+                                                    order={order}
+                                                    assignmentMap={assignmentMap}
+                                                    setSelectedOrder={setSelectedOrder}
+                                                    setSingleAssignOpen={setSingleAssignOpen}
+                                                    getStatusColor={getStatusColor}
+                                                    getStatusGradient={getStatusGradient}
+                                                    getStatusLabel={getStatusLabel}
+                                                    getStatusIcon={getStatusIcon}
+                                                    formatAssignmentStatus={formatAssignmentStatus}
+                                                    isInPerson={!order.buyer_profile_slug}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
                                 {finished.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#10b981' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#10b981' }}>
+                                            <Truck size={12} />
                                             Finalizados ({finished.length})
                                         </h4>
-                                        {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
+                                        <div className="space-y-3">
+                                            {finished.slice(0, 5).map((order: any) => (
+                                                <OrderButton
+                                                    key={order.checkout_id}
+                                                    order={order}
+                                                    assignmentMap={assignmentMap}
+                                                    setSelectedOrder={setSelectedOrder}
+                                                    setSingleAssignOpen={setSingleAssignOpen}
+                                                    getStatusColor={getStatusColor}
+                                                    getStatusGradient={getStatusGradient}
+                                                    getStatusLabel={getStatusLabel}
+                                                    getStatusIcon={getStatusIcon}
+                                                    formatAssignmentStatus={formatAssignmentStatus}
+                                                    isInPerson={!order.buyer_profile_slug}
+                                                />
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -1035,7 +1036,7 @@ export default function StoreOrders({
                 )}
             </div>
 
-            {/* Modais */}
+            {/* Modais (mantidos iguais) */}
             {showAssignModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
                     <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -1123,5 +1124,125 @@ export default function StoreOrders({
                 />
             )}
         </>
+    )
+}
+
+// ===== COMPONENTE ORDER BUTTON SEPARADO =====
+function OrderButton({
+    order,
+    assignmentMap,
+    setSelectedOrder,
+    setSingleAssignOpen,
+    getStatusColor,
+    getStatusGradient,
+    getStatusLabel,
+    getStatusIcon,
+    formatAssignmentStatus,
+    isInPerson,
+}: any) {
+    const channelLabel = isInPerson ? 'Presencial' : 'Online'
+    const statusColor = getStatusColor(order.status)
+    const statusGradient = getStatusGradient(order.status)
+    const StatusIcon = getStatusIcon(order.status)
+    const isAssigned = assignmentMap.has(order.checkout_id)
+    const assignment = isAssigned ? assignmentMap.get(order.checkout_id) : null
+    const statusLabel = getStatusLabel(order.status)
+
+    // Função para abrir o modal de atribuição sem causar erro de botão aninhado
+    const handleAssignClick = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        // Previne o evento de propagação para o botão pai
+        e.preventDefault()
+        setSingleAssignOpen({ order })
+    }
+
+    return (
+        <div
+            className="w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform cursor-pointer"
+            style={{
+                background: statusGradient,
+                color: '#ffffff',
+                boxShadow: `0 4px 16px ${statusColor}40`,
+                border: `2px solid ${statusColor}`,
+            }}
+            onClick={() => setSelectedOrder(order)}
+        >
+            {/* Efeito shimmer na borda - mais sutil */}
+            <div className="absolute inset-0 pointer-events-none opacity-30">
+                <div className="absolute inset-[-2px] rounded-full" style={{
+                    background: `linear-gradient(90deg, transparent, ${statusColor}66, transparent)`,
+                    animation: 'shimmer-order 4s ease-in-out infinite',
+                    transform: 'translateX(-100%)',
+                }} />
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-4 relative z-10">
+                <div className="flex flex-col items-start min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                        {isInPerson ? (
+                            <>
+                                <Store size={14} className="text-white/80 flex-shrink-0" />
+                                <span className="text-sm font-bold truncate text-white">
+                                    {order.buyer_name || 'Presencial'}
+                                </span>
+                            </>
+                        ) : (
+                            <span className="text-sm font-bold text-white">
+                                @{order.buyer_profile_slug}
+                            </span>
+                        )}
+                        <span
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white/90 flex-shrink-0"
+                            style={{
+                                background: 'rgba(255,255,255,0.12)',
+                                backdropFilter: 'blur(4px)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                            }}
+                        >
+                            {channelLabel}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs mt-1 flex-wrap">
+                        <span className="text-white/90 font-bold">
+                            R$ {order.totalPrice.toFixed(2)}
+                        </span>
+                        {order.deliveryFee > 0 && (
+                            <span className="text-white/70">
+                                frete R$ {order.deliveryFee.toFixed(2)}
+                            </span>
+                        )}
+                        {isAssigned && (
+                            <span className="text-[10px] font-bold text-white/80 flex items-center gap-1">
+                                🚚 {assignment?.employeeName}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <span
+                        className="px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 flex-shrink-0"
+                        style={{
+                            background: 'rgba(255,255,255,0.12)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#ffffff',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                        }}
+                    >
+                        <StatusIcon size={12} />
+                        {statusLabel}
+                    </span>
+                    {!isInPerson && (
+                        <button
+                            onClick={handleAssignClick}
+                            className="p-2 rounded-full transition-all duration-200 hover:bg-white/20 active:scale-90 flex-shrink-0"
+                            title="Atribuir entregador"
+                            type="button"
+                        >
+                            <Send size={14} className="text-white/80" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        </div>
     )
 }

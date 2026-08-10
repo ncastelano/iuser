@@ -16,12 +16,14 @@ import {
     Package,
     ArrowUpDown,
     Pencil,
-    Store,
+    Store as StoreIcon,
     Copy,
     ExternalLink,
     ChevronDown,
     ChevronUp,
     Clock,
+    Eye,
+    Store,
 } from 'lucide-react'
 import Employee from './Employee'
 import ButtonInPersonSale from './ButtonInPersonSale'
@@ -36,6 +38,7 @@ import StorePaymentMethods from './StorePaymentMethods'
 
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import StoreSchedule from './StoreSchedule'
+import { StoreDescription } from './StoreDesciption'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -96,6 +99,18 @@ export default function StoreDashboard({
     const [isProductsExpanded, setIsProductsExpanded] = useState(false)
     const [showScheduleModal, setShowScheduleModal] = useState(false)
 
+    // ===== ESTADO PARA StoreDescription =====
+    const [isStoreDescriptionExpanded, setIsStoreDescriptionExpanded] = useState(false)
+    const [savingDescription, setSavingDescription] = useState(false)
+
+    // ===== ESTADOS PARA StoreDescription =====
+    const [name, setName] = useState('')
+    const [storeSlugState, setStoreSlugState] = useState('')
+    const [description, setDescription] = useState('')
+    const [preview, setPreview] = useState<string | null>(null)
+    const [imageFile, setImageFile] = useState<File | null>(null)
+    const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+
     const intervalRef = useRef<any>(null)
 
     const isStoreOpen = useMemo(() => {
@@ -109,6 +124,113 @@ export default function StoreDashboard({
         return status.text
     }, [store])
 
+    // ===== FUNÇÃO PARA NAVEGAR PARA EDITAR PERFIL =====
+    const handleEditProfile = () => {
+        router.push(`/${profileSlug}/editar-perfil`)
+    }
+
+    // ===== FUNÇÃO PARA NAVEGAR PARA EDITAR LOJA (via StoreDescription) =====
+    const handleEditStore = () => {
+        router.push(`/${storeSlug}/editar-loja`)
+    }
+
+    // ===== VERIFICAÇÃO DE SLUG ÚNICO =====
+    useEffect(() => {
+        if (!storeSlugState || storeSlugState === storeSlug) {
+            setSlugStatus('idle')
+            return
+        }
+        const check = async () => {
+            setSlugStatus('checking')
+            const { data } = await supabase.from('stores').select('id').eq('storeSlug', storeSlugState).neq('id', store?.id).limit(1).maybeSingle()
+            setSlugStatus(data ? 'taken' : 'available')
+        }
+        const timer = setTimeout(check, 600)
+        return () => clearTimeout(timer)
+    }, [storeSlugState, storeSlug, store?.id])
+
+    // ===== SALVAR DESCRIÇÃO =====
+    const handleSaveDescription = async () => {
+        if (!store?.id || !name.trim() || !storeSlugState.trim()) {
+            toast.error('Preencha todos os campos obrigatórios')
+            return
+        }
+        if (slugStatus === 'taken') {
+            toast.error('O endereço da loja já está em uso')
+            return
+        }
+
+        setSavingDescription(true)
+
+        try {
+            let logoPath: string | undefined = undefined
+            if (imageFile) {
+                const fileExt = imageFile.name.split('.').pop()
+                const fileName = `${Date.now()}.${fileExt}`
+                const { data, error } = await supabase.storage.from('store-logos').upload(fileName, imageFile)
+                if (!error && data) logoPath = data.path
+            }
+
+            const updateData: any = {
+                name: name.trim(),
+                storeSlug: storeSlugState.trim(),
+                description: description.trim() || null,
+            }
+
+            if (logoPath) updateData.logo_url = logoPath
+
+            const { error } = await supabase
+                .from('stores')
+                .update(updateData)
+                .eq('id', store.id)
+
+            if (error) {
+                toast.error('Erro ao salvar: ' + error.message)
+                setSavingDescription(false)
+                return
+            }
+
+            toast.success('Informações da loja atualizadas!')
+
+            // Atualiza a store local
+            setStore((prev: any) => ({
+                ...prev,
+                ...updateData,
+                logo_url: logoPath ? supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl : prev.logo_url,
+            }))
+
+            // Limpa o arquivo de imagem
+            setImageFile(null)
+
+            if (logoPath) {
+                const newPreview = supabase.storage.from('store-logos').getPublicUrl(logoPath).data.publicUrl
+                setPreview(newPreview)
+            }
+
+            // Recarrega o dashboard
+            loadDashboard()
+
+        } catch (err: any) {
+            toast.error('Erro inesperado: ' + err.message)
+        } finally {
+            setSavingDescription(false)
+        }
+    }
+
+    // ===== CANCELAR EDIÇÃO DA DESCRIÇÃO =====
+    const handleCancelDescription = () => {
+        // Restaura os valores do store
+        if (store) {
+            setName(store.name || '')
+            setStoreSlugState(store.storeSlug || '')
+            setDescription(store.description || '')
+            setPreview(store.logo_url || null)
+        }
+        setImageFile(null)
+        setIsStoreDescriptionExpanded(false)
+        setSlugStatus('idle')
+    }
+
     const loadDashboard = useCallback(async () => {
         if (!storeSlug || !profileSlug) return
         setLoading(true)
@@ -118,6 +240,12 @@ export default function StoreDashboard({
 
         const logoUrl = storeData.logo_url ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl : null
         setStore({ ...storeData, logo_url: logoUrl })
+
+        // Atualiza os estados do StoreDescription
+        setName(storeData.name || '')
+        setStoreSlugState(storeData.storeSlug || '')
+        setDescription(storeData.description || '')
+        setPreview(logoUrl)
 
         const storeId = storeData.id
 
@@ -198,14 +326,14 @@ export default function StoreDashboard({
     const handleRefresh = () => { setRefreshing(true); loadDashboard().finally(() => setRefreshing(false)) }
 
     const goToPublicStore = () => {
-        if (profileSlug && storeSlug) {
-            router.push(`/${profileSlug}/${storeSlug}`)
+        if (storeSlug) {
+            router.push(`/${storeSlug}`)
         }
     }
 
     const copyStoreLink = () => {
-        if (profileSlug && storeSlug) {
-            const url = `${window.location.origin}/${profileSlug}/${storeSlug}`
+        if (storeSlug) {
+            const url = `${window.location.origin}/${storeSlug}`
             navigator.clipboard.writeText(url)
             toast.success('Link copiado!')
         }
@@ -281,37 +409,32 @@ export default function StoreDashboard({
                 </button>
             </div>
 
+            {/* ===== STORE DESCRIPTION COMPONENT ===== */}
+            <div className="mb-6 mt-4">
+                <StoreDescription
+                    name={name}
+                    storeSlug={storeSlugState}
+                    description={description}
+                    preview={preview}
+                    onNameChange={setName}
+                    onSlugChange={setStoreSlugState}
+                    onDescriptionChange={setDescription}
+                    onImageChange={(file) => setImageFile(file)}
+                    slugStatus={slugStatus}
+                    disabled={savingDescription}
+                    isExpanded={isStoreDescriptionExpanded}
+                    onToggleExpand={() => setIsStoreDescriptionExpanded(!isStoreDescriptionExpanded)}
+                    onSave={handleSaveDescription}
+                    onCancel={handleCancelDescription}
+                    saving={savingDescription}
+                />
+            </div>
+
             {/* ===== Botões da Loja ===== */}
             <div className="mb-6 mt-4">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <button
                         onClick={goToPublicStore}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <ExternalLink size={18} />
-                        Página da Loja
-                    </button>
-                    <button
-                        onClick={copyStoreLink}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Copy size={18} />
-                        Copiar Link
-                    </button>
-                    <button
-                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
                         style={{
                             ...pillButtonFullStyle,
                             background: GRADIENT,
@@ -320,9 +443,23 @@ export default function StoreDashboard({
                         }}
                         className="hover:scale-105 transition-transform"
                     >
-                        <Pencil size={18} />
-                        Editar Loja
+                        <Store size={18} />
+                        Ver minha Loja
                     </button>
+                    <button
+                        onClick={copyStoreLink}
+                        style={{
+                            ...pillButtonFullStyle,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
+                        }}
+                        className="hover:scale-105 transition-transform"
+                    >
+                        <Copy size={18} />
+                        Compartilhar Link
+                    </button>
+
                 </div>
             </div>
 
@@ -465,7 +602,7 @@ export default function StoreDashboard({
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                    onClick={() => router.push(`/${storeSlug}/criar-produto`)}
                                     style={{
                                         ...pillButtonStyle,
                                         background: GRADIENT,
@@ -490,7 +627,7 @@ export default function StoreDashboard({
                                         Nenhum produto cadastrado.
                                     </p>
                                     <button
-                                        onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
+                                        onClick={() => router.push(`/${storeSlug}/criar-produto`)}
                                         style={{
                                             ...pillButtonStyle,
                                             background: GRADIENT,
@@ -510,12 +647,12 @@ export default function StoreDashboard({
                                                 key={prod.id}
                                                 className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
                                                 style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                                onClick={() => router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}`)}
+                                                onClick={() => router.push(`/${storeSlug}/${prod.slug || prod.id}`)}
                                             >
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
-                                                        router.push(`/${profileSlug}/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
+                                                        router.push(`/${storeSlug}/${prod.slug || prod.id}/editar-produto`)
                                                     }}
                                                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
                                                     title="Editar produto"
@@ -590,33 +727,7 @@ export default function StoreDashboard({
             {/* ===== Visitantes ===== */}
             <StoreVisitors storeId={store.id} />
 
-            {/* ===== Ações rápidas ===== */}
-            <div className="grid grid-cols-2 gap-3 mt-4">
-                <button
-                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/editar-loja`)}
-                    style={{
-                        ...pillButtonFullStyle,
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                    className="hover:opacity-70 transition-opacity"
-                >
-                    <Settings size={18} /> Editar loja
-                </button>
-                <button
-                    onClick={() => router.push(`/${profileSlug}/${storeSlug}/criar-produto`)}
-                    style={{
-                        ...pillButtonFullStyle,
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                    className="hover:opacity-70 transition-opacity"
-                >
-                    <Plus size={18} /> Adicionar produto
-                </button>
-            </div>
+
         </div>
     )
 }

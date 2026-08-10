@@ -28,6 +28,7 @@ import {
     Send,
     Trash2,
     AlertCircle,
+    Info,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
@@ -118,6 +119,10 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
     const [showScheduleModal, setShowScheduleModal] = useState(false)
     const [storeWhatsapp, setStoreWhatsapp] = useState<string | null>(null)
     const [showClosedAlert, setShowClosedAlert] = useState(false)
+
+    // ===== MODAL DE DETALHES DO PRODUTO =====
+    const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
+    const [showProductModal, setShowProductModal] = useState(false)
 
     // States para Publicações
     const [isCreatingPublication, setIsCreatingPublication] = useState(false)
@@ -228,7 +233,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         (product: any) => {
             if (!owner) return
 
-            // VERIFICA SE A LOJA ESTÁ ABERTA ANTES DE ADICIONAR
             if (!isStoreOpen) {
                 setShowClosedAlert(true)
                 toast.error('🕐 Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
@@ -237,7 +241,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
             addItem(ownerSlug, { name: owner.name, logo_url: owner.avatar_url ?? null }, product)
         },
-        [owner, ownerSlug, addItem, isStoreOpen] // isStoreOpen está definido antes
+        [owner, ownerSlug, addItem, isStoreOpen]
     )
 
     const decreaseQuantity = useCallback(
@@ -460,10 +464,10 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
             return
         }
 
-        // VERIFICA SE A LOJA ESTÁ ABERTA ANTES DE ADICIONAR AO CARRINHO
+        // Se a loja estiver fechada, mostra o modal de detalhes
         if (!isStoreOpen) {
-            setShowClosedAlert(true)
-            toast.error('🕐 Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
+            setSelectedProduct(product)
+            setShowProductModal(true)
             return
         }
 
@@ -487,7 +491,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         setError(null)
 
         try {
-            // Buscar loja
             const { data: store, error: storeError } = await supabase
                 .from('stores')
                 .select('*')
@@ -500,7 +503,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                 return
             }
 
-            // Buscar ratings da loja
             const { data: ratingsData } = await supabase
                 .from('product_reviews')
                 .select('rating')
@@ -549,12 +551,10 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
             setImageUrl(logoUrl)
             setStoreWhatsapp(storeWhatsapp)
 
-            // Pegar usuário atual
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUserId(user?.id || null)
             setIsOwner(user?.id === store.owner_id)
 
-            // Buscar seguidores
             const { count: followers } = await supabase
                 .from('follows')
                 .select('*', { count: 'exact', head: true })
@@ -562,7 +562,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
             setFollowersCount(followers || 0)
 
-            // Verificar se está seguindo
             if (user) {
                 const { data: followData } = await supabase
                     .from('follows')
@@ -573,7 +572,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                 setIsFollowing(!!followData)
             }
 
-            // Buscar produtos
             const { data: productsData } = await supabase
                 .from('products')
                 .select('*')
@@ -589,10 +587,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
             }))
             setProducts(mappedProducts)
 
-            // Buscar publicações
             await loadPublications(store.id)
 
-            // Buscar ratings
             const { data: storeRatings } = await supabase
                 .from('product_reviews')
                 .select('id, rating, comment, is_anonymous, profile_id, created_at, products(name), profiles(id, name, avatar_url, "profileSlug")')
@@ -705,6 +701,13 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                 .animate-slide-down-alert {
                     animation: slideDownAlert 0.3s ease-out;
                 }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                .animate-fade-in {
+                    animation: fadeIn 0.2s ease-out;
+                }
             `}</style>
 
             {showScheduleModal && owner && (
@@ -722,6 +725,117 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                 loadStoreData()
                             }}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MODAL DE DETALHES DO PRODUTO ===== */}
+            {showProductModal && selectedProduct && (
+                <div
+                    className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                    onClick={() => setShowProductModal(false)}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl p-6 animate-fade-in max-h-[90vh] overflow-y-auto"
+                        style={{ background: colors.surface }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Detalhes do Produto
+                            </h3>
+                            <button
+                                onClick={() => setShowProductModal(false)}
+                                className="p-1 rounded-full hover:bg-black/5 transition"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Imagem */}
+                        <div className="w-full aspect-square rounded-xl overflow-hidden mb-4" style={{ background: colors.accentLight }}>
+                            {selectedProduct.image_url ? (
+                                <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: '#f97316' }}>
+                                    {selectedProduct.name?.charAt(0) || '?'}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Nome */}
+                        <h4 className="text-xl font-black" style={{ color: colors.textPrimary }}>
+                            {selectedProduct.name}
+                        </h4>
+
+                        {/* Preço */}
+                        <div className="mt-2">
+                            <span className="text-2xl font-extrabold" style={{ color: '#f97316' }}>
+                                R$ {(selectedProduct.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </span>
+                            {selectedProduct.price_type === 'hourly' && (
+                                <span className="text-sm ml-1 opacity-75" style={{ color: colors.textSecondary }}>/h</span>
+                            )}
+                        </div>
+
+                        {/* Descrição */}
+                        {selectedProduct.description && (
+                            <div className="mt-3 p-3 rounded-xl" style={{ background: `${colors.surface}66`, border: `1px solid ${colors.border}` }}>
+                                <p className="text-sm leading-relaxed" style={{ color: colors.textSecondary }}>
+                                    {selectedProduct.description}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Info adicional */}
+                        <div className="mt-4 space-y-2 text-xs" style={{ color: colors.textSecondary }}>
+                            {selectedProduct.category && (
+                                <div className="flex justify-between">
+                                    <span>Categoria</span>
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>{selectedProduct.category}</span>
+                                </div>
+                            )}
+                            {selectedProduct.type && (
+                                <div className="flex justify-between">
+                                    <span>Tipo</span>
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                        {selectedProduct.type === 'physical' ? 'Físico' :
+                                            selectedProduct.type === 'service' ? 'Serviço' : 'Digital'}
+                                    </span>
+                                </div>
+                            )}
+                            {selectedProduct.stock_quantity !== undefined && selectedProduct.stock_quantity !== null && (
+                                <div className="flex justify-between">
+                                    <span>Estoque</span>
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                        {selectedProduct.stock_quantity > 0 ? `${selectedProduct.stock_quantity} unidades` : 'Indisponível'}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Status da loja */}
+                        <div className="mt-4 p-3 rounded-xl text-center" style={{ background: 'rgba(239, 68, 68, 0.08)', border: `1px dashed #ef4444` }}>
+                            <AlertCircle size={16} style={{ color: '#ef4444' }} className="inline mr-2" />
+                            <span className="text-xs font-bold" style={{ color: '#ef4444' }}>
+                                Loja fechada no momento
+                            </span>
+                            {nextAvailable && (
+                                <span className="text-xs block mt-1" style={{ color: '#f97316' }}>
+                                    Abre {nextAvailable.day} às {nextAvailable.open}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Botão fechar */}
+                        <button
+                            onClick={() => setShowProductModal(false)}
+                            className="w-full mt-4 py-3 rounded-full font-black uppercase text-sm tracking-wider transition hover:scale-105 active:scale-95"
+                            style={{ background: GRADIENT, color: '#ffffff' }}
+                        >
+                            Fechar
+                        </button>
                     </div>
                 </div>
             )}
@@ -854,27 +968,22 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     {owner.allow_scheduling && (
                         <button
                             onClick={() => {
-                                if (!isStoreOpen) {
-                                    setShowClosedAlert(true)
-                                    toast.error('🕐 Loja fechada no momento. Não é possível agendar.')
-                                    return
-                                }
+                                // Permite abrir o agendamento mesmo com a loja fechada
                                 setShowScheduleModal(true)
                             }}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable && isStoreOpen ? 'animate-pulse-status' : ''}`}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''}`}
                             style={{
-                                background: isStoreOpen ? GRADIENT : colors.border,
-                                color: isStoreOpen ? '#ffffff' : colors.textSecondary,
-                                border: `1px solid ${isStoreOpen ? '#f97316' : colors.border}`,
-                                boxShadow: isStoreOpen ? `0 8px 18px #f9731650` : 'none',
-                                cursor: isStoreOpen ? 'pointer' : 'not-allowed',
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                border: `1px solid #f97316`,
+                                boxShadow: `0 8px 18px #f9731650`,
                             }}
                         >
                             <Calendar className="w-4 h-4" />
                             <span>
-                                {isStoreOpen
-                                    ? (nextAvailable ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}` : 'Agendar')
-                                    : 'Indisponível'}
+                                {nextAvailable
+                                    ? `Agendar · ${nextAvailable.day} ${nextAvailable.open}`
+                                    : 'Agendar'}
                             </span>
                         </button>
                     )}
@@ -923,7 +1032,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                             Loja fechada no momento
                         </p>
                         <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                            Não é possível adicionar produtos ao carrinho
+                            Clique em um produto para ver mais detalhes
                         </p>
                         {nextAvailable && (
                             <p className="text-[10px] font-bold mt-1" style={{ color: '#f97316' }}>
@@ -1063,13 +1172,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                             const hasImage = !!product.image_url
                                             const productIsDisabled = !isStoreOpen && !isOwner
 
-                                            const handleAddToCart = (e: React.MouseEvent) => {
+                                            const handleProductInteraction = (e: React.MouseEvent) => {
                                                 e.stopPropagation()
-                                                if (productIsDisabled) {
-                                                    setShowClosedAlert(true)
-                                                    toast.error('🕐 Loja fechada no momento. Não é possível adicionar ao carrinho.')
-                                                    return
-                                                }
                                                 handleProductClick(product)
                                             }
 
@@ -1078,7 +1182,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                     <div
                                                         key={product.id}
                                                         onClick={() => handleProductClick(product)}
-                                                        className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                        className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'cursor-pointer' : 'cursor-pointer'}`}
                                                         style={{
                                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                             borderColor: isSelected ? '#22c55e' : colors.border,
@@ -1146,12 +1250,11 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                     </div>
                                                                 ) : (
                                                                     <button
-                                                                        onClick={handleAddToCart}
+                                                                        onClick={handleProductInteraction}
                                                                         className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                        style={{ background: productIsDisabled ? colors.border : GRADIENT }}
-                                                                        disabled={productIsDisabled}
+                                                                        style={{ background: GRADIENT }}
                                                                     >
-                                                                        <Plus size={12} />
+                                                                        {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -1164,7 +1267,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                 <div
                                                     key={product.id}
                                                     onClick={() => handleProductClick(product)}
-                                                    className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                    className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer`}
                                                     style={{
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                         borderColor: isSelected ? '#22c55e' : colors.border,
@@ -1185,9 +1288,9 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                             </span>
                                                         )}
                                                         {productIsDisabled && (
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                                                                <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full" style={{ background: '#ef4444', color: '#fff' }}>
-                                                                    Fechado
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                                                                <span className="text-[8px] font-black uppercase px-2 py-1 rounded-full flex items-center gap-1" style={{ background: 'rgba(249, 115, 22, 0.9)', color: '#fff' }}>
+                                                                    <Info size={10} /> Ver detalhes
                                                                 </span>
                                                             </div>
                                                         )}
@@ -1254,12 +1357,11 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                 </div>
                                                             ) : (
                                                                 <button
-                                                                    onClick={handleAddToCart}
+                                                                    onClick={handleProductInteraction}
                                                                     className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                    style={{ background: productIsDisabled ? colors.border : GRADIENT }}
-                                                                    disabled={productIsDisabled}
+                                                                    style={{ background: GRADIENT }}
                                                                 >
-                                                                    <Plus size={12} />
+                                                                    {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1274,7 +1376,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* TAB PUBLICAÇÕES */}
+                {/* TAB PUBLICAÇÕES (mantido igual) */}
                 {activeTab === 'publications' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
@@ -1511,7 +1613,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* TAB AVALIAÇÕES */}
+                {/* TAB AVALIAÇÕES (mantido igual) */}
                 {activeTab === 'reviews' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
