@@ -23,7 +23,7 @@ import { OrderModal } from '../../components/OrderModal'
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#ffffffff', '#eab308']
+const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
 
 interface DeliveryStop {
     lat: number | null
@@ -660,12 +660,13 @@ export default function StoreOrders({
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
     // ===== CORES POR STATUS =====
+    // Removendo o verde dos pedidos finalizados
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'pending': return '#3b82f6'
             case 'preparing': return '#f59e0b'
             case 'ready': return '#8b5cf6'
-            case 'paid': return '#10b981'
+            case 'paid': return 'transparent' // Sem borda para finalizados
             default: return colors.accent
         }
     }
@@ -675,7 +676,7 @@ export default function StoreOrders({
             case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
             case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
             case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
-            case 'paid': return 'linear-gradient(135deg, #059669, #064e3b)'
+            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)' // Cinza para finalizados
             default: return GRADIENT
         }
     }
@@ -701,6 +702,7 @@ export default function StoreOrders({
     }
 
     // ===== COR DO CARD PAI BASEADA NO STATUS PREDOMINANTE =====
+    // APENAS PARA PENDING, PREPARING E READY
     const getCardStatus = useMemo(() => {
         if (groupedOrders.length === 0) return 'idle'
 
@@ -708,14 +710,12 @@ export default function StoreOrders({
             pending: groupedOrders.filter(o => o.status === 'pending').length,
             preparing: groupedOrders.filter(o => o.status === 'preparing').length,
             ready: groupedOrders.filter(o => o.status === 'ready').length,
-            paid: groupedOrders.filter(o => o.status === 'paid').length,
         }
 
-        // Prioridade: pending > preparing > ready > paid
+        // Prioridade: pending > preparing > ready
         if (counts.pending > 0) return 'pending'
         if (counts.preparing > 0) return 'preparing'
         if (counts.ready > 0) return 'ready'
-        if (counts.paid > 0) return 'paid'
         return 'idle'
     }, [groupedOrders])
 
@@ -724,7 +724,6 @@ export default function StoreOrders({
             case 'pending': return '#3b82f6'
             case 'preparing': return '#f59e0b'
             case 'ready': return '#8b5cf6'
-            case 'paid': return '#10b981'
             default: return 'transparent'
         }
     }, [getCardStatus])
@@ -947,6 +946,7 @@ export default function StoreOrders({
                                                     getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
+                                                    borderColor={colors.border}
                                                 />
                                             ))}
                                         </div>
@@ -973,6 +973,7 @@ export default function StoreOrders({
                                                     getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
+                                                    borderColor={colors.border}
                                                 />
                                             ))}
                                         </div>
@@ -999,6 +1000,7 @@ export default function StoreOrders({
                                                     getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
+                                                    borderColor={colors.border}
                                                 />
                                             ))}
                                         </div>
@@ -1007,7 +1009,7 @@ export default function StoreOrders({
 
                                 {finished.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#10b981' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#6b7280' }}>
                                             <Truck size={12} />
                                             Finalizados ({finished.length})
                                         </h4>
@@ -1025,6 +1027,7 @@ export default function StoreOrders({
                                                     getStatusIcon={getStatusIcon}
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
+                                                    borderColor={colors.border}
                                                 />
                                             ))}
                                         </div>
@@ -1139,6 +1142,7 @@ function OrderButton({
     getStatusIcon,
     formatAssignmentStatus,
     isInPerson,
+    borderColor, // <-- ADICIONADO: recebe a cor da borda do tema
 }: any) {
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
@@ -1151,30 +1155,38 @@ function OrderButton({
     // Função para abrir o modal de atribuição sem causar erro de botão aninhado
     const handleAssignClick = (e: React.MouseEvent) => {
         e.stopPropagation()
-        // Previne o evento de propagação para o botão pai
         e.preventDefault()
         setSingleAssignOpen({ order })
     }
 
+    // Se o pedido for finalizado, remove a borda e o shimmer
+    const isPaid = order.status === 'paid'
+
     return (
         <div
-            className="w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform cursor-pointer"
+            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
             style={{
                 background: statusGradient,
                 color: '#ffffff',
-                boxShadow: `0 4px 16px ${statusColor}40`,
-                border: `2px solid ${statusColor}`,
+                boxShadow: isPaid ? 'none' : `0 4px 16px ${statusColor}40`,
+                border: isPaid ? `1px solid ${borderColor}` : `2px solid ${statusColor}`,
             }}
-            onClick={() => setSelectedOrder(order)}
+            onClick={() => {
+                if (!isPaid) {
+                    setSelectedOrder(order)
+                }
+            }}
         >
-            {/* Efeito shimmer na borda - mais sutil */}
-            <div className="absolute inset-0 pointer-events-none opacity-30">
-                <div className="absolute inset-[-2px] rounded-full" style={{
-                    background: `linear-gradient(90deg, transparent, ${statusColor}66, transparent)`,
-                    animation: 'shimmer-order 4s ease-in-out infinite',
-                    transform: 'translateX(-100%)',
-                }} />
-            </div>
+            {/* Efeito shimmer na borda - apenas para pedidos não finalizados */}
+            {!isPaid && (
+                <div className="absolute inset-0 pointer-events-none opacity-30">
+                    <div className="absolute inset-[-2px] rounded-full" style={{
+                        background: `linear-gradient(90deg, transparent, ${statusColor}66, transparent)`,
+                        animation: 'shimmer-order 4s ease-in-out infinite',
+                        transform: 'translateX(-100%)',
+                    }} />
+                </div>
+            )}
 
             <div className="flex items-center justify-between px-5 py-4 relative z-10">
                 <div className="flex flex-col items-start min-w-0 flex-1">
@@ -1201,6 +1213,17 @@ function OrderButton({
                         >
                             {channelLabel}
                         </span>
+                        {isPaid && (
+                            <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                                style={{
+                                    background: 'rgba(255,255,255,0.15)',
+                                    color: '#ffffff',
+                                }}
+                            >
+                                ✅ Finalizado
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-3 text-xs mt-1 flex-wrap">
                         <span className="text-white/90 font-bold">
@@ -1231,7 +1254,7 @@ function OrderButton({
                         <StatusIcon size={12} />
                         {statusLabel}
                     </span>
-                    {!isInPerson && (
+                    {!isInPerson && !isPaid && (
                         <button
                             onClick={handleAssignClick}
                             className="p-2 rounded-full transition-all duration-200 hover:bg-white/20 active:scale-90 flex-shrink-0"

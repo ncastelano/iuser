@@ -11,7 +11,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://iuser.com.br'),
-  title: 'iUser | Catálogo Digital Inteligente',
+  title: 'iUser | Mostre o que você tem de melhor!',
   description: 'Os melhores produtos e serviços, você encontra aqui!',
   verification: {
     google: 'lUgD-IyItAD8DLPH6GiHQxOcIXArO5WVoqV-yAZFXQk',
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   manifest: '/manifest.json',
   openGraph: {
-    title: 'iUser | Catálogo Digital Inteligente',
+    title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Os melhores produtos e serviços, você encontra aqui!',
     url: 'https://iuser.com.br',
     siteName: 'iuser.com.br',
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'iUser | Catálogo Digital Inteligente',
+    title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Os melhores produtos e serviços, você encontra aqui!',
     images: ['/logo.png'],
   }
