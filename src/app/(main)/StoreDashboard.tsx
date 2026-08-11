@@ -107,6 +107,7 @@ export default function StoreDashboard({
     const [name, setName] = useState('')
     const [storeSlugState, setStoreSlugState] = useState('')
     const [description, setDescription] = useState('')
+    const [category, setCategory] = useState('') // <-- ADICIONADO
     const [preview, setPreview] = useState<string | null>(null)
     const [imageFile, setImageFile] = useState<File | null>(null)
     const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
@@ -175,6 +176,7 @@ export default function StoreDashboard({
                 name: name.trim(),
                 storeSlug: storeSlugState.trim(),
                 description: description.trim() || null,
+                category: category || null, // <-- ADICIONADO
             }
 
             if (logoPath) updateData.logo_url = logoPath
@@ -224,6 +226,7 @@ export default function StoreDashboard({
             setName(store.name || '')
             setStoreSlugState(store.storeSlug || '')
             setDescription(store.description || '')
+            setCategory(store.category || '') // <-- ADICIONADO
             setPreview(store.logo_url || null)
         }
         setImageFile(null)
@@ -245,6 +248,7 @@ export default function StoreDashboard({
         setName(storeData.name || '')
         setStoreSlugState(storeData.storeSlug || '')
         setDescription(storeData.description || '')
+        setCategory(storeData.category || '') // <-- ADICIONADO
         setPreview(logoUrl)
 
         const storeId = storeData.id
@@ -375,22 +379,26 @@ export default function StoreDashboard({
                 </div>
             )}
 
-            {/* ===== STORE OPERATING DAYS NO TOPO (SUBSTITUINDO O HEADER ANTIGO) ===== */}
+            {/* ===== STORE OPERATING DAYS NO TOPO ===== */}
             <div className="mb-4">
                 <StoreOperatingDays storeId={store.id} />
             </div>
 
             {/* ===== STORE DESCRIPTION COMPONENT ===== */}
             <div className="mb-6">
+                // app/(main)/StoreDashboard.tsx - PARTE CORRIGIDA
+
                 <StoreDescription
                     name={name}
                     storeSlug={storeSlugState}
                     description={description}
                     preview={preview}
+                    category={category}
                     onNameChange={setName}
                     onSlugChange={setStoreSlugState}
                     onDescriptionChange={setDescription}
-                    onImageChange={(file) => setImageFile(file)}
+                    onCategoryChange={(cat: string) => setCategory(cat)}
+                    onImageChange={(file: File) => setImageFile(file)}
                     slugStatus={slugStatus}
                     disabled={savingDescription}
                     isExpanded={isStoreDescriptionExpanded}
