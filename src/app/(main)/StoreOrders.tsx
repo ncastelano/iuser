@@ -804,9 +804,6 @@ export default function StoreOrders({
         }
     }, [groupedOrders, colors.border, colors.textSecondary, surfaceRgb.r, surfaceRgb.g, surfaceRgb.b])
 
-    // ===== COR DO ÍCONE DE REFRESH =====
-    const refreshIconColor = isAutoRefreshing ? '#22c55e' : colors.textSecondary
-
     return (
         <>
             <div
@@ -862,7 +859,7 @@ export default function StoreOrders({
                     </div>
                 )}
 
-                {/* Cabeçalho com toggle */}
+                {/* Cabeçalho com toggle - SEM O BOTÃO DE REFRESH VISÍVEL */}
                 <div
                     className="w-full flex items-center justify-between text-left relative z-10"
                     style={{
@@ -894,21 +891,72 @@ export default function StoreOrders({
                                 <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                     Pedidos na loja
                                 </h3>
-                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#3b82f6' }}>{newOrders.length}</span> pendentes
+                                {/* ===== CONTAGEM EM PILLS COM GLASSMORPHISM ===== */}
+                                <div className="flex items-center gap-2 text-xs mt-0.5">
+                                    {/* Pendentes - Azul */}
+                                    <span
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
+                                        style={{
+                                            background: 'rgba(59, 130, 246, 0.15)',
+                                            backdropFilter: 'blur(8px)',
+                                            WebkitBackdropFilter: 'blur(8px)',
+                                            border: '1px solid rgba(59, 130, 246, 0.2)',
+                                            color: '#3b82f6',
+                                        }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                        {newOrders.length}
                                     </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#f59e0b' }}>{preparing.length}</span> preparo
+
+                                    <span style={{ color: colors.textSecondary }}>•</span>
+
+                                    {/* Preparo - Amarelo */}
+                                    <span
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
+                                        style={{
+                                            background: 'rgba(245, 158, 11, 0.15)',
+                                            backdropFilter: 'blur(8px)',
+                                            WebkitBackdropFilter: 'blur(8px)',
+                                            border: '1px solid rgba(245, 158, 11, 0.2)',
+                                            color: '#f59e0b',
+                                        }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                                        {preparing.length}
                                     </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#8b5cf6' }}>{ready.length}</span> prontos
+
+                                    <span style={{ color: colors.textSecondary }}>•</span>
+
+                                    {/* Prontos - Roxo */}
+                                    <span
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
+                                        style={{
+                                            background: 'rgba(139, 92, 246, 0.15)',
+                                            backdropFilter: 'blur(8px)',
+                                            WebkitBackdropFilter: 'blur(8px)',
+                                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                                            color: '#8b5cf6',
+                                        }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                        {ready.length}
                                     </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#6b7280' }}>{finished.length}</span> finalizados
+
+                                    <span style={{ color: colors.textSecondary }}>•</span>
+
+                                    {/* Finalizados - Cinza */}
+                                    <span
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
+                                        style={{
+                                            background: 'rgba(107, 114, 128, 0.15)',
+                                            backdropFilter: 'blur(8px)',
+                                            WebkitBackdropFilter: 'blur(8px)',
+                                            border: '1px solid rgba(107, 114, 128, 0.2)',
+                                            color: '#6b7280',
+                                        }}
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                                        {finished.length}
                                     </span>
                                 </div>
                             </div>
@@ -933,27 +981,7 @@ export default function StoreOrders({
                         </div>
                     </button>
 
-                    {/* Botão de refresh SEPARADO */}
-                    <button
-                        onClick={handleRefresh}
-                        className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
-                        title="Atualizar"
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                        }}
-                    >
-                        <RefreshCw
-                            size={16}
-                            className={isAutoRefreshing ? 'animate-spin-smooth' : ''}
-                            style={{
-                                color: refreshIconColor,
-                                transition: 'color 0.3s ease'
-                            }}
-                        />
-                    </button>
+                    {/* Botão de refresh REMOVIDO (invisível) - mantém a função de atualização automática */}
                 </div>
 
                 {isOrdersExpanded && (
