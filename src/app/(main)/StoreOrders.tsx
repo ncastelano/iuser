@@ -660,14 +660,13 @@ export default function StoreOrders({
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
     // ===== CORES POR STATUS =====
-    // Removendo o verde dos pedidos finalizados
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'pending': return '#3b82f6'
             case 'preparing': return '#f59e0b'
             case 'ready': return '#8b5cf6'
-            case 'paid': return 'transparent' // Sem borda para finalizados
-            default: return colors.accent
+            case 'paid': return 'transparent'
+            default: return '#6b7280'
         }
     }
 
@@ -676,7 +675,7 @@ export default function StoreOrders({
             case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
             case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
             case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
-            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)' // Cinza para finalizados
+            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
             default: return GRADIENT
         }
     }
@@ -701,37 +700,25 @@ export default function StoreOrders({
         }
     }
 
-    // ===== COR DO CARD PAI BASEADA NO STATUS PREDOMINANTE =====
-    // APENAS PARA PENDING, PREPARING E READY
-    const getCardStatus = useMemo(() => {
-        if (groupedOrders.length === 0) return 'idle'
-
-        const counts = {
-            pending: groupedOrders.filter(o => o.status === 'pending').length,
-            preparing: groupedOrders.filter(o => o.status === 'preparing').length,
-            ready: groupedOrders.filter(o => o.status === 'ready').length,
-        }
+    // ===== COR DO CARD PAI - PRIORIDADE: PENDING > PREPARING > READY =====
+    const cardStatusColor = useMemo(() => {
+        // Verifica se há pedidos com status ativo (prioridade)
+        const hasPending = groupedOrders.some(o => o.status === 'pending')
+        const hasPreparing = groupedOrders.some(o => o.status === 'preparing')
+        const hasReady = groupedOrders.some(o => o.status === 'ready')
 
         // Prioridade: pending > preparing > ready
-        if (counts.pending > 0) return 'pending'
-        if (counts.preparing > 0) return 'preparing'
-        if (counts.ready > 0) return 'ready'
-        return 'idle'
+        if (hasPending) return '#3b82f6'   // Azul
+        if (hasPreparing) return '#f59e0b' // Amarelo
+        if (hasReady) return '#8b5cf6'     // Roxo
+        return 'transparent'
     }, [groupedOrders])
 
-    const cardStatusColor = useMemo(() => {
-        switch (getCardStatus) {
-            case 'pending': return '#3b82f6'
-            case 'preparing': return '#f59e0b'
-            case 'ready': return '#8b5cf6'
-            default: return 'transparent'
-        }
-    }, [getCardStatus])
-
+    // ===== GLOW E BORDA DO CARD PAI =====
     const cardGlow = useMemo(() => {
-        if (cardStatusColor === 'transparent') return colors.shadow
+        if (cardStatusColor === 'transparent') return 'none'
         return `0 0 20px ${cardStatusColor}30, 0 0 40px ${cardStatusColor}15`
-    }, [cardStatusColor, colors.shadow])
+    }, [cardStatusColor])
 
     const cardBorder = useMemo(() => {
         if (cardStatusColor === 'transparent') return `1px solid ${colors.border}`
@@ -838,7 +825,7 @@ export default function StoreOrders({
                                     </span>
                                     <span>•</span>
                                     <span>
-                                        <span className="font-bold" style={{ color: '#10b981' }}>{finished.length}</span> finalizados
+                                        <span className="font-bold" style={{ color: '#6b7280' }}>{finished.length}</span> finalizados
                                     </span>
                                 </div>
                             </div>
@@ -1142,7 +1129,7 @@ function OrderButton({
     getStatusIcon,
     formatAssignmentStatus,
     isInPerson,
-    borderColor, // <-- ADICIONADO: recebe a cor da borda do tema
+    borderColor,
 }: any) {
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
@@ -1152,19 +1139,17 @@ function OrderButton({
     const assignment = isAssigned ? assignmentMap.get(order.checkout_id) : null
     const statusLabel = getStatusLabel(order.status)
 
-    // Função para abrir o modal de atribuição sem causar erro de botão aninhado
     const handleAssignClick = (e: React.MouseEvent) => {
         e.stopPropagation()
         e.preventDefault()
         setSingleAssignOpen({ order })
     }
 
-    // Se o pedido for finalizado, remove a borda e o shimmer
     const isPaid = order.status === 'paid'
 
     return (
         <div
-            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-60 cursor-default' : 'cursor-pointer'}`}
+            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-60' : 'cursor-pointer'}`}
             style={{
                 background: statusGradient,
                 color: '#ffffff',
@@ -1172,12 +1157,9 @@ function OrderButton({
                 border: isPaid ? `1px solid ${borderColor}` : `2px solid ${statusColor}`,
             }}
             onClick={() => {
-                if (!isPaid) {
-                    setSelectedOrder(order)
-                }
+                setSelectedOrder(order)
             }}
         >
-            {/* Efeito shimmer na borda - apenas para pedidos não finalizados */}
             {!isPaid && (
                 <div className="absolute inset-0 pointer-events-none opacity-30">
                     <div className="absolute inset-[-2px] rounded-full" style={{
@@ -1254,7 +1236,7 @@ function OrderButton({
                         <StatusIcon size={12} />
                         {statusLabel}
                     </span>
-                    {!isInPerson && !isPaid && (
+                    {!isInPerson && (
                         <button
                             onClick={handleAssignClick}
                             className="p-2 rounded-full transition-all duration-200 hover:bg-white/20 active:scale-90 flex-shrink-0"
