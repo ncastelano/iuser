@@ -650,14 +650,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                     <div className="flex items-center gap-2 mb-3">
                         <Store size={16} style={{ color: '#f97316' }} />
                         <h3 className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textPrimary }}>
-                            Lojas
+                            Minhas Lojas
                         </h3>
                     </div>
                     <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory">
                         {stores.map((store) => (
                             <button
                                 key={store.id}
-                                onClick={() => router.push(`/${ownerSlug}/${store.storeSlug}`)}
+                                onClick={() => router.push(`/${store.storeSlug}`)}
                                 className="flex-shrink-0 w-[100px] snap-start rounded-xl p-3 flex flex-col items-center gap-2 hover:scale-105 transition-transform"
                                 style={{
                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,

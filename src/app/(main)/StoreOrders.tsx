@@ -659,44 +659,145 @@ export default function StoreOrders({
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // ===== LÓGICA DE CORES DO CARD PRINCIPAL =====
-    // Verifica a prioridade: pending > preparing > ready
-    const cardStatusColor = useMemo(() => {
-        const hasPending = groupedOrders.some(o => o.status === 'pending')
-        const hasPreparing = groupedOrders.some(o => o.status === 'preparing')
-        const hasReady = groupedOrders.some(o => o.status === 'ready')
-        const hasFinished = groupedOrders.some(o => o.status === 'paid')
+    // ===== CORES DOS PEDIDOS INDIVIDUAIS =====
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'pending': return '#3b82f6'
+            case 'preparing': return '#f59e0b'
+            case 'ready': return '#8b5cf6'
+            case 'paid': return 'transparent'
+            default: return '#6b7280'
+        }
+    }
 
-        // Se só tem finalizados, borda branca
-        if (hasFinished && !hasPending && !hasPreparing && !hasReady) {
-            return '#ffffff'
+    const getStatusGradient = (status: string) => {
+        switch (status) {
+            case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
+            case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
+            case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
+            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
+            default: return GRADIENT
+        }
+    }
+
+    const getStatusLabel = (status: string) => {
+        switch (status) {
+            case 'pending': return 'Pendente'
+            case 'preparing': return 'Preparando'
+            case 'ready': return 'Pronto'
+            case 'paid': return 'Finalizado'
+            default: return status
+        }
+    }
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'pending': return Clock
+            case 'preparing': return Package
+            case 'ready': return CheckCircle
+            case 'paid': return Truck
+            default: return Clock
+        }
+    }
+
+    // ===== ESTADO VISUAL DO CARD "PEDIDOS NA LOJA" =====
+    const cardState = useMemo(() => {
+        const hasPending = groupedOrders.some(order => order.status === 'pending')
+        const hasPreparing = groupedOrders.some(order => order.status === 'preparing')
+        const hasReady = groupedOrders.some(order => order.status === 'ready')
+        const onlyFinished = groupedOrders.length > 0 && groupedOrders.every(order => order.status === 'paid')
+
+        if (hasPending) {
+            return {
+                border: '2px solid #3b82f6',
+                shadow: '0 0 20px #3b82f650, 0 0 40px #3b82f625',
+                hasAnimation: true,
+                animationName: 'borderPulseBlue',
+                badgeBackground: '#3b82f630',
+                badgeColor: '#3b82f6',
+                animationKeyframes: `
+                    @keyframes borderPulseBlue {
+                        0%, 100% { 
+                            box-shadow: 0 0 20px #3b82f650, 0 0 40px #3b82f625;
+                            border-color: #3b82f6;
+                        }
+                        50% { 
+                            box-shadow: 0 0 30px #3b82f660, 0 0 60px #3b82f630;
+                            border-color: #3b82f6dd;
+                        }
+                    }
+                `,
+            }
         }
 
-        // Prioridade: pending > preparing > ready
-        if (hasPending) return '#3b82f6'   // Azul
-        if (hasPreparing) return '#f59e0b' // Amarelo
-        if (hasReady) return '#8b5cf6'     // Roxo
+        if (hasPreparing) {
+            return {
+                border: '2px solid #f59e0b',
+                shadow: '0 0 20px #f59e0b50, 0 0 40px #f59e0b25',
+                hasAnimation: true,
+                animationName: 'borderPulseYellow',
+                badgeBackground: '#f59e0b30',
+                badgeColor: '#f59e0b',
+                animationKeyframes: `
+                    @keyframes borderPulseYellow {
+                        0%, 100% { 
+                            box-shadow: 0 0 20px #f59e0b50, 0 0 40px #f59e0b25;
+                            border-color: #f59e0b;
+                        }
+                        50% { 
+                            box-shadow: 0 0 30px #f59e0b60, 0 0 60px #f59e0b30;
+                            border-color: #f59e0bdd;
+                        }
+                    }
+                `,
+            }
+        }
 
-        return 'transparent'
-    }, [groupedOrders])
+        if (hasReady) {
+            return {
+                border: '2px solid #8b5cf6',
+                shadow: '0 0 20px #8b5cf650, 0 0 40px #8b5cf625',
+                hasAnimation: true,
+                animationName: 'borderPulsePurple',
+                badgeBackground: '#8b5cf630',
+                badgeColor: '#8b5cf6',
+                animationKeyframes: `
+                    @keyframes borderPulsePurple {
+                        0%, 100% { 
+                            box-shadow: 0 0 20px #8b5cf650, 0 0 40px #8b5cf625;
+                            border-color: #8b5cf6;
+                        }
+                        50% { 
+                            box-shadow: 0 0 30px #8b5cf660, 0 0 60px #8b5cf630;
+                            border-color: #8b5cf6dd;
+                        }
+                    }
+                `,
+            }
+        }
 
-    // ===== GLOW E BORDA DO CARD PAI =====
-    const cardGlow = useMemo(() => {
-        if (cardStatusColor === 'transparent') return 'none'
-        if (cardStatusColor === '#ffffff') return `0 0 20px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)`
-        return `0 0 20px ${cardStatusColor}30, 0 0 40px ${cardStatusColor}15`
-    }, [cardStatusColor])
+        if (onlyFinished) {
+            return {
+                border: '2px solid rgba(255,255,255,0.3)',
+                shadow: '0 0 20px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)',
+                hasAnimation: false,
+                animationName: '',
+                badgeBackground: 'rgba(255,255,255,0.12)',
+                badgeColor: '#ffffff',
+                animationKeyframes: '',
+            }
+        }
 
-    const cardBorder = useMemo(() => {
-        if (cardStatusColor === 'transparent') return `1px solid ${colors.border}`
-        if (cardStatusColor === '#ffffff') return `1px solid rgba(255,255,255,0.3)`
-        return `2px solid ${cardStatusColor}`
-    }, [cardStatusColor, colors.border])
-
-    const cardAnimation = useMemo(() => {
-        if (cardStatusColor === 'transparent' || cardStatusColor === '#ffffff') return 'none'
-        return 'borderPulse 2s ease-in-out infinite'
-    }, [cardStatusColor])
+        return {
+            border: `1px solid ${colors.border}`,
+            shadow: 'none',
+            hasAnimation: false,
+            animationName: '',
+            badgeBackground: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.35)`,
+            badgeColor: colors.textSecondary,
+            animationKeyframes: '',
+        }
+    }, [groupedOrders, colors.border, colors.textSecondary, surfaceRgb.r, surfaceRgb.g, surfaceRgb.b])
 
     // ===== COR DO ÍCONE DE REFRESH =====
     const refreshIconColor = isAutoRefreshing ? '#22c55e' : colors.textSecondary
@@ -709,23 +810,13 @@ export default function StoreOrders({
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
                     WebkitBackdropFilter: 'blur(12px)',
-                    border: cardBorder,
-                    boxShadow: cardGlow,
-                    animation: cardAnimation,
+                    border: cardState.border,
+                    boxShadow: cardState.shadow,
                     transition: 'all 0.5s ease',
+                    animation: cardState.hasAnimation ? `${cardState.animationName} 2s ease-in-out infinite` : 'none',
                 }}
             >
                 <style>{`
-                    @keyframes borderPulse {
-                        0%, 100% { 
-                            box-shadow: ${cardGlow};
-                            border-color: ${cardStatusColor};
-                        }
-                        50% { 
-                            box-shadow: 0 0 30px ${cardStatusColor}60, 0 0 60px ${cardStatusColor}30;
-                            border-color: ${cardStatusColor}dd;
-                        }
-                    }
                     @keyframes pulse-order {
                         0%, 100% { 
                             transform: scale(1);
@@ -745,6 +836,7 @@ export default function StoreOrders({
                     .animate-spin-smooth {
                         animation: spin-smooth 0.8s linear infinite;
                     }
+                    ${cardState.animationKeyframes}
                 `}</style>
 
                 {/* Cabeçalho com toggle */}
@@ -803,14 +895,8 @@ export default function StoreOrders({
                                 <span
                                     className="text-xs font-bold px-2 py-0.5 rounded-full"
                                     style={{
-                                        background: cardStatusColor !== 'transparent' && cardStatusColor !== '#ffffff'
-                                            ? `${cardStatusColor}30`
-                                            : '#f9731620',
-                                        color: cardStatusColor !== 'transparent' && cardStatusColor !== '#ffffff'
-                                            ? cardStatusColor
-                                            : cardStatusColor === '#ffffff'
-                                                ? '#ffffff'
-                                                : '#f97316'
+                                        background: cardState.badgeBackground,
+                                        color: cardState.badgeColor
                                     }}
                                 >
                                     {groupedOrders.length}
@@ -1085,47 +1171,6 @@ export default function StoreOrders({
             )}
         </>
     )
-}
-
-// ===== FUNÇÕES DE COR PARA OS BOTÕES DE PEDIDO =====
-function getStatusColor(status: string) {
-    switch (status) {
-        case 'pending': return '#3b82f6'
-        case 'preparing': return '#f59e0b'
-        case 'ready': return '#8b5cf6'
-        case 'paid': return '#6b7280'
-        default: return '#6b7280'
-    }
-}
-
-function getStatusGradient(status: string) {
-    switch (status) {
-        case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
-        case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
-        case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
-        case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
-        default: return GRADIENT
-    }
-}
-
-function getStatusLabel(status: string) {
-    switch (status) {
-        case 'pending': return 'Pendente'
-        case 'preparing': return 'Preparando'
-        case 'ready': return 'Pronto'
-        case 'paid': return 'Finalizado'
-        default: return status
-    }
-}
-
-function getStatusIcon(status: string) {
-    switch (status) {
-        case 'pending': return Clock
-        case 'preparing': return Package
-        case 'ready': return CheckCircle
-        case 'paid': return Truck
-        default: return Clock
-    }
 }
 
 // ===== COMPONENTE ORDER BUTTON SEPARADO =====
