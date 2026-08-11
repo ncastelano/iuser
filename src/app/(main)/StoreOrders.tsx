@@ -659,74 +659,42 @@ export default function StoreOrders({
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // ===== CORES POR STATUS =====
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'pending': return '#3b82f6'
-            case 'preparing': return '#f59e0b'
-            case 'ready': return '#8b5cf6'
-            case 'paid': return 'transparent'
-            default: return '#6b7280'
-        }
-    }
-
-    const getStatusGradient = (status: string) => {
-        switch (status) {
-            case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
-            case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
-            case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
-            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
-            default: return GRADIENT
-        }
-    }
-
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'pending': return 'Pendente'
-            case 'preparing': return 'Preparando'
-            case 'ready': return 'Pronto'
-            case 'paid': return 'Finalizado'
-            default: return status
-        }
-    }
-
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case 'pending': return Clock
-            case 'preparing': return Package
-            case 'ready': return CheckCircle
-            case 'paid': return Truck
-            default: return Clock
-        }
-    }
-
-    // ===== COR DO CARD PAI - PRIORIDADE: PENDING > PREPARING > READY =====
+    // ===== LÓGICA DE CORES DO CARD PRINCIPAL =====
+    // Verifica a prioridade: pending > preparing > ready
     const cardStatusColor = useMemo(() => {
-        // Verifica se há pedidos com status ativo (prioridade)
         const hasPending = groupedOrders.some(o => o.status === 'pending')
         const hasPreparing = groupedOrders.some(o => o.status === 'preparing')
         const hasReady = groupedOrders.some(o => o.status === 'ready')
+        const hasFinished = groupedOrders.some(o => o.status === 'paid')
+
+        // Se só tem finalizados, borda branca
+        if (hasFinished && !hasPending && !hasPreparing && !hasReady) {
+            return '#ffffff'
+        }
 
         // Prioridade: pending > preparing > ready
         if (hasPending) return '#3b82f6'   // Azul
         if (hasPreparing) return '#f59e0b' // Amarelo
         if (hasReady) return '#8b5cf6'     // Roxo
+
         return 'transparent'
     }, [groupedOrders])
 
     // ===== GLOW E BORDA DO CARD PAI =====
     const cardGlow = useMemo(() => {
         if (cardStatusColor === 'transparent') return 'none'
+        if (cardStatusColor === '#ffffff') return `0 0 20px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)`
         return `0 0 20px ${cardStatusColor}30, 0 0 40px ${cardStatusColor}15`
     }, [cardStatusColor])
 
     const cardBorder = useMemo(() => {
         if (cardStatusColor === 'transparent') return `1px solid ${colors.border}`
+        if (cardStatusColor === '#ffffff') return `1px solid rgba(255,255,255,0.3)`
         return `2px solid ${cardStatusColor}`
     }, [cardStatusColor, colors.border])
 
     const cardAnimation = useMemo(() => {
-        if (cardStatusColor === 'transparent') return 'none'
+        if (cardStatusColor === 'transparent' || cardStatusColor === '#ffffff') return 'none'
         return 'borderPulse 2s ease-in-out infinite'
     }, [cardStatusColor])
 
@@ -835,12 +803,14 @@ export default function StoreOrders({
                                 <span
                                     className="text-xs font-bold px-2 py-0.5 rounded-full"
                                     style={{
-                                        background: cardStatusColor !== 'transparent'
+                                        background: cardStatusColor !== 'transparent' && cardStatusColor !== '#ffffff'
                                             ? `${cardStatusColor}30`
                                             : '#f9731620',
-                                        color: cardStatusColor !== 'transparent'
+                                        color: cardStatusColor !== 'transparent' && cardStatusColor !== '#ffffff'
                                             ? cardStatusColor
-                                            : '#f97316'
+                                            : cardStatusColor === '#ffffff'
+                                                ? '#ffffff'
+                                                : '#f97316'
                                     }}
                                 >
                                     {groupedOrders.length}
@@ -1115,6 +1085,47 @@ export default function StoreOrders({
             )}
         </>
     )
+}
+
+// ===== FUNÇÕES DE COR PARA OS BOTÕES DE PEDIDO =====
+function getStatusColor(status: string) {
+    switch (status) {
+        case 'pending': return '#3b82f6'
+        case 'preparing': return '#f59e0b'
+        case 'ready': return '#8b5cf6'
+        case 'paid': return '#6b7280'
+        default: return '#6b7280'
+    }
+}
+
+function getStatusGradient(status: string) {
+    switch (status) {
+        case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
+        case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
+        case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
+        case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
+        default: return GRADIENT
+    }
+}
+
+function getStatusLabel(status: string) {
+    switch (status) {
+        case 'pending': return 'Pendente'
+        case 'preparing': return 'Preparando'
+        case 'ready': return 'Pronto'
+        case 'paid': return 'Finalizado'
+        default: return status
+    }
+}
+
+function getStatusIcon(status: string) {
+    switch (status) {
+        case 'pending': return Clock
+        case 'preparing': return Package
+        case 'ready': return CheckCircle
+        case 'paid': return Truck
+        default: return Clock
+    }
 }
 
 // ===== COMPONENTE ORDER BUTTON SEPARADO =====
