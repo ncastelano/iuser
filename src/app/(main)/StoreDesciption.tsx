@@ -2,9 +2,10 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle } from 'lucide-react'
+import { Camera, Store, Link, ChevronDown, ChevronUp, ImageIcon, AlertCircle, Tag, CheckCircle2 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
+import { categorias } from '@/lib/categorias'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -30,15 +31,20 @@ function hexToRgb(hex: string) {
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
+// Filtra as categorias para remover "Social" (lojas não podem ser sociais)
+const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social')
+
 interface StoreDescriptionProps {
     name: string
     storeSlug: string
     description: string
     preview: string | null
+    category?: string | null
     onNameChange: (value: string) => void
     onSlugChange: (value: string) => void
     onDescriptionChange: (value: string) => void
     onImageChange: (file: File) => void
+    onCategoryChange?: (category: string) => void
     slugStatus: 'idle' | 'checking' | 'available' | 'taken'
     disabled?: boolean
     isExpanded?: boolean
@@ -53,10 +59,12 @@ export function StoreDescription({
     storeSlug,
     description,
     preview,
+    category = '',
     onNameChange,
     onSlugChange,
     onDescriptionChange,
     onImageChange,
+    onCategoryChange,
     slugStatus,
     disabled = false,
     isExpanded: externalExpanded,
@@ -71,6 +79,18 @@ export function StoreDescription({
 
     // Estado interno para controle de expansão (caso não seja controlado externamente)
     const [internalExpanded, setInternalExpanded] = useState(false)
+    const [selectedCategorySlug, setSelectedCategorySlug] = useState('')
+
+    // Inicializa a categoria selecionada
+    useEffect(() => {
+        if (category) {
+            // Tenta encontrar a categoria pelo nome
+            const found = CATEGORIAS_LOJAS.find(c => c.nome === category)
+            if (found) {
+                setSelectedCategorySlug(found.slug)
+            }
+        }
+    }, [category])
 
     // Usa o estado externo se fornecido, senão usa o interno
     const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded
@@ -101,6 +121,14 @@ export function StoreDescription({
         }
     }
 
+    const handleCategorySelect = (slug: string) => {
+        setSelectedCategorySlug(slug)
+        if (onCategoryChange) {
+            const cat = CATEGORIAS_LOJAS.find(c => c.slug === slug)
+            onCategoryChange(cat?.nome || slug)
+        }
+    }
+
     const getSlugStatusText = () => {
         switch (slugStatus) {
             case 'checking':
@@ -115,9 +143,7 @@ export function StoreDescription({
     }
 
     const status = getSlugStatusText()
-
-    // Verifica se há alterações para habilitar o botão salvar
-    const hasChanges = true // Será controlado pelo componente pai
+    const selectedCategory = CATEGORIAS_LOJAS.find(c => c.slug === selectedCategorySlug)
 
     return (
         <div
@@ -156,10 +182,32 @@ export function StoreDescription({
                         <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                             Informações da Loja
                         </h3>
-                        <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                            <span>{name ? name : 'Sem nome'}</span>
-                            {preview && <span>• Logo definida</span>}
-                            {storeSlug && <span>• @{storeSlug}</span>}
+                        {/* ===== INFORMAÇÕES EM COLUNA COM MINIATURA DA LOGO ===== */}
+                        <div className="flex items-start gap-2 text-xs mt-1" style={{ color: colors.textSecondary }}>
+                            {/* Mini logo */}
+                            {preview ? (
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-200">
+                                    <img src={preview} className="w-full h-full object-cover" alt="Logo" />
+                                </div>
+                            ) : (
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100">
+                                    <Store size={14} className="text-orange-400" />
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-sm" style={{ color: colors.textPrimary }}>
+                                    {name ? name : 'Sem nome'}
+                                </span>
+                                <span className="text-[10px]">
+                                    @{storeSlug || 'sem-slug'}
+                                </span>
+                                {selectedCategory && (
+                                    <span className="text-[10px] flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                                        <Tag size={10} style={{ color: selectedCategory.color }} />
+                                        {selectedCategory.nome}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -211,7 +259,7 @@ export function StoreDescription({
                         {/* Nome */}
                         <div className="space-y-2">
                             <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                Nome da Loja
+                                Nome da Loja *
                             </label>
                             <div
                                 className="flex items-center gap-2 px-4 py-3 rounded-xl transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
@@ -236,7 +284,7 @@ export function StoreDescription({
                         {/* Slug */}
                         <div className="space-y-2">
                             <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
-                                URL da Loja
+                                URL da Loja *
                             </label>
                             <div
                                 className="flex rounded-xl overflow-hidden transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20"
@@ -275,6 +323,55 @@ export function StoreDescription({
                                 <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: '#ef4444' }}>
                                     <AlertCircle size={12} />
                                     Escolha outro nome de URL
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== CATEGORIA ===== */}
+                        <div className="space-y-2">
+                            <label className="block text-[10px] font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                <Tag size={12} className="inline mr-1.5" />
+                                Categoria *
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {CATEGORIAS_LOJAS.map((cat) => {
+                                    const Icon = cat.icone
+                                    const isSelected = selectedCategorySlug === cat.slug
+                                    return (
+                                        <button
+                                            key={cat.slug}
+                                            type="button"
+                                            onClick={() => handleCategorySelect(cat.slug)}
+                                            disabled={disabled}
+                                            className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${isSelected
+                                                    ? 'border-orange-500 bg-orange-50/40 shadow-md'
+                                                    : 'border-orange-200/50 bg-white/20 hover:bg-orange-50/30'
+                                                } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                        >
+                                            <Icon
+                                                className="w-5 h-5"
+                                                style={{ color: isSelected ? '#f97316' : cat.color }}
+                                            />
+                                            <span className={`text-[9px] font-bold ${isSelected ? 'text-orange-600' : 'text-gray-600'}`}>
+                                                {cat.nome}
+                                            </span>
+                                            {isSelected && (
+                                                <CheckCircle2 className="w-3 h-3 text-orange-500" />
+                                            )}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {selectedCategory && (
+                                <div className="flex items-center gap-2 text-[9px] font-bold text-green-600 mt-1">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    Categoria: {selectedCategory.nome}
+                                </div>
+                            )}
+                            {!selectedCategory && (
+                                <div className="flex items-center gap-2 text-[9px] font-bold text-orange-500 mt-1">
+                                    <AlertCircle size={12} />
+                                    Selecione uma categoria
                                 </div>
                             )}
                         </div>
@@ -321,14 +418,14 @@ export function StoreDescription({
                         </button>
                         <button
                             onClick={onSave}
-                            disabled={saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim()}
+                            disabled={saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim() || !selectedCategorySlug}
                             style={{
                                 ...pillButtonStyle,
                                 flex: 1,
-                                background: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim()) ? colors.border : GRADIENT,
-                                color: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim()) ? colors.textSecondary : '#ffffff',
-                                opacity: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim()) ? 0.5 : 1,
-                                cursor: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim()) ? 'not-allowed' : 'pointer',
+                                background: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim() || !selectedCategorySlug) ? colors.border : GRADIENT,
+                                color: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim() || !selectedCategorySlug) ? colors.textSecondary : '#ffffff',
+                                opacity: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim() || !selectedCategorySlug) ? 0.5 : 1,
+                                cursor: (saving || disabled || slugStatus === 'taken' || !name.trim() || !storeSlug.trim() || !selectedCategorySlug) ? 'not-allowed' : 'pointer',
                             }}
                             className="hover:opacity-80 transition-opacity"
                         >

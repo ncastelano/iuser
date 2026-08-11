@@ -333,7 +333,7 @@ export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps)
                 </>
             )}
 
-            {/* Cabeçalho com toggle - CORRIGIDO: não tem mais button aninhado */}
+            {/* Cabeçalho com toggle */}
             <div
                 className="w-full flex items-center justify-between text-left relative z-10"
                 style={{
@@ -364,18 +364,17 @@ export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps)
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
                                 Dias de Funcionamento
                             </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: textSecondary }}>
+                            {/* ===== INFORMAÇÕES EM COLUNA (UM EMBAIXO DO OUTRO) ===== */}
+                            <div className="flex flex-col gap-0.5 text-xs mt-1" style={{ color: textSecondary }}>
                                 <span>
                                     <span className="font-bold" style={{ color: statusColor.text }}>
                                         {isOpen ? '🟢 Aberto' : '🔴 Fechado'}
                                     </span>
+                                    {' • '}{statusText}
                                 </span>
-                                <span>•</span>
-                                <span>{statusText}</span>
-                                <span>•</span>
-                                <span>{openDaysCount} dias</span>
-                                <span>•</span>
-                                <span>{blockedDates.length} bloqueados</span>
+                                <span>
+                                    {openDaysCount} dias abertos • {blockedDates.length} datas bloqueadas
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -388,7 +387,7 @@ export default function StoreOperatingDays({ storeId }: StoreOperatingDaysProps)
                     </div>
                 </button>
 
-                {/* Botão de refresh SEPARADO - FORA do button principal */}
+                {/* Botão de refresh */}
                 <button
                     onClick={handleRefresh}
                     className="ml-2 p-1 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"

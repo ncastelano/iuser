@@ -659,24 +659,24 @@ export default function StoreOrders({
 
     const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
 
-    // ===== CORES DOS PEDIDOS INDIVIDUAIS =====
+    // ===== CORES DOS PEDIDOS INDIVIDUAIS (MAIS ESCURAS) =====
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'pending': return '#3b82f6'
-            case 'preparing': return '#f59e0b'
-            case 'ready': return '#8b5cf6'
-            case 'paid': return 'transparent'
-            default: return '#6b7280'
+            case 'pending': return '#2563eb'
+            case 'preparing': return '#d97706'
+            case 'ready': return '#7c3aed'
+            case 'paid': return '#16a34a'
+            default: return '#4b5563'
         }
     }
 
     const getStatusGradient = (status: string) => {
         switch (status) {
-            case 'pending': return 'linear-gradient(135deg, #2563eb, #1e3a5f)'
-            case 'preparing': return 'linear-gradient(135deg, #d97706, #78350f)'
-            case 'ready': return 'linear-gradient(135deg, #7c3aed, #4c1d95)'
-            case 'paid': return 'linear-gradient(135deg, #6b7280, #374151)'
-            default: return GRADIENT
+            case 'pending': return 'linear-gradient(135deg, #1e293b, #0f172a)'
+            case 'preparing': return 'linear-gradient(135deg, #451a03, #1c0f00)'
+            case 'ready': return 'linear-gradient(135deg, #2e1065, #1a0a3a)'
+            case 'paid': return 'linear-gradient(135deg, #064e3b, #021a12)'
+            default: return 'linear-gradient(135deg, #1a1a2e, #0d0d0d)'
         }
     }
 
@@ -695,7 +695,7 @@ export default function StoreOrders({
             case 'pending': return Clock
             case 'preparing': return Package
             case 'ready': return CheckCircle
-            case 'paid': return Truck
+            case 'paid': return CheckCircle
             default: return Clock
         }
     }
@@ -709,86 +709,97 @@ export default function StoreOrders({
 
         if (hasPending) {
             return {
-                border: '2px solid #3b82f6',
-                shadow: '0 0 20px #3b82f650, 0 0 40px #3b82f625',
+                border: '2px solid #2563eb',
+                shadow: '0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15)',
                 hasAnimation: true,
                 animationName: 'borderPulseBlue',
-                badgeBackground: '#3b82f630',
-                badgeColor: '#3b82f6',
+                badgeBackground: 'rgba(37, 99, 235, 0.15)',
+                badgeColor: '#2563eb',
                 animationKeyframes: `
                     @keyframes borderPulseBlue {
                         0%, 100% { 
-                            box-shadow: 0 0 20px #3b82f650, 0 0 40px #3b82f625;
-                            border-color: #3b82f6;
+                            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3), 0 0 40px rgba(37, 99, 235, 0.15);
+                            border-color: #2563eb;
                         }
                         50% { 
-                            box-shadow: 0 0 30px #3b82f660, 0 0 60px #3b82f630;
-                            border-color: #3b82f6dd;
+                            box-shadow: 0 0 30px rgba(37, 99, 235, 0.4), 0 0 60px rgba(37, 99, 235, 0.2);
+                            border-color: #2563ebdd;
                         }
                     }
                 `,
-                borderColor: '#3b82f6',
+                borderColor: '#2563eb',
             }
         }
 
         if (hasPreparing) {
             return {
-                border: '2px solid #f59e0b',
-                shadow: '0 0 20px #f59e0b50, 0 0 40px #f59e0b25',
+                border: '2px solid #d97706',
+                shadow: '0 0 20px rgba(217, 119, 6, 0.3), 0 0 40px rgba(217, 119, 6, 0.15)',
                 hasAnimation: true,
                 animationName: 'borderPulseYellow',
-                badgeBackground: '#f59e0b30',
-                badgeColor: '#f59e0b',
+                badgeBackground: 'rgba(217, 119, 6, 0.15)',
+                badgeColor: '#d97706',
                 animationKeyframes: `
                     @keyframes borderPulseYellow {
                         0%, 100% { 
-                            box-shadow: 0 0 20px #f59e0b50, 0 0 40px #f59e0b25;
-                            border-color: #f59e0b;
+                            box-shadow: 0 0 20px rgba(217, 119, 6, 0.3), 0 0 40px rgba(217, 119, 6, 0.15);
+                            border-color: #d97706;
                         }
                         50% { 
-                            box-shadow: 0 0 30px #f59e0b60, 0 0 60px #f59e0b30;
-                            border-color: #f59e0bdd;
+                            box-shadow: 0 0 30px rgba(217, 119, 6, 0.4), 0 0 60px rgba(217, 119, 6, 0.2);
+                            border-color: #d97706dd;
                         }
                     }
                 `,
-                borderColor: '#f59e0b',
+                borderColor: '#d97706',
             }
         }
 
         if (hasReady) {
             return {
-                border: '2px solid #8b5cf6',
-                shadow: '0 0 20px #8b5cf650, 0 0 40px #8b5cf625',
+                border: '2px solid #7c3aed',
+                shadow: '0 0 20px rgba(124, 58, 237, 0.3), 0 0 40px rgba(124, 58, 237, 0.15)',
                 hasAnimation: true,
                 animationName: 'borderPulsePurple',
-                badgeBackground: '#8b5cf630',
-                badgeColor: '#8b5cf6',
+                badgeBackground: 'rgba(124, 58, 237, 0.15)',
+                badgeColor: '#7c3aed',
                 animationKeyframes: `
                     @keyframes borderPulsePurple {
                         0%, 100% { 
-                            box-shadow: 0 0 20px #8b5cf650, 0 0 40px #8b5cf625;
-                            border-color: #8b5cf6;
+                            box-shadow: 0 0 20px rgba(124, 58, 237, 0.3), 0 0 40px rgba(124, 58, 237, 0.15);
+                            border-color: #7c3aed;
                         }
                         50% { 
-                            box-shadow: 0 0 30px #8b5cf660, 0 0 60px #8b5cf630;
-                            border-color: #8b5cf6dd;
+                            box-shadow: 0 0 30px rgba(124, 58, 237, 0.4), 0 0 60px rgba(124, 58, 237, 0.2);
+                            border-color: #7c3aeddd;
                         }
                     }
                 `,
-                borderColor: '#8b5cf6',
+                borderColor: '#7c3aed',
             }
         }
 
         if (onlyFinished) {
             return {
-                border: '2px solid rgba(255,255,255,0.3)',
-                shadow: '0 0 20px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)',
-                hasAnimation: false,
-                animationName: '',
-                badgeBackground: 'rgba(255,255,255,0.12)',
-                badgeColor: '#ffffff',
-                animationKeyframes: '',
-                borderColor: 'rgba(255,255,255,0.3)',
+                border: '2px solid #16a34a',
+                shadow: '0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15)',
+                hasAnimation: true,
+                animationName: 'borderPulseGreen',
+                badgeBackground: 'rgba(22, 163, 74, 0.15)',
+                badgeColor: '#16a34a',
+                animationKeyframes: `
+                    @keyframes borderPulseGreen {
+                        0%, 100% { 
+                            box-shadow: 0 0 20px rgba(22, 163, 74, 0.3), 0 0 40px rgba(22, 163, 74, 0.15);
+                            border-color: #16a34a;
+                        }
+                        50% { 
+                            box-shadow: 0 0 30px rgba(22, 163, 74, 0.4), 0 0 60px rgba(22, 163, 74, 0.2);
+                            border-color: #16a34add;
+                        }
+                    }
+                `,
+                borderColor: '#16a34a',
             }
         }
 
@@ -841,16 +852,18 @@ export default function StoreOrders({
                     ${cardState.animationKeyframes}
                 `}</style>
 
-                {/* ===== SHIMMER BORDER - EFEITO DE LUZ PASSANDO NA BORDA ===== */}
+                {/* ===== SHIMMER BORDER ===== */}
                 {cardState.hasAnimation && (
                     <div className="absolute inset-[-2px] rounded-2xl overflow-hidden pointer-events-none shimmer-border">
                         <div className="absolute inset-[-2px] rounded-2xl" style={{
                             background: `linear-gradient(
                                 90deg,
                                 transparent 0%,
-                                ${cardState.borderColor}33 25%,
-                                ${cardState.borderColor}66 50%,
-                                ${cardState.borderColor}33 75%,
+                                ${cardState.borderColor}22 20%,
+                                ${cardState.borderColor}55 40%,
+                                ${cardState.borderColor}88 50%,
+                                ${cardState.borderColor}55 60%,
+                                ${cardState.borderColor}22 80%,
                                 transparent 100%
                             )`,
                             animation: 'shimmer-order 3s ease-in-out infinite',
@@ -859,7 +872,7 @@ export default function StoreOrders({
                     </div>
                 )}
 
-                {/* Cabeçalho com toggle - SEM O BOTÃO DE REFRESH VISÍVEL */}
+                {/* Cabeçalho com toggle */}
                 <div
                     className="w-full flex items-center justify-between text-left relative z-10"
                     style={{
@@ -891,88 +904,72 @@ export default function StoreOrders({
                                 <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                     Pedidos na loja
                                 </h3>
-                                {/* ===== CONTAGEM EM PILLS COM GLASSMORPHISM ===== */}
                                 <div className="flex items-center gap-2 text-xs mt-0.5">
-                                    {/* Pendentes - Azul */}
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(59, 130, 246, 0.15)',
+                                            background: 'rgba(37, 99, 235, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(59, 130, 246, 0.2)',
-                                            color: '#3b82f6',
+                                            border: '1px solid rgba(37, 99, 235, 0.2)',
+                                            color: '#2563eb',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                                         {newOrders.length}
                                     </span>
 
                                     <span style={{ color: colors.textSecondary }}>•</span>
 
-                                    {/* Preparo - Amarelo */}
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(245, 158, 11, 0.15)',
+                                            background: 'rgba(217, 119, 6, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(245, 158, 11, 0.2)',
-                                            color: '#f59e0b',
+                                            border: '1px solid rgba(217, 119, 6, 0.2)',
+                                            color: '#d97706',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-600" />
                                         {preparing.length}
                                     </span>
 
                                     <span style={{ color: colors.textSecondary }}>•</span>
 
-                                    {/* Prontos - Roxo */}
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(139, 92, 246, 0.15)',
+                                            background: 'rgba(124, 58, 237, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(139, 92, 246, 0.2)',
-                                            color: '#8b5cf6',
+                                            border: '1px solid rgba(124, 58, 237, 0.2)',
+                                            color: '#7c3aed',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-700" />
                                         {ready.length}
                                     </span>
 
                                     <span style={{ color: colors.textSecondary }}>•</span>
 
-                                    {/* Finalizados - Cinza */}
                                     <span
                                         className="flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px]"
                                         style={{
-                                            background: 'rgba(107, 114, 128, 0.15)',
+                                            background: 'rgba(22, 163, 74, 0.15)',
                                             backdropFilter: 'blur(8px)',
                                             WebkitBackdropFilter: 'blur(8px)',
-                                            border: '1px solid rgba(107, 114, 128, 0.2)',
-                                            color: '#6b7280',
+                                            border: '1px solid rgba(22, 163, 74, 0.2)',
+                                            color: '#16a34a',
                                         }}
                                     >
-                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
                                         {finished.length}
                                     </span>
                                 </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            {groupedOrders.length > 0 && (
-                                <span
-                                    className="text-xs font-bold px-2 py-0.5 rounded-full"
-                                    style={{
-                                        background: cardState.badgeBackground,
-                                        color: cardState.badgeColor
-                                    }}
-                                >
-                                    {groupedOrders.length}
-                                </span>
-                            )}
                             {isOrdersExpanded ? (
                                 <ChevronUp size={22} style={{ color: colors.textSecondary }} />
                             ) : (
@@ -980,13 +977,10 @@ export default function StoreOrders({
                             )}
                         </div>
                     </button>
-
-                    {/* Botão de refresh REMOVIDO (invisível) - mantém a função de atualização automática */}
                 </div>
 
                 {isOrdersExpanded && (
                     <>
-                        {/* Botão de atribuição múltipla */}
                         {selectedOrderIds.size > 0 && (
                             <div className="flex flex-wrap items-center gap-3 relative z-10">
                                 <button
@@ -1005,7 +999,6 @@ export default function StoreOrders({
                             </div>
                         )}
 
-                        {/* Lista de pedidos como botões PILL */}
                         {groupedOrders.length === 0 ? (
                             <div
                                 className="rounded-xl p-6 text-center relative z-10"
@@ -1022,7 +1015,7 @@ export default function StoreOrders({
                             <div className="space-y-4 relative z-10">
                                 {newOrders.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#3b82f6' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#2563eb' }}>
                                             <Clock size={12} />
                                             Novos ({newOrders.length})
                                         </h4>
@@ -1041,6 +1034,7 @@ export default function StoreOrders({
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
+                                                    isPaid={false}
                                                 />
                                             ))}
                                         </div>
@@ -1049,7 +1043,7 @@ export default function StoreOrders({
 
                                 {preparing.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#f59e0b' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#d97706' }}>
                                             <Package size={12} />
                                             Em Preparo ({preparing.length})
                                         </h4>
@@ -1068,6 +1062,7 @@ export default function StoreOrders({
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
+                                                    isPaid={false}
                                                 />
                                             ))}
                                         </div>
@@ -1076,7 +1071,7 @@ export default function StoreOrders({
 
                                 {ready.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#8b5cf6' }}>
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#7c3aed' }}>
                                             <CheckCircle size={12} />
                                             Prontos ({ready.length})
                                         </h4>
@@ -1095,6 +1090,7 @@ export default function StoreOrders({
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
+                                                    isPaid={false}
                                                 />
                                             ))}
                                         </div>
@@ -1103,8 +1099,8 @@ export default function StoreOrders({
 
                                 {finished.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#6b7280' }}>
-                                            <Truck size={12} />
+                                        <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2" style={{ color: '#16a34a' }}>
+                                            <CheckCircle size={12} />
                                             Finalizados ({finished.length})
                                         </h4>
                                         <div className="space-y-3">
@@ -1122,6 +1118,7 @@ export default function StoreOrders({
                                                     formatAssignmentStatus={formatAssignmentStatus}
                                                     isInPerson={!order.buyer_profile_slug}
                                                     borderColor={colors.border}
+                                                    isPaid={true}
                                                 />
                                             ))}
                                         </div>
@@ -1133,7 +1130,7 @@ export default function StoreOrders({
                 )}
             </div>
 
-            {/* Modais (mantidos iguais) */}
+            {/* Modais */}
             {showAssignModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
                     <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
@@ -1237,10 +1234,10 @@ function OrderButton({
     formatAssignmentStatus,
     isInPerson,
     borderColor,
+    isPaid = false,
 }: any) {
     const channelLabel = isInPerson ? 'Presencial' : 'Online'
     const statusColor = getStatusColor(order.status)
-    const statusGradient = getStatusGradient(order.status)
     const StatusIcon = getStatusIcon(order.status)
     const isAssigned = assignmentMap.has(order.checkout_id)
     const assignment = isAssigned ? assignmentMap.get(order.checkout_id) : null
@@ -1252,25 +1249,24 @@ function OrderButton({
         setSingleAssignOpen({ order })
     }
 
-    const isPaid = order.status === 'paid'
-
     return (
         <div
-            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-60' : 'cursor-pointer'}`}
+            className={`w-full rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 hover:shadow-xl relative overflow-hidden will-change-transform ${isPaid ? 'opacity-80' : 'cursor-pointer'}`}
             style={{
-                background: statusGradient,
+                background: getStatusGradient(order.status),
                 color: '#ffffff',
-                boxShadow: isPaid ? 'none' : `0 4px 16px ${statusColor}40`,
-                border: isPaid ? `1px solid ${borderColor}` : `2px solid ${statusColor}`,
+                boxShadow: `0 4px 16px ${statusColor}40`,
+                border: `2px solid ${statusColor}`,
             }}
             onClick={() => {
+                // AGORA PERMITE CLICAR EM TODOS OS PEDIDOS, inclusive finalizados
                 setSelectedOrder(order)
             }}
         >
             {!isPaid && (
-                <div className="absolute inset-0 pointer-events-none opacity-30">
+                <div className="absolute inset-0 pointer-events-none opacity-15">
                     <div className="absolute inset-[-2px] rounded-full" style={{
-                        background: `linear-gradient(90deg, transparent, ${statusColor}66, transparent)`,
+                        background: `linear-gradient(90deg, transparent, ${statusColor}33, transparent)`,
                         animation: 'shimmer-order 4s ease-in-out infinite',
                         transform: 'translateX(-100%)',
                     }} />
@@ -1295,36 +1291,25 @@ function OrderButton({
                         <span
                             className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white/90 flex-shrink-0"
                             style={{
-                                background: 'rgba(255,255,255,0.12)',
+                                background: 'rgba(255,255,255,0.08)',
                                 backdropFilter: 'blur(4px)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                border: '1px solid rgba(255,255,255,0.06)',
                             }}
                         >
                             {channelLabel}
                         </span>
-                        {isPaid && (
-                            <span
-                                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                                style={{
-                                    background: 'rgba(255,255,255,0.15)',
-                                    color: '#ffffff',
-                                }}
-                            >
-                                ✅ Finalizado
-                            </span>
-                        )}
                     </div>
                     <div className="flex items-center gap-3 text-xs mt-1 flex-wrap">
                         <span className="text-white/90 font-bold">
                             R$ {order.totalPrice.toFixed(2)}
                         </span>
                         {order.deliveryFee > 0 && (
-                            <span className="text-white/70">
+                            <span className="text-white/50">
                                 frete R$ {order.deliveryFee.toFixed(2)}
                             </span>
                         )}
                         {isAssigned && (
-                            <span className="text-[10px] font-bold text-white/80 flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-white/60 flex items-center gap-1">
                                 🚚 {assignment?.employeeName}
                             </span>
                         )}
@@ -1334,23 +1319,23 @@ function OrderButton({
                     <span
                         className="px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 flex-shrink-0"
                         style={{
-                            background: 'rgba(255,255,255,0.12)',
+                            background: 'rgba(255,255,255,0.08)',
                             backdropFilter: 'blur(4px)',
                             color: '#ffffff',
-                            border: '1px solid rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.06)',
                         }}
                     >
                         <StatusIcon size={12} />
                         {statusLabel}
                     </span>
-                    {!isInPerson && (
+                    {!isInPerson && !isPaid && (
                         <button
                             onClick={handleAssignClick}
-                            className="p-2 rounded-full transition-all duration-200 hover:bg-white/20 active:scale-90 flex-shrink-0"
+                            className="p-2 rounded-full transition-all duration-200 hover:bg-white/10 active:scale-90 flex-shrink-0"
                             title="Atribuir entregador"
                             type="button"
                         >
-                            <Send size={14} className="text-white/80" />
+                            <Send size={14} className="text-white/60" />
                         </button>
                     )}
                 </div>
