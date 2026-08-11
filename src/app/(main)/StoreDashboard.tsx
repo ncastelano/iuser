@@ -375,42 +375,13 @@ export default function StoreDashboard({
                 </div>
             )}
 
-            {/* Header com status */}
-            <div className="flex items-center justify-between mb-6">
-                <div
-                    onClick={onBack}
-                    className="flex items-center gap-3 hover:opacity-70 transition cursor-pointer"
-                    style={{ color: colors.textPrimary }}
-                >
-                    <div
-                        className={`w-12 h-12 rounded-full overflow-hidden bg-gray-200 ${isStoreOpen ? 'ring-2 ring-green-500' : 'ring-2 ring-red-500'}`}
-                    >
-                        {store.logo_url ? <img src={store.logo_url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl font-bold">{store.name?.charAt(0)}</div>}
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>{store.name}</h2>
-                        <div
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                if (store.business_hours && Object.keys(store.business_hours).length > 0) {
-                                    setShowScheduleModal(true)
-                                }
-                            }}
-                            className="flex items-center gap-1 text-xs font-bold hover:underline cursor-pointer w-fit"
-                            style={{ color: isStoreOpen ? '#22c55e' : '#ef4444' }}
-                        >
-                            <Clock size={12} />
-                            <span>{statusText}</span>
-                        </div>
-                    </div>
-                </div>
-                <button onClick={handleRefresh} className="p-2 rounded-full" style={{ background: 'transparent', border: `1px solid ${colors.border}` }}>
-                    <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
-                </button>
+            {/* ===== STORE OPERATING DAYS NO TOPO (SUBSTITUINDO O HEADER ANTIGO) ===== */}
+            <div className="mb-4">
+                <StoreOperatingDays storeId={store.id} />
             </div>
 
             {/* ===== STORE DESCRIPTION COMPONENT ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <StoreDescription
                     name={name}
                     storeSlug={storeSlugState}
@@ -431,7 +402,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Botões da Loja ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <div className="flex flex-wrap gap-2">
                     <button
                         onClick={goToPublicStore}
@@ -464,7 +435,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Vendas do dia ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <div
                     className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
                     style={{
@@ -507,7 +478,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Venda Presencial ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <ButtonInPersonSale
                     storeId={store.id}
                     storeName={store.name}
@@ -518,7 +489,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== StoreOrders ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <StoreOrders
                     storeId={store.id}
                     storeName={store.name}
@@ -527,7 +498,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Produtos ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <div
                     className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
                     style={{
@@ -684,7 +655,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Configurações de Entrega ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <StoreDeliverySettings
                     storeId={store.id}
                     onRefresh={loadDashboard}
@@ -692,7 +663,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Formas de Pagamento ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <StorePaymentMethods
                     storeId={store.id}
                     onRefresh={loadDashboard}
@@ -700,7 +671,7 @@ export default function StoreDashboard({
             </div>
 
             {/* ===== Funcionários ===== */}
-            <div className="mb-6 mt-4">
+            <div className="mb-6">
                 <Employee
                     employees={employees}
                     employeeRoutes={[]}
@@ -718,16 +689,11 @@ export default function StoreDashboard({
             {/* ===== Agendamentos ===== */}
             <AtalhoCompromissosDaLoja profileSlug={profileSlug} />
 
-            {/* ===== Dias de funcionamento ===== */}
-            <StoreOperatingDays storeId={store.id} />
-
             {/* ===== Publicações ===== */}
             <Publication storeId={store.id} />
 
             {/* ===== Visitantes ===== */}
             <StoreVisitors storeId={store.id} />
-
-
         </div>
     )
 }

@@ -17,67 +17,293 @@ const IGNORED_ROUTES = [
     '/registro',
     '/404',
     '/500',
+    '/lojas-em-destaque',
 ]
+
+// ===== PREFIXOS IGNORADOS =====
+const IGNORED_PREFIXES = [
+    '/_next',
+    '/api',
+]
+
+// ===== EXTENSÕES IGNORADAS =====
+const IGNORED_EXTENSIONS = [
+    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
+    '.css', '.js', '.json', '.ico', '.txt',
+]
+
+// ===== CATEGORIAS VÁLIDAS =====
+const CATEGORIAS_VALIDAS = [
+    'alimentacao',
+    'saude',
+    'moda',
+    'casa',
+    'eletronicos',
+    'servicos',
+    'pets',
+    'transporte',
+    'social',
+]
+
+// ===== ROTAS DE LOJA QUE NÃO PRECISAM DE VALIDAÇÃO =====
+const STORE_ROUTES = [
+    '/criar-produto',
+    '/editar-produto',
+    '/editar-loja',
+    '/produtos',
+    '/pedidos',
+    '/configuracoes',
+    '/funcionarios',
+    '/agendamentos',
+    '/publicacoes',
+    '/dashboard',
+    '/compromissos',
+]
+
+// ===== CACHE EM MEMÓRIA =====
+const cache = new Map<string, { type: 'profile' | 'store' | 'category'; slug: string; timestamp: number }>()
+const CACHE_TTL = 60 * 1000 // 60 segundos
+
+function getFromCache(slug: string) {
+    const cached = cache.get(slug)
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached
+    }
+    return null
+}
+
+function setCache(slug: string, type: 'profile' | 'store' | 'category') {
+    cache.set(slug, { type, slug, timestamp: Date.now() })
+}
 
 export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     const pathname = url.pathname
 
-    // Verificar se a rota está na lista de ignorados
+    console.log(`[Proxy] Processando: ${pathname}`)
+
+    // --- 1. Verificar se é uma rota ignorada exata ---
     if (IGNORED_ROUTES.includes(pathname)) {
+        console.log(`[Proxy] Rota ignorada: ${pathname}`)
         return NextResponse.next()
     }
 
-    // Verificar se é um arquivo estático ou API
-    if (
-        pathname.startsWith('/_next') ||
-        pathname.startsWith('/api') ||
-        pathname.includes('.')
-    ) {
+    // --- 2. Verificar se começa com prefixos ignorados ---
+    if (IGNORED_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+        console.log(`[Proxy] Prefixo ignorado: ${pathname}`)
         return NextResponse.next()
     }
 
-    const segments = pathname.split('/').filter(Boolean)
-    if (segments.length === 0) return NextResponse.next()
+    // --- 3. Verificar se termina com extensões de arquivo ---
+    if (IGNORED_EXTENSIONS.some(ext => pathname.endsWith(ext))) {
+        console.log(`[Proxy] Extensão ignorada: ${pathname}`)
+        return NextResponse.next()
+    }
 
-    const firstSegment = segments[0]
+    // --- 4. Remover trailing slash se existir ---
+    const cleanPath = pathname.replace(/\/$/, '')
+    const segments = cleanPath.split('/').filter(Boolean)
 
-    try {
-        // Verifica se é um profileSlug
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('profileSlug')
-            .eq('profileSlug', firstSegment)
-            .maybeSingle()
+    if (segments.length === 0) {
+        return NextResponse.next()
+    }
 
-        if (profile) {
-            console.log(`[Proxy] ${firstSegment} é um perfil ✅`)
+    // --- 5. ROTA ESPECIAL: /lojas/[categoria] ---
+    if (segments[0] === 'lojas') {
+        if (segments.length >= 2) {
+            const categoriaSlug = segments[1]
+
+            // Verifica se é uma categoria válida
+            if (CATEGORIAS_VALIDAS.includes(categoriaSlug)) {
+                console.log(`[Proxy] Categoria válida: ${categoriaSlug} ✅`)
+                setCache(categoriaSlug, 'category')
+                return NextResponse.next()
+            }
+
+            console.log(`[Proxy] Categoria não encontrada: ${categoriaSlug} ❌`)
+            const notFoundUrl = request.nextUrl.clone()
+            notFoundUrl.pathname = '/404'
+            return NextResponse.rewrite(notFoundUrl)
+        }
+
+        // /lojas sem categoria - permite
+        console.log(`[Proxy] Rota /lojas permitida`)
+        return NextResponse.next()
+    }
+
+    // --- 6. ROTA COM 2+ SEGMENTOS: /{profileSlug}/{storeSlug} ou /{profileSlug}/... ---
+    if (segments.length >= 2) {
+        const firstSegment = segments[0]
+        const secondSegment = segments[1]
+        const restPath = segments.length > 2 ? `/${segments.slice(2).join('/')}` : ''
+
+        // Verifica se o primeiro segmento é um profileSlug
+        let cached = getFromCache(firstSegment)
+        let isProfile = cached?.type === 'profile'
+
+        if (!isProfile) {
+            try {
+                const { data: profile } = await supabaseAdmin
+                    .from('profiles')
+                    .select('profileSlug')
+                    .eq('profileSlug', firstSegment)
+                    .maybeSingle()
+
+                if (profile) {
+                    setCache(firstSegment, 'profile')
+                    isProfile = true
+                }
+            } catch (error) {
+                console.error(`[Proxy] Erro ao verificar perfil ${firstSegment}:`, error)
+            }
+        }
+
+        if (isProfile) {
+            // Verifica se é uma rota de perfil
+            const fullPath = `/${secondSegment}${restPath}`
+            const PROFILE_ROUTES = [
+                '/editar-perfil',
+                '/configuracoes',
+                '/pedidos',
+                '/avaliacoes',
+            ]
+
+            if (PROFILE_ROUTES.some(route => fullPath === route || fullPath.startsWith(route + '/'))) {
+                console.log(`[Proxy] Rota de perfil válida: ${firstSegment}${fullPath} ✅`)
+                return NextResponse.next()
+            }
+
+            // Verifica se o segundo segmento é um storeSlug
+            let cachedStore = getFromCache(secondSegment)
+            let isStore = cachedStore?.type === 'store'
+
+            if (!isStore) {
+                try {
+                    const { data: store } = await supabaseAdmin
+                        .from('stores')
+                        .select('storeSlug')
+                        .eq('storeSlug', secondSegment)
+                        .maybeSingle()
+
+                    if (store) {
+                        setCache(secondSegment, 'store')
+                        isStore = true
+                    }
+                } catch (error) {
+                    console.error(`[Proxy] Erro ao verificar loja ${secondSegment}:`, error)
+                }
+            }
+
+            if (isStore) {
+                // Verifica se é uma rota de loja
+                if (restPath === '' || STORE_ROUTES.some(route => restPath === route || restPath.startsWith(route + '/'))) {
+                    console.log(`[Proxy] Rota de loja válida: ${firstSegment}/${secondSegment}${restPath} ✅`)
+                    return NextResponse.next()
+                }
+            }
+
+            // Se é um perfil válido, permite a rota mesmo que a loja não exista
+            // (pode ser uma página de perfil que não é de loja)
+            console.log(`[Proxy] Perfil ${firstSegment} encontrado, permitindo rota: ${pathname}`)
             return NextResponse.next()
+        }
+
+        // Verifica se o primeiro segmento é um storeSlug (rota direta de loja)
+        let cachedStore = getFromCache(firstSegment)
+        let isStore = cachedStore?.type === 'store'
+
+        if (!isStore) {
+            try {
+                const { data: store } = await supabaseAdmin
+                    .from('stores')
+                    .select('storeSlug')
+                    .eq('storeSlug', firstSegment)
+                    .maybeSingle()
+
+                if (store) {
+                    setCache(firstSegment, 'store')
+                    isStore = true
+                }
+            } catch (error) {
+                console.error(`[Proxy] Erro ao verificar loja ${firstSegment}:`, error)
+            }
+        }
+
+        if (isStore) {
+            const fullPath = `/${segments.slice(1).join('/')}`
+            // Verifica se é uma rota de loja
+            if (fullPath === '' || STORE_ROUTES.some(route => fullPath === route || fullPath.startsWith(route + '/'))) {
+                console.log(`[Proxy] Rota de loja direta válida: ${firstSegment}${fullPath} ✅`)
+                return NextResponse.next()
+            }
+        }
+    }
+
+    // --- 7. ROTA COM 1 SEGMENTO: /{slug} ---
+    if (segments.length === 1) {
+        const slug = segments[0]
+
+        // Verifica cache
+        let cached = getFromCache(slug)
+        if (cached) {
+            console.log(`[Proxy] ${slug} é um ${cached.type} (cache) ✅`)
+            return NextResponse.next()
+        }
+
+        // Verifica se é um profileSlug
+        try {
+            const { data: profile } = await supabaseAdmin
+                .from('profiles')
+                .select('profileSlug')
+                .eq('profileSlug', slug)
+                .maybeSingle()
+
+            if (profile) {
+                setCache(slug, 'profile')
+                console.log(`[Proxy] ${slug} é um perfil ✅`)
+                return NextResponse.next()
+            }
+        } catch (error) {
+            console.error(`[Proxy] Erro ao verificar perfil ${slug}:`, error)
         }
 
         // Verifica se é um storeSlug
-        const { data: store } = await supabaseAdmin
-            .from('stores')
-            .select('storeSlug')
-            .eq('storeSlug', firstSegment)
-            .maybeSingle()
+        try {
+            const { data: store } = await supabaseAdmin
+                .from('stores')
+                .select('storeSlug')
+                .eq('storeSlug', slug)
+                .maybeSingle()
 
-        if (store) {
-            console.log(`[Proxy] ${firstSegment} é uma loja ✅`)
+            if (store) {
+                setCache(slug, 'store')
+                console.log(`[Proxy] ${slug} é uma loja ✅`)
+                return NextResponse.next()
+            }
+        } catch (error) {
+            console.error(`[Proxy] Erro ao verificar loja ${slug}:`, error)
+        }
+
+        // Verifica se é uma categoria (rota direta de categoria)
+        if (CATEGORIAS_VALIDAS.includes(slug)) {
+            console.log(`[Proxy] ${slug} é uma categoria ✅`)
             return NextResponse.next()
         }
 
-        // Se não for perfil nem loja, redireciona para 404
-        console.log(`[Proxy] ${firstSegment} não encontrado ❌`)
-        const notFoundUrl = request.nextUrl.clone()
-        notFoundUrl.pathname = '/404'
-        return NextResponse.rewrite(notFoundUrl)
-
-    } catch (error) {
-        console.error('Proxy error:', error)
+        console.log(`[Proxy] ${slug} não encontrado ❌`)
     }
 
-    return NextResponse.next()
+    // --- 8. Modo desenvolvimento ---
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Proxy] Modo desenvolvimento: permitindo ${pathname}`)
+        return NextResponse.next()
+    }
+
+    // --- 9. Se não encontrou, redireciona para 404 ---
+    console.log(`[Proxy] Redirecionando para 404: ${pathname}`)
+    const notFoundUrl = request.nextUrl.clone()
+    notFoundUrl.pathname = '/404'
+    return NextResponse.rewrite(notFoundUrl)
 }
 
 export default proxy

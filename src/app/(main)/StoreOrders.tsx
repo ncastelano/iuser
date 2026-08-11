@@ -727,6 +727,7 @@ export default function StoreOrders({
                         }
                     }
                 `,
+                borderColor: '#3b82f6',
             }
         }
 
@@ -750,6 +751,7 @@ export default function StoreOrders({
                         }
                     }
                 `,
+                borderColor: '#f59e0b',
             }
         }
 
@@ -773,6 +775,7 @@ export default function StoreOrders({
                         }
                     }
                 `,
+                borderColor: '#8b5cf6',
             }
         }
 
@@ -785,6 +788,7 @@ export default function StoreOrders({
                 badgeBackground: 'rgba(255,255,255,0.12)',
                 badgeColor: '#ffffff',
                 animationKeyframes: '',
+                borderColor: 'rgba(255,255,255,0.3)',
             }
         }
 
@@ -796,6 +800,7 @@ export default function StoreOrders({
             badgeBackground: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.35)`,
             badgeColor: colors.textSecondary,
             animationKeyframes: '',
+            borderColor: colors.border,
         }
     }, [groupedOrders, colors.border, colors.textSecondary, surfaceRgb.r, surfaceRgb.g, surfaceRgb.b])
 
@@ -805,7 +810,7 @@ export default function StoreOrders({
     return (
         <>
             <div
-                className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative overflow-hidden"
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -838,6 +843,24 @@ export default function StoreOrders({
                     }
                     ${cardState.animationKeyframes}
                 `}</style>
+
+                {/* ===== SHIMMER BORDER - EFEITO DE LUZ PASSANDO NA BORDA ===== */}
+                {cardState.hasAnimation && (
+                    <div className="absolute inset-[-2px] rounded-2xl overflow-hidden pointer-events-none shimmer-border">
+                        <div className="absolute inset-[-2px] rounded-2xl" style={{
+                            background: `linear-gradient(
+                                90deg,
+                                transparent 0%,
+                                ${cardState.borderColor}33 25%,
+                                ${cardState.borderColor}66 50%,
+                                ${cardState.borderColor}33 75%,
+                                transparent 100%
+                            )`,
+                            animation: 'shimmer-order 3s ease-in-out infinite',
+                            transform: 'translateX(-100%)',
+                        }} />
+                    </div>
+                )}
 
                 {/* Cabeçalho com toggle */}
                 <div
