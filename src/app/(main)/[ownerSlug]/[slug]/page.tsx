@@ -23,7 +23,8 @@ import {
     Calendar,
     Eye,
     User,
-    Store,
+    Store as StoreIcon,
+    LayoutDashboard,
     ChevronRight,
     Plus,
     Minus,
@@ -35,6 +36,8 @@ import SacolaButton from '@/app/ButtonSacola'
 import Header from '@/app/Header'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
+import StoreDashboard from '../../StoreDashboard'
+import ProfileDashboard from '../../ProfileDashboard'
 
 type OwnerType = 'profile' | 'store'
 type ContentType = 'product' | 'publication'
@@ -69,6 +72,62 @@ interface ContentData {
     }
 }
 
+// ===== FUNÇÃO PARA FORMATAR ENDEREÇO =====
+function formatAddress(address: string, addressNumber?: string): string {
+    if (!address) return 'Definir local'
+
+    const displayAddress = addressNumber ? `${address.split(',')[0]}, ${addressNumber}` : address
+    const firstPart = displayAddress.split(',')[0].trim()
+    const match = firstPart.match(/^(.+?)(\s+\d+)/)
+
+    if (match) {
+        let result = match[0].trim()
+        result = result
+            .replace(/^Avenida\s/, 'Av. ')
+            .replace(/^Rua\s/, 'R. ')
+            .replace(/^Travessa\s/, 'Tv. ')
+            .replace(/^Praça\s/, 'Pç. ')
+            .replace(/^Alameda\s/, 'Al. ')
+            .replace(/^Rodovia\s/, 'Rod. ')
+            .replace(/^Estrada\s/, 'Estr. ')
+
+        if (result.length > 28) {
+            return result.substring(0, 25) + '...'
+        }
+        return result
+    }
+
+    if (firstPart.length > 28) {
+        return firstPart.substring(0, 25) + '...'
+    }
+    return firstPart
+}
+
+// ===== FUNÇÕES DE HORÁRIO =====
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function getTodayKey(): string {
+    return DAY_KEYS[new Date().getDay()]
+}
+
+function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
+    if (!businessHours) return null
+    const todayKey = getTodayKey()
+    return businessHours[todayKey] || null
+}
+
+function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
+    if (!schedule || !schedule.open || !schedule.close) return false
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const [openH, openM] = schedule.open.split(':').map(Number)
+    let [closeH, closeM] = schedule.close.split(':').map(Number)
+    if (closeH === 0 && closeM === 0) closeH = 24
+    const openMinutes = openH * 60 + openM
+    const closeMinutes = closeH * 60 + closeM
+    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
+}
+
 export default function SlugPage() {
     const params = useParams()
     const router = useRouter()
@@ -89,8 +148,19 @@ export default function SlugPage() {
     const [cartAnimating, setCartAnimating] = useState(false)
     const [productQuantity, setProductQuantity] = useState(0)
 
-    // Cart
+    // States para Dashboards
+    const [showProfile, setShowProfile] = useState(false)
+    const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
+    const [stores, setStores] = useState<any[]>([])
+    const [loadingStores, setLoadingStores] = useState(true)
+    const [storeOrderCounts, setStoreOrderCounts] = useState<
+        Record<string, { pending: number; preparing: number; ready: number }>
+    >({})
+
+    // ===== CORRIGIDO: Desestruturar todas as funções do cart =====
     const { itemsByStore, addItem, removeItem, updateQuantity } = useCartStore()
+
+    // ===== TODOS OS HOOKS DEVEM VIR ANTES DE QUALQUER RETORNO CONDICIONAL =====
 
     // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = useMemo(() => {
@@ -125,6 +195,8 @@ export default function SlugPage() {
 
     // ========== DETECTAR OWNER ==========
     const detectOwner = useCallback(async (slug: string) => {
+        if (!slug) return null
+
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id, name, profileSlug, avatar_url, description, address, whatsapp')
@@ -186,6 +258,8 @@ export default function SlugPage() {
 
     // ========== DETECTAR CONTEÚDO ==========
     const detectContent = useCallback(async (slug: string, ownerId: string, ownerType: OwnerType) => {
+        if (!slug || !ownerId) return null
+
         const ownerField = ownerType === 'profile' ? 'owner_id' : 'store_id'
 
         const { data: product, error: productError } = await supabase
@@ -224,6 +298,72 @@ export default function SlugPage() {
 
         return null
     }, [])
+
+    // ========== CARREGAR LOJAS DO USUÁRIO ==========
+    const loadStores = useCallback(async () => {
+        if (!loggedUserSlug) {
+            setStores([])
+            setLoadingStores(false)
+            return
+        }
+
+        setLoadingStores(true)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) {
+            setStores([])
+            setLoadingStores(false)
+            return
+        }
+
+        const { data: fetchedStores } = await supabase
+            .from('stores')
+            .select('id, name, storeSlug, logo_url, business_hours')
+            .eq('owner_id', session.user.id)
+            .order('created_at', { ascending: true })
+
+        if (fetchedStores) {
+            const storesData = fetchedStores.map((s: any) => ({
+                id: s.id,
+                slug: s.storeSlug,
+                logoUrl: s.logo_url
+                    ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                    : null,
+                name: s.name,
+                business_hours: s.business_hours || null,
+            }))
+            setStores(storesData)
+        } else {
+            setStores([])
+        }
+        setLoadingStores(false)
+    }, [loggedUserSlug])
+
+    // ========== CARREGAR CONTAGENS DOS PEDIDOS ==========
+    const fetchStoreOrderCounts = useCallback(async () => {
+        if (!stores || stores.length === 0) return
+        const storeIds = stores.map(s => s.id)
+        const { data, error } = await supabase
+            .from('orders')
+            .select('store_id, status')
+            .in('store_id', storeIds)
+            .in('status', ['pending', 'preparing', 'ready'])
+
+        if (error) {
+            console.error('Erro ao buscar contagens de pedidos:', error)
+            return
+        }
+
+        const counts: Record<string, { pending: number; preparing: number; ready: number }> = {}
+        storeIds.forEach(id => {
+            counts[id] = { pending: 0, preparing: 0, ready: 0 }
+        })
+        data?.forEach(order => {
+            if (counts[order.store_id]) {
+                counts[order.store_id][order.status as 'pending' | 'preparing' | 'ready']++
+            }
+        })
+        setStoreOrderCounts(counts)
+    }, [stores])
 
     // ========== CARREGAR DADOS ==========
     const loadData = useCallback(async () => {
@@ -273,6 +413,16 @@ export default function SlugPage() {
     }, [loadData])
 
     useEffect(() => {
+        loadStores()
+    }, [loadStores])
+
+    useEffect(() => {
+        if (stores.length > 0) {
+            fetchStoreOrderCounts()
+        }
+    }, [stores, fetchStoreOrderCounts])
+
+    useEffect(() => {
         setMounted(true)
     }, [])
 
@@ -306,6 +456,26 @@ export default function SlugPage() {
             category: contentData.category || '',
         }
     }, [])
+
+    // ========== FUNÇÕES DOS DASHBOARDS ==========
+    const handleProfileClick = () => {
+        if (loggedUserSlug && !loading) {
+            setShowProfile(true)
+            setShowStoreDashboard(null)
+        } else {
+            router.push('/login')
+        }
+    }
+
+    const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
+        setShowStoreDashboard({ slug: storeSlug, name: storeName })
+        setShowProfile(false)
+    }
+
+    const showMainContent = () => {
+        setShowProfile(false)
+        setShowStoreDashboard(null)
+    }
 
     // ========== CART FUNCTIONS ==========
     const handleAddToCart = useCallback(() => {
@@ -364,7 +534,91 @@ export default function SlugPage() {
         toast.info('Produto removido do carrinho')
     }, [content, itemsByStore, removeItem])
 
-    // ========== RENDER ==========
+    // ===== VARIÁVEIS DERIVADAS (NÃO SÃO HOOKS) =====
+    const isProduct = content?.type === 'product'
+    const isPublication = content?.type === 'publication'
+    const isProfileOwner = ownerType === 'profile'
+    const hasImage = content?.image_url
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    const isInCart = productQuantity > 0
+    const isLoggedIn = !!loggedUserSlug && !loading
+
+    // ===== HEADER TABS - APENAS PERFIL E LOJAS DO USUÁRIO =====
+    const headerTabs = useMemo(() => {
+        const allTabs: any[] = []
+
+        // 1. Tab do perfil
+        allTabs.push({
+            id: 'perfil',
+            label: isLoggedIn ? `@${loggedUserSlug}` : 'Entrar',
+            icon: User,
+            imageUrl: isLoggedIn ? loggedUserAvatarUrl : null,
+            onClick: handleProfileClick,
+            isActive: showProfile,
+        })
+
+        // 2. Tabs das lojas do usuário (com badges)
+        if (!loadingStores && stores.length > 0) {
+            stores.forEach((s) => {
+                const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
+                const hasActive = counts.pending + counts.preparing + counts.ready > 0
+
+                const todaySchedule = getTodaySchedule(s.business_hours)
+                const openNow = isOpenNow(todaySchedule)
+                const statusColor = openNow ? '#22c55e' : '#ef4444'
+
+                allTabs.push({
+                    id: `loja-${s.slug}`,
+                    label: s.name,
+                    icon: LayoutDashboard,
+                    imageUrl: s.logoUrl,
+                    onClick: () => handleStoreDashboardClick(s.slug, s.name),
+                    isActive: showStoreDashboard?.slug === s.slug,
+                    indicator: hasActive ? counts : null,
+                    statusColor,
+                })
+            })
+        } else if (isLoggedIn && !loadingStores) {
+            allTabs.push({
+                id: 'criar-loja',
+                label: 'Quer criar uma loja?',
+                icon: StoreIcon,
+                imageUrl: null,
+                onClick: () => router.push('/criar-loja'),
+                isActive: false,
+            })
+        }
+
+        return allTabs
+    }, [
+        isLoggedIn, loggedUserSlug, loggedUserAvatarUrl,
+        stores, loadingStores, storeOrderCounts, showProfile, showStoreDashboard,
+        handleProfileClick, handleStoreDashboardClick, router
+    ])
+
+    // ===== VERIFICAÇÃO DE PARÂMETROS =====
+    if (!ownerSlug || !slug) {
+        return (
+            <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
+                <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                    <AlertTriangle className="w-12 h-12" style={{ color: colors.accent }} />
+                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                        Parâmetros inválidos
+                    </h2>
+                    <button
+                        onClick={() => router.push('/')}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
+                        style={{ background: colors.accent, color: '#fff' }}
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Voltar ao início
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // ===== RETORNOS CONDICIONAIS (DEPOIS DE TODOS OS HOOKS) =====
     if (loading) {
         return <LoadingSpinner message="Carregando..." background={colors.background} />
     }
@@ -390,341 +644,424 @@ export default function SlugPage() {
         )
     }
 
-    const isProduct = content.type === 'product'
-    const isPublication = content.type === 'publication'
-    const isProfileOwner = ownerType === 'profile'
-    const hasImage = content.image_url
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-    const isInCart = productQuantity > 0
-
+    // ===== RENDER PRINCIPAL =====
     return (
-        <div className="min-h-screen relative" style={{ background: colors.background }}>
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            <div className="relative z-10">
+            <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
-                    showBack={false}
-                    greeting={owner.name}
-                    avatarUrl={owner.avatar_url || null}
+                    showBack={true}
+                    onBack={() => router.back()}
+                    greeting={`Olá, ${loading ? '...' : loggedUserSlug ? `@${loggedUserSlug}` : 'Visitante'}`}
+                    avatarUrl={loggedUserAvatarUrl || null}
                     loading={loading}
-                    tabs={[]}
+                    tabs={headerTabs}
                     showSearch={false}
                     searchPlaceholder="Buscar..."
                     onSearch={() => { }}
                     profileSlug={loggedUserSlug}
                 />
 
-                <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
-                    {/* ===== BREADCRUMB ===== */}
-                    <div className="flex items-center gap-2 text-sm mb-6" style={{ color: colors.textSecondary }}>
-                        <button
-                            onClick={() => router.push('/')}
-                            className="hover:underline flex items-center gap-1"
-                            style={{ color: colors.textSecondary }}
-                        >
-                            <Home className="w-3.5 h-3.5" />
-                            Início
-                        </button>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                        <button
-                            onClick={() => router.push(`/${ownerSlug}`)}
-                            className="hover:underline font-bold"
-                            style={{ color: colors.textPrimary }}
-                        >
-                            {isProfileOwner ? '@' : ''}{ownerSlug}
-                        </button>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                        <span className="font-bold" style={{ color: colors.textPrimary }}>
-                            {slug}
-                        </span>
-                        {isProduct && (
-                            <>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                                <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                    Produto
-                                </span>
-                            </>
-                        )}
-                        {isPublication && (
-                            <>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                                <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                    Publicação
-                                </span>
-                            </>
-                        )}
+                {/* ===== CONTEÚDO ===== */}
+                {showProfile ? (
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <ProfileDashboard
+                            profileSlug={loggedUserSlug || ''}
+                            onBack={showMainContent}
+                            avatarUrl={loggedUserAvatarUrl || undefined}
+                        />
                     </div>
-
-                    {/* Card do conteúdo */}
-                    <div className="rounded-3xl overflow-hidden border" style={{
-                        background: `rgba(255, 255, 255, 0.06)`,
-                        borderColor: `rgba(255,255,255,0.12)`,
-                        backdropFilter: 'blur(20px)',
-                        WebkitBackdropFilter: 'blur(20px)',
-                    }}>
-                        {/* Imagem ou placeholder */}
-                        {hasImage ? (
-                            <div className="w-full aspect-video bg-gray-100 relative">
-                                <img
-                                    src={hasImage}
-                                    alt={content.name}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                        const target = e.target as HTMLImageElement
-                                        target.style.display = 'none'
-                                        const parent = target.parentElement
-                                        if (parent) {
-                                            const placeholder = document.createElement('div')
-                                            placeholder.className = 'w-full h-full flex items-center justify-center text-6xl'
-                                            placeholder.style.background = 'rgba(255,255,255,0.03)'
-                                            placeholder.textContent = isProduct ? '🛒' : '📢'
-                                            parent.appendChild(placeholder)
+                ) : showStoreDashboard ? (
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <StoreDashboard
+                            profileSlug={loggedUserSlug || ''}
+                            storeSlug={showStoreDashboard.slug}
+                            onBack={showMainContent}
+                            onOrderCountsChange={(counts) => {
+                                setStoreOrderCounts(prev => {
+                                    const store = stores.find(s => s.slug === showStoreDashboard.slug)
+                                    if (store) {
+                                        return {
+                                            ...prev,
+                                            [store.id]: counts
                                         }
-                                    }}
-                                />
-                                <div className="absolute top-4 left-4 flex gap-2">
-                                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase backdrop-blur-md flex items-center gap-1" style={{
-                                        background: 'rgba(0,0,0,0.4)',
-                                        color: '#fff'
-                                    }}>
-                                        {isProduct ? <ShoppingBag className="w-3 h-3" /> : <Megaphone className="w-3 h-3" />}
-                                        {isProduct ? 'Produto' : 'Publicação'}
-                                    </span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="w-full aspect-video flex items-center justify-center" style={{
-                                background: `rgba(255,255,255,0.03)`
-                            }}>
-                                <div className="text-center">
-                                    <div className="text-6xl mb-4">
-                                        {isProduct ? '🛒' : '📢'}
-                                    </div>
-                                    <p className="text-sm font-bold uppercase tracking-widest" style={{ color: colors.textSecondary }}>
-                                        {isProduct ? 'Produto' : 'Publicação'}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="p-6 space-y-4">
-                            {/* Owner info - AGORA CLICÁVEL */}
+                                    }
+                                    return prev
+                                })
+                            }}
+                        />
+                    </div>
+                ) : (
+                    <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
+                        {/* ===== BREADCRUMB ===== */}
+                        <div className="flex items-center gap-2 text-sm mb-6" style={{ color: colors.textSecondary }}>
+                            <button
+                                onClick={() => router.push('/')}
+                                className="hover:underline flex items-center gap-1"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                <Home className="w-3.5 h-3.5" />
+                                Início
+                            </button>
+                            <ChevronRight className="w-3.5 h-3.5" />
                             <button
                                 onClick={() => router.push(`/${ownerSlug}`)}
-                                className="w-full flex items-center gap-3 p-3 rounded-xl transition hover:scale-[1.02] hover:shadow-lg text-left"
-                                style={{
-                                    background: `rgba(255,255,255,0.03)`,
-                                    border: `1px solid transparent`,
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.3)'
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = 'transparent'
-                                }}
+                                className="hover:underline font-bold"
+                                style={{ color: colors.textPrimary }}
                             >
-                                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{
-                                    background: GRADIENT,
-                                    padding: '2px'
-                                }}>
-                                    <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
-                                        {owner.avatar_url ? (
-                                            <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <span className="text-lg font-black" style={{ color: '#f97316' }}>
-                                                {owner.name?.charAt(0).toUpperCase()}
-                                            </span>
-                                        )}
+                                {isProfileOwner ? '@' : ''}{ownerSlug}
+                            </button>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                            <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                {slug}
+                            </span>
+                            {isProduct && (
+                                <>
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                        Produto
+                                    </span>
+                                </>
+                            )}
+                            {isPublication && (
+                                <>
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
+                                        Publicação
+                                    </span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Card do conteúdo */}
+                        <div className="rounded-3xl overflow-hidden border" style={{
+                            background: `rgba(255, 255, 255, 0.06)`,
+                            borderColor: `rgba(255,255,255,0.12)`,
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                        }}>
+                            {/* Imagem ou placeholder */}
+                            {hasImage ? (
+                                <div className="w-full aspect-video bg-gray-100 relative">
+                                    <img
+                                        src={hasImage}
+                                        alt={content.name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement
+                                            target.style.display = 'none'
+                                            const parent = target.parentElement
+                                            if (parent) {
+                                                const placeholder = document.createElement('div')
+                                                placeholder.className = 'w-full h-full flex items-center justify-center text-6xl'
+                                                placeholder.style.background = 'rgba(255,255,255,0.03)'
+                                                placeholder.textContent = isProduct ? 'Produto' : 'Publicação'
+                                                parent.appendChild(placeholder)
+                                            }
+                                        }}
+                                    />
+                                    <div className="absolute top-4 left-4 flex gap-2">
+                                        <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase backdrop-blur-md flex items-center gap-1" style={{
+                                            background: 'rgba(0,0,0,0.4)',
+                                            color: '#fff'
+                                        }}>
+                                            {isProduct ? <ShoppingBag className="w-3 h-3" /> : <Megaphone className="w-3 h-3" />}
+                                            {isProduct ? 'Produto' : 'Publicação'}
+                                        </span>
                                     </div>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                        {owner.name}
-                                    </p>
-                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                        {isProfileOwner ? 'Perfil' : 'Loja'} • @{owner.slug}
-                                    </p>
-                                </div>
-                                <ChevronRight className="w-4 h-4 opacity-50" style={{ color: colors.textSecondary }} />
-                            </button>
-
-                            {/* Título */}
-                            <h1 className="text-3xl font-black" style={{ color: colors.textPrimary }}>
-                                {content.name}
-                            </h1>
-
-                            {/* Categoria */}
-                            {content.category && (
-                                <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase" style={{
-                                    background: `rgba(249, 115, 22, 0.15)`,
-                                    color: '#f97316'
+                            ) : (
+                                <div className="w-full aspect-video flex items-center justify-center" style={{
+                                    background: `rgba(255,255,255,0.03)`
                                 }}>
-                                    {content.category}
-                                </span>
-                            )}
-
-                            {/* Preço (apenas produtos) */}
-                            {isProduct && content.price !== undefined && content.price > 0 && (
-                                <div className="text-3xl font-black" style={{ color: '#f97316' }}>
-                                    R$ {content.price.toFixed(2)}
+                                    <div className="text-center">
+                                        <div className="text-6xl mb-4">
+                                            {isProduct ? '🛒' : '📢'}
+                                        </div>
+                                        <p className="text-sm font-bold uppercase tracking-widest" style={{ color: colors.textSecondary }}>
+                                            {isProduct ? 'Produto' : 'Publicação'}
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
-                            {/* Descrição */}
-                            {content.description && (
-                                <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: colors.textSecondary }}>
-                                    {content.description}
-                                </div>
-                            )}
-
-                            {/* Data de criação */}
-                            <div className="text-xs" style={{ color: colors.textSecondary }}>
-                                Publicado em {new Date(content.created_at).toLocaleDateString('pt-BR', {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric'
-                                })}
-                            </div>
-
-                            {/* Botões de ação */}
-                            <div className="flex flex-wrap gap-3 pt-4 border-t" style={{ borderColor: `rgba(255,255,255,0.06)` }}>
-                                {isOwner ? (
-                                    <>
-                                        <button
-                                            onClick={() => router.push(`/${ownerSlug}/${slug}/editar-produto`)}
-                                            className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                            style={{ background: GRADIENT, color: '#fff' }}
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                            Editar
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm(`Tem certeza que deseja excluir esta ${isProduct ? 'produto' : 'publicação'}?`)) return
-                                                const { error } = await supabase
-                                                    .from('products')
-                                                    .delete()
-                                                    .eq('id', content.id)
-                                                if (!error) {
-                                                    toast.success('Removido com sucesso!')
-                                                    router.push(`/${ownerSlug}`)
-                                                } else {
-                                                    toast.error('Erro ao remover')
-                                                }
-                                            }}
-                                            className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                            style={{
-                                                background: '#ef4444',
-                                                color: '#fff'
-                                            }}
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                            Excluir
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div className="flex items-center gap-3 w-full flex-wrap">
-                                        {isProduct ? (
-                                            isInCart ? (
-                                                <div className="flex items-center gap-2 flex-1">
-                                                    <button
-                                                        onClick={handleDecreaseQuantity}
-                                                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                        style={{
-                                                            background: GRADIENT,
-                                                            color: '#ffffff'
-                                                        }}
-                                                    >
-                                                        <Minus size={18} />
-                                                    </button>
-                                                    <span className="text-lg font-bold min-w-[40px] text-center" style={{ color: '#f97316' }}>
-                                                        {productQuantity}
-                                                    </span>
-                                                    <button
-                                                        onClick={handleIncreaseQuantity}
-                                                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                        style={{
-                                                            background: GRADIENT,
-                                                            color: '#ffffff'
-                                                        }}
-                                                    >
-                                                        <Plus size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={handleRemoveAll}
-                                                        className="w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                        style={{
-                                                            background: '#ef4444',
-                                                            color: '#ffffff'
-                                                        }}
-                                                        title="Remover todos"
-                                                    >
-                                                        <X size={18} />
-                                                    </button>
-                                                </div>
+                            <div className="p-6 space-y-4">
+                                {/* Owner info */}
+                                <button
+                                    onClick={() => router.push(`/${ownerSlug}`)}
+                                    className="w-full flex items-center gap-3 p-3 rounded-xl transition hover:scale-[1.02] hover:shadow-lg text-left"
+                                    style={{
+                                        background: `rgba(255,255,255,0.03)`,
+                                        border: `1px solid transparent`,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.3)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.borderColor = 'transparent'
+                                    }}
+                                >
+                                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{
+                                        background: GRADIENT,
+                                        padding: '2px'
+                                    }}>
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                            {owner.avatar_url ? (
+                                                <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <button
-                                                    onClick={handleAddToCart}
-                                                    className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                    style={{ background: GRADIENT, color: '#fff' }}
-                                                >
-                                                    <ShoppingBag className="w-4 h-4" />
-                                                    Adicionar ao carrinho
-                                                </button>
-                                            )
-                                        ) : null}
+                                                <span className="text-lg font-black" style={{ color: '#f97316' }}>
+                                                    {owner.name?.charAt(0).toUpperCase()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                            {owner.name}
+                                        </p>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                            {isProfileOwner ? 'Perfil' : 'Loja'} • @{owner.slug}
+                                        </p>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 opacity-50" style={{ color: colors.textSecondary }} />
+                                </button>
 
-                                        {owner.whatsapp && (
-                                            <a
-                                                href={`https://wa.me/${owner.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi seu ${isProduct ? 'produto' : 'conteúdo'} no iUser e tenho interesse.`)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                style={{ background: '#25D366', color: '#fff' }}
-                                            >
-                                                <MessageCircle className="w-4 h-4" />
-                                                WhatsApp
-                                            </a>
-                                        )}
+                                <h1 className="text-3xl font-black" style={{ color: colors.textPrimary }}>
+                                    {content.name}
+                                </h1>
+
+                                {content.category && (
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase" style={{
+                                        background: `rgba(249, 115, 22, 0.15)`,
+                                        color: '#f97316'
+                                    }}>
+                                        {content.category}
+                                    </span>
+                                )}
+
+                                {isProduct && content.price !== undefined && content.price > 0 && (
+                                    <div className="text-3xl font-black" style={{ color: '#f97316' }}>
+                                        R$ {content.price.toFixed(2)}
                                     </div>
                                 )}
+
+                                {content.description && (
+                                    <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: colors.textSecondary }}>
+                                        {content.description}
+                                    </div>
+                                )}
+
+                                <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                    Publicado em {new Date(content.created_at).toLocaleDateString('pt-BR', {
+                                        day: 'numeric',
+                                        month: 'long',
+                                        year: 'numeric'
+                                    })}
+                                </div>
+
+                                {/* Botões de ação */}
+                                <div className="flex flex-wrap gap-3 pt-4 border-t" style={{ borderColor: `rgba(255,255,255,0.06)` }}>
+                                    {isOwner ? (
+                                        <>
+                                            <button
+                                                onClick={() => router.push(`/${ownerSlug}/${slug}/editar-produto`)}
+                                                className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
+                                                style={{ background: GRADIENT, color: '#fff' }}
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                                Editar
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm(`Tem certeza que deseja excluir esta ${isProduct ? 'produto' : 'publicação'}?`)) return
+                                                    const { error } = await supabase
+                                                        .from('products')
+                                                        .delete()
+                                                        .eq('id', content.id)
+                                                    if (!error) {
+                                                        toast.success('Removido com sucesso!')
+                                                        router.push(`/${ownerSlug}`)
+                                                    } else {
+                                                        toast.error('Erro ao remover')
+                                                    }
+                                                }}
+                                                className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
+                                                style={{
+                                                    background: '#ef4444',
+                                                    color: '#fff'
+                                                }}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                                Excluir
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center gap-3 w-full flex-wrap">
+                                            {isProduct ? (
+                                                isInCart ? (
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <button
+                                                            onClick={handleDecreaseQuantity}
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                            style={{
+                                                                background: GRADIENT,
+                                                                color: '#ffffff'
+                                                            }}
+                                                        >
+                                                            <Minus size={18} />
+                                                        </button>
+                                                        <span className="text-lg font-bold min-w-[40px] text-center" style={{ color: '#f97316' }}>
+                                                            {productQuantity}
+                                                        </span>
+                                                        <button
+                                                            onClick={handleIncreaseQuantity}
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                            style={{
+                                                                background: GRADIENT,
+                                                                color: '#ffffff'
+                                                            }}
+                                                        >
+                                                            <Plus size={18} />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleRemoveAll}
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                            style={{
+                                                                background: '#ef4444',
+                                                                color: '#ffffff'
+                                                            }}
+                                                            title="Remover todos"
+                                                        >
+                                                            <X size={18} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={handleAddToCart}
+                                                        className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
+                                                        style={{ background: GRADIENT, color: '#fff' }}
+                                                    >
+                                                        <ShoppingBag className="w-4 h-4" />
+                                                        Adicionar ao carrinho
+                                                    </button>
+                                                )
+                                            ) : null}
+
+                                            {owner.whatsapp && (
+                                                <a
+                                                    href={`https://wa.me/${owner.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi seu ${isProduct ? 'produto' : 'conteúdo'} no iUser e tenho interesse.`)}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
+                                                    style={{ background: '#25D366', color: '#fff' }}
+                                                >
+                                                    <MessageCircle className="w-4 h-4" />
+                                                    WhatsApp
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                )}
+            </main>
 
             {/* ===== BOTÕES FLUTUANTES ===== */}
-            <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12 }}>
-                {/* Sacola Button */}
-                <SacolaButton
-                    totalItems={totalCartItems}
-                    totalValue={totalCartValue}
-                    statusCounts={{ pending: 0, preparing: 0, ready: 0, reviews: 0 }}
-                    animate={cartAnimating}
-                />
+            {/* Botões quando está no conteúdo principal */}
+            {!showProfile && !showStoreDashboard && (
+                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12, alignItems: 'center' }}>
+                    {/* Botão Voltar - ESQUERDA */}
+                    <button
+                        onClick={() => router.back()}
+                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            borderTop: '2px solid #f97316',
+                            borderRight: '2px solid #f97316',
+                            borderBottom: '2px solid #f97316',
+                            borderLeft: '2px solid #f97316',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Voltar"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
 
-                {/* Botão Home */}
-                <button
-                    onClick={() => router.push('/')}
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                    style={{
-                        background: GRADIENT,
-                        color: '#ffffff',
-                        borderTop: '2px solid #f97316',
-                        borderRight: '2px solid #f97316',
-                        borderBottom: '2px solid #f97316',
-                        borderLeft: '2px solid #f97316',
-                        boxShadow: `0 8px 24px #f9731660`,
-                    }}
-                    aria-label="Voltar ao início"
-                >
-                    <Home size={24} />
-                </button>
-            </div>
+                    {/* Sacola Button - MEIO */}
+                    <SacolaButton
+                        totalItems={totalCartItems}
+                        totalValue={totalCartValue}
+                        statusCounts={{ pending: 0, preparing: 0, ready: 0, reviews: 0 }}
+                        animate={cartAnimating}
+                    />
+
+                    {/* Botão Home - DIREITA */}
+                    <button
+                        onClick={() => router.push('/')}
+                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            borderTop: '2px solid #f97316',
+                            borderRight: '2px solid #f97316',
+                            borderBottom: '2px solid #f97316',
+                            borderLeft: '2px solid #f97316',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Voltar ao início"
+                    >
+                        <Home size={24} />
+                    </button>
+                </div>
+            )}
+
+            {/* Botões quando está em dashboard - Home e Voltar ao Produto */}
+            {(showProfile || showStoreDashboard) && (
+                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12 }}>
+                    {/* Botão Voltar ao Produto - ESQUERDA */}
+                    <button
+                        onClick={showMainContent}
+                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            borderTop: '2px solid #f97316',
+                            borderRight: '2px solid #f97316',
+                            borderBottom: '2px solid #f97316',
+                            borderLeft: '2px solid #f97316',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Voltar ao conteúdo"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+
+                    {/* Botão Home - DIREITA */}
+                    <button
+                        onClick={() => router.push('/')}
+                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            borderTop: '2px solid #f97316',
+                            borderRight: '2px solid #f97316',
+                            borderBottom: '2px solid #f97316',
+                            borderLeft: '2px solid #f97316',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Voltar ao início"
+                    >
+                        <Home size={24} />
+                    </button>
+                </div>
+            )}
         </div>
     )
 }

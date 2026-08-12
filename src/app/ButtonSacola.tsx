@@ -69,13 +69,23 @@ export default function SacolaButton({
                 <ShoppingCart size={24} />
 
                 {totalItems > 0 && (
-                    <>
-                        {/* Badge Verde - Quantidade (ESQUERDA) */}
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: -6,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            display: 'flex',
+                            gap: 2,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 'auto',
+                            maxWidth: 'calc(100% + 16px)',
+                        }}
+                    >
+                        {/* Badge - Quantidade (REDONDO) */}
                         <span
                             style={{
-                                position: 'absolute',
-                                top: -6,
-                                left: -6,
                                 minWidth: 22,
                                 height: 22,
                                 borderRadius: '50%',
@@ -93,21 +103,18 @@ export default function SacolaButton({
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                 transform: animate ? 'scale(1.3)' : 'scale(1)',
                                 transition: 'transform 0.2s ease',
-                                padding: '0 4px',
-                                zIndex: 2,
+                                padding: '0 6px',
+                                flexShrink: 0,
                             }}
                         >
                             {totalItems}
                         </span>
 
-                        {/* Badge Verde - Valor Total (DIREITA) */}
+                        {/* Badge - Valor Total (REDONDO) */}
                         {totalValue && totalValue > 0 && (
                             <span
                                 style={{
-                                    position: 'absolute',
-                                    top: -6,
-                                    right: -6,
-                                    minWidth: 28,
+                                    minWidth: 22,
                                     height: 22,
                                     borderRadius: '50%',
                                     display: 'flex',
@@ -127,13 +134,13 @@ export default function SacolaButton({
                                     transform: animate ? 'scale(1.2)' : 'scale(1)',
                                     transition: 'transform 0.2s ease 0.1s',
                                     whiteSpace: 'nowrap',
-                                    zIndex: 1,
+                                    flexShrink: 0,
                                 }}
                             >
                                 R${totalValue.toFixed(0)}
                             </span>
                         )}
-                    </>
+                    </div>
                 )}
             </button>
 

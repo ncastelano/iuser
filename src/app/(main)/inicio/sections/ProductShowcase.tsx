@@ -1,3 +1,4 @@
+// src/app/(main)/inicio/sections/ProductShowcase.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
@@ -21,6 +22,7 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 interface ProductCard {
     id: string
     name: string
+    slug: string
     imageUrl: string | null
     price: number | null
     description?: string
@@ -246,6 +248,7 @@ function useProductShowcase() {
                     return {
                         id: prod.id,
                         name: prod.name,
+                        slug: prod.slug,
                         imageUrl,
                         price: prod.price ?? null,
                         description: prod.description,
@@ -416,14 +419,18 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
 
     if (!products.length) return null
 
+    // ===== CORRIGIDO: URL do produto =====
     const getProductUrl = (product: ProductCard) => {
-        if (product.isProfileProduct && product.profileSlug) {
-            return `/${product.profileSlug}?produto=${product.id}`
+        // Se tem storeSlug e product slug, vai para /storeSlug/productSlug
+        if (product.storeSlug && product.storeSlug !== '#' && product.slug) {
+            return `/${product.storeSlug}/${product.slug}`
         }
-        if (product.profileSlug && product.storeSlug && product.storeSlug !== '#') {
-            return `/${product.profileSlug}/${product.storeSlug}?produto=${product.id}`
+        // Fallback: se não tem storeSlug, usa o profileSlug
+        if (product.profileSlug) {
+            return `/${product.profileSlug}/${product.slug || product.id}`
         }
-        return `/${product.storeSlug}?produto=${product.id}`
+        // Fallback final
+        return `/${product.storeSlug}/${product.slug || product.id}`
     }
 
     return (

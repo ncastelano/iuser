@@ -235,7 +235,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
             if (!isStoreOpen) {
                 setShowClosedAlert(true)
-                toast.error('🕐 Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
+                toast.error('Loja fechada no momento. Não é possível adicionar itens ao carrinho.')
                 return
             }
 
@@ -444,8 +444,13 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         }
     }
 
-    // ========== HANDLE PRODUCT CLICK ==========
-    const handleProductClick = (product: any) => {
+    // ========== HANDLE PRODUCT CLICK - CORRIGIDO ==========
+    const handleProductClick = (product: any, e?: React.MouseEvent) => {
+        // Se o clique veio de um botão de ação, não redireciona
+        if (e?.target && (e.target as HTMLElement).closest('.product-action-button')) {
+            return
+        }
+
         const productIdentifier = product.slug || product.id
 
         if (!productIdentifier) {
@@ -471,12 +476,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
             return
         }
 
-        const alreadyInCart = cartItems.some((item: any) => item.product.id === product.id)
-        if (alreadyInCart) return
-
-        addItem(ownerSlug, { name: owner!.name, logo_url: owner!.avatar_url ?? null }, product)
-        setCartAnimating(true)
-        setTimeout(() => setCartAnimating(false), 500)
+        // Vai para a página do produto
+        router.push(`/${ownerSlug}/${productIdentifier}`)
     }
 
     // ========== CARREGAR DADOS DA LOJA ==========
@@ -758,8 +759,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                             {selectedProduct.image_url ? (
                                 <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-4xl font-black" style={{ color: '#f97316' }}>
-                                    {selectedProduct.name?.charAt(0) || '?'}
+                                <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: colors.textSecondary }}>
+                                    Sem imagem
                                 </div>
                             )}
                         </div>
@@ -854,7 +855,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                         <AlertCircle size={20} style={{ color: '#ef4444' }} className="flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
-                                🕐 Loja fechada no momento
+                                Loja fechada no momento
                             </p>
                             <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                 {statusText}
@@ -1179,14 +1180,14 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
                                             const handleProductInteraction = (e: React.MouseEvent) => {
                                                 e.stopPropagation()
-                                                handleProductClick(product)
+                                                handleProductClick(product, e)
                                             }
 
                                             if (!hasImage) {
                                                 return (
                                                     <div
                                                         key={product.id}
-                                                        onClick={() => handleProductClick(product)}
+                                                        onClick={(e) => handleProductClick(product, e)}
                                                         className={`col-span-2 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${productIsDisabled ? 'cursor-pointer' : 'cursor-pointer'}`}
                                                         style={{
                                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1212,7 +1213,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                 {isOwner ? (
                                                                     <button
                                                                         onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
-                                                                        className="w-7 h-7 rounded-full border flex items-center justify-center text-xs"
+                                                                        className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                         style={{ borderColor: colors.border, color: '#f97316' }}
                                                                     >
                                                                         <ExternalLink size={12} />
@@ -1228,7 +1229,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                     decreaseQuantity(product.id)
                                                                                 }
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
                                                                             style={{
                                                                                 background: GRADIENT,
                                                                                 color: '#ffffff'
@@ -1244,7 +1245,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                 e.stopPropagation()
                                                                                 increaseQuantity(product)
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
                                                                             style={{
                                                                                 background: GRADIENT,
                                                                                 color: '#ffffff'
@@ -1257,7 +1258,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                 e.stopPropagation()
                                                                                 removeAllOfProduct(product.id)
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
                                                                             style={{
                                                                                 background: '#ef4444',
                                                                                 color: '#ffffff'
@@ -1270,7 +1271,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                 ) : (
                                                                     <button
                                                                         onClick={handleProductInteraction}
-                                                                        className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                        className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform product-action-button"
                                                                         style={{ background: GRADIENT }}
                                                                     >
                                                                         {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
@@ -1285,7 +1286,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                             return (
                                                 <div
                                                     key={product.id}
-                                                    onClick={() => handleProductClick(product)}
+                                                    onClick={(e) => handleProductClick(product, e)}
                                                     className={`relative rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer`}
                                                     style={{
                                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1296,8 +1297,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                         {product.image_url ? (
                                                             <img src={product.image_url} className="w-full h-full object-cover" alt="" />
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-3xl font-black" style={{ color: '#f97316' }}>
-                                                                {product.name?.charAt(0) || '?'}
+                                                            <div className="w-full h-full flex items-center justify-center text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                                                Sem imagem
                                                             </div>
                                                         )}
                                                         {product.type && (
@@ -1333,7 +1334,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                             {isOwner ? (
                                                                 <button
                                                                     onClick={e => { e.stopPropagation(); router.push(`/${ownerSlug}/${product.slug || product.id}/editar-produto`) }}
-                                                                    className="w-7 h-7 rounded-full border flex items-center justify-center text-xs"
+                                                                    className="w-7 h-7 rounded-full border flex items-center justify-center text-xs product-action-button"
                                                                     style={{ borderColor: colors.border, color: '#f97316' }}
                                                                 >
                                                                     <ExternalLink size={12} />
@@ -1349,7 +1350,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                 decreaseQuantity(product.id)
                                                                             }
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
                                                                         style={{
                                                                             background: GRADIENT,
                                                                             color: '#ffffff'
@@ -1365,7 +1366,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                             e.stopPropagation()
                                                                             increaseQuantity(product)
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform product-action-button"
                                                                         style={{
                                                                             background: GRADIENT,
                                                                             color: '#ffffff'
@@ -1378,7 +1379,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                             e.stopPropagation()
                                                                             removeAllOfProduct(product.id)
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs product-action-button"
                                                                         style={{
                                                                             background: '#ef4444',
                                                                             color: '#ffffff'
@@ -1391,7 +1392,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                             ) : (
                                                                 <button
                                                                     onClick={handleProductInteraction}
-                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform product-action-button"
                                                                     style={{ background: GRADIENT }}
                                                                 >
                                                                     {productIsDisabled ? <Info size={12} /> : <Plus size={12} />}
@@ -1471,8 +1472,8 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                     {imgUrl ? (
                                                         <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center" style={{ color: colors.textSecondary }}>
-                                                            <Megaphone size={24} />
+                                                        <div className="w-full h-full flex items-center justify-center text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                                            Sem imagem
                                                         </div>
                                                     )}
                                                 </div>
