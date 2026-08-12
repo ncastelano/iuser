@@ -29,6 +29,7 @@ import FeaturedPublications from './inicio/sections/FeaturePublications'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from './StoreDashboard'
+import ButtonSearch from '../ButtonSearch'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -663,6 +664,7 @@ export default function HomePage() {
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard
+    const shouldShowSearch = !showProfile && !showStoreDashboard && !showConfig && !showCreateStore && !showLogin
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -689,7 +691,6 @@ export default function HomePage() {
                         setSearchFocused(true)
                     }}
                     onSearchBlur={(e) => {
-                        // Verifica se o clique foi no LastSearched
                         if (lastSearchedRef.current?.contains(e.relatedTarget as Node)) {
                             return
                         }
@@ -751,7 +752,6 @@ export default function HomePage() {
                                         onSearchSelect={(query) => {
                                             setSearchQuery(query)
                                             setSearchFocused(false)
-                                            // Foca no input após selecionar
                                             searchInputRef.current?.focus()
                                         }}
                                     />
@@ -807,7 +807,36 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== SACOLA BUTTON ===== */}
+                {/* ===== BOTÕES FLUTUANTES ===== */}
+                {/* ButtonSearch - LADO ESQUERDO */}
+                {shouldShowSearch && (
+                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
+                        <ButtonSearch
+                            placeholder="Buscar restaurantes, mercados..."
+                            onSearch={(query) => {
+                                setSearchQuery(query)
+                            }}
+                            onFocus={() => {
+                                setSearchFocused(true)
+                            }}
+                            onBlur={() => {
+                                setTimeout(() => {
+                                    if (!document.activeElement?.closest('.last-searched-container')) {
+                                        setSearchFocused(false)
+                                    }
+                                }, 100)
+                            }}
+                            initialValue={searchQuery}
+                            inputRef={searchInputRef}
+                            searchValue={searchQuery}
+                            maxWidth={400}
+                            expandOnFocus={true}
+                            showClear={true}
+                        />
+                    </div>
+                )}
+
+                {/* ===== SACOLA BUTTON - LADO DIREITO ===== */}
                 {shouldShowSacola && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         {loadingStatus ? (
@@ -838,7 +867,10 @@ export default function HomePage() {
                             style={{
                                 background: GRADIENT,
                                 color: '#ffffff',
-                                border: `2px solid #f97316`,
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
                                 boxShadow: `0 8px 24px #f9731660`,
                             }}
                             aria-label="Voltar ao início"

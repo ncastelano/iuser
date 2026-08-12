@@ -239,28 +239,6 @@ const convertBusinessHours = (data: any): BusinessHours | null => {
     return { weekly }
 }
 
-// ===== FUNÇÃO PARA NAVEGAR PARA A LOJA =====
-const navigateToStore = async (store: StoreCardData, router: any) => {
-    try {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('profileSlug')
-            .eq('id', store.owner_id)
-            .single()
-
-        if (error) throw error
-
-        if (data?.profileSlug) {
-            router.push(`/${data.profileSlug}/${store.storeSlug}`)
-        } else {
-            router.push(`/${store.storeSlug}`)
-        }
-    } catch (error) {
-        console.error('Erro ao buscar perfil do dono:', error)
-        router.push(`/${store.storeSlug}`)
-    }
-}
-
 // ===== COMPONENTE PRINCIPAL =====
 export default function ListaCategoriaPage() {
     const params = useParams()
@@ -337,18 +315,6 @@ export default function ListaCategoriaPage() {
                     .limit(50)
 
                 if (fallbackData) finalStores = fallbackData
-            }
-
-            const ownerIds = [...new Set(finalStores.map(s => s.owner_id).filter(Boolean))]
-            let profilesMap: Record<string, string> = {}
-            if (ownerIds.length) {
-                const { data: profilesData } = await supabase
-                    .from('profiles')
-                    .select('id, "profileSlug"')
-                    .in('id', ownerIds)
-                if (profilesData) {
-                    profilesMap = Object.fromEntries(profilesData.map(p => [p.id, p.profileSlug]))
-                }
             }
 
             const storesWithDetails = await Promise.all(
@@ -439,9 +405,10 @@ export default function ListaCategoriaPage() {
     const goToPrev = () => setCurrentPage(prev => Math.max(0, prev - 1))
     const goToNext = () => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))
 
-    // ===== HANDLE STORE CLICK =====
+    // ===== HANDLE STORE CLICK - SIMPLIFICADO =====
     const handleStoreClick = useCallback((store: StoreCardData) => {
-        navigateToStore(store, router)
+        // Agora navega diretamente com o storeSlug
+        router.push(`/${store.storeSlug}`)
     }, [router])
 
     // ===== FALLBACK =====

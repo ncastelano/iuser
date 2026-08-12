@@ -1031,9 +1031,15 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                         <p className="text-xs font-bold" style={{ color: '#ef4444' }}>
                             Loja fechada no momento
                         </p>
-                        <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
-                            Clique em um produto para ver mais detalhes
-                        </p>
+                        {products.length > 0 ? (
+                            <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                Clique em um produto para ver mais detalhes
+                            </p>
+                        ) : (
+                            <p className="text-[10px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                Essa loja ainda não possui produtos
+                            </p>
+                        )}
                         {nextAvailable && (
                             <p className="text-[10px] font-bold mt-1" style={{ color: '#f97316' }}>
                                 Abre {nextAvailable.day} às {nextAvailable.open}
