@@ -680,22 +680,7 @@ export default function HomePage() {
                     avatarUrl={avatarUrl}
                     loading={loading}
                     tabs={tabs}
-                    showSearch={isSearchVisible}
-                    searchPlaceholder="Buscar restaurantes, mercados..."
-                    searchValue={searchQuery}
-                    searchRef={searchInputRef}
-                    onSearch={(query) => {
-                        setSearchQuery(query)
-                    }}
-                    onSearchFocus={() => {
-                        setSearchFocused(true)
-                    }}
-                    onSearchBlur={(e) => {
-                        if (lastSearchedRef.current?.contains(e.relatedTarget as Node)) {
-                            return
-                        }
-                        setSearchFocused(false)
-                    }}
+                    showSearch={false} // DESATIVADO: Input do header removido
                     profileSlug={profileSlug}
                     locationElement={
                         <button
