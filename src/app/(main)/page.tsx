@@ -164,8 +164,23 @@ export default function HomePage() {
     const lastSearchedRef = useRef<HTMLDivElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
+    // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = useMemo(() => {
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
+    }, [itemsByStore])
+
+    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
+    const totalCartValue = useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                // O price está dentro de product
+                const price = item.product?.price || 0
+                const quantity = item.quantity || 1
+                total += Number(price) * quantity
+            })
+        })
+        return total
     }, [itemsByStore])
 
     const [pendingCount, setPendingCount] = useState(0)
@@ -680,7 +695,7 @@ export default function HomePage() {
                     avatarUrl={avatarUrl}
                     loading={loading}
                     tabs={tabs}
-                    showSearch={false} // DESATIVADO: Input do header removido
+                    showSearch={false}
                     profileSlug={profileSlug}
                     locationElement={
                         <button
@@ -831,6 +846,7 @@ export default function HomePage() {
                         ) : (
                             <SacolaButton
                                 totalItems={totalCartItems}
+                                totalValue={totalCartValue}
                                 statusCounts={{
                                     pending: pendingCount,
                                     preparing: preparingCount,

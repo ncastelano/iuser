@@ -14,12 +14,19 @@ interface StatusCounts {
 
 interface SacolaButtonProps {
     totalItems: number
+    totalValue?: number
     statusCounts?: StatusCounts
     animate?: boolean
     onClick?: () => void
 }
 
-export default function SacolaButton({ totalItems, statusCounts, animate = false, onClick }: SacolaButtonProps) {
+export default function SacolaButton({
+    totalItems,
+    totalValue,
+    statusCounts,
+    animate = false,
+    onClick
+}: SacolaButtonProps) {
     const router = useRouter()
     const { colors } = useTheme()
 
@@ -38,7 +45,6 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
             statusCounts.ready > 0 ||
             statusCounts.reviews > 0)
 
-    // GRADIENTE LARANJA-VERMELHO FIXO
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     return (
@@ -49,7 +55,10 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
                 style={{
                     background: GRADIENT,
                     color: '#ffffff',
-                    border: `2px solid #f97316`,
+                    borderTop: '2px solid #f97316',
+                    borderRight: '2px solid #f97316',
+                    borderBottom: '2px solid #f97316',
+                    borderLeft: '2px solid #f97316',
                     boxShadow: `0 8px 24px #f9731660`,
                     position: 'relative',
                     width: '100%',
@@ -59,36 +68,75 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
             >
                 <ShoppingCart size={24} />
 
-                {/* Badge de itens no canto superior direito */}
                 {totalItems > 0 && (
-                    <span
-                        style={{
-                            position: 'absolute',
-                            top: -6,
-                            right: -6,
-                            minWidth: 22,
-                            height: 22,
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 10,
-                            fontWeight: 800,
-                            background: '#10b981',
-                            color: '#ffffff',
-                            border: '2px solid #ffffff',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            transform: animate ? 'scale(1.3)' : 'scale(1)',
-                            transition: 'transform 0.2s ease',
-                            padding: '0 4px',
-                        }}
-                    >
-                        {totalItems}
-                    </span>
+                    <>
+                        {/* Badge Verde - Quantidade (ESQUERDA) */}
+                        <span
+                            style={{
+                                position: 'absolute',
+                                top: -6,
+                                left: -6,
+                                minWidth: 22,
+                                height: 22,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 10,
+                                fontWeight: 800,
+                                background: '#10b981',
+                                color: '#ffffff',
+                                borderTop: '2px solid #ffffff',
+                                borderRight: '2px solid #ffffff',
+                                borderBottom: '2px solid #ffffff',
+                                borderLeft: '2px solid #ffffff',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                transform: animate ? 'scale(1.3)' : 'scale(1)',
+                                transition: 'transform 0.2s ease',
+                                padding: '0 4px',
+                                zIndex: 2,
+                            }}
+                        >
+                            {totalItems}
+                        </span>
+
+                        {/* Badge Verde - Valor Total (DIREITA) */}
+                        {totalValue && totalValue > 0 && (
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    top: -6,
+                                    right: -6,
+                                    minWidth: 28,
+                                    height: 22,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: 8,
+                                    fontWeight: 700,
+                                    background: '#10b981',
+                                    color: '#ffffff',
+                                    borderTop: '2px solid #ffffff',
+                                    borderRight: '2px solid #ffffff',
+                                    borderBottom: '2px solid #ffffff',
+                                    borderLeft: '2px solid #ffffff',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                    padding: '0 6px',
+                                    lineHeight: 1,
+                                    transform: animate ? 'scale(1.2)' : 'scale(1)',
+                                    transition: 'transform 0.2s ease 0.1s',
+                                    whiteSpace: 'nowrap',
+                                    zIndex: 1,
+                                }}
+                            >
+                                R${totalValue.toFixed(0)}
+                            </span>
+                        )}
+                    </>
                 )}
             </button>
 
-            {/* Badges de status posicionados absolutamente abaixo do botão */}
             {showStatus && (
                 <div
                     style={{
@@ -114,7 +162,10 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
                             alignItems: 'center',
                             gap: 3,
                             lineHeight: '16px',
-                            border: '2px solid #ffffff',
+                            borderTop: '2px solid #ffffff',
+                            borderRight: '2px solid #ffffff',
+                            borderBottom: '2px solid #ffffff',
+                            borderLeft: '2px solid #ffffff',
                             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                         }}>
                             <Clock size={10} /> {statusCounts.pending}
@@ -132,7 +183,10 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
                             alignItems: 'center',
                             gap: 3,
                             lineHeight: '16px',
-                            border: '2px solid #ffffff',
+                            borderTop: '2px solid #ffffff',
+                            borderRight: '2px solid #ffffff',
+                            borderBottom: '2px solid #ffffff',
+                            borderLeft: '2px solid #ffffff',
                             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                         }}>
                             <ChefHat size={10} /> {statusCounts.preparing}
@@ -150,7 +204,10 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
                             alignItems: 'center',
                             gap: 3,
                             lineHeight: '16px',
-                            border: '2px solid #ffffff',
+                            borderTop: '2px solid #ffffff',
+                            borderRight: '2px solid #ffffff',
+                            borderBottom: '2px solid #ffffff',
+                            borderLeft: '2px solid #ffffff',
                             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                         }}>
                             <CheckCircle2 size={10} /> {statusCounts.ready}
@@ -168,7 +225,10 @@ export default function SacolaButton({ totalItems, statusCounts, animate = false
                             alignItems: 'center',
                             gap: 3,
                             lineHeight: '16px',
-                            border: '2px solid #ffffff',
+                            borderTop: '2px solid #ffffff',
+                            borderRight: '2px solid #ffffff',
+                            borderBottom: '2px solid #ffffff',
+                            borderLeft: '2px solid #ffffff',
                             boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                         }}>
                             <Star size={10} color="#ffe600ff" /> {statusCounts.reviews}

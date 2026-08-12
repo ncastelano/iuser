@@ -410,6 +410,20 @@ export default function OwnerPage() {
         [cartItems]
     )
 
+    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
+    const totalCartValue = useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                // O price está dentro de product
+                const price = item.product?.price || 0
+                const quantity = item.quantity || 1
+                total += Number(price) * quantity
+            })
+        })
+        return total
+    }, [itemsByStore])
+
     useEffect(() => {
         if (totalCartQuantity > 0) {
             setCartAnimating(true)
@@ -527,6 +541,7 @@ export default function OwnerPage() {
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                         <SacolaButton
                             totalItems={totalCartQuantity}
+                            totalValue={totalCartValue}
                             statusCounts={{
                                 pending: pendingCount,
                                 preparing: preparingCount,
@@ -542,8 +557,11 @@ export default function OwnerPage() {
                             style={{
                                 background: GRADIENT,
                                 color: '#ffffff',
-                                border: `2px solid rgba(249, 115, 22, 0.3)`,
-                                boxShadow: `0 8px 24px rgba(249, 115, 22, 0.6)`,
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
+                                boxShadow: `0 8px 24px #f9731660`,
                             }}
                             aria-label="Voltar ao início"
                         >
@@ -561,8 +579,11 @@ export default function OwnerPage() {
                             style={{
                                 background: GRADIENT,
                                 color: '#ffffff',
-                                border: `2px solid rgba(249, 115, 22, 0.3)`,
-                                boxShadow: `0 8px 24px rgba(249, 115, 22, 0.6)`,
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
+                                boxShadow: `0 8px 24px #f9731660`,
                             }}
                             aria-label="Voltar ao conteúdo"
                         >

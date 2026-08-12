@@ -968,7 +968,6 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     {owner.allow_scheduling && (
                         <button
                             onClick={() => {
-                                // Permite abrir o agendamento mesmo com a loja fechada
                                 setShowScheduleModal(true)
                             }}
                             className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold shadow-xl transition-all hover:scale-105 ${nextAvailable ? 'animate-pulse-status' : ''}`}
@@ -1229,17 +1228,27 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                     decreaseQuantity(product.id)
                                                                                 }
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-xs"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                            style={{
+                                                                                background: GRADIENT,
+                                                                                color: '#ffffff'
+                                                                            }}
                                                                         >
                                                                             −
                                                                         </button>
-                                                                        <span className="text-xs font-bold min-w-[16px] text-center">{quantity}</span>
+                                                                        <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
+                                                                            {quantity}
+                                                                        </span>
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation()
                                                                                 increaseQuantity(product)
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-xs"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                            style={{
+                                                                                background: GRADIENT,
+                                                                                color: '#ffffff'
+                                                                            }}
                                                                         >
                                                                             +
                                                                         </button>
@@ -1248,7 +1257,11 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                 e.stopPropagation()
                                                                                 removeAllOfProduct(product.id)
                                                                             }}
-                                                                            className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                            className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                            style={{
+                                                                                background: '#ef4444',
+                                                                                color: '#ffffff'
+                                                                            }}
                                                                             title="Remover todos"
                                                                         >
                                                                             <X className="w-3 h-3 text-white" />
@@ -1336,17 +1349,27 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                                 decreaseQuantity(product.id)
                                                                             }
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-xs"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                        style={{
+                                                                            background: GRADIENT,
+                                                                            color: '#ffffff'
+                                                                        }}
                                                                     >
                                                                         −
                                                                     </button>
-                                                                    <span className="text-xs font-bold min-w-[16px] text-center">{quantity}</span>
+                                                                    <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
+                                                                        {quantity}
+                                                                    </span>
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation()
                                                                             increaseQuantity(product)
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700 font-bold text-xs"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-md hover:scale-110 transition-transform"
+                                                                        style={{
+                                                                            background: GRADIENT,
+                                                                            color: '#ffffff'
+                                                                        }}
                                                                     >
                                                                         +
                                                                     </button>
@@ -1355,7 +1378,11 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                                             e.stopPropagation()
                                                                             removeAllOfProduct(product.id)
                                                                         }}
-                                                                        className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                        className="w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform text-xs"
+                                                                        style={{
+                                                                            background: '#ef4444',
+                                                                            color: '#ffffff'
+                                                                        }}
                                                                         title="Remover todos"
                                                                     >
                                                                         <X className="w-3 h-3 text-white" />
@@ -1382,7 +1409,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* TAB PUBLICAÇÕES (mantido igual) */}
+                {/* TAB PUBLICAÇÕES */}
                 {activeTab === 'publications' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
@@ -1619,7 +1646,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* TAB AVALIAÇÕES (mantido igual) */}
+                {/* TAB AVALIAÇÕES */}
                 {activeTab === 'reviews' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
