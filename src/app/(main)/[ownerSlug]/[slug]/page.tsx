@@ -25,6 +25,9 @@ import {
     User,
     Store,
     ChevronRight,
+    Plus,
+    Minus,
+    X,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
@@ -84,24 +87,41 @@ export default function SlugPage() {
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [mounted, setMounted] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
+    const [productQuantity, setProductQuantity] = useState(0)
 
     // Cart
     const { itemsByStore, addItem, removeItem, updateQuantity } = useCartStore()
 
-    const storeKey = useMemo(() => {
-        if (!ownerSlug) return ''
-        return ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
-    }, [ownerType, ownerSlug])
+    // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
+    const totalCartItems = useMemo(() => {
+        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
+    }, [itemsByStore])
 
-    const cartItems = useMemo(() => {
-        if (!storeKey) return []
-        return itemsByStore[storeKey] || []
-    }, [itemsByStore, storeKey])
+    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
+    const totalCartValue = useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                const price = item.product?.price || 0
+                const quantity = item.quantity || 1
+                total += Number(price) * quantity
+            })
+        })
+        return total
+    }, [itemsByStore])
 
-    const totalCartQuantity = useMemo(
-        () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-        [cartItems]
-    )
+    // ===== VERIFICAR SE O PRODUTO ESTÁ NO CARRINHO =====
+    const getProductQuantity = useCallback(() => {
+        if (!content) return 0
+        let total = 0
+        Object.values(itemsByStore).forEach(storeItems => {
+            const found = storeItems.find((item: any) => item.product.id === content.id)
+            if (found) {
+                total += found.quantity
+            }
+        })
+        return total
+    }, [itemsByStore, content])
 
     // ========== DETECTAR OWNER ==========
     const detectOwner = useCallback(async (slug: string) => {
@@ -118,7 +138,7 @@ export default function SlugPage() {
                     name: profile.name,
                     slug: profile.profileSlug,
                     type: 'profile' as OwnerType,
-                    avatar_url: profile.avatar_url,
+                    avatar_url: getAvatarUrl(supabase, profile.avatar_url),
                     description: profile.description,
                     address: profile.address,
                     whatsapp: profile.whatsapp,
@@ -134,16 +154,28 @@ export default function SlugPage() {
             .maybeSingle()
 
         if (store && !storeError) {
+            let storeWhatsapp = store.whatsapp
+            if (!storeWhatsapp && store.owner_id) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('whatsapp')
+                    .eq('id', store.owner_id)
+                    .single()
+                storeWhatsapp = profile?.whatsapp
+            }
+
             return {
                 data: {
                     id: store.id,
                     name: store.name,
                     slug: store.storeSlug,
                     type: 'store' as OwnerType,
-                    avatar_url: store.logo_url,
+                    avatar_url: store.logo_url
+                        ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
+                        : null,
                     description: store.description,
                     address: store.address,
-                    whatsapp: store.whatsapp,
+                    whatsapp: storeWhatsapp,
                 },
                 type: 'store' as OwnerType
             }
@@ -164,14 +196,21 @@ export default function SlugPage() {
             .maybeSingle()
 
         if (product && !productError) {
+            let imageUrl = product.image_url
+            if (imageUrl) {
+                if (!imageUrl.startsWith('http')) {
+                    imageUrl = supabase.storage.from('product-images').getPublicUrl(imageUrl).data.publicUrl
+                }
+            }
+
             return {
                 data: {
                     id: product.id,
                     name: product.name,
                     slug: product.slug,
                     description: product.description,
-                    image_url: product.image_url,
-                    price: product.price,
+                    image_url: imageUrl,
+                    price: product.price || 0,
                     listing_type: product.listing_type,
                     type: product.listing_type === 'sale' ? 'product' as ContentType : 'publication' as ContentType,
                     owner_id: product.owner_id,
@@ -237,15 +276,93 @@ export default function SlugPage() {
         setMounted(true)
     }, [])
 
-    // ========== CART ==========
-    const increaseQuantity = useCallback(
-        (product: any) => {
-            if (!owner) return
-            const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
-            addItem(storeKey as string, { name: owner.name, logo_url: owner.avatar_url ?? null }, product)
-        },
-        [owner, ownerType, ownerSlug, addItem]
-    )
+    // ========== ATUALIZAR QUANTIDADE DO PRODUTO ==========
+    useEffect(() => {
+        if (content) {
+            setProductQuantity(getProductQuantity())
+        }
+    }, [content, getProductQuantity])
+
+    // ========== ANIMAÇÃO DO CARRINHO ==========
+    useEffect(() => {
+        if (totalCartItems > 0) {
+            setCartAnimating(true)
+            const timer = setTimeout(() => setCartAnimating(false), 3000)
+            return () => clearTimeout(timer)
+        }
+    }, [totalCartItems])
+
+    // ========== FUNÇÃO PARA CONVERTER CONTENT PARA CART PRODUCT ==========
+    const contentToCartProduct = useCallback((contentData: ContentData) => {
+        return {
+            id: contentData.id,
+            name: contentData.name,
+            price: contentData.price || 0,
+            image_url: contentData.image_url || null,
+            price_type: 'fixed',
+            type: contentData.type === 'product' ? 'physical' : 'digital',
+            slug: contentData.slug,
+            description: contentData.description || '',
+            category: contentData.category || '',
+        }
+    }, [])
+
+    // ========== CART FUNCTIONS ==========
+    const handleAddToCart = useCallback(() => {
+        if (!owner || !content) return
+
+        const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
+        const cartProduct = contentToCartProduct(content)
+        addItem(storeKey as string, { name: owner.name, logo_url: owner.avatar_url ?? null }, cartProduct)
+        setProductQuantity(prev => prev + 1)
+        setCartAnimating(true)
+        setTimeout(() => setCartAnimating(false), 500)
+        toast.success('Adicionado ao carrinho!')
+    }, [owner, content, ownerType, ownerSlug, addItem, contentToCartProduct])
+
+    const handleDecreaseQuantity = useCallback(() => {
+        if (!content) return
+
+        const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
+        if (productQuantity <= 1) {
+            Object.keys(itemsByStore).forEach(key => {
+                const storeItems = itemsByStore[key]
+                const found = storeItems.find((item: any) => item.product.id === content.id)
+                if (found) {
+                    removeItem(key, content.id)
+                }
+            })
+            setProductQuantity(0)
+        } else {
+            updateQuantity(storeKey as string, content.id, -1)
+            setProductQuantity(prev => prev - 1)
+        }
+    }, [content, productQuantity, ownerType, ownerSlug, itemsByStore, removeItem, updateQuantity])
+
+    const handleIncreaseQuantity = useCallback(() => {
+        if (!owner || !content) return
+
+        const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
+        const cartProduct = contentToCartProduct(content)
+        addItem(storeKey as string, { name: owner.name, logo_url: owner.avatar_url ?? null }, cartProduct)
+        setProductQuantity(prev => prev + 1)
+        setCartAnimating(true)
+        setTimeout(() => setCartAnimating(false), 500)
+    }, [owner, content, ownerType, ownerSlug, addItem, contentToCartProduct])
+
+    const handleRemoveAll = useCallback(() => {
+        if (!content) return
+
+        Object.keys(itemsByStore).forEach(key => {
+            const storeItems = itemsByStore[key]
+            const found = storeItems.find((item: any) => item.product.id === content.id)
+            if (found) {
+                removeItem(key, content.id)
+            }
+        })
+        setProductQuantity(0)
+        toast.info('Produto removido do carrinho')
+    }, [content, itemsByStore, removeItem])
 
     // ========== RENDER ==========
     if (loading) {
@@ -278,6 +395,7 @@ export default function SlugPage() {
     const isProfileOwner = ownerType === 'profile'
     const hasImage = content.image_url
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    const isInCart = productQuantity > 0
 
     return (
         <div className="min-h-screen relative" style={{ background: colors.background }}>
@@ -355,7 +473,16 @@ export default function SlugPage() {
                                     alt={content.name}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none'
+                                        const target = e.target as HTMLImageElement
+                                        target.style.display = 'none'
+                                        const parent = target.parentElement
+                                        if (parent) {
+                                            const placeholder = document.createElement('div')
+                                            placeholder.className = 'w-full h-full flex items-center justify-center text-6xl'
+                                            placeholder.style.background = 'rgba(255,255,255,0.03)'
+                                            placeholder.textContent = isProduct ? '🛒' : '📢'
+                                            parent.appendChild(placeholder)
+                                        }
                                     }}
                                 />
                                 <div className="absolute top-4 left-4 flex gap-2">
@@ -384,10 +511,21 @@ export default function SlugPage() {
                         )}
 
                         <div className="p-6 space-y-4">
-                            {/* Owner info */}
-                            <div className="flex items-center gap-3 p-3 rounded-xl" style={{
-                                background: `rgba(255,255,255,0.03)`
-                            }}>
+                            {/* Owner info - AGORA CLICÁVEL */}
+                            <button
+                                onClick={() => router.push(`/${ownerSlug}`)}
+                                className="w-full flex items-center gap-3 p-3 rounded-xl transition hover:scale-[1.02] hover:shadow-lg text-left"
+                                style={{
+                                    background: `rgba(255,255,255,0.03)`,
+                                    border: `1px solid transparent`,
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.3)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'transparent'
+                                }}
+                            >
                                 <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{
                                     background: GRADIENT,
                                     padding: '2px'
@@ -402,7 +540,7 @@ export default function SlugPage() {
                                         )}
                                     </div>
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                         {owner.name}
                                     </p>
@@ -410,17 +548,8 @@ export default function SlugPage() {
                                         {isProfileOwner ? 'Perfil' : 'Loja'} • @{owner.slug}
                                     </p>
                                 </div>
-                                <button
-                                    onClick={() => router.push(`/${ownerSlug}`)}
-                                    className="ml-auto px-3 py-1.5 rounded-lg text-xs font-bold transition hover:scale-105"
-                                    style={{
-                                        background: `rgba(255,255,255,0.08)`,
-                                        color: colors.textSecondary
-                                    }}
-                                >
-                                    Ver {isProfileOwner ? 'perfil' : 'loja'}
-                                </button>
-                            </div>
+                                <ChevronRight className="w-4 h-4 opacity-50" style={{ color: colors.textSecondary }} />
+                            </button>
 
                             {/* Título */}
                             <h1 className="text-3xl font-black" style={{ color: colors.textPrimary }}>
@@ -497,27 +626,56 @@ export default function SlugPage() {
                                         </button>
                                     </>
                                 ) : (
-                                    <>
-                                        {isProduct && (
-                                            <button
-                                                onClick={() => {
-                                                    const alreadyInCart = cartItems.some((item: any) => item.product.id === content.id)
-                                                    if (alreadyInCart) {
-                                                        toast.info('Produto já está no carrinho')
-                                                        return
-                                                    }
-                                                    increaseQuantity(content)
-                                                    setCartAnimating(true)
-                                                    setTimeout(() => setCartAnimating(false), 500)
-                                                    toast.success('Adicionado ao carrinho!')
-                                                }}
-                                                className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                style={{ background: GRADIENT, color: '#fff' }}
-                                            >
-                                                <ShoppingBag className="w-4 h-4" />
-                                                Adicionar ao carrinho
-                                            </button>
-                                        )}
+                                    <div className="flex items-center gap-3 w-full flex-wrap">
+                                        {isProduct ? (
+                                            isInCart ? (
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    <button
+                                                        onClick={handleDecreaseQuantity}
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                        style={{
+                                                            background: GRADIENT,
+                                                            color: '#ffffff'
+                                                        }}
+                                                    >
+                                                        <Minus size={18} />
+                                                    </button>
+                                                    <span className="text-lg font-bold min-w-[40px] text-center" style={{ color: '#f97316' }}>
+                                                        {productQuantity}
+                                                    </span>
+                                                    <button
+                                                        onClick={handleIncreaseQuantity}
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                        style={{
+                                                            background: GRADIENT,
+                                                            color: '#ffffff'
+                                                        }}
+                                                    >
+                                                        <Plus size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={handleRemoveAll}
+                                                        className="w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform flex-shrink-0"
+                                                        style={{
+                                                            background: '#ef4444',
+                                                            color: '#ffffff'
+                                                        }}
+                                                        title="Remover todos"
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={handleAddToCart}
+                                                    className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
+                                                    style={{ background: GRADIENT, color: '#fff' }}
+                                                >
+                                                    <ShoppingBag className="w-4 h-4" />
+                                                    Adicionar ao carrinho
+                                                </button>
+                                            )
+                                        ) : null}
 
                                         {owner.whatsapp && (
                                             <a
@@ -531,7 +689,7 @@ export default function SlugPage() {
                                                 WhatsApp
                                             </a>
                                         )}
-                                    </>
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -539,13 +697,33 @@ export default function SlugPage() {
                 </div>
             </div>
 
-            {/* Botão do carrinho */}
-            <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+            {/* ===== BOTÕES FLUTUANTES ===== */}
+            <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12 }}>
+                {/* Sacola Button */}
                 <SacolaButton
-                    totalItems={totalCartQuantity}
+                    totalItems={totalCartItems}
+                    totalValue={totalCartValue}
                     statusCounts={{ pending: 0, preparing: 0, ready: 0, reviews: 0 }}
                     animate={cartAnimating}
                 />
+
+                {/* Botão Home */}
+                <button
+                    onClick={() => router.push('/')}
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                    style={{
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        borderTop: '2px solid #f97316',
+                        borderRight: '2px solid #f97316',
+                        borderBottom: '2px solid #f97316',
+                        borderLeft: '2px solid #f97316',
+                        boxShadow: `0 8px 24px #f9731660`,
+                    }}
+                    aria-label="Voltar ao início"
+                >
+                    <Home size={24} />
+                </button>
             </div>
         </div>
     )

@@ -137,6 +137,7 @@ export default function SacolaButton({
                 )}
             </button>
 
+            {/* Badges de status posicionados absolutamente abaixo do botão */}
             {showStatus && (
                 <div
                     style={{

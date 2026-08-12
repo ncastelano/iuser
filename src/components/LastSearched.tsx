@@ -3,12 +3,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X } from 'lucide-react'
+import { Clock, X, User, Store, Package, Search } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {
-    type: 'profile' | 'store'
+    type: 'profile' | 'store' | 'product' // ADICIONADO 'product'
     id: string
     name: string
     imageUrl: string | null
@@ -88,6 +88,32 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const surfaceRgb = hexToRgb(colors.surface)
     const chipBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`
 
+    const getIcon = (type: string) => {
+        switch (type) {
+            case 'profile':
+                return <User size={12} style={{ color: '#3b82f6' }} />
+            case 'store':
+                return <Store size={12} style={{ color: '#f97316' }} />
+            case 'product':
+                return <Package size={12} style={{ color: '#8b5cf6' }} />
+            default:
+                return <Search size={12} style={{ color: colors.textSecondary }} />
+        }
+    }
+
+    const getTypeLabel = (type: string) => {
+        switch (type) {
+            case 'profile':
+                return 'Perfil'
+            case 'store':
+                return 'Loja'
+            case 'product':
+                return 'Produto'
+            default:
+                return ''
+        }
+    }
+
     return (
         <div className="mb-6">
             <div className="flex items-center justify-between mb-3 px-1">
@@ -130,7 +156,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                     >
                         {/* Avatar / Logo */}
                         <div
-                            className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0"
+                            className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 relative"
                             style={{ background: colors.surface }}
                         >
                             {item.imageUrl ? (
@@ -147,15 +173,30 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                     {item.name.charAt(0).toUpperCase()}
                                 </div>
                             )}
+                            {/* Ícone de tipo no canto inferior direito */}
+                            <div
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
+                            >
+                                {getIcon(item.type)}
+                            </div>
                         </div>
 
-                        {/* Nome */}
-                        <span
-                            className="text-xs font-semibold truncate flex-1 text-left"
-                            style={{ color: colors.textPrimary }}
-                        >
-                            {item.name}
-                        </span>
+                        {/* Nome e tipo */}
+                        <div className="flex-1 min-w-0 text-left">
+                            <span
+                                className="text-xs font-semibold truncate block"
+                                style={{ color: colors.textPrimary }}
+                            >
+                                {item.name}
+                            </span>
+                            <span
+                                className="text-[8px] font-bold uppercase opacity-60"
+                                style={{ color: colors.textSecondary }}
+                            >
+                                {getTypeLabel(item.type)}
+                            </span>
+                        </div>
 
                         {/* Remover */}
                         <span

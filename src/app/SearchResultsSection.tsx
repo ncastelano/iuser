@@ -4,9 +4,10 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Star, Clock, ChevronRight, Search, Loader2, User } from 'lucide-react'
+import { Star, Clock, ChevronRight, Search, Loader2, User, Package, Store as StoreIcon, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
+import { getAvatarUrl } from '@/lib/avatar'
 
 const categoriasInfo: { titulo: string; slug: string; color: string; keywords: string[] }[] = [
     { titulo: 'Alimentação', slug: 'alimentacao', color: '#f97316', keywords: ['restaurante', 'lanchonete', 'pizzaria', 'comida', 'alimentação', 'mercado', 'supermercado', 'hortifruti', 'bebidas'] },
@@ -44,16 +45,22 @@ interface SearchResultsSectionProps {
     onSearchSelect?: (query: string) => void
 }
 
+interface StoreWithProducts {
+    store: any
+    products: any[]
+}
+
 export default function SearchResultsSection({ searchQuery, onSearchSelect }: SearchResultsSectionProps) {
     const { colors } = useTheme()
     const [loading, setLoading] = useState(false)
     const [profiles, setProfiles] = useState<any[]>([])
-    const [stores, setStores] = useState<any[]>([])
-    const [storesByCategory, setStoresByCategory] = useState<Record<string, any[]>>({})
+    const [storesWithProducts, setStoresWithProducts] = useState<StoreWithProducts[]>([])
+    const [storesByCategory, setStoresByCategory] = useState<Record<string, StoreWithProducts[]>>({})
     const [hasSearched, setHasSearched] = useState(false)
     const [displayQuery, setDisplayQuery] = useState('')
 
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     useEffect(() => {
         const trimmed = searchQuery.trim()
@@ -67,7 +74,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
         if (!trimmed) {
             setProfiles([])
-            setStores([])
+            setStoresWithProducts([])
             setStoresByCategory({})
             setHasSearched(false)
             setLoading(false)
@@ -81,26 +88,46 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             const query = trimmed
 
             try {
-                // 1. Buscar perfis
+                // 1. Buscar perfis com mais informações
                 const { data: profilesData, error: profilesError } = await supabase
                     .from('profiles')
-                    .select('id, name, avatar_url, "profileSlug"')
-                    .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%`)
-                    .limit(10)
+                    .select(`
+                        id,
+                        name,
+                        avatar_url,
+                        "profileSlug",
+                        description,
+                        bio,
+                        address,
+                        whatsapp,
+                        instagram,
+                        ratings_avg,
+                        ratings_count,
+                        is_seller,
+                        is_active,
+                        category,
+                        view_count,
+                        created_at
+                    `)
+                    .or(`name.ilike.%${query}%,profileSlug.ilike.%${query}%,description.ilike.%${query}%,bio.ilike.%${query}%,address.ilike.%${query}%`)
+                    .eq('is_active', true)
+                    .limit(20)
 
                 if (profilesError) {
                     console.error('Erro ao buscar perfis:', profilesError)
                 }
 
+                // CORRIGIDO: Usando getAvatarUrl para obter a URL correta
                 const mappedProfiles = (profilesData || []).map((p: any) => ({
                     ...p,
-                    avatar_url: p.avatar_url
-                        ? supabase.storage.from('avatars').getPublicUrl(p.avatar_url).data.publicUrl
-                        : null,
+                    avatar_url: getAvatarUrl(supabase, p.avatar_url),
+                    ratings_avg: p.ratings_avg ?? null,
+                    ratings_count: p.ratings_count ?? null,
+                    view_count: p.view_count ?? null,
                 }))
                 setProfiles(mappedProfiles)
 
-                // 2. Buscar lojas (agora sem precisar do owner_id)
+                // 2. Buscar lojas que correspondem ao nome
                 const { data: storesData, error: storesError } = await supabase
                     .from('stores')
                     .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
@@ -111,21 +138,80 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     console.error('Erro ao buscar lojas:', storesError)
                 }
 
-                // 3. Mapear lojas (sem precisar do ownerSlug)
-                const mappedStores = (storesData || []).map((s: any) => ({
-                    ...s,
-                    logo_url: s.logo_url
-                        ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                // 3. Buscar produtos que correspondem ao nome
+                const { data: productsData, error: productsError } = await supabase
+                    .from('products')
+                    .select('id, name, description, price, image_url, slug, store_id, category, type')
+                    .eq('listing_type', 'sale')
+                    .ilike('name', `%${query}%`)
+                    .limit(50)
+
+                if (productsError) {
+                    console.error('Erro ao buscar produtos:', productsError)
+                }
+
+                // 4. Mapear produtos encontrados
+                const mappedProducts = (productsData || []).map((p: any) => ({
+                    ...p,
+                    image_url: p.image_url
+                        ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
                         : null,
                 }))
-                setStores(mappedStores)
 
-                // 4. Agrupar por categoria
-                const grouped: Record<string, any[]> = {}
-                for (const store of mappedStores) {
-                    const cat = getCategoryForStore(store)
+                // 5. Criar um mapa de storeId -> produtos
+                const productsByStore: Record<string, any[]> = {}
+                mappedProducts.forEach(product => {
+                    if (!productsByStore[product.store_id]) {
+                        productsByStore[product.store_id] = []
+                    }
+                    productsByStore[product.store_id].push(product)
+                })
+
+                // 6. Combinar lojas com seus produtos
+                const storeIdsWithProducts = Object.keys(productsByStore)
+                const storeIdsFromSearch = (storesData || []).map((s: any) => s.id)
+                const allStoreIds = [...new Set([...storeIdsFromSearch, ...storeIdsWithProducts])]
+
+                // Buscar todas as lojas relevantes
+                let allStores: any[] = []
+                if (allStoreIds.length > 0) {
+                    const { data: allStoresData } = await supabase
+                        .from('stores')
+                        .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
+                        .in('id', allStoreIds)
+
+                    if (allStoresData) {
+                        allStores = allStoresData.map((s: any) => ({
+                            ...s,
+                            logo_url: s.logo_url
+                                ? supabase.storage.from('store-logos').getPublicUrl(s.logo_url).data.publicUrl
+                                : null,
+                        }))
+                    }
+                }
+
+                // 7. Construir lista de lojas com produtos
+                const storesWithProductsList: StoreWithProducts[] = allStores.map(store => {
+                    const storeProducts = productsByStore[store.id] || []
+                    return {
+                        store,
+                        products: storeProducts
+                    }
+                })
+
+                // Filtrar lojas que não têm produtos e não foram encontradas pelo nome
+                const filteredStores = storesWithProductsList.filter(item =>
+                    item.products.length > 0 || storesData?.some((s: any) => s.id === item.store.id)
+                )
+
+                setStoresWithProducts(filteredStores)
+
+                // 8. Agrupar por categoria
+                const grouped: Record<string, StoreWithProducts[]> = {}
+                for (const item of filteredStores) {
+                    const cat = getCategoryForStore(item.store)
                     if (!grouped[cat]) grouped[cat] = []
-                    grouped[cat].push(store)
+                    grouped[cat].push(item)
                 }
                 setStoresByCategory(grouped)
 
@@ -158,13 +244,25 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
     }
 
     const handleStoreClick = (store: any) => {
-        // Agora usa apenas o storeSlug
         addRecentClick({
             type: 'store',
             id: store.id,
             name: store.name,
             imageUrl: store.logo_url,
             url: `/${store.storeSlug}`,
+        })
+        if (onSearchSelect) {
+            onSearchSelect('')
+        }
+    }
+
+    const handleProductClick = (product: any, storeSlug: string) => {
+        addRecentClick({
+            type: 'product',
+            id: product.id,
+            name: product.name,
+            imageUrl: product.image_url,
+            url: `/${storeSlug}/${product.slug || product.id}`,
         })
         if (onSearchSelect) {
             onSearchSelect('')
@@ -179,13 +277,26 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
-    const hasResults = profiles.length > 0 || Object.keys(storesByCategory).length > 0
+    const totalResults = profiles.length + storesWithProducts.length
+
+    const formatDate = (dateString?: string | null) => {
+        if (!dateString) return ''
+        const date = new Date(dateString)
+        const now = new Date()
+        const diffTime = Math.abs(now.getTime() - date.getTime())
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+        if (diffDays === 0) return 'Hoje'
+        if (diffDays === 1) return 'Ontem'
+        if (diffDays < 7) return `${diffDays} dias atrás`
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)} semanas atrás`
+        if (diffDays < 365) return `${Math.floor(diffDays / 30)} meses atrás`
+        return `${Math.floor(diffDays / 365)} anos atrás`
+    }
 
     if (!displayQuery) {
         return null
     }
-
-    const totalResults = profiles.length + Object.values(storesByCategory).reduce((acc, arr) => acc + arr.length, 0)
 
     return (
         <section>
@@ -206,7 +317,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                 </div>
             )}
 
-            {!loading && !hasResults && (
+            {!loading && totalResults === 0 && (
                 <div className="rounded-2xl p-6 flex flex-col items-center gap-3" style={{ background: cardBg, backdropFilter: 'blur(12px)', border: `1px solid ${colors.border}` }}>
                     <Search className="w-8 h-8" style={{ color: colors.textSecondary }} />
                     <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
@@ -218,15 +329,18 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                 </div>
             )}
 
-            {!loading && hasResults && (
+            {!loading && totalResults > 0 && (
                 <div className="space-y-6">
-                    {/* Perfis */}
+                    {/* Perfis - Estilo igual ao SocialList */}
                     {profiles.length > 0 && (
                         <div>
                             <div className="flex items-center gap-2 mb-3">
                                 <User size={16} style={{ color: '#3b82f6' }} />
                                 <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#3b82f6' }}>
                                     Perfis
+                                </span>
+                                <span className="text-[10px] font-bold opacity-60" style={{ color: '#3b82f6' }}>
+                                    ({profiles.length})
                                 </span>
                             </div>
                             <div className="space-y-3">
@@ -237,22 +351,172 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         onClick={() => handleProfileClick(profile)}
                                         className="block group"
                                     >
-                                        <div className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
-                                            <div className="flex gap-4 items-center">
-                                                <div className="w-16 h-16 rounded-full overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>
-                                                    {profile.avatar_url ? (
-                                                        <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: colors.textSecondary }}>
-                                                            {profile.name?.charAt(0) || '?'}
-                                                        </div>
-                                                    )}
+                                        <div
+                                            className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
+                                            style={{
+                                                background: cardBg,
+                                                backdropFilter: 'blur(12px)',
+                                                borderColor: colors.border,
+                                                boxShadow: colors.shadow,
+                                            }}
+                                        >
+                                            <div className="flex gap-4">
+                                                <div
+                                                    className="w-20 h-20 rounded-full overflow-hidden shrink-0"
+                                                    style={{
+                                                        background: `${colors.surface}44`,
+                                                        padding: '2px',
+                                                        backgroundImage: GRADIENT,
+                                                    }}
+                                                >
+                                                    <div
+                                                        className="w-full h-full rounded-full overflow-hidden"
+                                                        style={{
+                                                            background: colors.surface,
+                                                        }}
+                                                    >
+                                                        {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
+                                                            <img
+                                                                src={profile.avatar_url}
+                                                                alt={profile.name || 'Perfil'}
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                onError={(e) => {
+                                                                    const target = e.target as HTMLImageElement
+                                                                    target.style.display = 'none'
+                                                                    const parent = target.parentElement
+                                                                    if (parent) {
+                                                                        const fallback = document.createElement('div')
+                                                                        fallback.className = 'w-full h-full flex items-center justify-center text-3xl font-black'
+                                                                        fallback.style.color = colors.textSecondary
+                                                                        fallback.textContent = profile.name?.charAt(0).toUpperCase() || '?'
+                                                                        parent.appendChild(fallback)
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <div
+                                                                className="w-full h-full flex items-center justify-center text-3xl font-black"
+                                                                style={{ color: colors.textSecondary }}
+                                                            >
+                                                                {profile.name?.charAt(0).toUpperCase() || '?'}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
+
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{profile.name}</h3>
-                                                    <p className="text-sm mt-1" style={{ color: colors.accent }}>@{profile.profileSlug}</p>
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h3
+                                                                className="text-lg font-black truncate"
+                                                                style={{ color: colors.textPrimary }}
+                                                            >
+                                                                {profile.name || 'Usuário'}
+                                                            </h3>
+                                                            <p className="text-sm" style={{ color: colors.accent }}>
+                                                                @{profile.profileSlug}
+                                                            </p>
+
+                                                            {(profile.bio || profile.description) && (
+                                                                <p
+                                                                    className="text-xs line-clamp-2 mt-1"
+                                                                    style={{ color: colors.textSecondary }}
+                                                                >
+                                                                    {profile.bio || profile.description}
+                                                                </p>
+                                                            )}
+
+                                                            {profile.address && (
+                                                                <div className="flex items-center gap-1 mt-1">
+                                                                    <MapPin className="w-3 h-3 opacity-50" style={{ color: colors.textSecondary }} />
+                                                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>
+                                                                        {profile.address.split(',')[0]?.trim() || profile.address}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex flex-col items-end gap-1 shrink-0">
+                                                            {profile.is_seller && (
+                                                                <span
+                                                                    className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
+                                                                    style={{
+                                                                        background: `${colors.accent}20`,
+                                                                        color: colors.accent
+                                                                    }}
+                                                                >
+                                                                    <StoreIcon className="w-3 h-3 inline mr-0.5" />
+                                                                    Vendedor
+                                                                </span>
+                                                            )}
+                                                            {profile.category && (
+                                                                <span
+                                                                    className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
+                                                                    style={{
+                                                                        background: `#f9731620`,
+                                                                        color: '#f97316'
+                                                                    }}
+                                                                >
+                                                                    {profile.category}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-4 mt-3 flex-wrap">
+                                                        {profile.ratings_avg !== null &&
+                                                            profile.ratings_avg !== undefined &&
+                                                            profile.ratings_avg > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <Star size={14} className="text-yellow-400 fill-yellow-400" />
+                                                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                                                        {Number(profile.ratings_avg).toFixed(1)}
+                                                                    </span>
+                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                                                        ({profile.ratings_count || 0})
+                                                                    </span>
+                                                                </div>
+                                                            )}
+
+                                                        {profile.view_count !== null &&
+                                                            profile.view_count !== undefined &&
+                                                            profile.view_count > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <User size={14} style={{ color: colors.textSecondary }} />
+                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                                                        {profile.view_count} visualizações
+                                                                    </span>
+                                                                </div>
+                                                            )}
+
+                                                        {profile.created_at && (
+                                                            <div className="flex items-center gap-1">
+                                                                <Clock size={14} style={{ color: colors.textSecondary }} />
+                                                                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                                                    {formatDate(profile.created_at)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                                        {profile.whatsapp && (
+                                                            <span className="text-[10px] font-bold text-green-600">
+                                                                📱 WhatsApp
+                                                            </span>
+                                                        )}
+                                                        {profile.instagram && (
+                                                            <span className="text-[10px] font-bold text-pink-600">
+                                                                📸 Instagram
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <ChevronRight className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors" style={{ color: colors.textSecondary }} />
+
+                                                <ChevronRight
+                                                    className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors"
+                                                    style={{ color: colors.textSecondary }}
+                                                />
                                             </div>
                                         </div>
                                     </Link>
@@ -261,8 +525,8 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         </div>
                     )}
 
-                    {/* Lojas agrupadas por categoria */}
-                    {Object.entries(storesByCategory).map(([slug, stores]) => {
+                    {/* Lojas com produtos */}
+                    {Object.entries(storesByCategory).map(([slug, storesList]) => {
                         const catInfo = categoriasInfo.find(c => c.slug === slug)
                         const titulo = catInfo?.titulo || 'Outros'
                         const color = catInfo?.color || '#94a3b8'
@@ -270,27 +534,29 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         return (
                             <div key={slug}>
                                 <div className="flex items-center gap-2 mb-3">
+                                    <StoreIcon size={16} style={{ color }} />
                                     <span className="text-xs font-black uppercase tracking-wider" style={{ color }}>
                                         {titulo}
                                     </span>
                                     <span className="text-[10px] font-bold opacity-60" style={{ color }}>
-                                        ({stores.length})
+                                        ({storesList.length})
                                     </span>
                                 </div>
-                                <div className="space-y-3">
-                                    {stores.map((store) => {
-                                        // URL agora usa apenas o storeSlug
+                                <div className="space-y-4">
+                                    {storesList.map(({ store, products }) => {
                                         const storeUrl = `/${store.storeSlug}`
+                                        const hasProducts = products.length > 0
+
                                         return (
-                                            <Link
-                                                key={store.id}
-                                                href={storeUrl}
-                                                onClick={() => handleStoreClick(store)}
-                                                className="block group"
-                                            >
-                                                <div className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
-                                                    <div className="flex gap-4">
-                                                        <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>
+                                            <div key={store.id} className="rounded-2xl border overflow-hidden" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
+                                                {/* Card da Loja */}
+                                                <Link
+                                                    href={storeUrl}
+                                                    onClick={() => handleStoreClick(store)}
+                                                    className="block group"
+                                                >
+                                                    <div className="p-4 flex gap-4 items-center">
+                                                        <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>
                                                             {store.logo_url ? (
                                                                 <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                                             ) : (
@@ -302,8 +568,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                         <div className="flex-1 min-w-0">
                                                             <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h3>
                                                             <p className="text-xs line-clamp-2 mt-1" style={{ color: colors.textSecondary }}>{store.description || 'Sem descrição'}</p>
-                                                            <p className="text-[10px] mt-1 font-mono" style={{ color: colors.textSecondary }}>/{store.storeSlug}</p>
-                                                            <div className="flex items-center gap-4 mt-3">
+                                                            <div className="flex items-center gap-4 mt-2">
                                                                 <div className="flex items-center gap-1">
                                                                     <Star size={14} className="text-yellow-400 fill-yellow-400" />
                                                                     <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1) || '0.0'}</span>
@@ -313,12 +578,66 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                                     <Clock size={14} style={{ color: colors.accent }} />
                                                                     <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{formatPrepTime(store)}</span>
                                                                 </div>
+                                                                {hasProducts && (
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
+                                                                        {products.length} produtos
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <ChevronRight className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors" style={{ color: colors.textSecondary }} />
                                                     </div>
-                                                </div>
-                                            </Link>
+                                                </Link>
+
+                                                {/* Produtos da Loja */}
+                                                {hasProducts && (
+                                                    <div className="px-4 pb-4">
+                                                        <div className="border-t pt-3" style={{ borderColor: colors.border }}>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <Package size={14} style={{ color: '#f97316' }} />
+                                                                <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                                                    Produtos encontrados
+                                                                </span>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                                {products.map((product) => (
+                                                                    <Link
+                                                                        key={product.id}
+                                                                        href={`/${store.storeSlug}/${product.slug || product.id}`}
+                                                                        onClick={() => handleProductClick(product, store.storeSlug)}
+                                                                        className="group/product"
+                                                                    >
+                                                                        <div className="rounded-xl border p-2 transition-all hover:scale-[1.02] hover:shadow-lg" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
+                                                                            <div className="w-full aspect-square rounded-lg overflow-hidden" style={{ background: colors.accentLight }}>
+                                                                                {product.image_url ? (
+                                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                                                                ) : (
+                                                                                    <div className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: '#f97316' }}>
+                                                                                        {product.name?.charAt(0) || '?'}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            <div className="mt-1.5">
+                                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                                    {product.name}
+                                                                                </p>
+                                                                                <p className="text-[10px] font-bold" style={{ color: '#f97316' }}>
+                                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                                </p>
+                                                                                {product.category && (
+                                                                                    <span className="text-[8px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
+                                                                                        {product.category}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </Link>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )
                                     })}
                                 </div>
