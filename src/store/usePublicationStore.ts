@@ -1,9 +1,9 @@
-// src/store/usePublicationsStore.ts
+// src/store/usePublicationStore.ts
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
-import { toast } from 'sonner' // <-- ADICIONAR ESTA LINHA
+import { toast } from 'sonner'
 
-interface Publication {
+export interface Publication {
     id: string
     name: string
     slug: string
@@ -35,6 +35,8 @@ interface PublicationsStore {
     isLoading: boolean
     hasMore: boolean
     isLoadingMore: boolean
+    currentOwnerSlug: string | null
+    currentStoreSlug: string | null
 
     // Metadados
     totalCount: number
@@ -42,11 +44,16 @@ interface PublicationsStore {
     currentPage: number
 
     // Ações
-    loadPublications: (options?: {
+    setPublicationFeed: (
+        publications: Publication[],
+        initialIndex?: number,
+        ownerSlug?: string,
+        storeSlug?: string
+    ) => void
+    loadPublicationsForOwner: (options: {
         ownerSlug?: string
         storeSlug?: string
-        category?: string
-        reset?: boolean
+        initialSlug?: string
     }) => Promise<void>
     loadMore: () => Promise<void>
     navigateTo: (index: number) => void
@@ -59,8 +66,12 @@ interface PublicationsStore {
     reset: () => void
 }
 
-// Cache em memória
-const publicationCache = new Map<string, Publication[]>()
+// Helper para garantir URL publica de imagem
+function resolveImageUrl(path?: string | null, bucket: string = 'product-images'): string | null {
+    if (!path) return null
+    if (path.startsWith('http')) return path
+    return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+}
 
 export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
     publications: [],
@@ -68,32 +79,87 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
     isLoading: false,
     hasMore: true,
     isLoadingMore: false,
+    currentOwnerSlug: null,
+    currentStoreSlug: null,
     totalCount: 0,
     pageSize: 20,
     currentPage: 0,
 
-    loadPublications: async (options = {}) => {
-        const { ownerSlug, storeSlug, category, reset = true } = options
+    setPublicationFeed: (publications, initialIndex = 0, ownerSlug, storeSlug) => {
+        const index = Math.max(0, Math.min(initialIndex, publications.length - 1))
+        set({
+            publications,
+            currentIndex: index,
+            currentOwnerSlug: ownerSlug || null,
+            currentStoreSlug: storeSlug || null,
+            totalCount: publications.length,
+            hasMore: false,
+            isLoading: false,
+        })
+        get().prefetchAdjacent(index)
+    },
 
-        // Gerar chave de cache
-        const cacheKey = `${ownerSlug || 'all'}_${storeSlug || 'all'}_${category || 'all'}`
+    loadPublicationsForOwner: async (options = {}) => {
+        const { ownerSlug, storeSlug, initialSlug } = options
+        const state = get()
 
-        // Verificar cache
-        if (publicationCache.has(cacheKey) && reset) {
-            const cached = publicationCache.get(cacheKey)!
-            set({
-                publications: cached,
-                currentIndex: 0,
-                isLoading: false,
-                totalCount: cached.length,
-                hasMore: cached.length >= 20,
-            })
-            return
+        // Se já possuímos publicações carregadas para esse owner/store e o initialSlug está na lista, reutiliza
+        if (
+            state.publications.length > 0 &&
+            ((ownerSlug && state.currentOwnerSlug === ownerSlug) || (storeSlug && state.currentStoreSlug === storeSlug))
+        ) {
+            if (initialSlug) {
+                const index = state.publications.findIndex(p => p.slug === initialSlug)
+                if (index !== -1) {
+                    set({ currentIndex: index })
+                    state.prefetchAdjacent(index)
+                    return
+                }
+            } else {
+                return
+            }
         }
 
-        set({ isLoading: true })
+        set({ isLoading: true, currentOwnerSlug: ownerSlug || null, currentStoreSlug: storeSlug || null })
 
         try {
+            let targetOwnerId: string | null = null
+            let targetStoreId: string | null = null
+
+            // 1. Tentar encontrar por loja (se storeSlug fornecido ou ownerSlug for loja)
+            if (storeSlug) {
+                const { data: store } = await supabase
+                    .from('stores')
+                    .select('id')
+                    .eq('storeSlug', storeSlug)
+                    .maybeSingle()
+                if (store) targetStoreId = store.id
+            }
+
+            if (!targetStoreId && ownerSlug) {
+                // Tenta achar como perfil primeiro
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('profileSlug', ownerSlug)
+                    .maybeSingle()
+
+                if (profile) {
+                    targetOwnerId = profile.id
+                } else {
+                    // Tenta achar como loja
+                    const { data: store } = await supabase
+                        .from('stores')
+                        .select('id')
+                        .eq('storeSlug', ownerSlug)
+                        .maybeSingle()
+
+                    if (store) {
+                        targetStoreId = store.id
+                    }
+                }
+            }
+
             let query = supabase
                 .from('products')
                 .select(`
@@ -102,77 +168,80 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
                         name,
                         profileSlug,
                         avatar_url
+                    ),
+                    stores:store_id (
+                        name,
+                        storeSlug,
+                        logo_url
                     )
                 `, { count: 'exact' })
                 .eq('listing_type', 'publication')
                 .order('created_at', { ascending: false })
-                .limit(20)
+                .limit(50)
 
-            // Filtros
-            if (ownerSlug) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('id')
-                    .eq('profileSlug', ownerSlug)
-                    .single()
-
-                if (profile) {
-                    query = query.eq('owner_id', profile.id)
-                }
-            }
-
-            if (storeSlug) {
-                const { data: store } = await supabase
-                    .from('stores')
-                    .select('id')
-                    .eq('storeSlug', storeSlug)
-                    .single()
-
-                if (store) {
-                    query = query.eq('store_id', store.id)
-                }
-            }
-
-            if (category) {
-                query = query.eq('category', category)
+            if (targetStoreId) {
+                query = query.eq('store_id', targetStoreId)
+            } else if (targetOwnerId) {
+                query = query.eq('owner_id', targetOwnerId).is('store_id', null)
             }
 
             const { data, error, count } = await query
 
             if (error) throw error
 
-            // Processar dados
-            const publications = data?.map(pub => ({
-                ...pub,
-                owner: pub.profiles ? {
-                    id: pub.owner_id,
-                    name: pub.profiles.name,
-                    slug: pub.profiles.profileSlug,
-                    avatar_url: pub.profiles.avatar_url,
-                } : undefined,
-            })) || []
+            const publications: Publication[] = (data || []).map(pub => {
+                const isStore = !!pub.store_id && pub.stores
+                const rawOwnerName = isStore ? pub.stores.name : pub.profiles?.name || 'Usuário'
+                const rawOwnerSlug = isStore ? pub.stores.storeSlug : pub.profiles?.profileSlug || 'usuario'
+                const rawAvatar = isStore
+                    ? resolveImageUrl(pub.stores.logo_url, 'store-logos')
+                    : resolveImageUrl(pub.profiles?.avatar_url, 'avatars')
 
-            // Salvar no cache
-            publicationCache.set(cacheKey, publications)
+                return {
+                    ...pub,
+                    image_url: resolveImageUrl(pub.image_url, 'product-images'),
+                    owner: {
+                        id: isStore ? pub.store_id : pub.owner_id,
+                        name: rawOwnerName,
+                        slug: rawOwnerSlug,
+                        avatar_url: rawAvatar,
+                    },
+                    profiles: pub.profiles ? {
+                        name: pub.profiles.name,
+                        profileSlug: pub.profiles.profileSlug,
+                        avatar_url: resolveImageUrl(pub.profiles.avatar_url, 'avatars'),
+                    } : undefined,
+                }
+            })
+
+            let initialIndex = 0
+            if (initialSlug && publications.length > 0) {
+                const foundIdx = publications.findIndex(p => p.slug === initialSlug)
+                if (foundIdx !== -1) {
+                    initialIndex = foundIdx
+                }
+            }
 
             set({
                 publications,
-                currentIndex: 0,
+                currentIndex: initialIndex,
                 isLoading: false,
-                totalCount: count || 0,
-                hasMore: (count || 0) > 20,
+                totalCount: count || publications.length,
+                hasMore: (count || publications.length) > 50,
                 currentPage: 0,
             })
 
-        } catch (error) {
-            console.error('Erro ao carregar publicações:', error)
+            get().prefetchAdjacent(initialIndex)
+
+        } catch (err) {
+            console.error('Erro ao carregar publicações:', err)
             set({ isLoading: false })
             toast.error('Erro ao carregar publicações')
         }
     },
 
     loadMore: async () => {
-        const { publications, isLoadingMore, hasMore, pageSize, currentPage } = get()
+        const { publications, isLoadingMore, hasMore, pageSize, currentPage, currentOwnerSlug, currentStoreSlug } = get()
         if (isLoadingMore || !hasMore) return
 
         set({ isLoadingMore: true })
@@ -181,7 +250,37 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
             const from = (currentPage + 1) * pageSize
             const to = from + pageSize - 1
 
-            const { data, error, count } = await supabase
+            let targetOwnerId: string | null = null
+            let targetStoreId: string | null = null
+
+            if (currentStoreSlug) {
+                const { data: store } = await supabase
+                    .from('stores')
+                    .select('id')
+                    .eq('storeSlug', currentStoreSlug)
+                    .maybeSingle()
+                if (store) targetStoreId = store.id
+            }
+
+            if (!targetStoreId && currentOwnerSlug) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('profileSlug', currentOwnerSlug)
+                    .maybeSingle()
+                if (profile) {
+                    targetOwnerId = profile.id
+                } else {
+                    const { data: store } = await supabase
+                        .from('stores')
+                        .select('id')
+                        .eq('storeSlug', currentOwnerSlug)
+                        .maybeSingle()
+                    if (store) targetStoreId = store.id
+                }
+            }
+
+            let query = supabase
                 .from('products')
                 .select(`
                     *,
@@ -189,36 +288,64 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
                         name,
                         profileSlug,
                         avatar_url
+                    ),
+                    stores:store_id (
+                        name,
+                        storeSlug,
+                        logo_url
                     )
                 `, { count: 'exact' })
                 .eq('listing_type', 'publication')
                 .order('created_at', { ascending: false })
                 .range(from, to)
 
+            if (targetStoreId) {
+                query = query.eq('store_id', targetStoreId)
+            } else if (targetOwnerId) {
+                query = query.eq('owner_id', targetOwnerId).is('store_id', null)
+            }
+
+            const { data, error, count } = await query
+
             if (error) throw error
 
-            const newPublications = data?.map(pub => ({
-                ...pub,
-                owner: pub.profiles ? {
-                    id: pub.owner_id,
-                    name: pub.profiles.name,
-                    slug: pub.profiles.profileSlug,
-                    avatar_url: pub.profiles.avatar_url,
-                } : undefined,
-            })) || []
+            const newPublications: Publication[] = (data || []).map(pub => {
+                const isStore = !!pub.store_id && pub.stores
+                const rawOwnerName = isStore ? pub.stores.name : pub.profiles?.name || 'Usuário'
+                const rawOwnerSlug = isStore ? pub.stores.storeSlug : pub.profiles?.profileSlug || 'usuario'
+                const rawAvatar = isStore
+                    ? resolveImageUrl(pub.stores.logo_url, 'store-logos')
+                    : resolveImageUrl(pub.profiles?.avatar_url, 'avatars')
 
+                return {
+                    ...pub,
+                    image_url: resolveImageUrl(pub.image_url, 'product-images'),
+                    owner: {
+                        id: isStore ? pub.store_id : pub.owner_id,
+                        name: rawOwnerName,
+                        slug: rawOwnerSlug,
+                        avatar_url: rawAvatar,
+                    },
+                    profiles: pub.profiles ? {
+                        name: pub.profiles.name,
+                        profileSlug: pub.profiles.profileSlug,
+                        avatar_url: resolveImageUrl(pub.profiles.avatar_url, 'avatars'),
+                    } : undefined,
+                }
+            })
+
+            const updated = [...publications, ...newPublications]
             set({
-                publications: [...publications, ...newPublications],
+                publications: updated,
                 isLoadingMore: false,
-                totalCount: count || 0,
-                hasMore: (count || 0) > to + 1,
+                totalCount: count || updated.length,
+                hasMore: (count || updated.length) > to + 1,
                 currentPage: currentPage + 1,
             })
 
         } catch (error) {
-            console.error('Erro ao carregar mais:', error)
+            console.error('Erro ao carregar mais publicações:', error)
             set({ isLoadingMore: false })
-            toast.error('Erro ao carregar mais publicações')
         }
     },
 
@@ -226,7 +353,6 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
         const { publications } = get()
         if (index >= 0 && index < publications.length) {
             set({ currentIndex: index })
-            // Pré-carregar adjacentes
             get().prefetchAdjacent(index)
         }
     },
@@ -239,7 +365,6 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
             set({ currentIndex: nextIndex })
             get().prefetchAdjacent(nextIndex)
         } else {
-            // Carregar mais se necessário
             get().loadMore()
         }
     },
@@ -247,8 +372,9 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
     previous: () => {
         const { currentIndex } = get()
         if (currentIndex > 0) {
-            set({ currentIndex: currentIndex - 1 })
-            get().prefetchAdjacent(currentIndex - 1)
+            const prevIndex = currentIndex - 1
+            set({ currentIndex: prevIndex })
+            get().prefetchAdjacent(prevIndex)
         }
     },
 
@@ -269,15 +395,23 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
 
     prefetchAdjacent: (index: number) => {
         const { publications } = get()
-        // Pré-carregar próximos 3 itens
-        for (let i = index + 1; i <= Math.min(index + 3, publications.length - 1); i++) {
-            const pub = publications[i]
-            if (pub?.image_url) {
-                // Pré-carregar imagem
-                const img = new Image()
-                img.src = pub.image_url
+        if (!publications || publications.length === 0) return
+
+        // Pré-carregar imagens dos índices adjacentes (anterior e próximos 3)
+        const targets = [index - 1, index + 1, index + 2, index + 3]
+        targets.forEach(i => {
+            if (i >= 0 && i < publications.length) {
+                const pub = publications[i]
+                if (pub?.image_url) {
+                    const img = new Image()
+                    img.src = pub.image_url
+                }
+                if (pub?.owner?.avatar_url) {
+                    const img = new Image()
+                    img.src = pub.owner.avatar_url
+                }
             }
-        }
+        })
     },
 
     reset: () => {
@@ -287,6 +421,8 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
             isLoading: false,
             hasMore: true,
             isLoadingMore: false,
+            currentOwnerSlug: null,
+            currentStoreSlug: null,
             totalCount: 0,
             currentPage: 0,
         })

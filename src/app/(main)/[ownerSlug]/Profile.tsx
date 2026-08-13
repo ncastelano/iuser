@@ -31,6 +31,7 @@ import { RatingStars } from '@/components/ratings/RatingStars'
 import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
+import { usePublicationsStore } from '@/store/usePublicationStore'
 
 interface ProfileProps {
     ownerSlug: string
@@ -888,7 +889,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {publications.map((pub) => (
+                                {publications.map((pub, idx) => (
                                     <div
                                         key={pub.id}
                                         className="rounded-xl border p-2 flex flex-col gap-2 cursor-pointer hover:opacity-90 transition-all"
@@ -896,7 +897,32 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                             borderColor: colors.border,
                                         }}
-                                        onClick={() => router.push(`/${ownerSlug}/${pub.slug}`)}
+                                        onClick={() => {
+                                            if (!owner) return
+                                            const feed = publications.map(p => ({
+                                                id: p.id,
+                                                name: p.name,
+                                                slug: p.slug,
+                                                description: p.description,
+                                                image_url: p.image_url,
+                                                listing_type: p.listing_type || 'publication',
+                                                owner_id: owner.id,
+                                                created_at: p.created_at,
+                                                owner: {
+                                                    id: owner.id,
+                                                    name: owner.name,
+                                                    slug: owner.slug,
+                                                    avatar_url: imageUrl,
+                                                },
+                                                profiles: {
+                                                    name: owner.name,
+                                                    profileSlug: owner.slug,
+                                                    avatar_url: imageUrl,
+                                                }
+                                            }))
+                                            usePublicationsStore.getState().setPublicationFeed(feed, idx, ownerSlug)
+                                            router.push(`/${ownerSlug}/${pub.slug}`)
+                                        }}
                                     >
                                         <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
                                             {pub.image_url ? (

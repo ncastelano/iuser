@@ -12,12 +12,12 @@ import {
     AlertTriangle,
     ArrowLeft,
     Home,
-    ShoppingBag,
     User,
     Store as StoreIcon,
     LayoutDashboard,
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
+import { usePublicationsStore } from '@/store/usePublicationStore'
 import SacolaButton from '@/app/ButtonSacola'
 import Header from '@/app/Header'
 import { toast } from 'sonner'
@@ -60,8 +60,8 @@ interface ContentData {
     }
 }
 
-// ===== CACHE DE PUBLICAÇÕES PRÉ-CARREGADAS =====
-const publicationCache = new Map<string, any>()
+// CACHE LOCAL RAPIDO PARA METADADOS DE OWNER/CONTENT
+const pageCache = new Map<string, any>()
 
 export default function SlugPage() {
     const params = useParams()
@@ -79,20 +79,14 @@ export default function SlugPage() {
     const [ownerType, setOwnerType] = useState<OwnerType | null>(null)
     const [isOwner, setIsOwner] = useState(false)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-    const [mounted, setMounted] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
     const [productQuantity, setProductQuantity] = useState(0)
 
-    // ===== ESTADOS PARA NAVEGAÇÃO DE PUBLICAÇÕES =====
-    const [allPublications, setAllPublications] = useState<any[]>([])
-    const [currentIndex, setCurrentIndex] = useState<number>(-1)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [hasMore, setHasMore] = useState(true)
-    const [touchStartY, setTouchStartY] = useState(0)
-    const [touchEndY, setTouchEndY] = useState(0)
-    const [isSwiping, setIsSwiping] = useState(false)
-    const [isNavigating, setIsNavigating] = useState(false)
-    const [isTransitioning, setIsTransitioning] = useState(false)
+    // Store do Zustand para publicações
+    const publicationsStore = usePublicationsStore()
+    const storePublications = publicationsStore.publications
+    const storeIndex = publicationsStore.currentIndex
+    const currentStorePub = publicationsStore.getCurrent()
 
     // ===== ESTADOS PARA INTERAÇÕES =====
     const [isLiked, setIsLiked] = useState(false)
@@ -120,8 +114,51 @@ export default function SlugPage() {
     const commentInputRef = useRef<HTMLInputElement>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
-    const touchStartTime = useRef<number>(0)
-    const isSwipingRef = useRef(false)
+
+    // ===== CONTEÚDO E OWNER ATIVOS PARA PUBLICAÇÃO =====
+    const isPublication = content?.type === 'publication'
+    const isProduct = content?.type === 'product'
+
+    const activeContent = useMemo(() => {
+        if (isPublication && currentStorePub) {
+            return {
+                id: currentStorePub.id,
+                name: currentStorePub.name,
+                slug: currentStorePub.slug,
+                description: currentStorePub.description,
+                image_url: currentStorePub.image_url,
+                price: currentStorePub.price || 0,
+                listing_type: currentStorePub.listing_type || 'publication',
+                type: 'publication' as ContentType,
+                owner_id: currentStorePub.owner_id,
+                store_id: currentStorePub.store_id,
+                category: currentStorePub.category,
+                created_at: currentStorePub.created_at,
+            }
+        }
+        return content
+    }, [isPublication, currentStorePub, content])
+
+    const activeOwner = useMemo(() => {
+        if (isPublication && currentStorePub?.owner) {
+            return {
+                id: currentStorePub.owner.id,
+                name: currentStorePub.owner.name,
+                slug: currentStorePub.owner.slug,
+                type: (currentStorePub.store_id ? 'store' : 'profile') as OwnerType,
+                avatar_url: currentStorePub.owner.avatar_url,
+            }
+        }
+        return owner
+    }, [isPublication, currentStorePub, owner])
+
+    // Sincronizar URL da página com a publicação ativa sem recarregar
+    useEffect(() => {
+        if (isPublication && currentStorePub && currentStorePub.slug !== slug) {
+            const targetSlug = currentStorePub.owner?.slug || ownerSlug
+            window.history.replaceState({}, '', `/${targetSlug}/${currentStorePub.slug}`)
+        }
+    }, [isPublication, currentStorePub, slug, ownerSlug])
 
     // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = useMemo(() => {
@@ -141,24 +178,24 @@ export default function SlugPage() {
     }, [itemsByStore])
 
     const getProductQuantity = useCallback(() => {
-        if (!content) return 0
+        if (!activeContent) return 0
         let total = 0
         Object.values(itemsByStore).forEach(storeItems => {
-            const found = storeItems.find((item: any) => item.product.id === content.id)
+            const found = storeItems.find((item: any) => item.product.id === activeContent.id)
             if (found) {
                 total += found.quantity
             }
         })
         return total
-    }, [itemsByStore, content])
+    }, [itemsByStore, activeContent])
 
     // ========== DETECTAR OWNER ==========
     const detectOwner = useCallback(async (slug: string) => {
         if (!slug) return null
 
         const cacheKey = `owner_${slug}`
-        if (publicationCache.has(cacheKey)) {
-            return publicationCache.get(cacheKey)
+        if (pageCache.has(cacheKey)) {
+            return pageCache.get(cacheKey)
         }
 
         const { data: profile, error: profileError } = await supabase
@@ -181,7 +218,7 @@ export default function SlugPage() {
                 },
                 type: 'profile' as OwnerType
             }
-            publicationCache.set(cacheKey, result)
+            pageCache.set(cacheKey, result)
             return result
         }
 
@@ -217,7 +254,7 @@ export default function SlugPage() {
                 },
                 type: 'store' as OwnerType
             }
-            publicationCache.set(cacheKey, result)
+            pageCache.set(cacheKey, result)
             return result
         }
 
@@ -229,8 +266,8 @@ export default function SlugPage() {
         if (!slug || !ownerId) return null
 
         const cacheKey = `content_${slug}_${ownerId}`
-        if (publicationCache.has(cacheKey)) {
-            return publicationCache.get(cacheKey)
+        if (pageCache.has(cacheKey)) {
+            return pageCache.get(cacheKey)
         }
 
         const ownerField = ownerType === 'profile' ? 'owner_id' : 'store_id'
@@ -267,55 +304,11 @@ export default function SlugPage() {
                 },
                 type: product.listing_type === 'sale' ? 'product' as ContentType : 'publication' as ContentType
             }
-            publicationCache.set(cacheKey, result)
+            pageCache.set(cacheKey, result)
             return result
         }
 
         return null
-    }, [])
-
-    // ========== CARREGAR PUBLICAÇÕES PARA NAVEGAÇÃO ==========
-    const loadPublicationsForNavigation = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('products')
-            .select(`
-                id,
-                name,
-                slug,
-                description,
-                image_url,
-                price,
-                listing_type,
-                owner_id,
-                store_id,
-                category,
-                created_at
-            `)
-            .eq('listing_type', 'publication')
-            .order('created_at', { ascending: false })
-            .limit(50)
-
-        if (error) {
-            console.error('Erro ao carregar publicações:', error)
-            return []
-        }
-
-        const publicationsWithProfiles = await Promise.all(
-            data.map(async (pub) => {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('name, profileSlug')
-                    .eq('id', pub.owner_id)
-                    .single()
-
-                return {
-                    ...pub,
-                    profiles: profile || { name: 'Usuário', profileSlug: 'usuario' }
-                }
-            })
-        )
-
-        return publicationsWithProfiles
     }, [])
 
     // ========== CARREGAR LOJAS DO USUÁRIO ==========
@@ -384,20 +377,20 @@ export default function SlugPage() {
         setStoreOrderCounts(counts)
     }, [stores])
 
-    // ========== CARREGAR INTERAÇÕES ==========
+    // ========== CARREGAR INTERAÇÕES DO CONTEÚDO ATIVO ==========
     const loadInteractions = useCallback(async () => {
-        if (!content || !currentUserId) return
+        if (!activeContent || !currentUserId) return
 
         const { count: likes } = await supabase
             .from('post_likes')
             .select('*', { count: 'exact', head: true })
-            .eq('post_id', content.id)
+            .eq('post_id', activeContent.id)
         setLikeCount(likes || 0)
 
         const { data: userLike } = await supabase
             .from('post_likes')
             .select('id')
-            .eq('post_id', content.id)
+            .eq('post_id', activeContent.id)
             .eq('user_id', currentUserId)
             .maybeSingle()
         setIsLiked(!!userLike)
@@ -405,31 +398,31 @@ export default function SlugPage() {
         const { count: shares } = await supabase
             .from('post_shares')
             .select('*', { count: 'exact', head: true })
-            .eq('post_id', content.id)
+            .eq('post_id', activeContent.id)
         setShareCount(shares || 0)
 
         const { data: saved } = await supabase
             .from('post_saves')
             .select('id')
-            .eq('post_id', content.id)
+            .eq('post_id', activeContent.id)
             .eq('user_id', currentUserId)
             .maybeSingle()
         setIsSaved(!!saved)
 
-        if (currentUserId !== content.owner_id) {
+        if (currentUserId !== activeContent.owner_id) {
             await supabase
                 .from('post_views')
                 .insert({
-                    post_id: content.id,
+                    post_id: activeContent.id,
                     user_id: currentUserId,
                 })
                 .select()
         }
-    }, [content, currentUserId])
+    }, [activeContent, currentUserId])
 
-    // ========== CARREGAR COMENTÁRIOS ==========
+    // ========== CARREGAR COMENTÁRIOS DA PUBLICAÇÃO ATIVA ==========
     const loadComments = useCallback(async () => {
-        if (!content) return
+        if (!activeContent) return
 
         setLoadingComments(true)
         const { data, error } = await supabase
@@ -443,14 +436,14 @@ export default function SlugPage() {
                     avatar_url
                 )
             `)
-            .eq('post_id', content.id)
+            .eq('post_id', activeContent.id)
             .order('created_at', { ascending: false })
 
         if (!error && data) {
             setComments(data)
         }
         setLoadingComments(false)
-    }, [content])
+    }, [activeContent])
 
     // ========== CARREGAR DADOS ==========
     const loadData = useCallback(async () => {
@@ -488,11 +481,11 @@ export default function SlugPage() {
             setContent(contentResult.data)
 
             if (contentResult.data.type === 'publication') {
-                const publications = await loadPublicationsForNavigation()
-                setAllPublications(publications)
-                const index = publications.findIndex(p => p.slug === slug)
-                setCurrentIndex(index >= 0 ? index : 0)
-                setHasMore(true)
+                // Carregar publicações no store Zustand se ainda não estiver pré-carregado
+                await publicationsStore.loadPublicationsForOwner({
+                    ownerSlug,
+                    initialSlug: slug,
+                })
             }
 
         } catch (err: any) {
@@ -501,7 +494,7 @@ export default function SlugPage() {
         } finally {
             setLoading(false)
         }
-    }, [ownerSlug, slug, detectOwner, detectContent, loadPublicationsForNavigation])
+    }, [ownerSlug, slug, detectOwner, detectContent, publicationsStore])
 
     // ===== EFFECTS =====
     useEffect(() => {
@@ -519,21 +512,17 @@ export default function SlugPage() {
     }, [stores, fetchStoreOrderCounts])
 
     useEffect(() => {
-        setMounted(true)
-    }, [])
-
-    useEffect(() => {
-        if (content && currentUserId) {
+        if (activeContent && currentUserId) {
             loadInteractions()
             loadComments()
         }
-    }, [content, currentUserId, loadInteractions, loadComments])
+    }, [activeContent?.id, currentUserId, loadInteractions, loadComments])
 
     useEffect(() => {
-        if (content) {
+        if (activeContent) {
             setProductQuantity(getProductQuantity())
         }
-    }, [content, getProductQuantity])
+    }, [activeContent, getProductQuantity])
 
     useEffect(() => {
         if (totalCartItems > 0) {
@@ -560,230 +549,11 @@ export default function SlugPage() {
     }, [isMenuOpen])
 
     // ===== VARIÁVEIS DERIVADAS =====
-    const isProduct = content?.type === 'product'
-    const isPublication = content?.type === 'publication'
-    const hasImage = content?.image_url
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
     const isInCart = productQuantity > 0
     const isLoggedIn = !!loggedUserSlug && !loading
-    const isOwnerOrAdmin = isOwner
-    const showNavigation = isPublication && allPublications.length > 1
 
-    // ========== NAVEGAR PARA PUBLICAÇÃO ==========
-    const navigateToPublication = useCallback(async (publication: any) => {
-        if (isNavigating || isTransitioning) return
-
-        setIsTransitioning(true)
-        setIsNavigating(true)
-
-        try {
-            let targetOwnerSlug = publication.profiles?.profileSlug
-
-            if (!targetOwnerSlug) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('profileSlug')
-                    .eq('id', publication.owner_id)
-                    .single()
-                if (profile) {
-                    targetOwnerSlug = profile.profileSlug
-                }
-            }
-
-            if (!targetOwnerSlug) {
-                targetOwnerSlug = ownerSlug
-            }
-
-            const ownerResult = await detectOwner(targetOwnerSlug)
-            if (!ownerResult) {
-                toast.error('Erro ao carregar publicação')
-                setIsNavigating(false)
-                setIsTransitioning(false)
-                return
-            }
-
-            const isStoreOwner = !!publication.store_id
-            const ownerId = isStoreOwner ? publication.store_id : publication.owner_id
-
-            const contentResult = await detectContent(
-                publication.slug,
-                ownerId,
-                isStoreOwner ? 'store' : 'profile'
-            )
-
-            if (!contentResult) {
-                toast.error('Erro ao carregar conteúdo')
-                setIsNavigating(false)
-                setIsTransitioning(false)
-                return
-            }
-
-            setOwner(ownerResult.data)
-            setOwnerType(ownerResult.type)
-            setIsOwner(currentUserId === ownerResult.data.id)
-            setContent(contentResult.data)
-            setError(null)
-
-            const newUrl = `/${targetOwnerSlug}/${publication.slug}`
-            window.history.pushState({}, '', newUrl)
-
-            if (currentUserId && contentResult.data) {
-                const { count: likes } = await supabase
-                    .from('post_likes')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('post_id', contentResult.data.id)
-                setLikeCount(likes || 0)
-
-                const { data: userLike } = await supabase
-                    .from('post_likes')
-                    .select('id')
-                    .eq('post_id', contentResult.data.id)
-                    .eq('user_id', currentUserId)
-                    .maybeSingle()
-                setIsLiked(!!userLike)
-
-                const { count: shares } = await supabase
-                    .from('post_shares')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('post_id', contentResult.data.id)
-                setShareCount(shares || 0)
-
-                const { data: saved } = await supabase
-                    .from('post_saves')
-                    .select('id')
-                    .eq('post_id', contentResult.data.id)
-                    .eq('user_id', currentUserId)
-                    .maybeSingle()
-                setIsSaved(!!saved)
-
-                const { data: commentsData } = await supabase
-                    .from('post_comments')
-                    .select(`
-                        *,
-                        profiles:user_id (
-                            id,
-                            name,
-                            profileSlug,
-                            avatar_url
-                        )
-                    `)
-                    .eq('post_id', contentResult.data.id)
-                    .order('created_at', { ascending: false })
-
-                if (commentsData) {
-                    setComments(commentsData)
-                }
-
-                if (currentUserId !== contentResult.data.owner_id) {
-                    await supabase
-                        .from('post_views')
-                        .insert({
-                            post_id: contentResult.data.id,
-                            user_id: currentUserId,
-                        })
-                        .select()
-                }
-            }
-
-        } catch (err) {
-            console.error('Erro ao navegar:', err)
-            toast.error('Erro ao carregar publicação')
-        } finally {
-            setIsNavigating(false)
-            setTimeout(() => setIsTransitioning(false), 300)
-        }
-    }, [detectOwner, detectContent, currentUserId, ownerSlug, isNavigating, isTransitioning])
-
-    // ========== PROXIMA PUBLICAÇÃO ==========
-    const nextPublication = useCallback(async () => {
-        if (isNavigating || loadingMore || !hasMore || isTransitioning) return
-
-        const nextIndex = currentIndex + 1
-        if (nextIndex < allPublications.length) {
-            setCurrentIndex(nextIndex)
-            await navigateToPublication(allPublications[nextIndex])
-        } else {
-            setLoadingMore(true)
-            const morePublications = await loadPublicationsForNavigation()
-            if (morePublications.length > 0) {
-                setAllPublications(prev => [...prev, ...morePublications])
-                const newIndex = allPublications.length
-                setCurrentIndex(newIndex)
-                await navigateToPublication(morePublications[0])
-            } else {
-                setHasMore(false)
-                toast.info('Chegou ao fim das publicações')
-            }
-            setLoadingMore(false)
-        }
-    }, [currentIndex, allPublications, loadingMore, hasMore, navigateToPublication, loadPublicationsForNavigation, isNavigating, isTransitioning])
-
-    // ========== PUBLICAÇÃO ANTERIOR ==========
-    const previousPublication = useCallback(async () => {
-        if (isNavigating || isTransitioning) return
-
-        if (currentIndex > 0) {
-            const prevIndex = currentIndex - 1
-            setCurrentIndex(prevIndex)
-            await navigateToPublication(allPublications[prevIndex])
-        } else {
-            toast.info('Você está na primeira publicação')
-        }
-    }, [currentIndex, allPublications, navigateToPublication, isNavigating, isTransitioning])
-
-    // ========== HANDLERS DE TOUCH PARA SWIPE ==========
-    const handleTouchStart = useCallback((e: TouchEvent) => {
-        if (!isPublication) return
-        setTouchStartY(e.touches[0].clientY)
-        touchStartTime.current = Date.now()
-        setIsSwiping(true)
-        isSwipingRef.current = true
-    }, [isPublication])
-
-    const handleTouchMove = useCallback((e: TouchEvent) => {
-        if (!isPublication || !isSwipingRef.current) return
-        setTouchEndY(e.touches[0].clientY)
-    }, [isPublication])
-
-    const handleTouchEnd = useCallback(async () => {
-        if (!isPublication || !isSwipingRef.current) return
-
-        setIsSwiping(false)
-        isSwipingRef.current = false
-
-        const deltaY = touchStartY - touchEndY
-        const deltaTime = Date.now() - touchStartTime.current
-
-        if (Math.abs(deltaY) > 30 || (Math.abs(deltaY) > 15 && deltaTime < 150)) {
-            if (deltaY > 0) {
-                await nextPublication()
-            } else {
-                await previousPublication()
-            }
-        }
-
-        setTouchStartY(0)
-        setTouchEndY(0)
-    }, [isPublication, touchStartY, touchEndY, nextPublication, previousPublication])
-
-    useEffect(() => {
-        const container = containerRef.current
-        if (container) {
-            container.addEventListener('touchstart', handleTouchStart, { passive: true })
-            container.addEventListener('touchmove', handleTouchMove, { passive: true })
-            container.addEventListener('touchend', handleTouchEnd, { passive: true })
-        }
-
-        return () => {
-            if (container) {
-                container.removeEventListener('touchstart', handleTouchStart)
-                container.removeEventListener('touchmove', handleTouchMove)
-                container.removeEventListener('touchend', handleTouchEnd)
-            }
-        }
-    }, [handleTouchStart, handleTouchMove, handleTouchEnd])
-
-    // ========== FUNÇÕES ==========
+    // ========== FUNÇÕES PARA CARRINHO ==========
     const contentToCartProduct = useCallback((contentData: ContentData) => {
         return {
             id: contentData.id,
@@ -819,64 +589,64 @@ export default function SlugPage() {
 
     // ========== CART FUNCTIONS ==========
     const handleAddToCart = useCallback(() => {
-        if (!owner || !content) return
+        if (!activeOwner || !activeContent) return
 
         const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
-        const cartProduct = contentToCartProduct(content)
-        addItem(storeKey as string, { name: owner.name, logo_url: owner.avatar_url ?? null }, cartProduct)
+        const cartProduct = contentToCartProduct(activeContent)
+        addItem(storeKey as string, { name: activeOwner.name, logo_url: activeOwner.avatar_url ?? null }, cartProduct)
         setProductQuantity(prev => prev + 1)
         setCartAnimating(true)
         setTimeout(() => setCartAnimating(false), 500)
         toast.success('Adicionado ao carrinho!')
-    }, [owner, content, ownerType, ownerSlug, addItem, contentToCartProduct])
+    }, [activeOwner, activeContent, ownerType, ownerSlug, addItem, contentToCartProduct])
 
     const handleDecreaseQuantity = useCallback(() => {
-        if (!content) return
+        if (!activeContent) return
 
         const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
         if (productQuantity <= 1) {
             Object.keys(itemsByStore).forEach(key => {
                 const storeItems = itemsByStore[key]
-                const found = storeItems.find((item: any) => item.product.id === content.id)
+                const found = storeItems.find((item: any) => item.product.id === activeContent.id)
                 if (found) {
-                    removeItem(key, content.id)
+                    removeItem(key, activeContent.id)
                 }
             })
             setProductQuantity(0)
         } else {
-            updateQuantity(storeKey as string, content.id, -1)
+            updateQuantity(storeKey as string, activeContent.id, -1)
             setProductQuantity(prev => prev - 1)
         }
-    }, [content, productQuantity, ownerType, ownerSlug, itemsByStore, removeItem, updateQuantity])
+    }, [activeContent, productQuantity, ownerType, ownerSlug, itemsByStore, removeItem, updateQuantity])
 
     const handleIncreaseQuantity = useCallback(() => {
-        if (!owner || !content) return
+        if (!activeOwner || !activeContent) return
 
         const storeKey = ownerType === 'store' ? ownerSlug : `profile_${ownerSlug}`
-        const cartProduct = contentToCartProduct(content)
-        addItem(storeKey as string, { name: owner.name, logo_url: owner.avatar_url ?? null }, cartProduct)
+        const cartProduct = contentToCartProduct(activeContent)
+        addItem(storeKey as string, { name: activeOwner.name, logo_url: activeOwner.avatar_url ?? null }, cartProduct)
         setProductQuantity(prev => prev + 1)
         setCartAnimating(true)
         setTimeout(() => setCartAnimating(false), 500)
-    }, [owner, content, ownerType, ownerSlug, addItem, contentToCartProduct])
+    }, [activeOwner, activeContent, ownerType, ownerSlug, addItem, contentToCartProduct])
 
     const handleRemoveAll = useCallback(() => {
-        if (!content) return
+        if (!activeContent) return
 
         Object.keys(itemsByStore).forEach(key => {
             const storeItems = itemsByStore[key]
-            const found = storeItems.find((item: any) => item.product.id === content.id)
+            const found = storeItems.find((item: any) => item.product.id === activeContent.id)
             if (found) {
-                removeItem(key, content.id)
+                removeItem(key, activeContent.id)
             }
         })
         setProductQuantity(0)
         toast.info('Produto removido do carrinho')
-    }, [content, itemsByStore, removeItem])
+    }, [activeContent, itemsByStore, removeItem])
 
     // ========== INTERAÇÕES ==========
     const handleLike = useCallback(async () => {
-        if (!content || !currentUserId) {
+        if (!activeContent || !currentUserId) {
             toast.error('Faça login para curtir')
             return
         }
@@ -885,18 +655,18 @@ export default function SlugPage() {
             const { error } = await supabase
                 .from('post_likes')
                 .delete()
-                .eq('post_id', content.id)
+                .eq('post_id', activeContent.id)
                 .eq('user_id', currentUserId)
 
             if (!error) {
                 setIsLiked(false)
-                setLikeCount(prev => prev - 1)
+                setLikeCount(prev => Math.max(0, prev - 1))
             }
         } else {
             const { error } = await supabase
                 .from('post_likes')
                 .insert({
-                    post_id: content.id,
+                    post_id: activeContent.id,
                     user_id: currentUserId,
                 })
 
@@ -905,10 +675,10 @@ export default function SlugPage() {
                 setLikeCount(prev => prev + 1)
             }
         }
-    }, [content, currentUserId, isLiked])
+    }, [activeContent, currentUserId, isLiked])
 
     const handleComment = useCallback(async () => {
-        if (!content || !currentUserId) {
+        if (!activeContent || !currentUserId) {
             toast.error('Faça login para comentar')
             return
         }
@@ -921,7 +691,7 @@ export default function SlugPage() {
         const { data, error } = await supabase
             .from('post_comments')
             .insert({
-                post_id: content.id,
+                post_id: activeContent.id,
                 user_id: currentUserId,
                 content: commentText.trim(),
             })
@@ -947,18 +717,18 @@ export default function SlugPage() {
         } else {
             toast.error('Erro ao comentar')
         }
-    }, [content, currentUserId, commentText])
+    }, [activeContent, currentUserId, commentText])
 
     const handleShare = useCallback(async () => {
-        if (!content) return
+        if (!activeContent) return
 
-        const shareUrl = `${window.location.origin}/${ownerSlug}/${slug}`
+        const shareUrl = `${window.location.origin}/${ownerSlug}/${activeContent.slug}`
 
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: content.name,
-                    text: `Confira esta publicação no iUser: ${content.name}`,
+                    title: activeContent.name,
+                    text: `Confira esta publicação no iUser: ${activeContent.name}`,
                     url: shareUrl,
                 })
 
@@ -966,7 +736,7 @@ export default function SlugPage() {
                     await supabase
                         .from('post_shares')
                         .insert({
-                            post_id: content.id,
+                            post_id: activeContent.id,
                             user_id: currentUserId,
                         })
                     setShareCount(prev => prev + 1)
@@ -986,7 +756,7 @@ export default function SlugPage() {
                 await supabase
                     .from('post_shares')
                     .insert({
-                        post_id: content.id,
+                        post_id: activeContent.id,
                         user_id: currentUserId,
                     })
                 setShareCount(prev => prev + 1)
@@ -994,10 +764,10 @@ export default function SlugPage() {
         } catch (err) {
             toast.error('Erro ao copiar link')
         }
-    }, [content, ownerSlug, slug, currentUserId])
+    }, [activeContent, ownerSlug, currentUserId])
 
     const handleSave = useCallback(async () => {
-        if (!content || !currentUserId) {
+        if (!activeContent || !currentUserId) {
             toast.error('Faça login para salvar')
             return
         }
@@ -1006,7 +776,7 @@ export default function SlugPage() {
             const { error } = await supabase
                 .from('post_saves')
                 .delete()
-                .eq('post_id', content.id)
+                .eq('post_id', activeContent.id)
                 .eq('user_id', currentUserId)
 
             if (!error) {
@@ -1017,7 +787,7 @@ export default function SlugPage() {
             const { error } = await supabase
                 .from('post_saves')
                 .insert({
-                    post_id: content.id,
+                    post_id: activeContent.id,
                     user_id: currentUserId,
                 })
 
@@ -1026,7 +796,7 @@ export default function SlugPage() {
                 toast.success('Salvo!')
             }
         }
-    }, [content, currentUserId, isSaved])
+    }, [activeContent, currentUserId, isSaved])
 
     const handleDeleteComment = useCallback(async (commentId: string) => {
         if (!confirm('Tem certeza que deseja excluir este comentário?')) return
@@ -1133,7 +903,7 @@ export default function SlugPage() {
         return <LoadingSpinner message="Carregando..." background={colors.background} />
     }
 
-    if (error || !owner || !content) {
+    if (error || !activeOwner || !activeContent) {
         return (
             <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
                 <div className="flex flex-col items-center gap-4 max-w-sm text-center">
@@ -1209,20 +979,48 @@ export default function SlugPage() {
                     <>
                         {isPublication && (
                             <Publications
+                                owner={activeOwner}
+                                content={activeContent}
                                 ownerSlug={ownerSlug}
-                                initialSlug={slug}
-                                GRADIENT={GRADIENT}
-                                router={router}
-                                loggedUserSlug={loggedUserSlug}
-                                loggedUserAvatarUrl={loggedUserAvatarUrl}
+                                isOwner={isOwner}
                                 currentUserId={currentUserId}
+                                allPublications={storePublications.length > 0 ? storePublications : [activeContent]}
+                                currentIndex={storePublications.length > 0 ? storeIndex : 0}
+                                onNext={() => publicationsStore.next()}
+                                onPrevious={() => publicationsStore.previous()}
+                                loadingMore={publicationsStore.isLoadingMore}
+                                isLiked={isLiked}
+                                likeCount={likeCount}
+                                onLike={handleLike}
+                                showComments={showComments}
+                                onToggleComments={handleToggleComments}
+                                commentText={commentText}
+                                onCommentChange={setCommentText}
+                                onCommentSubmit={handleComment}
+                                comments={comments}
+                                loadingComments={loadingComments}
+                                isSaved={isSaved}
+                                onSave={handleSave}
+                                shareCount={shareCount}
+                                onShare={handleShare}
+                                isMenuOpen={isMenuOpen}
+                                onToggleMenu={handleToggleMenu}
+                                onReport={handleReport}
+                                onDeleteComment={handleDeleteComment}
+                                commentInputRef={commentInputRef}
+                                menuRef={menuRef}
+                                containerRef={containerRef}
+                                GRADIENT={GRADIENT}
+                                loggedUserAvatarUrl={loggedUserAvatarUrl}
+                                loggedUserSlug={loggedUserSlug}
+                                router={router}
                             />
                         )}
 
                         {isProduct && (
                             <Products
-                                owner={owner}
-                                content={content}
+                                owner={activeOwner}
+                                content={activeContent}
                                 ownerSlug={ownerSlug}
                                 isOwner={isOwner}
                                 isInCart={isInCart}

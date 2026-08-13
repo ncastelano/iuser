@@ -35,6 +35,7 @@ import { useCartStore } from '@/store/useCartStore'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
+import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '../StoreSchedule'
 
 interface StoreProps {
@@ -1451,7 +1452,26 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                         const pubIdentifier = pub.slug || pub.id
 
                                         const handleOpenPub = () => {
-                                            if (pubIdentifier) {
+                                            if (pubIdentifier && owner) {
+                                                const feed = publications.map(p => ({
+                                                    id: p.id,
+                                                    name: p.name,
+                                                    slug: p.slug,
+                                                    description: p.description,
+                                                    image_url: getImageUrl(p.image_url),
+                                                    listing_type: 'publication' as const,
+                                                    owner_id: owner.id,
+                                                    store_id: owner.id,
+                                                    created_at: p.created_at,
+                                                    owner: {
+                                                        id: owner.id,
+                                                        name: owner.name,
+                                                        slug: owner.slug,
+                                                        avatar_url: imageUrl,
+                                                    },
+                                                }))
+                                                const pubIndex = publications.findIndex(item => item.id === pub.id)
+                                                usePublicationsStore.getState().setPublicationFeed(feed, pubIndex, undefined, ownerSlug)
                                                 router.push(`/${ownerSlug}/${pubIdentifier}`)
                                             } else {
                                                 toast.error('Erro ao abrir esta publicação')
