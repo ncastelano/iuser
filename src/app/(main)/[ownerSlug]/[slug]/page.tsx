@@ -100,6 +100,9 @@ function formatNumber(num: number): string {
     return num.toString()
 }
 
+// ===== CACHE DE PUBLICAÇÕES PRÉ-CARREGADAS =====
+const publicationCache = new Map<string, any>()
+
 export default function SlugPage() {
     const params = useParams()
     const router = useRouter()
@@ -129,6 +132,9 @@ export default function SlugPage() {
     const [touchEndY, setTouchEndY] = useState(0)
     const [isSwiping, setIsSwiping] = useState(false)
     const [isNavigating, setIsNavigating] = useState(false)
+    const [preloadedNext, setPreloadedNext] = useState<any>(null)
+    const [preloadedPrev, setPreloadedPrev] = useState<any>(null)
+    const [isTransitioning, setIsTransitioning] = useState(false)
 
     // ===== ESTADOS PARA INTERAÇÕES =====
     const [isLiked, setIsLiked] = useState(false)
@@ -157,6 +163,7 @@ export default function SlugPage() {
     const menuRef = useRef<HTMLDivElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const touchStartTime = useRef<number>(0)
+    const isSwipingRef = useRef(false)
 
     // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = useMemo(() => {
@@ -193,6 +200,12 @@ export default function SlugPage() {
     const detectOwner = useCallback(async (slug: string) => {
         if (!slug) return null
 
+        // Verificar cache
+        const cacheKey = `owner_${slug}`
+        if (publicationCache.has(cacheKey)) {
+            return publicationCache.get(cacheKey)
+        }
+
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id, name, profileSlug, avatar_url, description, address, whatsapp')
@@ -200,7 +213,7 @@ export default function SlugPage() {
             .maybeSingle()
 
         if (profile && !profileError) {
-            return {
+            const result = {
                 data: {
                     id: profile.id,
                     name: profile.name,
@@ -213,6 +226,8 @@ export default function SlugPage() {
                 },
                 type: 'profile' as OwnerType
             }
+            publicationCache.set(cacheKey, result)
+            return result
         }
 
         const { data: store, error: storeError } = await supabase
@@ -232,7 +247,7 @@ export default function SlugPage() {
                 storeWhatsapp = profile?.whatsapp
             }
 
-            return {
+            const result = {
                 data: {
                     id: store.id,
                     name: store.name,
@@ -247,6 +262,8 @@ export default function SlugPage() {
                 },
                 type: 'store' as OwnerType
             }
+            publicationCache.set(cacheKey, result)
+            return result
         }
 
         return null
@@ -255,6 +272,11 @@ export default function SlugPage() {
     // ========== DETECTAR CONTEÚDO ==========
     const detectContent = useCallback(async (slug: string, ownerId: string, ownerType: OwnerType) => {
         if (!slug || !ownerId) return null
+
+        const cacheKey = `content_${slug}_${ownerId}`
+        if (publicationCache.has(cacheKey)) {
+            return publicationCache.get(cacheKey)
+        }
 
         const ownerField = ownerType === 'profile' ? 'owner_id' : 'store_id'
 
@@ -273,7 +295,7 @@ export default function SlugPage() {
                 }
             }
 
-            return {
+            const result = {
                 data: {
                     id: product.id,
                     name: product.name,
@@ -290,6 +312,8 @@ export default function SlugPage() {
                 },
                 type: product.listing_type === 'sale' ? 'product' as ContentType : 'publication' as ContentType
             }
+            publicationCache.set(cacheKey, result)
+            return result
         }
 
         return null
@@ -518,6 +542,11 @@ export default function SlugPage() {
                 const index = publications.findIndex(p => p.slug === slug)
                 setCurrentIndex(index >= 0 ? index : 0)
                 setHasMore(true)
+
+                // Pré-carregar próximas publicações
+                if (index >= 0) {
+                    preloadAdjacentPublications(publications, index)
+                }
             }
 
         } catch (err: any) {
@@ -527,6 +556,29 @@ export default function SlugPage() {
             setLoading(false)
         }
     }, [ownerSlug, slug, detectOwner, detectContent, loadPublicationsForNavigation])
+
+    // ========== PRÉ-CARREGAR PUBLICAÇÕES ADJACENTES ==========
+    const preloadAdjacentPublications = useCallback((publications: any[], index: number) => {
+        const nextIndex = index + 1
+        const prevIndex = index - 1
+
+        if (nextIndex < publications.length) {
+            const nextPub = publications[nextIndex]
+            if (nextPub) {
+                // Pré-carregar dados da próxima publicação
+                detectContent(nextPub.slug, nextPub.owner_id, nextPub.store_id ? 'store' : 'profile')
+                setPreloadedNext(nextPub)
+            }
+        }
+
+        if (prevIndex >= 0) {
+            const prevPub = publications[prevIndex]
+            if (prevPub) {
+                detectContent(prevPub.slug, prevPub.owner_id, prevPub.store_id ? 'store' : 'profile')
+                setPreloadedPrev(prevPub)
+            }
+        }
+    }, [detectContent])
 
     useEffect(() => {
         loadData()
@@ -595,8 +647,10 @@ export default function SlugPage() {
     const showNavigation = isPublication && allPublications.length > 1
 
     // ========== NAVEGAR PARA PUBLICAÇÃO ==========
-    const navigateToPublication = useCallback(async (publication: any) => {
-        if (isNavigating) return
+    const navigateToPublication = useCallback(async (publication: any, direction: 'next' | 'prev' = 'next') => {
+        if (isNavigating || isTransitioning) return
+
+        setIsTransitioning(true)
         setIsNavigating(true)
 
         try {
@@ -621,6 +675,7 @@ export default function SlugPage() {
             if (!ownerResult) {
                 toast.error('Erro ao carregar publicação')
                 setIsNavigating(false)
+                setIsTransitioning(false)
                 return
             }
 
@@ -636,6 +691,7 @@ export default function SlugPage() {
             if (!contentResult) {
                 toast.error('Erro ao carregar conteúdo')
                 setIsNavigating(false)
+                setIsTransitioning(false)
                 return
             }
 
@@ -706,22 +762,29 @@ export default function SlugPage() {
                 }
             }
 
+            // Pré-carregar próximas publicações
+            const currentIdx = allPublications.findIndex(p => p.id === publication.id)
+            if (currentIdx >= 0) {
+                preloadAdjacentPublications(allPublications, currentIdx)
+            }
+
         } catch (err) {
             console.error('Erro ao navegar:', err)
             toast.error('Erro ao carregar publicação')
         } finally {
             setIsNavigating(false)
+            setTimeout(() => setIsTransitioning(false), 300)
         }
-    }, [detectOwner, detectContent, currentUserId, ownerSlug, isNavigating])
+    }, [detectOwner, detectContent, currentUserId, ownerSlug, isNavigating, isTransitioning, allPublications, preloadAdjacentPublications])
 
     // ========== PROXIMA PUBLICAÇÃO ==========
     const nextPublication = useCallback(async () => {
-        if (isNavigating || loadingMore || !hasMore) return
+        if (isNavigating || loadingMore || !hasMore || isTransitioning) return
 
         const nextIndex = currentIndex + 1
         if (nextIndex < allPublications.length) {
             setCurrentIndex(nextIndex)
-            await navigateToPublication(allPublications[nextIndex])
+            await navigateToPublication(allPublications[nextIndex], 'next')
         } else {
             setLoadingMore(true)
             const morePublications = await loadPublicationsForNavigation()
@@ -729,27 +792,27 @@ export default function SlugPage() {
                 setAllPublications(prev => [...prev, ...morePublications])
                 const newIndex = allPublications.length
                 setCurrentIndex(newIndex)
-                await navigateToPublication(morePublications[0])
+                await navigateToPublication(morePublications[0], 'next')
             } else {
                 setHasMore(false)
                 toast.info('Chegou ao fim das publicações')
             }
             setLoadingMore(false)
         }
-    }, [currentIndex, allPublications, loadingMore, hasMore, navigateToPublication, loadPublicationsForNavigation, isNavigating])
+    }, [currentIndex, allPublications, loadingMore, hasMore, navigateToPublication, loadPublicationsForNavigation, isNavigating, isTransitioning])
 
     // ========== PUBLICAÇÃO ANTERIOR ==========
     const previousPublication = useCallback(async () => {
-        if (isNavigating) return
+        if (isNavigating || isTransitioning) return
 
         if (currentIndex > 0) {
             const prevIndex = currentIndex - 1
             setCurrentIndex(prevIndex)
-            await navigateToPublication(allPublications[prevIndex])
+            await navigateToPublication(allPublications[prevIndex], 'prev')
         } else {
             toast.info('Você está na primeira publicação')
         }
-    }, [currentIndex, allPublications, navigateToPublication, isNavigating])
+    }, [currentIndex, allPublications, navigateToPublication, isNavigating, isTransitioning])
 
     // ========== HANDLERS DE TOUCH PARA SWIPE ==========
     const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -757,28 +820,36 @@ export default function SlugPage() {
         setTouchStartY(e.touches[0].clientY)
         touchStartTime.current = Date.now()
         setIsSwiping(true)
+        isSwipingRef.current = true
     }, [isPublication])
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
-        if (!isPublication || !isSwiping) return
+        if (!isPublication || !isSwipingRef.current) return
         setTouchEndY(e.touches[0].clientY)
-    }, [isPublication, isSwiping])
+    }, [isPublication])
 
     const handleTouchEnd = useCallback(async () => {
-        if (!isPublication || !isSwiping) return
+        if (!isPublication || !isSwipingRef.current) return
 
         setIsSwiping(false)
+        isSwipingRef.current = false
+
         const deltaY = touchStartY - touchEndY
         const deltaTime = Date.now() - touchStartTime.current
 
-        if (Math.abs(deltaY) > 50 || (Math.abs(deltaY) > 20 && deltaTime < 200)) {
+        // Mais sensível para navegação rápida
+        if (Math.abs(deltaY) > 30 || (Math.abs(deltaY) > 15 && deltaTime < 150)) {
             if (deltaY > 0) {
                 await nextPublication()
             } else {
                 await previousPublication()
             }
         }
-    }, [isPublication, isSwiping, touchStartY, touchEndY, nextPublication, previousPublication])
+
+        // Reset para próximo swipe
+        setTouchStartY(0)
+        setTouchEndY(0)
+    }, [isPublication, touchStartY, touchEndY, nextPublication, previousPublication])
 
     useEffect(() => {
         const container = containerRef.current
@@ -1657,7 +1728,6 @@ export default function SlugPage() {
             {/* ===== BOTÕES FLUTUANTES ===== */}
             {!showProfile && !showStoreDashboard && (
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {/* Botão Voltar estilo SacolaButton */}
                     <button
                         onClick={() => router.back()}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -1675,7 +1745,6 @@ export default function SlugPage() {
                         <ArrowLeft size={24} />
                     </button>
 
-                    {/* Sacola Button */}
                     {isProduct && (
                         <SacolaButton
                             totalItems={totalCartItems}
@@ -1685,7 +1754,6 @@ export default function SlugPage() {
                         />
                     )}
 
-                    {/* Botão Home estilo SacolaButton */}
                     <button
                         onClick={() => router.push('/')}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
