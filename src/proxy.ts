@@ -60,8 +60,16 @@ const STORE_ROUTES = [
     '/compromissos',
 ]
 
+// ===== ROTAS DE PERFIL =====
+const PROFILE_ROUTES = [
+    '/editar-perfil',
+    '/configuracoes',
+    '/pedidos',
+    '/avaliacoes',
+]
+
 // ===== CACHE EM MEMÓRIA =====
-const cache = new Map<string, { type: 'profile' | 'store' | 'category'; slug: string; timestamp: number }>()
+const cache = new Map<string, { type: 'profile' | 'store' | 'category' | 'product'; slug: string; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 60 segundos
 
 function getFromCache(slug: string) {
@@ -72,7 +80,7 @@ function getFromCache(slug: string) {
     return null
 }
 
-function setCache(slug: string, type: 'profile' | 'store' | 'category') {
+function setCache(slug: string, type: 'profile' | 'store' | 'category' | 'product') {
     cache.set(slug, { type, slug, timestamp: Date.now() })
 }
 
@@ -113,7 +121,6 @@ export async function proxy(request: NextRequest) {
         if (segments.length >= 2) {
             const categoriaSlug = segments[1]
 
-            // Verifica se é uma categoria válida
             if (CATEGORIAS_VALIDAS.includes(categoriaSlug)) {
                 console.log(`[Proxy] Categoria válida: ${categoriaSlug} ✅`)
                 setCache(categoriaSlug, 'category')
@@ -126,12 +133,11 @@ export async function proxy(request: NextRequest) {
             return NextResponse.rewrite(notFoundUrl)
         }
 
-        // /lojas sem categoria - permite
         console.log(`[Proxy] Rota /lojas permitida`)
         return NextResponse.next()
     }
 
-    // --- 6. ROTA COM 2+ SEGMENTOS: /{profileSlug}/{storeSlug} ou /{profileSlug}/... ---
+    // --- 6. ROTA COM 2+ SEGMENTOS: /{profileSlug}/{productSlug} ---
     if (segments.length >= 2) {
         const firstSegment = segments[0]
         const secondSegment = segments[1]
@@ -159,52 +165,9 @@ export async function proxy(request: NextRequest) {
         }
 
         if (isProfile) {
-            // Verifica se é uma rota de perfil
-            const fullPath = `/${secondSegment}${restPath}`
-            const PROFILE_ROUTES = [
-                '/editar-perfil',
-                '/configuracoes',
-                '/pedidos',
-                '/avaliacoes',
-            ]
-
-            if (PROFILE_ROUTES.some(route => fullPath === route || fullPath.startsWith(route + '/'))) {
-                console.log(`[Proxy] Rota de perfil válida: ${firstSegment}${fullPath} ✅`)
-                return NextResponse.next()
-            }
-
-            // Verifica se o segundo segmento é um storeSlug
-            let cachedStore = getFromCache(secondSegment)
-            let isStore = cachedStore?.type === 'store'
-
-            if (!isStore) {
-                try {
-                    const { data: store } = await supabaseAdmin
-                        .from('stores')
-                        .select('storeSlug')
-                        .eq('storeSlug', secondSegment)
-                        .maybeSingle()
-
-                    if (store) {
-                        setCache(secondSegment, 'store')
-                        isStore = true
-                    }
-                } catch (error) {
-                    console.error(`[Proxy] Erro ao verificar loja ${secondSegment}:`, error)
-                }
-            }
-
-            if (isStore) {
-                // Verifica se é uma rota de loja
-                if (restPath === '' || STORE_ROUTES.some(route => restPath === route || restPath.startsWith(route + '/'))) {
-                    console.log(`[Proxy] Rota de loja válida: ${firstSegment}/${secondSegment}${restPath} ✅`)
-                    return NextResponse.next()
-                }
-            }
-
-            // Se é um perfil válido, permite a rota mesmo que a loja não exista
-            // (pode ser uma página de perfil que não é de loja)
-            console.log(`[Proxy] Perfil ${firstSegment} encontrado, permitindo rota: ${pathname}`)
+            // Se o primeiro segmento é um perfil, permite a rota
+            // Isso cobre /{profileSlug}/{productSlug}, /{profileSlug}/editar-perfil, etc.
+            console.log(`[Proxy] Perfil ${firstSegment} encontrado, permitindo rota: ${pathname} ✅`)
             return NextResponse.next()
         }
 
@@ -236,6 +199,10 @@ export async function proxy(request: NextRequest) {
                 console.log(`[Proxy] Rota de loja direta válida: ${firstSegment}${fullPath} ✅`)
                 return NextResponse.next()
             }
+
+            // Se é uma loja, permite a rota (pode ser um produto da loja)
+            console.log(`[Proxy] Loja ${firstSegment} encontrada, permitindo rota: ${pathname} ✅`)
+            return NextResponse.next()
         }
     }
 
@@ -243,7 +210,6 @@ export async function proxy(request: NextRequest) {
     if (segments.length === 1) {
         const slug = segments[0]
 
-        // Verifica cache
         let cached = getFromCache(slug)
         if (cached) {
             console.log(`[Proxy] ${slug} é um ${cached.type} (cache) ✅`)
@@ -284,7 +250,7 @@ export async function proxy(request: NextRequest) {
             console.error(`[Proxy] Erro ao verificar loja ${slug}:`, error)
         }
 
-        // Verifica se é uma categoria (rota direta de categoria)
+        // Verifica se é uma categoria
         if (CATEGORIAS_VALIDAS.includes(slug)) {
             console.log(`[Proxy] ${slug} é uma categoria ✅`)
             return NextResponse.next()
