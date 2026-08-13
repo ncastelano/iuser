@@ -13,10 +13,11 @@ import SacolaButton from '@/app/ButtonSacola'
 import { useCartStore } from '@/store/useCartStore'
 import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
 import type { Tab } from '@/app/Header'
-import { Store } from './Store'
+import ProfileDashboard from '../ProfileDashboard'
+import StoreDashboard from '../StoreDashboard'
 import { Profile } from './Profile'
-import ProfileDashboard from '@/app/(main)/ProfileDashboard'
-import StoreDashboard from '@/app/(main)/StoreDashboard'
+import { Store } from './Store'
+import { usePublicationsStore } from '@/store/usePublicationStore'
 
 type OwnerType = 'profile' | 'store'
 
@@ -68,6 +69,7 @@ export default function OwnerPage() {
         loading: profileLoading
     } = useProfile()
     const { itemsByStore } = useCartStore()
+    const publicationsStore = usePublicationsStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
 
@@ -274,6 +276,18 @@ export default function OwnerPage() {
         fetchOrderStatuses()
     }, [])
 
+    // ========== PRÉ-CARREGAR PUBLICAÇÕES ==========
+    useEffect(() => {
+        // Pré-carregar publicações do perfil/loja quando o owner for detectado
+        if (ownerSlug && ownerType && !loading) {
+            publicationsStore.loadPublicationsForOwner({
+                ownerSlug,
+                // Se for loja, passar storeSlug também
+                ...(ownerType === 'store' ? { storeSlug: ownerSlug } : {}),
+            })
+        }
+    }, [ownerSlug, ownerType, loading])
+
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
@@ -415,7 +429,6 @@ export default function OwnerPage() {
         let total = 0
         Object.values(itemsByStore).forEach(items => {
             items.forEach(item => {
-                // O price está dentro de product
                 const price = item.product?.price || 0
                 const quantity = item.quantity || 1
                 total += Number(price) * quantity
@@ -486,29 +499,33 @@ export default function OwnerPage() {
 
                 {/* ===== RENDERIZAR CONTEÚDO BASEADO NO ESTADO ===== */}
                 {showProfile ? (
-                    <ProfileDashboard
-                        profileSlug={loggedUserSlug || ''}
-                        onBack={showMainContent}
-                        avatarUrl={loggedUserAvatarUrl || undefined}
-                    />
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <ProfileDashboard
+                            profileSlug={loggedUserSlug || ''}
+                            onBack={showMainContent}
+                            avatarUrl={loggedUserAvatarUrl || undefined}
+                        />
+                    </div>
                 ) : showStoreDashboard ? (
-                    <StoreDashboard
-                        profileSlug={loggedUserSlug || ''}
-                        storeSlug={showStoreDashboard.slug}
-                        onBack={showMainContent}
-                        onOrderCountsChange={(counts) => {
-                            setStoreOrderCounts(prev => {
-                                const store = stores.find(s => s.slug === showStoreDashboard.slug)
-                                if (store) {
-                                    return {
-                                        ...prev,
-                                        [store.id]: counts
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <StoreDashboard
+                            profileSlug={loggedUserSlug || ''}
+                            storeSlug={showStoreDashboard.slug}
+                            onBack={showMainContent}
+                            onOrderCountsChange={(counts) => {
+                                setStoreOrderCounts(prev => {
+                                    const store = stores.find(s => s.slug === showStoreDashboard.slug)
+                                    if (store) {
+                                        return {
+                                            ...prev,
+                                            [store.id]: counts
+                                        }
                                     }
-                                }
-                                return prev
-                            })
-                        }}
-                    />
+                                    return prev
+                                })
+                            }}
+                        />
+                    </div>
                 ) : (
                     // Renderiza o conteúdo normal (Profile ou Store)
                     <>

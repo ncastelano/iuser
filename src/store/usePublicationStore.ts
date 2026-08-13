@@ -1,4 +1,4 @@
-// src/store/usePublicationStore.ts
+// src/store/usePublicationsStore.ts
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'

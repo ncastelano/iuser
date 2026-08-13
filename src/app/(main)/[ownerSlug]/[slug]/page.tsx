@@ -17,7 +17,6 @@ import {
     LayoutDashboard,
 } from 'lucide-react'
 import { useCartStore } from '@/store/useCartStore'
-import { usePublicationsStore } from '@/store/usePublicationStore'
 import SacolaButton from '@/app/ButtonSacola'
 import Header from '@/app/Header'
 import { toast } from 'sonner'
@@ -26,6 +25,7 @@ import StoreDashboard from '../../StoreDashboard'
 import ProfileDashboard from '../../ProfileDashboard'
 import { Publications } from '../../Publications'
 import { Products } from '../../Products'
+import { usePublicationsStore } from '@/store/usePublicationStore'
 
 type OwnerType = 'profile' | 'store'
 type ContentType = 'product' | 'publication'

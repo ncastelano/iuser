@@ -111,7 +111,6 @@ export function Publications({
 }: PublicationProps) {
     const [dragOffset, setDragOffset] = useState(0)
     const [isDragging, setIsDragging] = useState(false)
-    const [dragDirection, setDragDirection] = useState<'up' | 'down' | null>(null)
     const dragStartY = useRef(0)
     const dragCurrentY = useRef(0)
     const isDraggingRef = useRef(false)
@@ -124,7 +123,6 @@ export function Publications({
     // Resetar offset quando a publicação atual mudar
     useEffect(() => {
         setDragOffset(0)
-        setDragDirection(null)
         setIsDragging(false)
         isDraggingRef.current = false
     }, [content?.id])
@@ -166,7 +164,6 @@ export function Publications({
         isDraggingRef.current = true
         setIsDragging(true)
         hasTriggeredRef.current = false
-        setDragDirection(null)
 
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current)
@@ -193,18 +190,10 @@ export function Publications({
 
         setDragOffset(newOffset)
 
-        // Determinar direção
-        if (Math.abs(deltaY) > 10) {
-            setDragDirection(deltaY > 0 ? 'up' : 'down')
-        }
-
-        // Atualizar com requestAnimationFrame para suavidade
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current)
         }
-        animationFrameRef.current = requestAnimationFrame(() => {
-            // O estado já foi atualizado
-        })
+        animationFrameRef.current = requestAnimationFrame(() => { })
     }
 
     const handleDragEnd = () => {
@@ -233,7 +222,6 @@ export function Publications({
 
         // Resetar offset com animação suave
         setDragOffset(0)
-        setDragDirection(null)
     }
 
     // ===== HANDLERS DE TOUCH/MOUSE =====
@@ -297,23 +285,6 @@ export function Publications({
             }
         }
     }, [showComments, onNext, onPrevious])
-
-    // Calcular posição da próxima publicação para preview
-    const getPreviewOffset = () => {
-        if (!isDragging || Math.abs(dragOffset) < 5) return 0
-
-        const direction = dragOffset > 0 ? 1 : -1
-        const progress = Math.min(Math.abs(dragOffset) / (window.innerHeight * 0.3), 1)
-
-        // Mostrar preview com opacidade baseado no progresso
-        return {
-            translateY: dragOffset,
-            opacity: progress,
-            scale: 1 - (progress * 0.05),
-        }
-    }
-
-    const preview = getPreviewOffset()
 
     return (
         <div
@@ -524,13 +495,13 @@ export function Publications({
                 <div
                     className="absolute inset-0 pointer-events-none"
                     style={{
-                        transform: `translateY(${-dragOffset * 0.15}px) scale(${1 - (Math.abs(dragOffset) / (window.innerHeight * 3)) * 0.02})`,
+                        transform: `translateY(${-dragOffset * 0.15}px)`,
                         opacity: Math.min(Math.abs(dragOffset) / (window.innerHeight * 0.15), 0.5),
                     }}
                 >
                     <div className="w-full h-full bg-black/30 flex items-center justify-center">
                         <div className="text-white/30 text-4xl">
-                            {dragOffset > 0 ? '⬆️ Próximo' : '⬇️ Anterior'}
+                            {dragOffset > 0 ? '⬆️' : '⬇️'}
                         </div>
                     </div>
                 </div>
@@ -546,11 +517,7 @@ export function Publications({
                         opacity: Math.min(Math.abs(dragOffset) / 100, 1),
                     }}
                 >
-                    <div className={`px-4 py-2 rounded-full backdrop-blur-md border border-white/20 text-white text-sm font-medium`}
-                        style={{
-                            background: 'rgba(0,0,0,0.6)',
-                        }}
-                    >
+                    <div className="px-4 py-2 rounded-full backdrop-blur-md border border-white/20 text-white text-sm font-medium bg-black/60">
                         {dragOffset > 0 ? '⬆️ Solte para ver próximo' : '⬇️ Solte para ver anterior'}
                     </div>
                 </div>
