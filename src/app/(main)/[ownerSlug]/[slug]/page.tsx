@@ -1,7 +1,7 @@
 // src/app/(app)/[ownerSlug]/[slug]/page.tsx
 'use client'
 
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -13,24 +13,24 @@ import {
     ArrowLeft,
     Home,
     ShoppingBag,
-    Megaphone,
     Pencil,
     Trash2,
     Clock,
-    Star,
-    MapPin,
     MessageCircle,
-    Calendar,
-    Eye,
     User,
     Store as StoreIcon,
     LayoutDashboard,
-    ChevronRight,
     Plus,
     Minus,
     X,
+    Heart,
+    Share2,
+    MessageSquare,
+    MoreHorizontal,
+    Link2,
+    Bookmark,
+    Flag,
 } from 'lucide-react'
-import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '@/app/ButtonSacola'
 import Header from '@/app/Header'
@@ -72,60 +72,32 @@ interface ContentData {
     }
 }
 
-// ===== FUNÇÃO PARA FORMATAR ENDEREÇO =====
-function formatAddress(address: string, addressNumber?: string): string {
-    if (!address) return 'Definir local'
-
-    const displayAddress = addressNumber ? `${address.split(',')[0]}, ${addressNumber}` : address
-    const firstPart = displayAddress.split(',')[0].trim()
-    const match = firstPart.match(/^(.+?)(\s+\d+)/)
-
-    if (match) {
-        let result = match[0].trim()
-        result = result
-            .replace(/^Avenida\s/, 'Av. ')
-            .replace(/^Rua\s/, 'R. ')
-            .replace(/^Travessa\s/, 'Tv. ')
-            .replace(/^Praça\s/, 'Pç. ')
-            .replace(/^Alameda\s/, 'Al. ')
-            .replace(/^Rodovia\s/, 'Rod. ')
-            .replace(/^Estrada\s/, 'Estr. ')
-
-        if (result.length > 28) {
-            return result.substring(0, 25) + '...'
-        }
-        return result
-    }
-
-    if (firstPart.length > 28) {
-        return firstPart.substring(0, 25) + '...'
-    }
-    return firstPart
-}
-
-// ===== FUNÇÕES DE HORÁRIO =====
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey(): string {
-    return DAY_KEYS[new Date().getDay()]
-}
-
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
+// ===== FUNÇÃO PARA FORMATAR DATA =====
+function formatPostDate(dateString: string): string {
     const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = schedule.open.split(':').map(Number)
-    let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) closeH = 24
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
+    const date = new Date(dateString)
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+    const diffInMinutes = Math.floor(diffInSeconds / 60)
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    const diffInDays = Math.floor(diffInHours / 24)
+    const diffInWeeks = Math.floor(diffInDays / 7)
+    const diffInMonths = Math.floor(diffInDays / 30)
+    const diffInYears = Math.floor(diffInDays / 365)
+
+    if (diffInSeconds < 60) return 'Agora mesmo'
+    if (diffInMinutes < 60) return `${diffInMinutes}m`
+    if (diffInHours < 24) return `${diffInHours}h`
+    if (diffInDays < 7) return `${diffInDays}d`
+    if (diffInWeeks < 4) return `${diffInWeeks}sem`
+    if (diffInMonths < 12) return `${diffInMonths}meses`
+    return `${diffInYears}anos`
+}
+
+// ===== FUNÇÃO PARA FORMATAR NÚMERO =====
+function formatNumber(num: number): string {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
+    return num.toString()
 }
 
 export default function SlugPage() {
@@ -148,6 +120,27 @@ export default function SlugPage() {
     const [cartAnimating, setCartAnimating] = useState(false)
     const [productQuantity, setProductQuantity] = useState(0)
 
+    // ===== ESTADOS PARA NAVEGAÇÃO =====
+    const [allPublications, setAllPublications] = useState<any[]>([])
+    const [currentIndex, setCurrentIndex] = useState<number>(-1)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(true)
+    const [touchStartY, setTouchStartY] = useState(0)
+    const [touchEndY, setTouchEndY] = useState(0)
+    const [isSwiping, setIsSwiping] = useState(false)
+    const [isNavigating, setIsNavigating] = useState(false)
+
+    // ===== ESTADOS PARA INTERAÇÕES =====
+    const [isLiked, setIsLiked] = useState(false)
+    const [likeCount, setLikeCount] = useState(0)
+    const [showComments, setShowComments] = useState(false)
+    const [commentText, setCommentText] = useState('')
+    const [comments, setComments] = useState<any[]>([])
+    const [loadingComments, setLoadingComments] = useState(false)
+    const [isSaved, setIsSaved] = useState(false)
+    const [shareCount, setShareCount] = useState(0)
+    const [isMenuOpen, setIsMenuOpen] = useState(false)
+
     // States para Dashboards
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
@@ -157,10 +150,13 @@ export default function SlugPage() {
         Record<string, { pending: number; preparing: number; ready: number }>
     >({})
 
-    // ===== CORRIGIDO: Desestruturar todas as funções do cart =====
     const { itemsByStore, addItem, removeItem, updateQuantity } = useCartStore()
 
-    // ===== TODOS OS HOOKS DEVEM VIR ANTES DE QUALQUER RETORNO CONDICIONAL =====
+    // ===== REFS =====
+    const commentInputRef = useRef<HTMLInputElement>(null)
+    const menuRef = useRef<HTMLDivElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const touchStartTime = useRef<number>(0)
 
     // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = useMemo(() => {
@@ -299,6 +295,50 @@ export default function SlugPage() {
         return null
     }, [])
 
+    // ========== CARREGAR PUBLICAÇÕES PARA NAVEGAÇÃO ==========
+    const loadPublicationsForNavigation = useCallback(async () => {
+        const { data, error } = await supabase
+            .from('products')
+            .select(`
+                id,
+                name,
+                slug,
+                description,
+                image_url,
+                price,
+                listing_type,
+                owner_id,
+                store_id,
+                category,
+                created_at
+            `)
+            .eq('listing_type', 'publication')
+            .order('created_at', { ascending: false })
+            .limit(50)
+
+        if (error) {
+            console.error('Erro ao carregar publicações:', error)
+            return []
+        }
+
+        const publicationsWithProfiles = await Promise.all(
+            data.map(async (pub) => {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('name, profileSlug')
+                    .eq('id', pub.owner_id)
+                    .single()
+
+                return {
+                    ...pub,
+                    profiles: profile || { name: 'Usuário', profileSlug: 'usuario' }
+                }
+            })
+        )
+
+        return publicationsWithProfiles
+    }, [])
+
     // ========== CARREGAR LOJAS DO USUÁRIO ==========
     const loadStores = useCallback(async () => {
         if (!loggedUserSlug) {
@@ -365,6 +405,78 @@ export default function SlugPage() {
         setStoreOrderCounts(counts)
     }, [stores])
 
+    // ========== CARREGAR INTERAÇÕES ==========
+    const loadInteractions = useCallback(async () => {
+        if (!content || !currentUserId) return
+
+        const { count: likes } = await supabase
+            .from('post_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', content.id)
+
+        setLikeCount(likes || 0)
+
+        const { data: userLike } = await supabase
+            .from('post_likes')
+            .select('id')
+            .eq('post_id', content.id)
+            .eq('user_id', currentUserId)
+            .maybeSingle()
+
+        setIsLiked(!!userLike)
+
+        const { count: shares } = await supabase
+            .from('post_shares')
+            .select('*', { count: 'exact', head: true })
+            .eq('post_id', content.id)
+
+        setShareCount(shares || 0)
+
+        const { data: saved } = await supabase
+            .from('post_saves')
+            .select('id')
+            .eq('post_id', content.id)
+            .eq('user_id', currentUserId)
+            .maybeSingle()
+
+        setIsSaved(!!saved)
+
+        if (currentUserId !== content.owner_id) {
+            await supabase
+                .from('post_views')
+                .insert({
+                    post_id: content.id,
+                    user_id: currentUserId,
+                })
+                .select()
+        }
+    }, [content, currentUserId])
+
+    // ========== CARREGAR COMENTÁRIOS ==========
+    const loadComments = useCallback(async () => {
+        if (!content) return
+
+        setLoadingComments(true)
+        const { data, error } = await supabase
+            .from('post_comments')
+            .select(`
+                *,
+                profiles:user_id (
+                    id,
+                    name,
+                    profileSlug,
+                    avatar_url
+                )
+            `)
+            .eq('post_id', content.id)
+            .order('created_at', { ascending: false })
+
+        if (!error && data) {
+            setComments(data)
+        }
+        setLoadingComments(false)
+    }, [content])
+
     // ========== CARREGAR DADOS ==========
     const loadData = useCallback(async () => {
         if (!ownerSlug || !slug) {
@@ -400,13 +512,21 @@ export default function SlugPage() {
 
             setContent(contentResult.data)
 
+            if (contentResult.data.type === 'publication') {
+                const publications = await loadPublicationsForNavigation()
+                setAllPublications(publications)
+                const index = publications.findIndex(p => p.slug === slug)
+                setCurrentIndex(index >= 0 ? index : 0)
+                setHasMore(true)
+            }
+
         } catch (err: any) {
             console.error('Erro ao carregar dados:', err)
             setError(err.message || 'Erro ao carregar página')
         } finally {
             setLoading(false)
         }
-    }, [ownerSlug, slug, detectOwner, detectContent])
+    }, [ownerSlug, slug, detectOwner, detectContent, loadPublicationsForNavigation])
 
     useEffect(() => {
         loadData()
@@ -426,14 +546,19 @@ export default function SlugPage() {
         setMounted(true)
     }, [])
 
-    // ========== ATUALIZAR QUANTIDADE DO PRODUTO ==========
+    useEffect(() => {
+        if (content && currentUserId) {
+            loadInteractions()
+            loadComments()
+        }
+    }, [content, currentUserId, loadInteractions, loadComments])
+
     useEffect(() => {
         if (content) {
             setProductQuantity(getProductQuantity())
         }
     }, [content, getProductQuantity])
 
-    // ========== ANIMAÇÃO DO CARRINHO ==========
     useEffect(() => {
         if (totalCartItems > 0) {
             setCartAnimating(true)
@@ -441,6 +566,236 @@ export default function SlugPage() {
             return () => clearTimeout(timer)
         }
     }, [totalCartItems])
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsMenuOpen(false)
+            }
+        }
+
+        if (isMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside)
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [isMenuOpen])
+
+    // ===== VARIÁVEIS DERIVADAS =====
+    const isProduct = content?.type === 'product'
+    const isPublication = content?.type === 'publication'
+    const isProfileOwner = ownerType === 'profile'
+    const hasImage = content?.image_url
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    const isInCart = productQuantity > 0
+    const isLoggedIn = !!loggedUserSlug && !loading
+    const isOwnerOrAdmin = isOwner
+    const showNavigation = isPublication && allPublications.length > 1
+
+    // ========== NAVEGAR PARA PUBLICAÇÃO ==========
+    const navigateToPublication = useCallback(async (publication: any) => {
+        if (isNavigating) return
+        setIsNavigating(true)
+
+        try {
+            let targetOwnerSlug = publication.profiles?.profileSlug
+
+            if (!targetOwnerSlug) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('profileSlug')
+                    .eq('id', publication.owner_id)
+                    .single()
+                if (profile) {
+                    targetOwnerSlug = profile.profileSlug
+                }
+            }
+
+            if (!targetOwnerSlug) {
+                targetOwnerSlug = ownerSlug
+            }
+
+            const ownerResult = await detectOwner(targetOwnerSlug)
+            if (!ownerResult) {
+                toast.error('Erro ao carregar publicação')
+                setIsNavigating(false)
+                return
+            }
+
+            const isStoreOwner = !!publication.store_id
+            const ownerId = isStoreOwner ? publication.store_id : publication.owner_id
+
+            const contentResult = await detectContent(
+                publication.slug,
+                ownerId,
+                isStoreOwner ? 'store' : 'profile'
+            )
+
+            if (!contentResult) {
+                toast.error('Erro ao carregar conteúdo')
+                setIsNavigating(false)
+                return
+            }
+
+            setOwner(ownerResult.data)
+            setOwnerType(ownerResult.type)
+            setIsOwner(currentUserId === ownerResult.data.id)
+            setContent(contentResult.data)
+            setError(null)
+
+            const newUrl = `/${targetOwnerSlug}/${publication.slug}`
+            window.history.pushState({}, '', newUrl)
+
+            if (currentUserId && contentResult.data) {
+                const { count: likes } = await supabase
+                    .from('post_likes')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('post_id', contentResult.data.id)
+                setLikeCount(likes || 0)
+
+                const { data: userLike } = await supabase
+                    .from('post_likes')
+                    .select('id')
+                    .eq('post_id', contentResult.data.id)
+                    .eq('user_id', currentUserId)
+                    .maybeSingle()
+                setIsLiked(!!userLike)
+
+                const { count: shares } = await supabase
+                    .from('post_shares')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('post_id', contentResult.data.id)
+                setShareCount(shares || 0)
+
+                const { data: saved } = await supabase
+                    .from('post_saves')
+                    .select('id')
+                    .eq('post_id', contentResult.data.id)
+                    .eq('user_id', currentUserId)
+                    .maybeSingle()
+                setIsSaved(!!saved)
+
+                const { data: commentsData } = await supabase
+                    .from('post_comments')
+                    .select(`
+                        *,
+                        profiles:user_id (
+                            id,
+                            name,
+                            profileSlug,
+                            avatar_url
+                        )
+                    `)
+                    .eq('post_id', contentResult.data.id)
+                    .order('created_at', { ascending: false })
+
+                if (commentsData) {
+                    setComments(commentsData)
+                }
+
+                if (currentUserId !== contentResult.data.owner_id) {
+                    await supabase
+                        .from('post_views')
+                        .insert({
+                            post_id: contentResult.data.id,
+                            user_id: currentUserId,
+                        })
+                        .select()
+                }
+            }
+
+        } catch (err) {
+            console.error('Erro ao navegar:', err)
+            toast.error('Erro ao carregar publicação')
+        } finally {
+            setIsNavigating(false)
+        }
+    }, [detectOwner, detectContent, currentUserId, ownerSlug, isNavigating])
+
+    // ========== PROXIMA PUBLICAÇÃO ==========
+    const nextPublication = useCallback(async () => {
+        if (isNavigating || loadingMore || !hasMore) return
+
+        const nextIndex = currentIndex + 1
+        if (nextIndex < allPublications.length) {
+            setCurrentIndex(nextIndex)
+            await navigateToPublication(allPublications[nextIndex])
+        } else {
+            setLoadingMore(true)
+            const morePublications = await loadPublicationsForNavigation()
+            if (morePublications.length > 0) {
+                setAllPublications(prev => [...prev, ...morePublications])
+                const newIndex = allPublications.length
+                setCurrentIndex(newIndex)
+                await navigateToPublication(morePublications[0])
+            } else {
+                setHasMore(false)
+                toast.info('Chegou ao fim das publicações')
+            }
+            setLoadingMore(false)
+        }
+    }, [currentIndex, allPublications, loadingMore, hasMore, navigateToPublication, loadPublicationsForNavigation, isNavigating])
+
+    // ========== PUBLICAÇÃO ANTERIOR ==========
+    const previousPublication = useCallback(async () => {
+        if (isNavigating) return
+
+        if (currentIndex > 0) {
+            const prevIndex = currentIndex - 1
+            setCurrentIndex(prevIndex)
+            await navigateToPublication(allPublications[prevIndex])
+        } else {
+            toast.info('Você está na primeira publicação')
+        }
+    }, [currentIndex, allPublications, navigateToPublication, isNavigating])
+
+    // ========== HANDLERS DE TOUCH PARA SWIPE ==========
+    const handleTouchStart = useCallback((e: TouchEvent) => {
+        if (!isPublication) return
+        setTouchStartY(e.touches[0].clientY)
+        touchStartTime.current = Date.now()
+        setIsSwiping(true)
+    }, [isPublication])
+
+    const handleTouchMove = useCallback((e: TouchEvent) => {
+        if (!isPublication || !isSwiping) return
+        setTouchEndY(e.touches[0].clientY)
+    }, [isPublication, isSwiping])
+
+    const handleTouchEnd = useCallback(async () => {
+        if (!isPublication || !isSwiping) return
+
+        setIsSwiping(false)
+        const deltaY = touchStartY - touchEndY
+        const deltaTime = Date.now() - touchStartTime.current
+
+        if (Math.abs(deltaY) > 50 || (Math.abs(deltaY) > 20 && deltaTime < 200)) {
+            if (deltaY > 0) {
+                await nextPublication()
+            } else {
+                await previousPublication()
+            }
+        }
+    }, [isPublication, isSwiping, touchStartY, touchEndY, nextPublication, previousPublication])
+
+    useEffect(() => {
+        const container = containerRef.current
+        if (container) {
+            container.addEventListener('touchstart', handleTouchStart, { passive: true })
+            container.addEventListener('touchmove', handleTouchMove, { passive: true })
+            container.addEventListener('touchend', handleTouchEnd, { passive: true })
+        }
+
+        return () => {
+            if (container) {
+                container.removeEventListener('touchstart', handleTouchStart)
+                container.removeEventListener('touchmove', handleTouchMove)
+                container.removeEventListener('touchend', handleTouchEnd)
+            }
+        }
+    }, [handleTouchStart, handleTouchMove, handleTouchEnd])
 
     // ========== FUNÇÃO PARA CONVERTER CONTENT PARA CART PRODUCT ==========
     const contentToCartProduct = useCallback((contentData: ContentData) => {
@@ -534,20 +889,185 @@ export default function SlugPage() {
         toast.info('Produto removido do carrinho')
     }, [content, itemsByStore, removeItem])
 
-    // ===== VARIÁVEIS DERIVADAS (NÃO SÃO HOOKS) =====
-    const isProduct = content?.type === 'product'
-    const isPublication = content?.type === 'publication'
-    const isProfileOwner = ownerType === 'profile'
-    const hasImage = content?.image_url
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-    const isInCart = productQuantity > 0
-    const isLoggedIn = !!loggedUserSlug && !loading
+    // ========== FUNÇÕES DE INTERAÇÃO ==========
+    const handleLike = useCallback(async () => {
+        if (!content || !currentUserId) {
+            toast.error('Faça login para curtir')
+            return
+        }
 
-    // ===== HEADER TABS - APENAS PERFIL E LOJAS DO USUÁRIO =====
+        if (isLiked) {
+            const { error } = await supabase
+                .from('post_likes')
+                .delete()
+                .eq('post_id', content.id)
+                .eq('user_id', currentUserId)
+
+            if (!error) {
+                setIsLiked(false)
+                setLikeCount(prev => prev - 1)
+            }
+        } else {
+            const { error } = await supabase
+                .from('post_likes')
+                .insert({
+                    post_id: content.id,
+                    user_id: currentUserId,
+                })
+
+            if (!error) {
+                setIsLiked(true)
+                setLikeCount(prev => prev + 1)
+            }
+        }
+    }, [content, currentUserId, isLiked])
+
+    const handleComment = useCallback(async () => {
+        if (!content || !currentUserId) {
+            toast.error('Faça login para comentar')
+            return
+        }
+
+        if (!commentText.trim()) {
+            toast.error('Digite um comentário')
+            return
+        }
+
+        const { data, error } = await supabase
+            .from('post_comments')
+            .insert({
+                post_id: content.id,
+                user_id: currentUserId,
+                content: commentText.trim(),
+            })
+            .select(`
+                *,
+                profiles:user_id (
+                    id,
+                    name,
+                    profileSlug,
+                    avatar_url
+                )
+            `)
+            .single()
+
+        if (!error && data) {
+            setComments(prev => [data, ...prev])
+            setCommentText('')
+            toast.success('Comentário adicionado!')
+
+            if (commentInputRef.current) {
+                commentInputRef.current.focus()
+            }
+        } else {
+            toast.error('Erro ao comentar')
+        }
+    }, [content, currentUserId, commentText])
+
+    const handleShare = useCallback(async () => {
+        if (!content) return
+
+        const shareUrl = `${window.location.origin}/${ownerSlug}/${slug}`
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: content.name,
+                    text: `Confira esta publicação no iUser: ${content.name}`,
+                    url: shareUrl,
+                })
+
+                if (currentUserId) {
+                    await supabase
+                        .from('post_shares')
+                        .insert({
+                            post_id: content.id,
+                            user_id: currentUserId,
+                        })
+                    setShareCount(prev => prev + 1)
+                }
+                return
+            } catch (err) {
+                if (err instanceof Error && err.name === 'AbortError') return
+                console.error('Erro ao compartilhar:', err)
+            }
+        }
+
+        try {
+            await navigator.clipboard.writeText(shareUrl)
+            toast.success('Link copiado!')
+
+            if (currentUserId) {
+                await supabase
+                    .from('post_shares')
+                    .insert({
+                        post_id: content.id,
+                        user_id: currentUserId,
+                    })
+                setShareCount(prev => prev + 1)
+            }
+        } catch (err) {
+            toast.error('Erro ao copiar link')
+        }
+    }, [content, ownerSlug, slug, currentUserId])
+
+    const handleSave = useCallback(async () => {
+        if (!content || !currentUserId) {
+            toast.error('Faça login para salvar')
+            return
+        }
+
+        if (isSaved) {
+            const { error } = await supabase
+                .from('post_saves')
+                .delete()
+                .eq('post_id', content.id)
+                .eq('user_id', currentUserId)
+
+            if (!error) {
+                setIsSaved(false)
+                toast.info('Removido dos salvos')
+            }
+        } else {
+            const { error } = await supabase
+                .from('post_saves')
+                .insert({
+                    post_id: content.id,
+                    user_id: currentUserId,
+                })
+
+            if (!error) {
+                setIsSaved(true)
+                toast.success('Salvo!')
+            }
+        }
+    }, [content, currentUserId, isSaved])
+
+    const handleDeleteComment = useCallback(async (commentId: string) => {
+        if (!confirm('Tem certeza que deseja excluir este comentário?')) return
+
+        const { error } = await supabase
+            .from('post_comments')
+            .delete()
+            .eq('id', commentId)
+
+        if (!error) {
+            setComments(prev => prev.filter(c => c.id !== commentId))
+            toast.success('Comentário removido')
+        } else {
+            toast.error('Erro ao remover comentário')
+        }
+    }, [])
+
+    const handleReport = useCallback(() => {
+        toast.info('Denúncia enviada para análise')
+        setIsMenuOpen(false)
+    }, [])
+
+    // ===== HEADER TABS =====
     const headerTabs = useMemo(() => {
         const allTabs: any[] = []
 
-        // 1. Tab do perfil
         allTabs.push({
             id: 'perfil',
             label: isLoggedIn ? `@${loggedUserSlug}` : 'Entrar',
@@ -557,15 +1077,10 @@ export default function SlugPage() {
             isActive: showProfile,
         })
 
-        // 2. Tabs das lojas do usuário (com badges)
         if (!loadingStores && stores.length > 0) {
             stores.forEach((s) => {
                 const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
                 const hasActive = counts.pending + counts.preparing + counts.ready > 0
-
-                const todaySchedule = getTodaySchedule(s.business_hours)
-                const openNow = isOpenNow(todaySchedule)
-                const statusColor = openNow ? '#22c55e' : '#ef4444'
 
                 allTabs.push({
                     id: `loja-${s.slug}`,
@@ -575,7 +1090,6 @@ export default function SlugPage() {
                     onClick: () => handleStoreDashboardClick(s.slug, s.name),
                     isActive: showStoreDashboard?.slug === s.slug,
                     indicator: hasActive ? counts : null,
-                    statusColor,
                 })
             })
         } else if (isLoggedIn && !loadingStores) {
@@ -618,7 +1132,6 @@ export default function SlugPage() {
         )
     }
 
-    // ===== RETORNOS CONDICIONAIS (DEPOIS DE TODOS OS HOOKS) =====
     if (loading) {
         return <LoadingSpinner message="Carregando..." background={colors.background} />
     }
@@ -651,7 +1164,7 @@ export default function SlugPage() {
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
 
-            <main className="relative z-10 min-h-dvh pb-28" style={{ overscrollBehavior: 'none' }}>
+            <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
                     title="iUser"
                     showBack={true}
@@ -696,61 +1209,19 @@ export default function SlugPage() {
                         />
                     </div>
                 ) : (
-                    <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
-                        {/* ===== BREADCRUMB ===== */}
-                        <div className="flex items-center gap-2 text-sm mb-6" style={{ color: colors.textSecondary }}>
-                            <button
-                                onClick={() => router.push('/')}
-                                className="hover:underline flex items-center gap-1"
-                                style={{ color: colors.textSecondary }}
-                            >
-                                <Home className="w-3.5 h-3.5" />
-                                Início
-                            </button>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                            <button
-                                onClick={() => router.push(`/${ownerSlug}`)}
-                                className="hover:underline font-bold"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                {isProfileOwner ? '@' : ''}{ownerSlug}
-                            </button>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                            <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                {slug}
-                            </span>
-                            {isProduct && (
-                                <>
-                                    <ChevronRight className="w-3.5 h-3.5" />
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                        Produto
-                                    </span>
-                                </>
-                            )}
-                            {isPublication && (
-                                <>
-                                    <ChevronRight className="w-3.5 h-3.5" />
-                                    <span className="font-bold" style={{ color: colors.textPrimary }}>
-                                        Publicação
-                                    </span>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Card do conteúdo */}
-                        <div className="rounded-3xl overflow-hidden border" style={{
-                            background: `rgba(255, 255, 255, 0.06)`,
-                            borderColor: `rgba(255,255,255,0.12)`,
-                            backdropFilter: 'blur(20px)',
-                            WebkitBackdropFilter: 'blur(20px)',
-                        }}>
-                            {/* Imagem ou placeholder */}
+                    <div
+                        ref={containerRef}
+                        className="relative h-[calc(100dvh-64px)] w-full overflow-hidden"
+                        style={{ touchAction: 'none' }}
+                    >
+                        {/* ===== CONTAINER DA IMAGEM - FULLSCREEN ===== */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                             {hasImage ? (
-                                <div className="w-full aspect-video bg-gray-100 relative">
+                                <div className="w-full h-full relative">
                                     <img
                                         src={hasImage}
                                         alt={content.name}
-                                        className="w-full h-full object-cover"
+                                        className="w-full h-full object-contain"
                                         onError={(e) => {
                                             const target = e.target as HTMLImageElement
                                             target.style.display = 'none'
@@ -758,225 +1229,435 @@ export default function SlugPage() {
                                             if (parent) {
                                                 const placeholder = document.createElement('div')
                                                 placeholder.className = 'w-full h-full flex items-center justify-center text-6xl'
-                                                placeholder.style.background = 'rgba(255,255,255,0.03)'
-                                                placeholder.textContent = isProduct ? 'Produto' : 'Publicação'
+                                                placeholder.style.background = 'rgba(0,0,0,0.5)'
+                                                placeholder.textContent = isProduct ? '🛒' : '📢'
                                                 parent.appendChild(placeholder)
                                             }
                                         }}
                                     />
-                                    <div className="absolute top-4 left-4 flex gap-2">
-                                        <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase backdrop-blur-md flex items-center gap-1" style={{
-                                            background: 'rgba(0,0,0,0.4)',
-                                            color: '#fff'
-                                        }}>
-                                            {isProduct ? <ShoppingBag className="w-3 h-3" /> : <Megaphone className="w-3 h-3" />}
-                                            {isProduct ? 'Produto' : 'Publicação'}
-                                        </span>
-                                    </div>
+
+                                    {/* ===== OVERLAY GRADIENTE ===== */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
                                 </div>
                             ) : (
-                                <div className="w-full aspect-video flex items-center justify-center" style={{
-                                    background: `rgba(255,255,255,0.03)`
-                                }}>
-                                    <div className="text-center">
-                                        <div className="text-6xl mb-4">
+                                <div className="w-full h-full flex items-center justify-center bg-black/50">
+                                    <div className="text-center text-white">
+                                        <div className="text-8xl mb-4">
                                             {isProduct ? '🛒' : '📢'}
                                         </div>
-                                        <p className="text-sm font-bold uppercase tracking-widest" style={{ color: colors.textSecondary }}>
+                                        <p className="text-xl font-bold uppercase tracking-widest">
                                             {isProduct ? 'Produto' : 'Publicação'}
                                         </p>
                                     </div>
                                 </div>
                             )}
+                        </div>
 
-                            <div className="p-6 space-y-4">
-                                {/* Owner info */}
-                                <button
-                                    onClick={() => router.push(`/${ownerSlug}`)}
-                                    className="w-full flex items-center gap-3 p-3 rounded-xl transition hover:scale-[1.02] hover:shadow-lg text-left"
-                                    style={{
-                                        background: `rgba(255,255,255,0.03)`,
-                                        border: `1px solid transparent`,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.3)'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = 'transparent'
-                                    }}
-                                >
-                                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0" style={{
-                                        background: GRADIENT,
-                                        padding: '2px'
-                                    }}>
-                                        <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                        {/* ===== CONTADOR DE PUBLICAÇÕES - CANTO SUPERIOR ESQUERDO ===== */}
+                        {showNavigation && (
+                            <div className="absolute top-4 left-4 pointer-events-auto z-10">
+                                <span className="px-4 py-2 rounded-full text-sm font-medium backdrop-blur-md border border-white/30" style={{
+                                    background: 'rgba(0,0,0,0.5)',
+                                    color: '#fff'
+                                }}>
+                                    {currentIndex + 1} / {allPublications.length}
+                                </span>
+                            </div>
+                        )}
+
+                        {/* ===== OVERLAY DE INFORMAÇÕES ===== */}
+                        <div className="absolute inset-0 pointer-events-none">
+                            {/* ===== INFO DO USUÁRIO - INFERIOR ESQUERDO (INVERTIDO) ===== */}
+                            <div className="absolute bottom-32 left-4 md:left-8 pointer-events-auto max-w-[60%]">
+                                {/* ===== DESCRIÇÃO E TÍTULO PRIMEIRO ===== */}
+                                <div className="text-white space-y-2 mb-3">
+                                    <h1 className="text-xl font-bold">
+                                        {content.name}
+                                    </h1>
+                                    {content.description && (
+                                        <p className="text-sm text-white/90 line-clamp-3">
+                                            {content.description}
+                                        </p>
+                                    )}
+                                    {isProduct && content.price !== undefined && content.price > 0 && (
+                                        <div className="text-2xl font-black text-orange-400">
+                                            R$ {content.price.toFixed(2)}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ===== AVATAR E NOME DO USUÁRIO EMBAIXO ===== */}
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => router.push(`/${ownerSlug}`)}
+                                        className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-white/30 hover:scale-105 transition-transform"
+                                        style={{
+                                            background: GRADIENT,
+                                            padding: '2px'
+                                        }}
+                                    >
+                                        <div className="w-full h-full rounded-full overflow-hidden bg-black/50 flex items-center justify-center">
                                             {owner.avatar_url ? (
                                                 <img src={owner.avatar_url} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <span className="text-lg font-black" style={{ color: '#f97316' }}>
+                                                <span className="text-lg font-black text-white">
                                                     {owner.name?.charAt(0).toUpperCase()}
                                                 </span>
                                             )}
                                         </div>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                    </button>
+                                    <div>
+                                        <button
+                                            onClick={() => router.push(`/${ownerSlug}`)}
+                                            className="font-bold text-white hover:underline text-base"
+                                        >
                                             {owner.name}
-                                        </p>
-                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                            {isProfileOwner ? 'Perfil' : 'Loja'} • @{owner.slug}
-                                        </p>
+                                        </button>
+                                        <div className="flex items-center gap-2 text-xs text-white/70">
+                                            <span>@{owner.slug}</span>
+                                            <span>•</span>
+                                            <span className="flex items-center gap-1">
+                                                <Clock className="w-3 h-3" />
+                                                {formatPostDate(content.created_at)}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <ChevronRight className="w-4 h-4 opacity-50" style={{ color: colors.textSecondary }} />
-                                </button>
+                                </div>
 
-                                <h1 className="text-3xl font-black" style={{ color: colors.textPrimary }}>
-                                    {content.name}
-                                </h1>
+                                {/* ===== BOTÕES DE AÇÃO DO PRODUTO ===== */}
+                                {isProduct && !isOwnerOrAdmin && (
+                                    <div className="mt-4 pointer-events-auto">
+                                        {isInCart ? (
+                                            <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md rounded-full p-2 border border-white/10">
+                                                <button
+                                                    onClick={handleDecreaseQuantity}
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg hover:scale-110 transition-transform"
+                                                    style={{ background: GRADIENT, color: '#fff' }}
+                                                >
+                                                    <Minus size={18} />
+                                                </button>
+                                                <span className="text-lg font-bold min-w-[40px] text-center text-white">
+                                                    {productQuantity}
+                                                </span>
+                                                <button
+                                                    onClick={handleIncreaseQuantity}
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg hover:scale-110 transition-transform"
+                                                    style={{ background: GRADIENT, color: '#fff' }}
+                                                >
+                                                    <Plus size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={handleRemoveAll}
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center hover:scale-110 transition-transform bg-red-500/80 text-white"
+                                                >
+                                                    <X size={18} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={handleAddToCart}
+                                                className="px-6 py-3 rounded-full font-bold transition hover:scale-105 flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30"
+                                            >
+                                                <ShoppingBag className="w-4 h-4" />
+                                                Adicionar ao carrinho
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
 
-                                {content.category && (
-                                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase" style={{
-                                        background: `rgba(249, 115, 22, 0.15)`,
-                                        color: '#f97316'
+                            {/* ===== CATEGORIA - CANTO SUPERIOR DIREITO ===== */}
+                            {content.category && (
+                                <div className="absolute top-4 right-4 pointer-events-auto">
+                                    <span className="px-4 py-2 rounded-full text-xs font-bold uppercase backdrop-blur-md border border-white/30" style={{
+                                        background: 'rgba(0,0,0,0.5)',
+                                        color: '#fff'
                                     }}>
                                         {content.category}
                                     </span>
-                                )}
-
-                                {isProduct && content.price !== undefined && content.price > 0 && (
-                                    <div className="text-3xl font-black" style={{ color: '#f97316' }}>
-                                        R$ {content.price.toFixed(2)}
-                                    </div>
-                                )}
-
-                                {content.description && (
-                                    <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: colors.textSecondary }}>
-                                        {content.description}
-                                    </div>
-                                )}
-
-                                <div className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Publicado em {new Date(content.created_at).toLocaleDateString('pt-BR', {
-                                        day: 'numeric',
-                                        month: 'long',
-                                        year: 'numeric'
-                                    })}
                                 </div>
+                            )}
 
-                                {/* Botões de ação */}
-                                <div className="flex flex-wrap gap-3 pt-4 border-t" style={{ borderColor: `rgba(255,255,255,0.06)` }}>
-                                    {isOwner ? (
-                                        <>
+                            {/* ===== BOTÕES DE AÇÃO - LATERAL DIREITA ===== */}
+                            <div className="absolute bottom-32 right-4 md:right-8 flex flex-col items-center gap-5 pointer-events-auto">
+                                <button
+                                    onClick={handleLike}
+                                    className="flex flex-col items-center group"
+                                >
+                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isLiked ? 'bg-orange-500/30' : 'bg-black/30'} backdrop-blur-md border border-white/20 hover:scale-110`}>
+                                        <Heart className={`w-6 h-6 transition-all ${isLiked ? 'fill-orange-500 text-orange-500' : 'text-white'}`} />
+                                    </div>
+                                    <span className="text-xs text-white font-medium mt-1">
+                                        {formatNumber(likeCount)}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        if (!currentUserId) {
+                                            toast.error('Faça login para comentar')
+                                            return
+                                        }
+                                        setShowComments(!showComments)
+                                    }}
+                                    className="flex flex-col items-center group"
+                                >
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/30 backdrop-blur-md border border-white/20 hover:scale-110 transition-all">
+                                        <MessageCircle className="w-6 h-6 text-white" />
+                                    </div>
+                                    <span className="text-xs text-white font-medium mt-1">
+                                        {formatNumber(comments.length)}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={handleShare}
+                                    className="flex flex-col items-center group"
+                                >
+                                    <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/30 backdrop-blur-md border border-white/20 hover:scale-110 transition-all">
+                                        <Share2 className="w-6 h-6 text-white" />
+                                    </div>
+                                    <span className="text-xs text-white font-medium mt-1">
+                                        {formatNumber(shareCount)}
+                                    </span>
+                                </button>
+
+                                <button
+                                    onClick={handleSave}
+                                    className="flex flex-col items-center group"
+                                >
+                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isSaved ? 'bg-orange-500/30' : 'bg-black/30'} backdrop-blur-md border border-white/20 hover:scale-110`}>
+                                        <Bookmark className={`w-6 h-6 transition-all ${isSaved ? 'fill-orange-500 text-orange-500' : 'text-white'}`} />
+                                    </div>
+                                    <span className="text-xs text-white font-medium mt-1">
+                                        {isSaved ? 'Salvo' : 'Salvar'}
+                                    </span>
+                                </button>
+
+                                <div className="relative" ref={menuRef}>
+                                    <button
+                                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                        className="w-12 h-12 rounded-full flex items-center justify-center bg-black/30 backdrop-blur-md border border-white/20 hover:scale-110 transition-all"
+                                    >
+                                        <MoreHorizontal className="w-6 h-6 text-white" />
+                                    </button>
+
+                                    {isMenuOpen && (
+                                        <div className="absolute bottom-full right-0 mb-2 min-w-[180px] rounded-2xl overflow-hidden border bg-black/90 backdrop-blur-xl border-white/10 shadow-2xl">
                                             <button
-                                                onClick={() => router.push(`/${ownerSlug}/${slug}/editar-produto`)}
-                                                className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                style={{ background: GRADIENT, color: '#fff' }}
+                                                onClick={handleReport}
+                                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-red-400 text-sm"
                                             >
-                                                <Pencil className="w-4 h-4" />
-                                                Editar
+                                                <Flag className="w-4 h-4" />
+                                                Denunciar
                                             </button>
                                             <button
-                                                onClick={async () => {
-                                                    if (!confirm(`Tem certeza que deseja excluir esta ${isProduct ? 'produto' : 'publicação'}?`)) return
-                                                    const { error } = await supabase
-                                                        .from('products')
-                                                        .delete()
-                                                        .eq('id', content.id)
-                                                    if (!error) {
-                                                        toast.success('Removido com sucesso!')
-                                                        router.push(`/${ownerSlug}`)
-                                                    } else {
-                                                        toast.error('Erro ao remover')
-                                                    }
+                                                onClick={() => {
+                                                    const url = `${window.location.origin}/${ownerSlug}/${slug}`
+                                                    navigator.clipboard.writeText(url)
+                                                    toast.success('Link copiado!')
+                                                    setIsMenuOpen(false)
                                                 }}
-                                                className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                style={{
-                                                    background: '#ef4444',
-                                                    color: '#fff'
-                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-white/80 text-sm border-t border-white/5"
                                             >
-                                                <Trash2 className="w-4 h-4" />
-                                                Excluir
+                                                <Link2 className="w-4 h-4" />
+                                                Copiar link
                                             </button>
-                                        </>
-                                    ) : (
-                                        <div className="flex items-center gap-3 w-full flex-wrap">
-                                            {isProduct ? (
-                                                isInCart ? (
-                                                    <div className="flex items-center gap-2 flex-1">
-                                                        <button
-                                                            onClick={handleDecreaseQuantity}
-                                                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
-                                                        >
-                                                            <Minus size={18} />
-                                                        </button>
-                                                        <span className="text-lg font-bold min-w-[40px] text-center" style={{ color: '#f97316' }}>
-                                                            {productQuantity}
-                                                        </span>
-                                                        <button
-                                                            onClick={handleIncreaseQuantity}
-                                                            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                            style={{
-                                                                background: GRADIENT,
-                                                                color: '#ffffff'
-                                                            }}
-                                                        >
-                                                            <Plus size={18} />
-                                                        </button>
-                                                        <button
-                                                            onClick={handleRemoveAll}
-                                                            className="w-10 h-10 rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform flex-shrink-0"
-                                                            style={{
-                                                                background: '#ef4444',
-                                                                color: '#ffffff'
-                                                            }}
-                                                            title="Remover todos"
-                                                        >
-                                                            <X size={18} />
-                                                        </button>
-                                                    </div>
-                                                ) : (
+                                            {isOwnerOrAdmin && (
+                                                <>
                                                     <button
-                                                        onClick={handleAddToCart}
-                                                        className="flex-1 px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                        style={{ background: GRADIENT, color: '#fff' }}
+                                                        onClick={() => router.push(`/${ownerSlug}/${slug}/editar-produto`)}
+                                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-white/80 text-sm border-t border-white/5"
                                                     >
-                                                        <ShoppingBag className="w-4 h-4" />
-                                                        Adicionar ao carrinho
+                                                        <Pencil className="w-4 h-4" />
+                                                        Editar
                                                     </button>
-                                                )
-                                            ) : null}
-
-                                            {owner.whatsapp && (
-                                                <a
-                                                    href={`https://wa.me/${owner.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá! Vi seu ${isProduct ? 'produto' : 'conteúdo'} no iUser e tenho interesse.`)}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="px-6 py-3 rounded-xl font-bold text-center transition hover:scale-105 flex items-center justify-center gap-2"
-                                                    style={{ background: '#25D366', color: '#fff' }}
-                                                >
-                                                    <MessageCircle className="w-4 h-4" />
-                                                    WhatsApp
-                                                </a>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm(`Tem certeza que deseja excluir esta ${isProduct ? 'produto' : 'publicação'}?`)) return
+                                                            const { error } = await supabase
+                                                                .from('products')
+                                                                .delete()
+                                                                .eq('id', content.id)
+                                                            if (!error) {
+                                                                toast.success('Removido com sucesso!')
+                                                                router.push(`/${ownerSlug}`)
+                                                            } else {
+                                                                toast.error('Erro ao remover')
+                                                            }
+                                                        }}
+                                                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-red-400 text-sm border-t border-white/5"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        Excluir
+                                                    </button>
+                                                </>
                                             )}
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
+
+                        {/* ===== INDICADOR DE CARREGAMENTO ===== */}
+                        {loadingMore && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+                                <div className="flex items-center gap-2 text-white text-sm">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent border-white" />
+                                    Carregando...
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ===== MODAL DE COMENTÁRIOS ===== */}
+                        {showComments && (
+                            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-end justify-center pointer-events-auto z-20 animate-in fade-in duration-300">
+                                <div className="w-full max-w-lg bg-black/90 backdrop-blur-xl rounded-t-3xl max-h-[80vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                                    <div className="flex items-center justify-between p-4 border-b border-white/10">
+                                        <h3 className="text-white font-bold flex items-center gap-2">
+                                            <MessageSquare className="w-5 h-5" />
+                                            Comentários ({comments.length})
+                                        </h3>
+                                        <button
+                                            onClick={() => setShowComments(false)}
+                                            className="text-white/60 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                        {loadingComments ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent" style={{ borderColor: '#f97316' }} />
+                                            </div>
+                                        ) : comments.length === 0 ? (
+                                            <p className="text-center text-white/50 py-8">
+                                                Nenhum comentário ainda. Seja o primeiro!
+                                            </p>
+                                        ) : (
+                                            comments.map((comment) => (
+                                                <div key={comment.id} className="flex gap-3">
+                                                    <button
+                                                        onClick={() => router.push(`/${comment.profiles?.profileSlug}`)}
+                                                        className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-white/20"
+                                                    >
+                                                        <img
+                                                            src={getAvatarUrl(supabase, comment.profiles?.avatar_url)}
+                                                            alt=""
+                                                            className="w-full h-full object-cover"
+                                                            onError={(e) => {
+                                                                const target = e.target as HTMLImageElement
+                                                                target.style.display = 'none'
+                                                                const parent = target.parentElement
+                                                                if (parent) {
+                                                                    const fallback = document.createElement('div')
+                                                                    fallback.className = 'w-full h-full flex items-center justify-center bg-orange-500/20 text-orange-400 font-bold text-lg'
+                                                                    fallback.textContent = comment.profiles?.name?.charAt(0).toUpperCase() || '?'
+                                                                    parent.appendChild(fallback)
+                                                                }
+                                                            }}
+                                                        />
+                                                    </button>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => router.push(`/${comment.profiles?.profileSlug}`)}
+                                                                className="font-bold text-sm hover:underline text-white"
+                                                            >
+                                                                {comment.profiles?.name || 'Usuário'}
+                                                            </button>
+                                                            <span className="text-xs text-white/40">
+                                                                @{comment.profiles?.profileSlug || 'unknown'}
+                                                            </span>
+                                                            <span className="text-xs text-white/40">
+                                                                • {formatPostDate(comment.created_at)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm text-white/90 mt-1">
+                                                            {comment.content}
+                                                        </p>
+                                                        {comment.user_id === currentUserId && (
+                                                            <button
+                                                                onClick={() => handleDeleteComment(comment.id)}
+                                                                className="text-xs text-red-400 hover:text-red-300 mt-1 transition-colors"
+                                                            >
+                                                                Excluir
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {currentUserId ? (
+                                        <div className="p-4 border-t border-white/10">
+                                            <div className="flex gap-3">
+                                                <div className="flex-shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-white/20">
+                                                    <img
+                                                        src={loggedUserAvatarUrl || undefined}
+                                                        alt=""
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                            const target = e.target as HTMLImageElement
+                                                            target.style.display = 'none'
+                                                            const parent = target.parentElement
+                                                            if (parent) {
+                                                                const fallback = document.createElement('div')
+                                                                fallback.className = 'w-full h-full flex items-center justify-center bg-orange-500/20 text-orange-400 font-bold text-lg'
+                                                                fallback.textContent = loggedUserSlug?.charAt(0).toUpperCase() || '?'
+                                                                parent.appendChild(fallback)
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex-1 flex gap-2">
+                                                    <input
+                                                        ref={commentInputRef}
+                                                        value={commentText}
+                                                        onChange={(e) => setCommentText(e.target.value)}
+                                                        placeholder="Escreva um comentário..."
+                                                        className="flex-1 px-4 py-2 rounded-full bg-white/10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault()
+                                                                handleComment()
+                                                            }
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={handleComment}
+                                                        disabled={!commentText.trim()}
+                                                        className="px-6 py-2 rounded-full font-bold text-sm transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                                                    >
+                                                        Enviar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 border-t border-white/10 text-center">
+                                            <p className="text-white/60 text-sm">Faça login para comentar</p>
+                                            <button
+                                                onClick={() => router.push('/login')}
+                                                className="mt-2 px-6 py-2 rounded-full font-bold text-sm transition hover:scale-105 bg-gradient-to-r from-orange-500 to-red-500 text-white"
+                                            >
+                                                Entrar
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
 
             {/* ===== BOTÕES FLUTUANTES ===== */}
-            {/* Botões quando está no conteúdo principal */}
             {!showProfile && !showStoreDashboard && (
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12, alignItems: 'center' }}>
-                    {/* Botão Voltar - ESQUERDA */}
+                    {/* Botão Voltar estilo SacolaButton */}
                     <button
                         onClick={() => router.back()}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -994,15 +1675,17 @@ export default function SlugPage() {
                         <ArrowLeft size={24} />
                     </button>
 
-                    {/* Sacola Button - MEIO */}
-                    <SacolaButton
-                        totalItems={totalCartItems}
-                        totalValue={totalCartValue}
-                        statusCounts={{ pending: 0, preparing: 0, ready: 0, reviews: 0 }}
-                        animate={cartAnimating}
-                    />
+                    {/* Sacola Button */}
+                    {isProduct && (
+                        <SacolaButton
+                            totalItems={totalCartItems}
+                            totalValue={totalCartValue}
+                            statusCounts={{ pending: 0, preparing: 0, ready: 0, reviews: 0 }}
+                            animate={cartAnimating}
+                        />
+                    )}
 
-                    {/* Botão Home - DIREITA */}
+                    {/* Botão Home estilo SacolaButton */}
                     <button
                         onClick={() => router.push('/')}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -1022,10 +1705,8 @@ export default function SlugPage() {
                 </div>
             )}
 
-            {/* Botões quando está em dashboard - Home e Voltar ao Produto */}
             {(showProfile || showStoreDashboard) && (
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998, display: 'flex', gap: 12 }}>
-                    {/* Botão Voltar ao Produto - ESQUERDA */}
                     <button
                         onClick={showMainContent}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
@@ -1043,7 +1724,6 @@ export default function SlugPage() {
                         <ArrowLeft size={24} />
                     </button>
 
-                    {/* Botão Home - DIREITA */}
                     <button
                         onClick={() => router.push('/')}
                         className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
