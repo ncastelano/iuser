@@ -979,41 +979,13 @@ export default function SlugPage() {
                     <>
                         {isPublication && (
                             <Publications
-                                owner={activeOwner}
-                                content={activeContent}
                                 ownerSlug={ownerSlug}
-                                isOwner={isOwner}
-                                currentUserId={currentUserId}
-                                allPublications={storePublications.length > 0 ? storePublications : [activeContent]}
-                                currentIndex={storePublications.length > 0 ? storeIndex : 0}
-                                onNext={() => publicationsStore.next()}
-                                onPrevious={() => publicationsStore.previous()}
-                                loadingMore={publicationsStore.isLoadingMore}
-                                isLiked={isLiked}
-                                likeCount={likeCount}
-                                onLike={handleLike}
-                                showComments={showComments}
-                                onToggleComments={handleToggleComments}
-                                commentText={commentText}
-                                onCommentChange={setCommentText}
-                                onCommentSubmit={handleComment}
-                                comments={comments}
-                                loadingComments={loadingComments}
-                                isSaved={isSaved}
-                                onSave={handleSave}
-                                shareCount={shareCount}
-                                onShare={handleShare}
-                                isMenuOpen={isMenuOpen}
-                                onToggleMenu={handleToggleMenu}
-                                onReport={handleReport}
-                                onDeleteComment={handleDeleteComment}
-                                commentInputRef={commentInputRef}
-                                menuRef={menuRef}
-                                containerRef={containerRef}
+                                initialSlug={slug}
                                 GRADIENT={GRADIENT}
-                                loggedUserAvatarUrl={loggedUserAvatarUrl}
-                                loggedUserSlug={loggedUserSlug}
                                 router={router}
+                                loggedUserSlug={loggedUserSlug}
+                                loggedUserAvatarUrl={loggedUserAvatarUrl}
+                                currentUserId={currentUserId}
                             />
                         )}
 
