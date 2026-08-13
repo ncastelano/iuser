@@ -1209,41 +1209,13 @@ export default function SlugPage() {
                     <>
                         {isPublication && (
                             <Publications
-                                owner={owner}
-                                content={content}
                                 ownerSlug={ownerSlug}
-                                isOwner={isOwner}
-                                currentUserId={currentUserId}
-                                allPublications={allPublications}
-                                currentIndex={currentIndex}
-                                onNext={nextPublication}
-                                onPrevious={previousPublication}
-                                loadingMore={loadingMore}
-                                isLiked={isLiked}
-                                likeCount={likeCount}
-                                onLike={handleLike}
-                                showComments={showComments}
-                                onToggleComments={handleToggleComments}
-                                commentText={commentText}
-                                onCommentChange={setCommentText}
-                                onCommentSubmit={handleComment}
-                                comments={comments}
-                                loadingComments={loadingComments}
-                                isSaved={isSaved}
-                                onSave={handleSave}
-                                shareCount={shareCount}
-                                onShare={handleShare}
-                                isMenuOpen={isMenuOpen}
-                                onToggleMenu={handleToggleMenu}
-                                onReport={handleReport}
-                                onDeleteComment={handleDeleteComment}
-                                commentInputRef={commentInputRef}
-                                menuRef={menuRef}
-                                containerRef={containerRef}
+                                initialSlug={slug}
                                 GRADIENT={GRADIENT}
-                                loggedUserAvatarUrl={loggedUserAvatarUrl}
-                                loggedUserSlug={loggedUserSlug}
                                 router={router}
+                                loggedUserSlug={loggedUserSlug}
+                                loggedUserAvatarUrl={loggedUserAvatarUrl}
+                                currentUserId={currentUserId}
                             />
                         )}
 
