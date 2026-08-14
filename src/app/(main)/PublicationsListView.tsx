@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '@/app/theme'
 import { ChevronLeft, ChevronRight, X, Pause } from 'lucide-react'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { motion, AnimatePresence, PanInfo } from 'framer-motion'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 
 interface PublicationsListViewProps {
@@ -24,22 +23,27 @@ export function PublicationsListView({
     const { colors } = useTheme()
     const store = usePublicationsStore()
 
+    // Estado local
+    const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({})
     const [isPaused, setIsPaused] = useState(false)
     const [progress, setProgress] = useState(0)
-    const [direction, setDirection] = useState(1) // 1 = next, -1 = previous
-    const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({})
-    const [isTransitioning, setIsTransitioning] = useState(false)
-    const [exitX, setExitX] = useState(0)
 
+    // Refs
     const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    const isTransitioningRef = useRef(false)
     const touchStartXRef = useRef<number | null>(null)
     const touchStartYRef = useRef<number | null>(null)
     const touchEndXRef = useRef<number | null>(null)
     const isDraggingRef = useRef(false)
     const containerRef = useRef<HTMLDivElement>(null)
+    const isMountedRef = useRef(true)
+    const currentIndexRef = useRef(0)
+    const isProgressRunningRef = useRef(false)
 
-    // Carregar publicações quando o componente montar
+    // Carregar publicações
     useEffect(() => {
+        isMountedRef.current = true
+
         const loadPublications = async () => {
             await store.loadPublicationsForOwner({
                 ownerSlug,
@@ -47,17 +51,22 @@ export function PublicationsListView({
                 initialSlug,
             })
 
-            // Pré-carregar todas as imagens
+            if (!isMountedRef.current) return
+
             const pubs = store.publications
             if (pubs.length > 0) {
-                pubs.forEach((pub, index) => {
+                pubs.forEach((pub) => {
                     if (pub.image_url) {
                         const img = new Image()
                         img.onload = () => {
-                            setImageLoaded(prev => ({ ...prev, [pub.id]: true }))
+                            if (isMountedRef.current) {
+                                setImageLoaded(prev => ({ ...prev, [pub.id]: true }))
+                            }
                         }
                         img.onerror = () => {
-                            setImageLoaded(prev => ({ ...prev, [pub.id]: true }))
+                            if (isMountedRef.current) {
+                                setImageLoaded(prev => ({ ...prev, [pub.id]: true }))
+                            }
                         }
                         img.src = pub.image_url
                     }
@@ -68,143 +77,207 @@ export function PublicationsListView({
         loadPublications()
 
         return () => {
-            // Não resetar ao fechar para manter cache
+            isMountedRef.current = false
+            if (progressIntervalRef.current) {
+                clearInterval(progressIntervalRef.current)
+                progressIntervalRef.current = null
+            }
         }
     }, [ownerSlug, storeSlug, initialSlug])
 
+    // Pegar dados da store
     const publications = store.publications
-    const currentIndex = store.currentIndex
+    const storeCurrentIndex = store.currentIndex
     const isLoading = store.isLoading
     const currentPublication = store.getCurrent()
-    const nextPublication = store.getNext()
-    const previousPublication = store.getPrevious()
-    const hasNext = currentIndex < publications.length - 1 || store.hasMore
-    const hasPrevious = currentIndex > 0
+    const hasNext = storeCurrentIndex < publications.length - 1 || store.hasMore
+    const hasPrevious = storeCurrentIndex > 0
+
+    // Atualizar ref do índice
+    useEffect(() => {
+        currentIndexRef.current = storeCurrentIndex
+    }, [storeCurrentIndex])
 
     // Verificar se a imagem atual está carregada
     const isCurrentImageLoaded = currentPublication?.id
-        ? imageLoaded[currentPublication.id]
+        ? imageLoaded[currentPublication.id] || false
         : false
 
-    // Controlar progresso da publicação atual
-    const startProgress = useCallback(() => {
+    // Função para parar o progresso
+    const stopProgress = useCallback(() => {
         if (progressIntervalRef.current) {
             clearInterval(progressIntervalRef.current)
+            progressIntervalRef.current = null
+        }
+        isProgressRunningRef.current = false
+    }, [])
+
+    // Função para avançar - DEFINIDA PRIMEIRO
+    const goToNext = useCallback(() => {
+        if (isTransitioningRef.current) return
+        isTransitioningRef.current = true
+
+        // Parar o progresso atual
+        stopProgress()
+
+        const currentIdx = storeCurrentIndex
+
+        if (currentIdx < publications.length - 1) {
+            store.next()
+            setProgress(0)
+
+            setTimeout(() => {
+                isTransitioningRef.current = false
+                // Iniciar progresso para a nova publicação
+                if (isMountedRef.current) {
+                    startProgress()
+                }
+            }, 300)
+        } else if (store.hasMore) {
+            store.loadMore()
+            setTimeout(() => {
+                isTransitioningRef.current = false
+            }, 300)
+        } else {
+            onClose()
+            isTransitioningRef.current = false
+        }
+    }, [storeCurrentIndex, publications.length, store, onClose, stopProgress])
+
+    // Função para voltar
+    const goToPrevious = useCallback(() => {
+        if (isTransitioningRef.current) return
+        isTransitioningRef.current = true
+
+        // Parar o progresso atual
+        stopProgress()
+
+        if (storeCurrentIndex > 0) {
+            store.previous()
+            setProgress(0)
+
+            setTimeout(() => {
+                isTransitioningRef.current = false
+                // Iniciar progresso para a nova publicação
+                if (isMountedRef.current) {
+                    startProgress()
+                }
+            }, 300)
+        } else {
+            isTransitioningRef.current = false
+        }
+    }, [storeCurrentIndex, store, stopProgress])
+
+    // Função para iniciar o progresso - DEFINIDA DEPOIS DE goToNext
+    const startProgress = useCallback(() => {
+        // Parar qualquer progresso existente
+        stopProgress()
+
+        // Condições para não iniciar
+        if (
+            publications.length === 0 ||
+            isPaused ||
+            isLoading ||
+            isTransitioningRef.current ||
+            !isMountedRef.current
+        ) {
+            return
         }
 
-        // Reset progress
+        const currentPub = currentPublication
+        if (!currentPub || !currentPub.image_url) return
+
+        // Verificar se a imagem está carregada
+        const isLoaded = imageLoaded[currentPub.id] || false
+
+        if (!isLoaded) {
+            // Tentar carregar a imagem
+            const img = new Image()
+            img.onload = () => {
+                if (isMountedRef.current) {
+                    setImageLoaded(prev => ({ ...prev, [currentPub.id]: true }))
+                }
+            }
+            img.onerror = () => {
+                if (isMountedRef.current) {
+                    setImageLoaded(prev => ({ ...prev, [currentPub.id]: true }))
+                }
+            }
+            img.src = currentPub.image_url
+
+            // Tentar novamente em 500ms
+            setTimeout(() => {
+                if (isMountedRef.current && !isPaused && !isLoading) {
+                    startProgress()
+                }
+            }, 500)
+            return
+        }
+
+        // Se chegou aqui, a imagem está pronta
+        isProgressRunningRef.current = true
         setProgress(0)
 
-        // Duração de cada publicação (5 segundos)
         const DURATION = 5000
         const INTERVAL = 50
         const STEP = (INTERVAL / DURATION) * 100
 
         progressIntervalRef.current = setInterval(() => {
+            if (!isMountedRef.current || !isProgressRunningRef.current) {
+                stopProgress()
+                return
+            }
+
             setProgress(prev => {
-                if (prev >= 100) {
+                const newProgress = prev + STEP
+
+                if (newProgress >= 100) {
+                    // Parar o intervalo antes de navegar
+                    stopProgress()
                     // Avançar para próxima publicação
-                    if (currentIndex < publications.length - 1) {
-                        setDirection(1)
-                        store.next()
-                        return 0
-                    } else if (store.hasMore) {
-                        store.loadMore()
-                        return 0
-                    } else {
-                        if (progressIntervalRef.current) {
-                            clearInterval(progressIntervalRef.current)
-                        }
-                        onClose()
-                        return 100
-                    }
+                    goToNext()
+                    return 100
                 }
-                return prev + STEP
+
+                return newProgress
             })
         }, INTERVAL)
-    }, [currentIndex, publications.length, store, onClose])
+    }, [
+        publications.length,
+        isPaused,
+        isLoading,
+        currentPublication,
+        imageLoaded,
+        stopProgress,
+        goToNext
+    ])
 
-    // Controlar pausa/reprodução
+    // Iniciar progresso quando as condições mudarem
     useEffect(() => {
-        if (!isPaused && publications.length > 0 && !isLoading && isCurrentImageLoaded) {
-            startProgress()
+        // Se estiver em transição, não inicia
+        if (isTransitioningRef.current) return
+
+        // Se a imagem mudou, reinicia o progresso
+        if (currentPublication?.id) {
+            // Pequeno delay para garantir que a imagem foi atualizada
+            const timer = setTimeout(() => {
+                if (isMountedRef.current) {
+                    startProgress()
+                }
+            }, 100)
+
+            return () => clearTimeout(timer)
         }
+    }, [currentPublication?.id, startProgress])
 
-        return () => {
-            if (progressIntervalRef.current) {
-                clearInterval(progressIntervalRef.current)
-            }
-        }
-    }, [isPaused, publications.length, isLoading, startProgress, isCurrentImageLoaded])
-
-    // Resetar progresso quando mudar de publicação
-    useEffect(() => {
-        setProgress(0)
-        setImageLoaded(prev => ({ ...prev, [currentPublication?.id || '']: false }))
-
-        // Pré-carregar imagem atual e próximas
-        if (currentPublication?.image_url) {
-            const img = new Image()
-            img.onload = () => {
-                setImageLoaded(prev => ({ ...prev, [currentPublication.id]: true }))
-            }
-            img.onerror = () => {
-                setImageLoaded(prev => ({ ...prev, [currentPublication.id]: true }))
-            }
-            img.src = currentPublication.image_url
-        }
-
-        if (!isPaused && publications.length > 0 && !isLoading) {
-            startProgress()
-        }
-    }, [currentIndex, isPaused, startProgress, publications.length, isLoading])
-
-    // Navegação com transição
-    const goToNext = useCallback(() => {
-        if (isTransitioning) return
-
-        if (currentIndex < publications.length - 1) {
-            setDirection(1)
-            setExitX(-100)
-            setIsTransitioning(true)
-
-            setTimeout(() => {
-                store.next()
-                setExitX(0)
-                setIsTransitioning(false)
-                setProgress(0)
-            }, 200)
-        } else if (store.hasMore) {
-            store.loadMore()
-        } else {
-            onClose()
-        }
-    }, [currentIndex, publications.length, store, onClose, isTransitioning])
-
-    const goToPrevious = useCallback(() => {
-        if (isTransitioning) return
-
-        if (currentIndex > 0) {
-            setDirection(-1)
-            setExitX(100)
-            setIsTransitioning(true)
-
-            setTimeout(() => {
-                store.previous()
-                setExitX(0)
-                setIsTransitioning(false)
-                setProgress(0)
-            }, 200)
-        }
-    }, [currentIndex, store, isTransitioning])
-
-    // Touch events para swipe estilo WhatsApp
+    // Touch events
     const handleTouchStart = (e: React.TouchEvent) => {
         touchStartXRef.current = e.touches[0].clientX
         touchStartYRef.current = e.touches[0].clientY
         touchEndXRef.current = null
         isDraggingRef.current = false
         setIsPaused(true)
+        stopProgress()
     }
 
     const handleTouchMove = (e: React.TouchEvent) => {
@@ -215,17 +288,12 @@ export function PublicationsListView({
         const diffX = touchStartXRef.current - currentX
         const diffY = touchStartYRef.current ? touchStartYRef.current - currentY : 0
 
-        // Detectar se é um swipe horizontal
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 10) {
             isDraggingRef.current = true
             touchEndXRef.current = currentX
 
-            // Atualizar posição do card durante o arrasto
-            const progress = Math.min(Math.abs(diffX) / window.innerWidth, 1)
-            const direction = diffX > 0 ? 1 : -1
-            const offset = direction * progress * 80 // 80% do tamanho máximo
-
             if (containerRef.current) {
+                const progress = Math.min(Math.abs(diffX) / window.innerWidth, 1)
                 containerRef.current.style.transform = `translateX(${-diffX}px)`
                 containerRef.current.style.opacity = `${1 - progress * 0.3}`
             }
@@ -236,7 +304,6 @@ export function PublicationsListView({
         const startX = touchStartXRef.current
         const endX = touchEndXRef.current
 
-        // Resetar posição do container
         if (containerRef.current) {
             containerRef.current.style.transform = 'translateX(0px)'
             containerRef.current.style.opacity = '1'
@@ -244,7 +311,7 @@ export function PublicationsListView({
 
         if (startX !== null && endX !== null && isDraggingRef.current) {
             const diff = startX - endX
-            const threshold = window.innerWidth * 0.3 // 30% da tela
+            const threshold = window.innerWidth * 0.3
 
             if (Math.abs(diff) > threshold) {
                 if (diff > 0) {
@@ -262,12 +329,18 @@ export function PublicationsListView({
         isDraggingRef.current = false
     }
 
-    // Toggle pause com clique
     const togglePause = () => {
-        setIsPaused(!isPaused)
+        const newPaused = !isPaused
+        setIsPaused(newPaused)
+
+        if (newPaused) {
+            stopProgress()
+        } else {
+            startProgress()
+        }
     }
 
-    // Se estiver carregando inicialmente
+    // Loading inicial
     if (isLoading && publications.length === 0) {
         return (
             <div
@@ -279,7 +352,7 @@ export function PublicationsListView({
         )
     }
 
-    // Se não houver publicações
+    // Empty
     if (publications.length === 0 && !isLoading) {
         return (
             <div
@@ -318,7 +391,6 @@ export function PublicationsListView({
             onTouchEnd={handleTouchEnd}
         >
             <div className="relative w-full h-full">
-                {/* Container com efeito de transição */}
                 <div
                     ref={containerRef}
                     className="relative w-full h-full transition-transform duration-300 ease-out"
@@ -331,7 +403,6 @@ export function PublicationsListView({
                     <div className="relative w-full h-full flex items-center justify-center">
                         {currentPublication.image_url ? (
                             <>
-                                {/* Loading placeholder */}
                                 {!isCurrentImageLoaded && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                                         <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
@@ -339,6 +410,7 @@ export function PublicationsListView({
                                 )}
 
                                 <img
+                                    key={currentPublication.id}
                                     src={currentPublication.image_url}
                                     alt={currentPublication.name || 'Publicação'}
                                     className={`w-full h-full object-contain select-none transition-opacity duration-300 ${isCurrentImageLoaded ? 'opacity-100' : 'opacity-0'
@@ -362,7 +434,7 @@ export function PublicationsListView({
                         )}
                     </div>
 
-                    {/* Overlay com informações na parte superior */}
+                    {/* Overlay superior */}
                     <div
                         className="absolute top-0 left-0 right-0 p-4 pointer-events-none"
                         style={{
@@ -370,7 +442,6 @@ export function PublicationsListView({
                         }}
                     >
                         <div className="flex items-center gap-3">
-                            {/* Avatar do dono */}
                             {currentPublication.owner?.avatar_url && (
                                 <img
                                     src={currentPublication.owner.avatar_url}
@@ -395,7 +466,7 @@ export function PublicationsListView({
                         </div>
                     </div>
 
-                    {/* Overlay com legenda */}
+                    {/* Overlay inferior com legenda */}
                     {hasCaption && (
                         <div
                             className="absolute bottom-0 left-0 right-0 p-6 pointer-events-none"
@@ -415,7 +486,7 @@ export function PublicationsListView({
                     )}
                 </div>
 
-                {/* Barra de progresso superior */}
+                {/* Barra de progresso */}
                 <div className="absolute top-4 left-0 right-0 px-4 z-10">
                     <div className="flex gap-1.5 max-w-2xl mx-auto">
                         {publications.slice(0, 20).map((pub, index) => (
@@ -426,9 +497,9 @@ export function PublicationsListView({
                                 <div
                                     className="h-full bg-white transition-all duration-100"
                                     style={{
-                                        width: index === currentIndex
+                                        width: index === storeCurrentIndex
                                             ? `${progress}%`
-                                            : index < currentIndex
+                                            : index < storeCurrentIndex
                                                 ? '100%'
                                                 : '0%'
                                     }}
@@ -443,7 +514,7 @@ export function PublicationsListView({
                     </div>
                 </div>
 
-                {/* Botão de fechar */}
+                {/* Botão fechar */}
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 z-10 text-white hover:opacity-80 transition-opacity p-2 rounded-full bg-black/30 hover:bg-black/50"
@@ -452,28 +523,23 @@ export function PublicationsListView({
                     <X size={24} />
                 </button>
 
-                {/* Áreas de clique para navegação */}
+                {/* Áreas de clique */}
                 <div className="absolute inset-0 flex items-center pointer-events-none">
-                    {/* Área anterior (1/3 esquerda) */}
                     <div
                         className="h-full w-1/3 cursor-pointer pointer-events-auto"
                         onClick={goToPrevious}
                     />
-
-                    {/* Área central (para pausar) */}
                     <div
                         className="h-full w-1/3 cursor-pointer pointer-events-auto"
                         onClick={togglePause}
                     />
-
-                    {/* Área próximo (1/3 direita) */}
                     <div
                         className="h-full w-1/3 cursor-pointer pointer-events-auto"
                         onClick={goToNext}
                     />
                 </div>
 
-                {/* Botões de navegação (Desktop) */}
+                {/* Botões desktop */}
                 {hasPrevious && (
                     <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
                         <button
@@ -511,22 +577,15 @@ export function PublicationsListView({
                     </div>
                 )}
 
-                {/* Indicador de contagem e carregamento */}
+                {/* Contador e loading */}
                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 pointer-events-none">
                     <span className="text-white/70 text-sm font-medium">
-                        {currentIndex + 1} / {publications.length}
+                        {storeCurrentIndex + 1} / {publications.length}
                     </span>
                     {store.isLoadingMore && (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
                 </div>
-
-                {/* Indicador de carregamento da imagem */}
-                {!isCurrentImageLoaded && currentPublication.image_url && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                    </div>
-                )}
             </div>
         </div>
     )

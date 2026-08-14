@@ -87,8 +87,6 @@ export default function OwnerPage() {
     >({})
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
-
-    // ===== NOVO: Estado para controlar a visualização de publicações =====
     const [showPublications, setShowPublications] = useState(false)
 
     // ===== STATUS DOS PEDIDOS DO USUÁRIO (COMPRADOR) =====
@@ -96,6 +94,17 @@ export default function OwnerPage() {
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
+
+    // ========== FUNÇÃO PARA ABRIR PUBLICAÇÕES ==========
+    const handleOpenPublications = useCallback((publications: any[], initialIndex: number, storeSlug: string) => {
+        // Definir as publicações na store antes de abrir
+        publicationsStore.setPublicationFeed(publications, initialIndex, undefined, storeSlug)
+
+        // Abrir o overlay de publicações
+        setShowPublications(true)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
+    }, [publicationsStore])
 
     // ========== DETECTAR OWNER ==========
     const detectOwnerType = async (slug: string) => {
@@ -280,43 +289,31 @@ export default function OwnerPage() {
         fetchOrderStatuses()
     }, [])
 
-    // ========== PRÉ-CARREGAR PUBLICAÇÕES ==========
-    useEffect(() => {
-        // Pré-carregar publicações do perfil/loja quando o owner for detectado
-        if (ownerSlug && ownerType && !loading) {
-            publicationsStore.loadPublicationsForOwner({
-                ownerSlug,
-                // Se for loja, passar storeSlug também
-                ...(ownerType === 'store' ? { storeSlug: ownerSlug } : {}),
-            })
-        }
-    }, [ownerSlug, ownerType, loading])
-
     // ========== TABS DO HEADER ==========
     const handleProfileClick = () => {
         setShowProfile(true)
         setShowStoreDashboard(null)
-        setShowPublications(false) // ← NOVO
+        setShowPublications(false)
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowProfile(false)
-        setShowPublications(false) // ← NOVO
+        setShowPublications(false)
     }
 
-    // ========== FUNÇÃO PARA VER PUBLICACÕES ==========
     const handleShowPublications = () => {
         setShowPublications(true)
         setShowProfile(false)
         setShowStoreDashboard(null)
     }
 
-    // ========== FUNÇÃO PARA VOLTAR AO CONTEÚDO PRINCIPAL ==========
     const showMainContent = () => {
         setShowProfile(false)
         setShowStoreDashboard(null)
-        setShowPublications(false) // ← NOVO
+        setShowPublications(false)
+        // Voltar para a URL base quando fechar
+        router.replace(`/${ownerSlug}`, { scroll: false })
     }
 
     const tabs = useMemo(() => {
@@ -438,7 +435,6 @@ export default function OwnerPage() {
         [cartItems]
     )
 
-    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
     const totalCartValue = useMemo(() => {
         let total = 0
         Object.values(itemsByStore).forEach(items => {
@@ -491,7 +487,7 @@ export default function OwnerPage() {
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            {/* Background animado - igual ao HomePage */}
+            {/* Background animado */}
             <div className="fixed inset-0 z-0">
                 <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
             </div>
@@ -511,7 +507,7 @@ export default function OwnerPage() {
                     profileSlug={loggedUserSlug}
                 />
 
-                {/* ===== RENDERIZAR CONTEÚDO BASEADO NO ESTADO ===== */}
+                {/* ===== RENDERIZAR CONTEÚDO ===== */}
                 {showProfile ? (
                     <div className="max-w-4xl mx-auto px-4 py-6">
                         <ProfileDashboard
@@ -540,31 +536,13 @@ export default function OwnerPage() {
                             }}
                         />
                     </div>
-                ) : showPublications ? ( // ← NOVO: Tela de publicações
-                    <div className="max-w-4xl mx-auto px-4 py-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                                Publicações
-                            </h2>
-                            <button
-                                onClick={showMainContent}
-                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-opacity-80"
-                                style={{
-                                    background: colors.accent,
-                                    color: '#fff'
-                                }}
-                            >
-                                Voltar
-                            </button>
-                        </div>
-                        <PublicationsListView
-                            ownerSlug={ownerSlug}
-                            storeSlug={ownerType === 'store' ? ownerSlug : undefined}
-                            onClose={showMainContent}
-                        />
-                    </div>
+                ) : showPublications ? (
+                    <PublicationsListView
+                        ownerSlug={ownerSlug}
+                        storeSlug={ownerType === 'store' ? ownerSlug : undefined}
+                        onClose={showMainContent}
+                    />
                 ) : (
-                    // Renderiza o conteúdo normal (Profile ou Store)
                     <>
                         {ownerType === 'profile' ? (
                             <Profile
@@ -584,17 +562,17 @@ export default function OwnerPage() {
                                 onCartUpdate={(total) => {
                                     // Atualiza o estado do carrinho se necessário
                                 }}
+                                onOpenPublications={handleOpenPublications}
                             />
                         )}
                     </>
                 )}
 
                 {/* ===== BOTÃO FLUTUANTE DE PUBLICAÇÕES ===== */}
-                {/* ← NOVO: Botão para abrir a lista de publicações */}
                 {!showProfile && !showStoreDashboard && !showPublications && (
                     <div style={{
                         position: 'fixed',
-                        bottom: 100, // Ajuste para não ficar em cima do SacolaButton
+                        bottom: 100,
                         right: 24,
                         zIndex: 998
                     }}>
@@ -618,8 +596,7 @@ export default function OwnerPage() {
                 )}
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
-                {/* SacolaButton - visível apenas quando NÃO está no ProfileDashboard ou StoreDashboard */}
-                {!showProfile && !showStoreDashboard && !showPublications && ( // ← MODIFICADO: adicionado !showPublications
+                {!showProfile && !showStoreDashboard && !showPublications && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                         <SacolaButton
                             totalItems={totalCartQuantity}
@@ -653,7 +630,7 @@ export default function OwnerPage() {
                 )}
 
                 {/* Botão Home - visível quando está em um dashboard */}
-                {(showProfile || showStoreDashboard || showPublications) && ( // ← MODIFICADO: adicionado showPublications
+                {(showProfile || showStoreDashboard || showPublications) && (
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         <button
                             onClick={showMainContent}

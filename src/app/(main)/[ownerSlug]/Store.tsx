@@ -45,6 +45,7 @@ interface StoreProps {
     customBgUrl?: string | null
     loggedUserSlug?: string | null
     onCartUpdate?: (total: number) => void
+    onOpenPublications?: (publications: any[], initialIndex: number, storeSlug: string) => void
 }
 
 interface OwnerData {
@@ -94,7 +95,15 @@ type Publication = {
 
 type TabType = 'products' | 'publications' | 'reviews'
 
-export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, onCartUpdate }: StoreProps) {
+export function Store({
+    ownerSlug,
+    colors,
+    bgMode,
+    customBgUrl,
+    loggedUserSlug,
+    onCartUpdate,
+    onOpenPublications
+}: StoreProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -301,6 +310,35 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         return supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl
     }
 
+    // ========== ABRIR PUBLICAÇÕES NO OVERLAY ==========
+    const handleOpenPub = useCallback((pub: Publication, index: number) => {
+        if (!owner) return
+
+        // Preparar o feed de publicações no formato esperado pelo PublicationsListView
+        const feed = publications.map(p => ({
+            id: p.id,
+            name: p.name,
+            slug: p.slug,
+            description: p.description,
+            image_url: getImageUrl(p.image_url),
+            listing_type: 'publication' as const,
+            owner_id: owner.id,
+            store_id: owner.id,
+            created_at: p.created_at,
+            owner: {
+                id: owner.id,
+                name: owner.name,
+                slug: owner.slug,
+                avatar_url: imageUrl,
+            },
+        }))
+
+        // Chamar o callback para abrir o PublicationsListView
+        if (onOpenPublications) {
+            onOpenPublications(feed, index, ownerSlug)
+        }
+    }, [owner, publications, imageUrl, ownerSlug, onOpenPublications])
+
     useEffect(() => {
         if (!pubImageFile) return
         const url = URL.createObjectURL(pubImageFile)
@@ -445,7 +483,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
         }
     }
 
-    // ========== HANDLE PRODUCT CLICK - CORRIGIDO ==========
+    // ========== HANDLE PRODUCT CLICK ==========
     const handleProductClick = (product: any, e?: React.MouseEvent) => {
         // Se o clique veio de um botão de ação, não redireciona
         if (e?.target && (e.target as HTMLElement).closest('.product-action-button')) {
@@ -466,6 +504,30 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
 
         const isPublication = product.listing_type === 'publication'
         if (isPublication) {
+            // Para publicações, usar o callback do overlay
+            const pubIndex = publications.findIndex(p => p.id === product.id)
+            if (pubIndex !== -1 && onOpenPublications) {
+                const feed = publications.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    slug: p.slug,
+                    description: p.description,
+                    image_url: getImageUrl(p.image_url),
+                    listing_type: 'publication' as const,
+                    owner_id: owner?.id || '',
+                    store_id: owner?.id || '',
+                    created_at: p.created_at,
+                    owner: {
+                        id: owner?.id || '',
+                        name: owner?.name || '',
+                        slug: owner?.slug || '',
+                        avatar_url: imageUrl,
+                    },
+                }))
+                onOpenPublications(feed, pubIndex, ownerSlug)
+                return
+            }
+            // Fallback: usar router
             router.push(`/${ownerSlug}/${productIdentifier}`)
             return
         }
@@ -1411,7 +1473,7 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                     </div>
                 )}
 
-                {/* TAB PUBLICAÇÕES */}
+                {/* TAB PUBLICAÇÕES - MODIFICADA PARA USAR O OVERLAY */}
                 {activeTab === 'publications' && (
                     <div className="rounded-2xl p-4" style={cardStyle}>
                         <div className="flex items-center gap-2 mb-3">
@@ -1447,46 +1509,18 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                         ) : (
                             <>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                    {publications.map(pub => {
+                                    {publications.map((pub, index) => {
                                         const imgUrl = getImageUrl(pub.image_url)
-                                        const pubIdentifier = pub.slug || pub.id
-
-                                        const handleOpenPub = () => {
-                                            if (pubIdentifier && owner) {
-                                                const feed = publications.map(p => ({
-                                                    id: p.id,
-                                                    name: p.name,
-                                                    slug: p.slug,
-                                                    description: p.description,
-                                                    image_url: getImageUrl(p.image_url),
-                                                    listing_type: 'publication' as const,
-                                                    owner_id: owner.id,
-                                                    store_id: owner.id,
-                                                    created_at: p.created_at,
-                                                    owner: {
-                                                        id: owner.id,
-                                                        name: owner.name,
-                                                        slug: owner.slug,
-                                                        avatar_url: imageUrl,
-                                                    },
-                                                }))
-                                                const pubIndex = publications.findIndex(item => item.id === pub.id)
-                                                usePublicationsStore.getState().setPublicationFeed(feed, pubIndex, undefined, ownerSlug)
-                                                router.push(`/${ownerSlug}/${pubIdentifier}`)
-                                            } else {
-                                                toast.error('Erro ao abrir esta publicação')
-                                            }
-                                        }
 
                                         return (
                                             <div
                                                 key={pub.id}
-                                                className="rounded-xl border p-2 flex flex-col gap-2 cursor-pointer hover:opacity-90 transition-all"
+                                                className="rounded-xl border p-2 flex flex-col gap-2 cursor-pointer hover:opacity-90 transition-all hover:scale-[1.02]"
                                                 style={{
                                                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                                     borderColor: colors.border,
                                                 }}
-                                                onClick={handleOpenPub}
+                                                onClick={() => handleOpenPub(pub, index)}
                                             >
                                                 <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
                                                     {imgUrl ? (
@@ -1499,6 +1533,13 @@ export function Store({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug, 
                                                 </div>
                                                 <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                                     {pub.name}
+                                                </p>
+                                                <p className="text-[10px] truncate opacity-70" style={{ color: colors.textSecondary }}>
+                                                    {new Date(pub.created_at).toLocaleDateString('pt-BR', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric'
+                                                    })}
                                                 </p>
                                                 {isOwner && (
                                                     <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
