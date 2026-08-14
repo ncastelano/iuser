@@ -23,9 +23,9 @@ import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import StoreDashboard from '../../StoreDashboard'
 import ProfileDashboard from '../../ProfileDashboard'
-import { Publications } from '../../Publications'
 import { Products } from '../../Products'
 import { usePublicationsStore } from '@/store/usePublicationStore'
+import { PublicationsListView } from '../../PublicationsListView'
 
 type OwnerType = 'profile' | 'store'
 type ContentType = 'product' | 'publication'
@@ -978,14 +978,10 @@ export default function SlugPage() {
                 ) : (
                     <>
                         {isPublication && (
-                            <Publications
+                            <PublicationsListView
                                 ownerSlug={ownerSlug}
-                                initialSlug={slug}
-                                GRADIENT={GRADIENT}
-                                router={router}
-                                loggedUserSlug={loggedUserSlug}
-                                loggedUserAvatarUrl={loggedUserAvatarUrl}
-                                currentUserId={currentUserId}
+                                storeSlug={ownerType === 'store' ? ownerSlug : undefined}
+                                onClose={showMainContent}
                             />
                         )}
 

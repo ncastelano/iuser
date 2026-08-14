@@ -11,13 +11,14 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import SacolaButton from '@/app/ButtonSacola'
 import { useCartStore } from '@/store/useCartStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home, Newspaper } from 'lucide-react'
 import type { Tab } from '@/app/Header'
 import ProfileDashboard from '../ProfileDashboard'
 import StoreDashboard from '../StoreDashboard'
 import { Profile } from './Profile'
 import { Store } from './Store'
 import { usePublicationsStore } from '@/store/usePublicationStore'
+import { PublicationsListView } from '../PublicationsListView'
 
 type OwnerType = 'profile' | 'store'
 
@@ -86,6 +87,9 @@ export default function OwnerPage() {
     >({})
     const [showProfile, setShowProfile] = useState(false)
     const [showStoreDashboard, setShowStoreDashboard] = useState<{ slug: string; name: string } | null>(null)
+
+    // ===== NOVO: Estado para controlar a visualização de publicações =====
+    const [showPublications, setShowPublications] = useState(false)
 
     // ===== STATUS DOS PEDIDOS DO USUÁRIO (COMPRADOR) =====
     const [pendingCount, setPendingCount] = useState(0)
@@ -292,17 +296,27 @@ export default function OwnerPage() {
     const handleProfileClick = () => {
         setShowProfile(true)
         setShowStoreDashboard(null)
+        setShowPublications(false) // ← NOVO
     }
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
         setShowProfile(false)
+        setShowPublications(false) // ← NOVO
+    }
+
+    // ========== FUNÇÃO PARA VER PUBLICACÕES ==========
+    const handleShowPublications = () => {
+        setShowPublications(true)
+        setShowProfile(false)
+        setShowStoreDashboard(null)
     }
 
     // ========== FUNÇÃO PARA VOLTAR AO CONTEÚDO PRINCIPAL ==========
     const showMainContent = () => {
         setShowProfile(false)
         setShowStoreDashboard(null)
+        setShowPublications(false) // ← NOVO
     }
 
     const tabs = useMemo(() => {
@@ -526,6 +540,29 @@ export default function OwnerPage() {
                             }}
                         />
                     </div>
+                ) : showPublications ? ( // ← NOVO: Tela de publicações
+                    <div className="max-w-4xl mx-auto px-4 py-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                                Publicações
+                            </h2>
+                            <button
+                                onClick={showMainContent}
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-opacity-80"
+                                style={{
+                                    background: colors.accent,
+                                    color: '#fff'
+                                }}
+                            >
+                                Voltar
+                            </button>
+                        </div>
+                        <PublicationsListView
+                            ownerSlug={ownerSlug}
+                            storeSlug={ownerType === 'store' ? ownerSlug : undefined}
+                            onClose={showMainContent}
+                        />
+                    </div>
                 ) : (
                     // Renderiza o conteúdo normal (Profile ou Store)
                     <>
@@ -552,9 +589,37 @@ export default function OwnerPage() {
                     </>
                 )}
 
+                {/* ===== BOTÃO FLUTUANTE DE PUBLICAÇÕES ===== */}
+                {/* ← NOVO: Botão para abrir a lista de publicações */}
+                {!showProfile && !showStoreDashboard && !showPublications && (
+                    <div style={{
+                        position: 'fixed',
+                        bottom: 100, // Ajuste para não ficar em cima do SacolaButton
+                        right: 24,
+                        zIndex: 998
+                    }}>
+                        <button
+                            onClick={handleShowPublications}
+                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
+                                boxShadow: `0 8px 24px #f9731660`,
+                            }}
+                            aria-label="Ver publicações"
+                        >
+                            <Newspaper size={24} />
+                        </button>
+                    </div>
+                )}
+
                 {/* ===== BOTÕES FLUTUANTES ===== */}
                 {/* SacolaButton - visível apenas quando NÃO está no ProfileDashboard ou StoreDashboard */}
-                {!showProfile && !showStoreDashboard && (
+                {!showProfile && !showStoreDashboard && !showPublications && ( // ← MODIFICADO: adicionado !showPublications
                     <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                         <SacolaButton
                             totalItems={totalCartQuantity}
@@ -588,7 +653,7 @@ export default function OwnerPage() {
                 )}
 
                 {/* Botão Home - visível quando está em um dashboard */}
-                {(showProfile || showStoreDashboard) && (
+                {(showProfile || showStoreDashboard || showPublications) && ( // ← MODIFICADO: adicionado showPublications
                     <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                         <button
                             onClick={showMainContent}
