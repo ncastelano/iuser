@@ -357,15 +357,20 @@ export const usePublicationsStore = create<PublicationsStore>((set, get) => ({
         }
     },
 
-    next: () => {
-        const { currentIndex, publications } = get()
+    next: async () => {
+        const { currentIndex, publications, hasMore, isLoadingMore } = get()
         const nextIndex = currentIndex + 1
 
         if (nextIndex < publications.length) {
             set({ currentIndex: nextIndex })
             get().prefetchAdjacent(nextIndex)
-        } else {
-            get().loadMore()
+        } else if (hasMore && !isLoadingMore) {
+            await get().loadMore()
+            const updatedPubs = get().publications
+            if (nextIndex < updatedPubs.length) {
+                set({ currentIndex: nextIndex })
+                get().prefetchAdjacent(nextIndex)
+            }
         }
     },
 
