@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '@/app/theme'
-import { ChevronLeft, ChevronRight, X, Pause } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Pause, MessageCircle } from 'lucide-react'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 
@@ -12,6 +12,28 @@ interface PublicationsListViewProps {
     storeSlug?: string
     initialSlug?: string
     onClose: () => void
+}
+
+// Função para formatar tempo relativo
+function getRelativeTime(dateString: string): string {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffMs = now.getTime() - date.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+    const diffWeek = Math.floor(diffDay / 7)
+    const diffMonth = Math.floor(diffDay / 30)
+    const diffYear = Math.floor(diffDay / 365)
+
+    if (diffSec < 60) return 'agora'
+    if (diffMin < 60) return `${diffMin} min`
+    if (diffHour < 24) return `${diffHour} h`
+    if (diffDay < 7) return `${diffDay} dia${diffDay > 1 ? 's' : ''}`
+    if (diffWeek < 4) return `${diffWeek} sem${diffWeek > 1 ? 'as' : 'ana'}`
+    if (diffMonth < 12) return `${diffMonth} mês${diffMonth > 1 ? 'es' : ''}`
+    return `${diffYear} ano${diffYear > 1 ? 's' : ''}`
 }
 
 export function PublicationsListView({
@@ -231,6 +253,12 @@ export function PublicationsListView({
         setIsPaused(prev => !prev)
     }
 
+    // Função para abrir chat (placeholder)
+    const handleOpenChat = () => {
+        // TODO: Implementar navegação para o chat com o dono da publicação
+        console.log('Abrir chat com:', currentPublication?.owner?.id)
+    }
+
     // Loading inicial
     if (isLoading && publications.length === 0) {
         return (
@@ -272,6 +300,7 @@ export function PublicationsListView({
 
     const hasCaption = currentPublication.description
     const storeName = currentPublication.owner?.name || 'Loja'
+    const relativeTime = getRelativeTime(currentPublication.created_at)
 
     return (
         <div
@@ -330,94 +359,109 @@ export function PublicationsListView({
                         )}
                     </div>
 
-                    {/* Overlay superior com dados do criador */}
+                    {/* Overlay superior com dados do criador - DESIGN MELHORADO */}
                     <div
-                        className="absolute top-0 left-0 right-0 p-4 pointer-events-none z-10"
+                        className="absolute top-0 left-0 right-0 px-4 pt-6 pb-4 pointer-events-none z-10"
                         style={{
-                            background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)',
+                            background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
                         }}
                     >
-                        <div className="flex items-center gap-3 pt-4">
-                            {currentPublication.owner?.avatar_url && (
-                                <img
-                                    src={currentPublication.owner.avatar_url}
-                                    alt={storeName}
-                                    className="w-10 h-10 rounded-full border-2 border-white/50 object-cover"
-                                />
-                            )}
-                            <div>
-                                <p className="text-white font-semibold text-sm drop-shadow">
-                                    {storeName}
-                                </p>
-                                <p className="text-white/70 text-xs drop-shadow">
-                                    {new Date(currentPublication.created_at).toLocaleDateString('pt-BR', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
-                                </p>
+                        <div className="flex items-center justify-between pointer-events-auto">
+                            {/* Lado esquerdo: Avatar e nome */}
+                            <div className="flex items-center gap-3">
+                                {currentPublication.owner?.avatar_url ? (
+                                    <img
+                                        src={currentPublication.owner.avatar_url}
+                                        alt={storeName}
+                                        className="w-10 h-10 rounded-full border-2 border-white/60 object-cover shadow-lg"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                                        {storeName.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                <div>
+                                    <p className="text-white font-semibold text-sm drop-shadow-lg">
+                                        {storeName}
+                                    </p>
+                                    <p className="text-white/60 text-xs drop-shadow-lg">
+                                        {relativeTime}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Lado direito: Botão de chat e fechar */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleOpenChat}
+                                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 text-white hover:scale-110"
+                                    aria-label="Abrir chat"
+                                >
+                                    <MessageCircle size={20} />
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-sm transition-all duration-200 text-white hover:scale-110"
+                                    aria-label="Fechar publicações"
+                                >
+                                    <X size={20} />
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* Overlay inferior com legenda */}
+                    {/* Overlay inferior com legenda - DESIGN MELHORADO */}
                     {hasCaption && (
                         <div
-                            className="absolute bottom-0 left-0 right-0 p-6 pointer-events-none z-10"
+                            className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-12 pointer-events-none z-10"
                             style={{
-                                background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                                background: 'linear-gradient(transparent 0%, rgba(0,0,0,0.8) 100%)',
                             }}
                         >
-                            <p
-                                className="text-center text-white text-base font-medium max-w-2xl mx-auto px-4"
-                                style={{
-                                    textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                                }}
-                            >
-                                {currentPublication.description}
-                            </p>
+                            <div className="max-w-2xl mx-auto">
+                                <div className="bg-black/30 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/10">
+                                    <p
+                                        className="text-center text-white/95 text-base font-medium leading-relaxed"
+                                        style={{
+                                            textShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                                        }}
+                                    >
+                                        {currentPublication.description}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Barra de progresso superior */}
-                <div className="absolute top-4 left-0 right-0 px-4 z-20">
-                    <div className="flex gap-1.5 max-w-2xl mx-auto">
+                {/* Barra de progresso superior - MAIS FINA E ELEGANTE */}
+                <div className="absolute top-2 left-0 right-0 px-4 z-20">
+                    <div className="flex gap-1 max-w-2xl mx-auto">
                         {publications.slice(0, 20).map((pub, index) => (
                             <div
                                 key={pub.id}
-                                className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden"
+                                className="flex-1 h-[2px] bg-white/20 rounded-full overflow-hidden"
                             >
                                 <div
-                                    className="h-full bg-white transition-[width] duration-75 ease-linear"
+                                    className="h-full bg-white transition-[width] duration-75 ease-linear rounded-full"
                                     style={{
                                         width: index === storeCurrentIndex
                                             ? `${progress}%`
                                             : index < storeCurrentIndex
                                                 ? '100%'
-                                                : '0%'
+                                                : '0%',
+                                        boxShadow: index === storeCurrentIndex ? '0 0 8px rgba(255,255,255,0.3)' : 'none'
                                     }}
                                 />
                             </div>
                         ))}
                         {publications.length > 20 && (
-                            <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden flex items-center justify-center">
-                                <span className="text-white/40 text-[10px]">+{publications.length - 20}</span>
+                            <div className="flex-1 h-[2px] bg-white/20 rounded-full overflow-hidden flex items-center justify-center">
+                                <span className="text-white/30 text-[8px] font-medium">+{publications.length - 20}</span>
                             </div>
                         )}
                     </div>
                 </div>
-
-                {/* Botão fechar */}
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 z-20 text-white hover:opacity-80 transition-opacity p-2 rounded-full bg-black/40 hover:bg-black/60"
-                    aria-label="Fechar publicações"
-                >
-                    <X size={24} />
-                </button>
 
                 {/* Áreas de clique para navegação / pausa */}
                 <div className="absolute inset-0 flex items-center pointer-events-none z-10">
@@ -435,18 +479,18 @@ export function PublicationsListView({
                     />
                 </div>
 
-                {/* Botões laterais para Desktop */}
+                {/* Botões laterais para Desktop - MAIS ELEGANTES */}
                 {hasPrevious && (
                     <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none z-20">
                         <button
-                            className="ml-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+                            className="ml-4 p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white transition-all duration-200 pointer-events-auto hover:scale-110 border border-white/10"
                             onClick={(e) => {
                                 e.stopPropagation()
                                 goToPrevious()
                             }}
                             aria-label="Publicação anterior"
                         >
-                            <ChevronLeft size={24} />
+                            <ChevronLeft size={22} />
                         </button>
                     </div>
                 )}
@@ -454,37 +498,37 @@ export function PublicationsListView({
                 {hasNext && (
                     <div className="absolute inset-y-0 right-0 flex items-center pointer-events-none z-20">
                         <button
-                            className="mr-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors pointer-events-auto"
+                            className="mr-4 p-2 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white transition-all duration-200 pointer-events-auto hover:scale-110 border border-white/10"
                             onClick={(e) => {
                                 e.stopPropagation()
                                 goToNext()
                             }}
                             aria-label="Próxima publicação"
                         >
-                            <ChevronRight size={24} />
+                            <ChevronRight size={22} />
                         </button>
                     </div>
                 )}
 
-                {/* Indicador visual de Pausa */}
+                {/* Indicador visual de Pausa - MAIS ESTILIZADO */}
                 {isPaused && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                        <div className="p-4 rounded-full bg-black/50 backdrop-blur-sm pointer-events-none">
-                            <Pause size={32} className="text-white" />
+                        <div className="p-5 rounded-full bg-black/50 backdrop-blur-md pointer-events-none border border-white/20 shadow-2xl">
+                            <Pause size={36} className="text-white" fill="white" />
                         </div>
                     </div>
                 )}
 
-                {/* Contador e indicador de carregando mais */}
+                {/* Contador e indicador de carregando mais - MAIS DISCRETO */}
                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-3 pointer-events-none z-20">
-                    <span className="text-white/80 text-sm font-medium drop-shadow">
-                        {storeCurrentIndex + 1} / {publications.length}
+                    <span className="text-white/50 text-xs font-medium tracking-wider drop-shadow">
+                        {storeCurrentIndex + 1} <span className="text-white/30">/</span> {publications.length}
                     </span>
                     {store.isLoadingMore && (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
                 </div>
             </div>
         </div>
     )
-}
+}

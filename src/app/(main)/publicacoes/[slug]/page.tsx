@@ -1,476 +1,265 @@
 // app/(main)/publicacoes/[slug]/page.tsx
-
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import {
-    Store,
-    Eye,
-    Calendar,
-    Heart,
-    Share2,
-    Loader2,
-    AlertCircle,
-    X,
-    Play,
-    Pause,
-    Volume2,
-    VolumeX,
-    Maximize,
-    MessageCircle,
-    ChevronLeft,
-    ChevronRight,
-    User,
-    ArrowLeft,
-    MapPin,
-    Clock,
-    Tag,
-    Building2,
-    List,
-} from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import { toast } from 'sonner'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { ArrowLeft, Store, Calendar, Eye, User } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import Header from '@/app/Header'
 
-// ===== GRADIENTE =====
-const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-// ===== TIPOS =====
-interface PublicationDetail {
+// ===== TIPO PARA PUBLICAÇÃO COMPLETA =====
+interface PublicationWithStore {
     id: string
-    slug: string
     name: string
+    slug: string
     description: string | null
     image_url: string | null
-    video_url: string | null
-    media_type: string | null
-    view_count: number
+    view_count: number | null
     created_at: string
-    price: number | null
-    listing_type: string
-    store: {
+    store_id: string
+    store?: {
         id: string
         name: string
         storeSlug: string
         logo_url: string | null
-        address: string | null
-        business_hours: any
-        whatsapp: string | null
-    }
-    isFromUser?: boolean
-    user_id?: string | null
-    store_id?: string | null
-    button_data?: any
-    category?: string | null
-    address?: string | null
-    city?: string | null
+        owner_id: string
+        profile?: {
+            id: string
+            name: string
+            avatar_url: string | null
+            profileSlug: string
+        } | null
+    } | null
 }
 
-interface PublicationCard {
-    id: string
-    slug: string
-    imageUrl: string | null
-    storeName: string
-    storeSlug: string
-    storeLogoUrl: string | null
-    name?: string
-    description?: string | null
-    view_count?: number
-    created_at?: string
-}
-
-// ===== COMPONENTE =====
-export default function PublicationPage() {
-    const router = useRouter()
+export default function PublicationDetailPage() {
     const params = useParams()
+    const router = useRouter()
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
-    const [publication, setPublication] = useState<PublicationDetail | null>(null)
-    const [allPublications, setAllPublications] = useState<PublicationCard[]>([])
-    const [currentIndex, setCurrentIndex] = useState<number>(-1)
+    const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
+
     const [loading, setLoading] = useState(true)
-    const [loadingList, setLoadingList] = useState(false)
+    const [publication, setPublication] = useState<PublicationWithStore | null>(null)
     const [error, setError] = useState<string | null>(null)
-    const [isLiked, setIsLiked] = useState(false)
-    const [isSharing, setIsSharing] = useState(false)
-    const [isPlaying, setIsPlaying] = useState(true)
-    const [isMuted, setIsMuted] = useState(false)
-    const [progress, setProgress] = useState(0)
-    const [isFullscreen, setIsFullscreen] = useState(false)
-    const [showComments, setShowComments] = useState(false)
-    const [showAvailableSlugs, setShowAvailableSlugs] = useState(false)
-    const [availableSlugs, setAvailableSlugs] = useState<{ id: string, slug: string, name: string }[]>([])
 
-    const videoRef = useRef<HTMLVideoElement>(null)
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    const slugParam = params?.slug as string
-
-    // ===== BUSCAR PUBLICAÇÃO =====
     useEffect(() => {
-        if (!slugParam) {
-            setError('Publicação não encontrada')
-            setLoading(false)
-            return
-        }
-
         const fetchPublication = async () => {
+            if (!slug) return
+
             setLoading(true)
             setError(null)
 
             try {
-                console.log('🔍 Buscando publicação com slug:', slugParam)
-
-                // Busca a publicação
-                const { data: productData, error: productError } = await supabase
+                // Primeiro, tenta buscar a publicação pelo slug
+                let { data: pubData, error: pubErr } = await supabase
                     .from('products')
                     .select(`
                         id,
-                        slug,
                         name,
+                        slug,
                         description,
                         image_url,
-                        video_url,
-                        media_type,
                         view_count,
                         created_at,
-                        price,
-                        listing_type,
-                        store_id,
-                        user_id,
-                        is_active,
-                        button_data,
-                        category,
-                        address,
-                        city
+                        store_id
                     `)
+                    .eq('slug', slug)
                     .eq('listing_type', 'publication')
-                    .eq('is_active', true)
-                    .eq('slug', slugParam)
                     .maybeSingle()
 
-                if (productError) {
-                    console.error('❌ Erro ao buscar produto:', productError)
-                    throw new Error('Publicação não encontrada')
-                }
-
-                if (!productData) {
-                    console.error('❌ Produto não encontrado para o slug:', slugParam)
-
-                    // Busca todos os slugs disponíveis para ajudar o usuário
-                    const { data: allSlugs, error: slugsError } = await supabase
+                // Se não encontrou pelo slug, tenta pelo ID
+                if (pubErr || !pubData) {
+                    const { data: pubById, error: byIdErr } = await supabase
                         .from('products')
-                        .select('id, slug, name')
+                        .select(`
+                            id,
+                            name,
+                            slug,
+                            description,
+                            image_url,
+                            view_count,
+                            created_at,
+                            store_id
+                        `)
+                        .eq('id', slug)
                         .eq('listing_type', 'publication')
-                        .eq('is_active', true)
-                        .limit(50)
+                        .maybeSingle()
 
-                    if (!slugsError && allSlugs) {
-                        setAvailableSlugs(allSlugs)
-                        console.log('📋 Slugs disponíveis:', allSlugs.map(s => s.slug).join(', '))
+                    if (byIdErr || !pubById) {
+                        throw new Error('Publicação não encontrada')
                     }
 
-                    throw new Error(`Publicação não encontrada: ${slugParam}`)
+                    pubData = pubById
                 }
 
-                console.log('✅ Produto encontrado:', productData)
+                // Agora busca os dados da loja separadamente
+                let publicationWithStore: PublicationWithStore = {
+                    ...pubData,
+                    store: null
+                }
 
-                // Busca dados do criador
-                let storeData = null
-                let isFromUser = false
-
-                if (productData.store_id) {
-                    const { data, error } = await supabase
+                if (pubData && pubData.store_id) {
+                    const { data: storeData, error: storeErr } = await supabase
                         .from('stores')
-                        .select('id, name, storeSlug, logo_url, address, business_hours, whatsapp')
-                        .eq('id', productData.store_id)
-                        .single()
+                        .select(`
+                            id,
+                            name,
+                            storeSlug,
+                            logo_url,
+                            owner_id
+                        `)
+                        .eq('id', pubData.store_id)
+                        .maybeSingle()
 
-                    if (!error) {
-                        storeData = data
-                        storeData.logo_url = storeData.logo_url
-                            ? supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
-                            : null
-                    }
-                }
+                    if (!storeErr && storeData) {
+                        // Busca o perfil do dono da loja
+                        let profileData = null
+                        if (storeData.owner_id) {
+                            const { data: profile } = await supabase
+                                .from('profiles')
+                                .select('id, name, avatar_url, profileSlug')
+                                .eq('id', storeData.owner_id)
+                                .maybeSingle()
+                            profileData = profile
+                        }
 
-                if (!storeData && productData.user_id) {
-                    isFromUser = true
-                    const { data, error } = await supabase
-                        .from('profiles')
-                        .select('id, name, profileSlug, avatar_url')
-                        .eq('id', productData.user_id)
-                        .single()
-
-                    if (!error && data) {
-                        storeData = {
-                            id: data.id,
-                            name: data.name || 'Usuário',
-                            storeSlug: data.profileSlug || '#',
-                            logo_url: data.avatar_url
-                                ? supabase.storage.from('avatars').getPublicUrl(data.avatar_url).data.publicUrl
-                                : null,
-                            address: null,
-                            business_hours: null,
-                            whatsapp: null,
+                        publicationWithStore = {
+                            ...pubData,
+                            store: {
+                                ...storeData,
+                                profile: profileData
+                            }
                         }
                     }
                 }
 
-                if (!storeData) {
-                    storeData = {
-                        id: '',
-                        name: 'Desconhecido',
-                        storeSlug: '#',
-                        logo_url: null,
-                        address: null,
-                        business_hours: null,
-                        whatsapp: null,
-                    }
-                }
+                setPublication(publicationWithStore)
 
-                // Incrementa visualização
-                try {
+                // Incrementa contagem de visualizações (opcional)
+                if (pubData?.id) {
                     await supabase
                         .from('products')
-                        .update({ view_count: (productData.view_count || 0) + 1 })
-                        .eq('id', productData.id)
-                } catch (viewErr) {
-                    console.warn('⚠️ Erro ao incrementar visualização:', viewErr)
+                        .update({ view_count: (pubData.view_count || 0) + 1 })
+                        .eq('id', pubData.id)
                 }
-
-                // Gera URLs
-                const imageUrl = productData.image_url
-                    ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
-                    : null
-
-                const videoUrl = productData.video_url
-                    ? supabase.storage.from('product-videos').getPublicUrl(productData.video_url).data.publicUrl
-                    : null
-
-                const mediaUrl = productData.media_type === 'video' && videoUrl ? videoUrl : (imageUrl || videoUrl)
-
-                const formattedPublication: PublicationDetail = {
-                    ...productData,
-                    image_url: mediaUrl,
-                    video_url: videoUrl,
-                    isFromUser,
-                    store: storeData,
-                }
-
-                setPublication(formattedPublication)
-
-                // Busca publicações relacionadas
-                await fetchAllPublications(productData.store_id, productData.user_id)
 
             } catch (err: any) {
-                console.error('❌ Erro ao carregar publicação:', err)
-                setError(err.message || 'Erro ao carregar publicação')
-                toast.error(err.message || 'Erro ao carregar publicação')
+                console.error('Erro ao carregar publicação:', err)
+                setError(err.message || 'Publicação não encontrada')
             } finally {
                 setLoading(false)
             }
         }
 
         fetchPublication()
-    }, [slugParam])
+    }, [slug])
 
-    // ===== BUSCAR PUBLICAÇÕES RELACIONADAS =====
-    const fetchAllPublications = async (storeId?: string | null, userId?: string | null) => {
-        setLoadingList(true)
-        try {
-            let query = supabase
-                .from('products')
-                .select('id, slug, image_url, video_url, media_type, store_id, user_id, name, description, view_count, created_at')
-                .eq('listing_type', 'publication')
-                .eq('is_active', true)
+    // ===== FUNÇÃO PARA IR PARA A LOJA =====
+    const goToStore = () => {
+        if (!publication?.store) return
 
-            if (storeId) {
-                query = query.eq('store_id', storeId)
-            } else if (userId) {
-                query = query.eq('user_id', userId)
-            }
+        // Se a loja tem storeSlug, usa ele
+        if (publication.store.storeSlug) {
+            router.push(`/${publication.store.storeSlug}`)
+            return
+        }
 
-            const { data, error } = await query.order('created_at', { ascending: false }).limit(20)
+        // Se a loja tem um perfil associado, usa o profileSlug
+        if (publication.store.profile?.profileSlug) {
+            router.push(`/${publication.store.profile.profileSlug}`)
+            return
+        }
 
-            if (error) throw error
-
-            const cards: PublicationCard[] = data.map(pub => {
-                let imageUrl = null
-                if (pub.media_type === 'video' && pub.video_url) {
-                    imageUrl = supabase.storage.from('product-videos').getPublicUrl(pub.video_url).data.publicUrl
-                } else if (pub.image_url) {
-                    imageUrl = supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
-                }
-
-                return {
-                    id: pub.id,
-                    slug: pub.slug || pub.id,
-                    imageUrl: imageUrl,
-                    storeName: publication?.store.name || 'Desconhecido',
-                    storeSlug: publication?.store.storeSlug || '#',
-                    storeLogoUrl: publication?.store.logo_url || null,
-                    name: pub.name,
-                    description: pub.description,
-                    view_count: pub.view_count,
-                    created_at: pub.created_at,
-                }
-            })
-
-            setAllPublications(cards.filter(c => c.id !== publication?.id))
-            const index = cards.findIndex(p => p.slug === slugParam)
-            setCurrentIndex(index >= 0 ? index : 0)
-        } catch (error) {
-            console.error('Erro ao buscar lista:', error)
-        } finally {
-            setLoadingList(false)
+        // Fallback: usa o ID da loja
+        if (publication.store.id) {
+            router.push(`/loja/${publication.store.id}`)
         }
     }
 
-    // ===== NAVEGAÇÃO =====
-    const goToPrevious = useCallback(() => {
-        if (currentIndex > 0) {
-            const prev = allPublications[currentIndex - 1]
-            if (prev) {
-                router.push(`/publicacoes/${prev.slug}`)
-            }
-        }
-    }, [currentIndex, allPublications, router])
-
-    const goToNext = useCallback(() => {
-        if (currentIndex < allPublications.length - 1) {
-            const next = allPublications[currentIndex + 1]
-            if (next) {
-                router.push(`/publicacoes/${next.slug}`)
-            }
-        }
-    }, [currentIndex, allPublications, router])
-
-    // ===== KEYBOARD =====
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft') goToPrevious()
-            if (e.key === 'ArrowRight') goToNext()
-            if (e.key === 'Escape') router.back()
-        }
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [goToPrevious, goToNext, router])
-
-    // ===== SWIPE =====
-    useEffect(() => {
-        let touchStartX = 0
-        let touchStartY = 0
-        let isSwiping = false
-
-        const handleTouchStart = (e: TouchEvent) => {
-            touchStartX = e.changedTouches[0].screenX
-            touchStartY = e.changedTouches[0].screenY
-            isSwiping = true
-        }
-
-        const handleTouchMove = (e: TouchEvent) => {
-            if (!isSwiping) return
-            const diffX = Math.abs(e.changedTouches[0].screenX - touchStartX)
-            const diffY = Math.abs(e.changedTouches[0].screenY - touchStartY)
-            if (diffX > diffY && diffX > 10) e.preventDefault()
-        }
-
-        const handleTouchEnd = (e: TouchEvent) => {
-            if (!isSwiping) return
-            isSwiping = false
-            const diffX = touchStartX - e.changedTouches[0].screenX
-            const diffY = Math.abs(touchStartY - e.changedTouches[0].screenY)
-            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 30) {
-                if (diffX > 0) goToNext()
-                else goToPrevious()
+    // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
+    const getStoreDisplayInfo = () => {
+        if (!publication?.store) {
+            return {
+                name: 'Loja desconhecida',
+                imageUrl: null,
+                slug: null
             }
         }
 
-        const container = containerRef.current
-        if (container) {
-            container.addEventListener('touchstart', handleTouchStart, { passive: true })
-            container.addEventListener('touchmove', handleTouchMove, { passive: false })
-            container.addEventListener('touchend', handleTouchEnd, { passive: true })
-            return () => {
-                container.removeEventListener('touchstart', handleTouchStart)
-                container.removeEventListener('touchmove', handleTouchMove)
-                container.removeEventListener('touchend', handleTouchEnd)
+        // Se tem profile, usa os dados do profile (prioridade)
+        if (publication.store.profile) {
+            return {
+                name: publication.store.profile.name || publication.store.name,
+                imageUrl: publication.store.profile.avatar_url || publication.store.logo_url,
+                slug: publication.store.profile.profileSlug || publication.store.storeSlug
             }
         }
-    }, [goToNext, goToPrevious])
 
-    // ===== VÍDEO =====
-    useEffect(() => {
-        if (!videoRef.current) return
-        const video = videoRef.current
-
-        const handleTimeUpdate = () => {
-            if (video.duration) setProgress((video.currentTime / video.duration) * 100)
-        }
-        const handlePlay = () => setIsPlaying(true)
-        const handlePause = () => setIsPlaying(false)
-
-        video.addEventListener('timeupdate', handleTimeUpdate)
-        video.addEventListener('play', handlePlay)
-        video.addEventListener('pause', handlePause)
-
-        video.play().catch(() => setIsPlaying(false))
-
-        return () => {
-            video.removeEventListener('timeupdate', handleTimeUpdate)
-            video.removeEventListener('play', handlePlay)
-            video.removeEventListener('pause', handlePause)
-        }
-    }, [publication?.image_url])
-
-    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!videoRef.current) return
-        const rect = e.currentTarget.getBoundingClientRect()
-        const x = (e.clientX - rect.left) / rect.width
-        videoRef.current.currentTime = x * videoRef.current.duration
-    }
-
-    const toggleFullscreen = () => {
-        if (!containerRef.current) return
-        if (!document.fullscreenElement) {
-            containerRef.current.requestFullscreen()
-            setIsFullscreen(true)
-        } else {
-            document.exitFullscreen()
-            setIsFullscreen(false)
+        // Se não tem profile, usa os dados da loja
+        return {
+            name: publication.store.name,
+            imageUrl: publication.store.logo_url,
+            slug: publication.store.storeSlug
         }
     }
 
-    const handleShare = async () => {
-        setIsSharing(true)
-        try {
-            if (navigator.share) {
-                await navigator.share({
-                    title: publication?.name || 'Publicação',
-                    text: publication?.description || '',
-                    url: window.location.href,
-                })
-            } else {
-                await navigator.clipboard.writeText(window.location.href)
-                toast.success('Link copiado!')
-            }
-        } catch (err) {
-            if (err instanceof Error && err.name !== 'AbortError') {
-                console.error('Erro ao compartilhar:', err)
-            }
-        } finally {
-            setIsSharing(false)
-        }
+    const storeDisplay = getStoreDisplayInfo()
+
+    // ===== URL DA IMAGEM DA LOJA =====
+    const storeImageUrl = storeDisplay.imageUrl
+        ? supabase.storage.from('store-logos').getPublicUrl(storeDisplay.imageUrl).data.publicUrl
+        : null
+
+    // Se não tem imagem no storage, verifica se é uma URL direta (avatar_url pode ser URL completa)
+    const finalStoreImage = storeImageUrl || storeDisplay.imageUrl || null
+
+    if (loading) {
+        return <LoadingSpinner message="Carregando publicação..." background={colors.background} />
     }
 
-    const handleBack = () => router.back()
+    if (error || !publication) {
+        return (
+            <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
+                <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                    <div className="text-6xl">🔍</div>
+                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                        {error || 'Publicação não encontrada'}
+                    </h2>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        A publicação que você está procurando não existe ou foi removida.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                            onClick={() => router.push('/publicacoes')}
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
+                            style={{ background: colors.accent, color: '#fff' }}
+                        >
+                            Ver todas as publicações
+                        </button>
+                        <button
+                            onClick={() => router.push('/')}
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
+                            style={{ background: colors.border, color: colors.textPrimary }}
+                        >
+                            Voltar ao início
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
-    const formattedDate = publication?.created_at
+    const imageUrl = publication.image_url
+        ? supabase.storage.from('product-images').getPublicUrl(publication.image_url).data.publicUrl
+        : null
+
+    const formattedDate = publication.created_at
         ? new Date(publication.created_at).toLocaleDateString('pt-BR', {
             day: 'numeric',
             month: 'long',
@@ -478,333 +267,146 @@ export default function PublicationPage() {
         })
         : ''
 
-    const isVideo = publication?.media_type === 'video' ||
-        publication?.image_url?.match(/\.(mp4|webm|mov|avi|m3u8)$/i) ||
-        publication?.video_url
-
-    if (loading) {
-        return (
-            <div className="relative min-h-dvh bg-black">
-                <div className="flex items-center justify-center min-h-dvh">
-                    <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#f97316' }} />
-                </div>
-            </div>
-        )
-    }
-
-    if (error || !publication) {
-        return (
-            <div className="relative min-h-dvh bg-black">
-                <div className="fixed inset-0 z-0">
-                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
-                </div>
-                <main className="relative z-10 min-h-dvh flex items-center justify-center p-4">
-                    <div className="flex flex-col items-center gap-4 text-center px-4 max-w-lg w-full">
-                        <AlertCircle className="w-16 h-16" style={{ color: '#ef4444' }} />
-                        <h2 className="text-xl font-bold text-white">Publicação não encontrada</h2>
-                        <p className="text-sm text-gray-400">
-                            {error || 'Publicação não encontrada'}
-                            {slugParam && (
-                                <span className="block mt-1 text-xs text-gray-500 font-mono break-all">
-                                    Slug: {slugParam}
-                                </span>
-                            )}
-                        </p>
-
-                        {/* Lista de slugs disponíveis */}
-                        {availableSlugs.length > 0 && (
-                            <div className="w-full mt-2">
-                                <button
-                                    onClick={() => setShowAvailableSlugs(!showAvailableSlugs)}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition hover:bg-white/10"
-                                    style={{ color: colors.accent }}
-                                >
-                                    <List className="w-4 h-4" />
-                                    {showAvailableSlugs ? 'Ocultar' : 'Ver'} publicações disponíveis
-                                </button>
-
-                                {showAvailableSlugs && (
-                                    <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10 max-h-60 overflow-y-auto">
-                                        <p className="text-xs text-gray-400 mb-2">Clique em um slug para acessar:</p>
-                                        <div className="flex flex-col gap-1.5">
-                                            {availableSlugs.map((item) => (
-                                                <button
-                                                    key={item.id}
-                                                    onClick={() => router.push(`/publicacoes/${item.slug}`)}
-                                                    className="text-left px-3 py-2 rounded-lg text-xs hover:bg-white/10 transition flex items-center justify-between"
-                                                >
-                                                    <span className="text-white font-mono">{item.slug}</span>
-                                                    <span className="text-gray-500 text-[10px] truncate max-w-[150px]">
-                                                        {item.name}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-3 mt-2 justify-center">
-                            <button
-                                onClick={() => router.push('/publicacoes-de-lojas')}
-                                className="px-6 py-2.5 rounded-full text-sm font-bold transition hover:scale-105"
-                                style={{ background: GRADIENT, color: '#ffffff' }}
-                            >
-                                Ver publicações
-                            </button>
-                            <button
-                                onClick={handleBack}
-                                className="px-6 py-2.5 rounded-full text-sm font-bold transition hover:scale-105 bg-white/10 text-white border border-white/20"
-                            >
-                                Voltar
-                            </button>
-                        </div>
-                    </div>
-                </main>
-            </div>
-        )
-    }
-
     return (
-        <div className="relative min-h-dvh bg-black">
-            {/* Botão voltar fixo */}
-            <button
-                onClick={handleBack}
-                className="fixed top-4 left-4 z-50 p-2.5 rounded-full bg-black/60 backdrop-blur-sm hover:bg-black/80 transition pointer-events-auto border border-white/10"
-            >
-                <ArrowLeft className="w-5 h-5 text-white" />
-            </button>
+        <div className="relative min-h-dvh" style={{ background: colors.background }}>
+            <div className="fixed inset-0 z-0">
+                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+            </div>
 
-            <div ref={containerRef} className="relative w-full min-h-dvh">
-                {/* Conteúdo principal */}
-                <div className="relative w-full min-h-dvh flex flex-col">
-                    {/* Mídia */}
-                    <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-                        {publication.image_url ? (
-                            isVideo ? (
-                                <video
-                                    ref={videoRef}
-                                    src={publication.image_url}
-                                    className="w-full h-full object-cover"
-                                    loop
-                                    muted={isMuted}
-                                    playsInline
-                                    autoPlay
-                                    key={publication.id}
-                                />
-                            ) : (
+            <main className="relative z-10 min-h-dvh">
+                <Header
+                    title="Publicação"
+                    showBack={true}
+                    onBack={() => router.push('/publicacoes')}
+                    greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
+                    avatarUrl={avatarUrl}
+                    loading={profileLoading}
+                />
+
+                <div className="max-w-4xl mx-auto px-4 py-8">
+                    <div className="rounded-2xl overflow-hidden border" style={{
+                        background: colors.surface,
+                        borderColor: colors.border,
+                    }}>
+                        {/* Imagem */}
+                        {imageUrl ? (
+                            <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
                                 <img
-                                    src={publication.image_url}
-                                    alt={publication.name}
+                                    src={imageUrl}
+                                    alt={publication.name || 'Publicação'}
                                     className="w-full h-full object-cover"
                                 />
-                            )
+                            </div>
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-                                <Store className="w-24 h-24 text-white/20" />
+                            <div className="w-full flex items-center justify-center py-16" style={{
+                                background: `${colors.border}50`
+                            }}>
+                                <Store size={64} style={{ color: colors.textSecondary }} />
                             </div>
                         )}
 
-                        {/* Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-
-                        {/* Controles de vídeo */}
-                        {isVideo && (
-                            <>
-                                <div className="absolute bottom-20 left-0 right-0 px-4 pointer-events-auto">
-                                    <div
-                                        className="w-full h-1 bg-white/30 rounded-full cursor-pointer relative"
-                                        onClick={handleProgressClick}
-                                    >
-                                        <div
-                                            className="h-full rounded-full transition-all"
-                                            style={{ width: `${progress}%`, background: GRADIENT }}
+                        {/* Conteúdo */}
+                        <div className="p-6 space-y-4">
+                            {/* Cabeçalho - CLICÁVEL */}
+                            <div
+                                className="flex items-center gap-3 cursor-pointer group"
+                                onClick={goToStore}
+                            >
+                                {/* Avatar da loja/perfil */}
+                                <div
+                                    className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 transition-all duration-300 group-hover:scale-105"
+                                    style={{
+                                        borderColor: colors.border,
+                                    }}
+                                >
+                                    {finalStoreImage ? (
+                                        <img
+                                            src={finalStoreImage}
+                                            alt={storeDisplay.name}
+                                            className="w-full h-full object-cover"
                                         />
-                                    </div>
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
+                                            <Store size={20} style={{ color: colors.textSecondary }} />
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
-                                    <button
-                                        onClick={() => {
-                                            if (videoRef.current) {
-                                                if (isPlaying) videoRef.current.pause()
-                                                else videoRef.current.play()
-                                            }
-                                        }}
-                                        className="p-3 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 transition"
+                                {/* Nome da loja/perfil */}
+                                <div className="min-w-0 flex-1">
+                                    <h3
+                                        className="font-bold truncate transition-colors duration-300 group-hover:text-opacity-70"
+                                        style={{ color: colors.textPrimary }}
                                     >
-                                        {isPlaying ? (
-                                            <Pause className="w-5 h-5 text-white" />
-                                        ) : (
-                                            <Play className="w-5 h-5 text-white" />
+                                        {storeDisplay.name}
+                                        <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                            →
+                                        </span>
+                                    </h3>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: colors.textSecondary }}>
+                                        <span className="flex items-center gap-1">
+                                            <Calendar size={14} />
+                                            {formattedDate}
+                                        </span>
+                                        {publication.view_count !== null && publication.view_count !== undefined && publication.view_count > 0 && (
+                                            <span className="flex items-center gap-1">
+                                                <Eye size={14} />
+                                                {publication.view_count} visualizações
+                                            </span>
                                         )}
-                                    </button>
-
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => setIsMuted(!isMuted)}
-                                            className="p-3 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 transition"
-                                        >
-                                            {isMuted ? (
-                                                <VolumeX className="w-5 h-5 text-white" />
-                                            ) : (
-                                                <Volume2 className="w-5 h-5 text-white" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={toggleFullscreen}
-                                            className="p-3 rounded-full bg-black/50 backdrop-blur-sm hover:bg-black/70 transition"
-                                        >
-                                            <Maximize className="w-5 h-5 text-white" />
-                                        </button>
                                     </div>
                                 </div>
-                            </>
-                        )}
-                    </div>
 
-                    {/* Informações */}
-                    <div className="flex-1 bg-black px-4 py-6">
-                        <div className="max-w-3xl mx-auto w-full">
-                            {/* Título */}
-                            <h1 className="text-2xl font-bold text-white mb-2">
-                                {publication.name}
-                            </h1>
-
-                            {/* Meta informações */}
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-white/50 mb-4">
-                                <span className="flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4" />
-                                    {formattedDate}
-                                </span>
-                                <span className="flex items-center gap-1.5">
-                                    <Eye className="w-4 h-4" />
-                                    {publication.view_count || 0} visualizações
-                                </span>
-                                {publication.category && (
-                                    <span className="flex items-center gap-1.5">
-                                        <Tag className="w-4 h-4" />
-                                        {publication.category}
-                                    </span>
-                                )}
+                                {/* Ícone de redirecionamento */}
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                    <User size={18} style={{ color: colors.accent }} />
+                                </div>
                             </div>
+
+                            {/* Título */}
+                            <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                                {publication.name || 'Sem título'}
+                            </h1>
 
                             {/* Descrição */}
                             {publication.description && (
-                                <p className="text-white/80 text-base leading-relaxed mb-6">
-                                    {publication.description}
-                                </p>
+                                <div className="p-4 rounded-xl" style={{ background: `${colors.border}30` }}>
+                                    <p style={{ color: colors.textSecondary, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                                        {publication.description}
+                                    </p>
+                                </div>
                             )}
 
-                            {/* Criador */}
-                            <div className="flex items-center gap-3 p-4 rounded-xl mb-6"
-                                style={{
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                }}
-                            >
-                                <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-white/20">
-                                    {publication.store.logo_url ? (
-                                        <img src={publication.store.logo_url} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-white/10">
-                                            {publication.isFromUser ? (
-                                                <User size={24} className="text-white/40" />
-                                            ) : (
-                                                <Store size={24} className="text-white/40" />
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                                <div>
-                                    <p className="text-white font-medium">
-                                        {publication.store.name}
-                                        {publication.isFromUser && (
-                                            <span className="text-xs text-white/40 ml-1">• Usuário</span>
-                                        )}
-                                    </p>
-                                    {publication.store.address && (
-                                        <p className="text-xs text-white/40 flex items-center gap-1">
-                                            <MapPin className="w-3 h-3" />
-                                            {publication.store.address}
-                                        </p>
-                                    )}
-                                </div>
+                            {/* Botões de ação */}
+                            <div className="pt-4 flex flex-wrap gap-3">
                                 <button
-                                    onClick={() => {
-                                        if (publication.store.whatsapp) {
-                                            window.open(`https://wa.me/${publication.store.whatsapp.replace(/\D/g, '')}`, '_blank')
-                                        }
-                                    }}
-                                    className="ml-auto px-4 py-2 rounded-full text-xs font-bold text-white transition hover:scale-105"
+                                    onClick={() => router.push('/publicacoes')}
+                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
                                     style={{
-                                        background: '#25D366',
+                                        background: colors.border,
+                                        color: colors.textPrimary,
                                     }}
                                 >
-                                    WhatsApp
+                                    <ArrowLeft size={18} />
+                                    Voltar para publicações
+                                </button>
+
+                                <button
+                                    onClick={goToStore}
+                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
+                                    style={{
+                                        background: colors.accent,
+                                        color: '#fff',
+                                    }}
+                                >
+                                    <Store size={18} />
+                                    Visitar {storeDisplay.name}
                                 </button>
                             </div>
-
-                            {/* Botão do cartaz */}
-                            {publication.button_data && (
-                                <div className="mb-6">
-                                    <button
-                                        className="w-full py-3 rounded-xl text-sm font-bold text-white shadow-lg transition hover:scale-[1.02]"
-                                        style={{
-                                            backgroundColor: publication.button_data.color || '#f97316',
-                                        }}
-                                        onClick={() => {
-                                            if (publication.button_data.link) {
-                                                window.open(publication.button_data.link, '_blank')
-                                            }
-                                        }}
-                                    >
-                                        {publication.button_data.text || 'Saiba Mais'}
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Publicações relacionadas */}
-                            {allPublications.length > 0 && (
-                                <div className="mt-8">
-                                    <h3 className="text-white font-bold text-lg mb-4">
-                                        Publicações relacionadas
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {allPublications.slice(0, 4).map((pub) => (
-                                            <div
-                                                key={pub.id}
-                                                onClick={() => router.push(`/publicacoes/${pub.slug}`)}
-                                                className="rounded-xl overflow-hidden cursor-pointer group relative"
-                                                style={{ aspectRatio: '4/3' }}
-                                            >
-                                                {pub.imageUrl ? (
-                                                    <img
-                                                        src={pub.imageUrl}
-                                                        alt={pub.name}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-white/5">
-                                                        <Store className="w-8 h-8 text-white/20" />
-                                                    </div>
-                                                )}
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
-                                                <div className="absolute bottom-2 left-2 right-2">
-                                                    <p className="text-white text-xs font-medium truncate">
-                                                        {pub.name || 'Publicação'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     )
 }

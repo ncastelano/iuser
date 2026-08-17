@@ -11,7 +11,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import SacolaButton from '@/app/ButtonSacola'
 import { useCartStore } from '@/store/useCartStore'
-import { User, Store as StoreIcon, LayoutDashboard, Home, Newspaper } from 'lucide-react'
+import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
 import type { Tab } from '@/app/Header'
 import ProfileDashboard from '../ProfileDashboard'
 import StoreDashboard from '../StoreDashboard'
@@ -302,12 +302,6 @@ export default function OwnerPage() {
         setShowPublications(false)
     }
 
-    const handleShowPublications = () => {
-        setShowPublications(true)
-        setShowProfile(false)
-        setShowStoreDashboard(null)
-    }
-
     const showMainContent = () => {
         setShowProfile(false)
         setShowStoreDashboard(null)
@@ -566,33 +560,6 @@ export default function OwnerPage() {
                             />
                         )}
                     </>
-                )}
-
-                {/* ===== BOTÃO FLUTUANTE DE PUBLICAÇÕES ===== */}
-                {!showProfile && !showStoreDashboard && !showPublications && (
-                    <div style={{
-                        position: 'fixed',
-                        bottom: 100,
-                        right: 24,
-                        zIndex: 998
-                    }}>
-                        <button
-                            onClick={handleShowPublications}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #f97316',
-                                borderLeft: '2px solid #f97316',
-                                boxShadow: `0 8px 24px #f9731660`,
-                            }}
-                            aria-label="Ver publicações"
-                        >
-                            <Newspaper size={24} />
-                        </button>
-                    </div>
                 )}
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}

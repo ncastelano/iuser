@@ -47,6 +47,16 @@ export default function SacolaButton({
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+    // ===== FUNÇÃO PARA FORMATAR VALOR =====
+    const formatCurrency = (value: number): string => {
+        return value.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })
+    }
+
     return (
         <div style={{ position: 'relative', width: 56, height: 56, display: 'inline-flex' }}>
             <button
@@ -76,19 +86,19 @@ export default function SacolaButton({
                             left: '50%',
                             transform: 'translateX(-50%)',
                             display: 'flex',
-                            gap: 2,
+                            gap: 4,
                             alignItems: 'center',
                             justifyContent: 'center',
                             width: 'auto',
                             maxWidth: 'calc(100% + 16px)',
                         }}
                     >
-                        {/* Badge - Quantidade (REDONDO) */}
+                        {/* Badge - Quantidade (PILLS) */}
                         <span
                             style={{
-                                minWidth: 22,
-                                height: 22,
-                                borderRadius: '50%',
+                                minWidth: 20,
+                                height: 20,
+                                borderRadius: '9999px', // PILLS
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -103,20 +113,21 @@ export default function SacolaButton({
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                                 transform: animate ? 'scale(1.3)' : 'scale(1)',
                                 transition: 'transform 0.2s ease',
-                                padding: '0 6px',
+                                padding: '0 8px',
                                 flexShrink: 0,
+                                lineHeight: 1,
                             }}
                         >
                             {totalItems}
                         </span>
 
-                        {/* Badge - Valor Total (REDONDO) */}
+                        {/* Badge - Valor Total (PILLS) */}
                         {totalValue && totalValue > 0 && (
                             <span
                                 style={{
-                                    minWidth: 22,
-                                    height: 22,
-                                    borderRadius: '50%',
+                                    minWidth: 20,
+                                    height: 20,
+                                    borderRadius: '9999px', // PILLS
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -129,7 +140,7 @@ export default function SacolaButton({
                                     borderBottom: '2px solid #ffffff',
                                     borderLeft: '2px solid #ffffff',
                                     boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                    padding: '0 6px',
+                                    padding: '0 8px',
                                     lineHeight: 1,
                                     transform: animate ? 'scale(1.2)' : 'scale(1)',
                                     transition: 'transform 0.2s ease 0.1s',
@@ -137,14 +148,14 @@ export default function SacolaButton({
                                     flexShrink: 0,
                                 }}
                             >
-                                R${totalValue.toFixed(0)}
+                                {formatCurrency(totalValue)}
                             </span>
                         )}
                     </div>
                 )}
             </button>
 
-            {/* Badges de status posicionados absolutamente abaixo do botão */}
+            {/* Badges de status posicionados abaixo do botão - PILLS */}
             {showStatus && (
                 <div
                     style={{
@@ -162,8 +173,8 @@ export default function SacolaButton({
                         <span style={{
                             background: '#3b82f6',
                             color: 'white',
-                            borderRadius: 999,
-                            padding: '2px 8px',
+                            borderRadius: '9999px', // PILLS
+                            padding: '2px 10px',
                             fontSize: 10,
                             fontWeight: 700,
                             display: 'flex',
@@ -183,8 +194,8 @@ export default function SacolaButton({
                         <span style={{
                             background: '#eab308',
                             color: 'white',
-                            borderRadius: 999,
-                            padding: '2px 8px',
+                            borderRadius: '9999px', // PILLS
+                            padding: '2px 10px',
                             fontSize: 10,
                             fontWeight: 700,
                             display: 'flex',
@@ -204,8 +215,8 @@ export default function SacolaButton({
                         <span style={{
                             background: '#a855f7',
                             color: 'white',
-                            borderRadius: 999,
-                            padding: '2px 8px',
+                            borderRadius: '9999px', // PILLS
+                            padding: '2px 10px',
                             fontSize: 10,
                             fontWeight: 700,
                             display: 'flex',
@@ -225,8 +236,8 @@ export default function SacolaButton({
                         <span style={{
                             background: '#000000ff',
                             color: '#ffffff',
-                            borderRadius: 999,
-                            padding: '2px 8px',
+                            borderRadius: '9999px', // PILLS
+                            padding: '2px 10px',
                             fontSize: 10,
                             fontWeight: 700,
                             display: 'flex',

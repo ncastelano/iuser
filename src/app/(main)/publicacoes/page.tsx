@@ -1,4 +1,4 @@
-// app/(main)/publicacoes-de-lojas/page.tsx
+// app/(main)/publicacoes/page.tsx
 'use client'
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
@@ -427,7 +427,7 @@ export default function AllPublicationsPage() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title="Publicações em destaque"
+                    title="Todas publicações"
                     showBack={true}
                     onBack={() => router.push('/')}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}

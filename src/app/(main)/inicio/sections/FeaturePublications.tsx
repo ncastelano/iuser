@@ -1,5 +1,4 @@
 // components/FeaturedPublications.tsx
-
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
@@ -235,32 +234,20 @@ export default function FeaturedPublications({
                 : itemsPerView >= 3 ? 'grid-cols-3'
                     : 'grid-cols-2'
 
-    // ===== HANDLE CLICK - VAI PARA /publicacoes/{slug} =====
-    // ===== HANDLE PUBLICATION CLICK - VAI PARA /publicacoes/{slug} =====
+    // ===== HANDLE CLICK - VAI PARA /publicacoes/[slug] =====
     const handlePublicationClick = (pub: PublicationCard) => {
-        // Busca o slug da publicação
-        const publicationSlug = pub.id // fallback: usa o ID se não tiver slug
-
-        // Tenta buscar o slug real da publicação
-        const fetchSlug = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('products')
-                    .select('slug')
-                    .eq('id', pub.id)
-                    .single()
-
-                if (!error && data?.slug) {
-                    router.push(`/publicacoes/${data.slug}`)
-                } else {
-                    router.push(`/publicacoes/${pub.id}`)
-                }
-            } catch {
-                router.push(`/publicacoes/${pub.id}`)
-            }
+        // Navega diretamente para a página da publicação usando o slug
+        if (pub.slug) {
+            router.push(`/publicacoes/${pub.slug}`)
+        } else {
+            // Fallback para ID se não tiver slug
+            router.push(`/publicacoes/${pub.id}`)
         }
+    }
 
-        fetchSlug()
+    // ===== HANDLE "VER TODOS" - VAI PARA /publicacoes =====
+    const handleViewAll = () => {
+        router.push('/publicacoes')
     }
 
     // ===== LOADING =====
@@ -316,7 +303,7 @@ export default function FeaturedPublications({
                 {/* Botão "Ver todos" - vai para a lista de publicações */}
                 {hasPublications && (
                     <button
-                        onClick={() => router.push('/publicacoes')}
+                        onClick={handleViewAll}
                         className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
                         style={{
                             background: GRADIENT,

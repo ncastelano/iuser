@@ -18,12 +18,14 @@ const IGNORED_ROUTES = [
     '/404',
     '/500',
     '/lojas-em-destaque',
+    '/publicacoes', // <-- ADICIONADO: Rota de lista de publicações
 ]
 
 // ===== PREFIXOS IGNORADOS =====
 const IGNORED_PREFIXES = [
     '/_next',
     '/api',
+    '/publicacoes/', // <-- ADICIONADO: Todas as rotas que começam com /publicacoes/
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
