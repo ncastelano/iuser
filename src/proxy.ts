@@ -18,14 +18,12 @@ const IGNORED_ROUTES = [
     '/404',
     '/500',
     '/lojas-em-destaque',
-    '/publicacoes', // <-- ADICIONADO: Rota de lista de publicações
 ]
 
 // ===== PREFIXOS IGNORADOS =====
 const IGNORED_PREFIXES = [
     '/_next',
     '/api',
-    '/publicacoes/', // <-- ADICIONADO: Todas as rotas que começam com /publicacoes/
 ]
 
 // ===== EXTENSÕES IGNORADAS =====
@@ -68,6 +66,16 @@ const PROFILE_ROUTES = [
     '/configuracoes',
     '/pedidos',
     '/avaliacoes',
+]
+
+// ===== ROTAS PÚBLICAS ESPECIAIS (NÃO SÃO PERFIS/LOJAS) =====
+const PUBLIC_ROUTES = [
+    '/publicacoes',  // Rota de listagem de publicações
+]
+
+// ===== PREFIXOS DE ROTAS PÚBLICAS =====
+const PUBLIC_ROUTE_PREFIXES = [
+    '/publicacoes/',  // Todas as rotas que começam com /publicacoes/
 ]
 
 // ===== CACHE EM MEMÓRIA =====
@@ -118,7 +126,22 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // --- 5. ROTA ESPECIAL: /lojas/[categoria] ---
+    // --- 5. VERIFICAR ROTAS PÚBLICAS PRIMEIRO ---
+    // Isso evita que /publicacoes/seja-interpretado como perfil/loja
+
+    // Rota exata pública
+    if (PUBLIC_ROUTES.includes(pathname)) {
+        console.log(`[Proxy] Rota pública: ${pathname} ✅`)
+        return NextResponse.next()
+    }
+
+    // Prefixo de rota pública
+    if (PUBLIC_ROUTE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+        console.log(`[Proxy] Rota pública com prefixo: ${pathname} ✅`)
+        return NextResponse.next()
+    }
+
+    // --- 6. ROTA ESPECIAL: /lojas/[categoria] ---
     if (segments[0] === 'lojas') {
         if (segments.length >= 2) {
             const categoriaSlug = segments[1]
@@ -139,7 +162,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // --- 6. ROTA COM 2+ SEGMENTOS: /{profileSlug}/{productSlug} ---
+    // --- 7. ROTA COM 2+ SEGMENTOS: /{ownerSlug}/{productSlug} ---
     if (segments.length >= 2) {
         const firstSegment = segments[0]
         const secondSegment = segments[1]
@@ -167,8 +190,6 @@ export async function proxy(request: NextRequest) {
         }
 
         if (isProfile) {
-            // Se o primeiro segmento é um perfil, permite a rota
-            // Isso cobre /{profileSlug}/{productSlug}, /{profileSlug}/editar-perfil, etc.
             console.log(`[Proxy] Perfil ${firstSegment} encontrado, permitindo rota: ${pathname} ✅`)
             return NextResponse.next()
         }
@@ -206,9 +227,16 @@ export async function proxy(request: NextRequest) {
             console.log(`[Proxy] Loja ${firstSegment} encontrada, permitindo rota: ${pathname} ✅`)
             return NextResponse.next()
         }
+
+        // --- VERIFICA SE É UMA ROTA DE PUBLICAÇÃO ---
+        // Se o primeiro segmento é "publicacoes", permite
+        if (firstSegment === 'publicacoes') {
+            console.log(`[Proxy] Rota de publicação: ${pathname} ✅`)
+            return NextResponse.next()
+        }
     }
 
-    // --- 7. ROTA COM 1 SEGMENTO: /{slug} ---
+    // --- 8. ROTA COM 1 SEGMENTO: /{slug} ---
     if (segments.length === 1) {
         const slug = segments[0]
 
@@ -258,16 +286,22 @@ export async function proxy(request: NextRequest) {
             return NextResponse.next()
         }
 
+        // Verifica se é "publicacoes"
+        if (slug === 'publicacoes') {
+            console.log(`[Proxy] ${slug} é rota de publicações ✅`)
+            return NextResponse.next()
+        }
+
         console.log(`[Proxy] ${slug} não encontrado ❌`)
     }
 
-    // --- 8. Modo desenvolvimento ---
+    // --- 9. Modo desenvolvimento ---
     if (process.env.NODE_ENV === 'development') {
         console.log(`[Proxy] Modo desenvolvimento: permitindo ${pathname}`)
         return NextResponse.next()
     }
 
-    // --- 9. Se não encontrou, redireciona para 404 ---
+    // --- 10. Se não encontrou, redireciona para 404 ---
     console.log(`[Proxy] Redirecionando para 404: ${pathname}`)
     const notFoundUrl = request.nextUrl.clone()
     notFoundUrl.pathname = '/404'
