@@ -29,6 +29,7 @@ import {
     Trash2,
     AlertCircle,
     Info,
+    Share2,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
@@ -37,6 +38,7 @@ import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '../StoreSchedule'
+import { handleShareLink } from '@/lib/share'
 
 interface StoreProps {
     ownerSlug: string
@@ -154,6 +156,7 @@ export function Store({
         return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
     }
     const surfaceRgb = hexToRgb(colors.surface)
+    const glassBg = 'rgba(255, 255, 255, 0.08)'
 
     const cardStyle = {
         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
@@ -1080,6 +1083,22 @@ export function Store({
                             WhatsApp
                         </a>
                     )}
+
+                    <button
+                        onClick={() => handleShareLink({
+                            title: owner.name,
+                            text: owner.description || `Confira a loja ${owner.name} no iUser!`
+                        })}
+                        className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
+                        style={{
+                            background: glassBg,
+                            color: colors.textPrimary,
+                            border: `1px solid ${colors.border}`,
+                        }}
+                    >
+                        <Share2 className="w-4 h-4" />
+                        <span>Compartilhar</span>
+                    </button>
                 </div>
 
                 {!isStoreOpen && (

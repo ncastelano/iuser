@@ -26,12 +26,14 @@ import {
 
     Trash2,
     Eye,
+    Share2,
 } from 'lucide-react'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { isProfileOpenNow, getProfileStatusText } from '@/lib/profileHours'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
+import { handleShareLink } from '@/lib/share'
 
 interface ProfileProps {
     ownerSlug: string
@@ -627,6 +629,22 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             WhatsApp
                         </a>
                     )}
+
+                    <button
+                        onClick={() => handleShareLink({
+                            title: owner.name,
+                            text: owner.description || `Confira o perfil de ${owner.name} no iUser!`
+                        })}
+                        className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
+                        style={{
+                            background: glassBg,
+                            color: colors.textPrimary,
+                            border: `1px solid ${colors.border}`,
+                        }}
+                    >
+                        <Share2 className="w-4 h-4" />
+                        <span>Compartilhar</span>
+                    </button>
 
                     {isOwner && (
                         <button
