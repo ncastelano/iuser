@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { useTheme } from '@/app/theme'
@@ -60,6 +60,7 @@ export interface StoreInfo {
 export default function OwnerClientPage() {
     const params = useParams()
     const router = useRouter()
+    const pathname = usePathname()
     const { colors } = useTheme()
     const {
         bgMode,
@@ -321,7 +322,7 @@ export default function OwnerClientPage() {
                     if (isLoggedIn) {
                         handleProfileClick()
                     } else {
-                        router.push('/login')
+                        router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
                     }
                 },
                 isActive: showProfile || (!isLoggedIn && !loggedUserSlug),

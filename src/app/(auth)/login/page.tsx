@@ -60,7 +60,8 @@ function LoginContent() {
         }
       }
 
-      router.push('/')
+      const redirectTo = searchParams.get('redirect') || '/'
+      router.push(redirectTo)
     } catch (err: any) {
       setError(err.message)
     } finally {
