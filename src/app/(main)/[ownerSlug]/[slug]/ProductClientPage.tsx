@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     Star,
@@ -19,6 +19,8 @@ import {
     Store,
     Calendar,
     User,
+    Plus,
+    Minus,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
@@ -27,6 +29,9 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
 import { handleShareLink } from '@/lib/share'
+import { useCartStore } from '@/store/useCartStore'
+import SacolaButton from '@/app/ButtonSacola'
+import { toast } from 'sonner'
 
 // ===== GRADIENTE =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -170,6 +175,7 @@ const formatDate = (date: string) => {
 function ProductLoading() {
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+    const router = useRouter()
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -180,7 +186,7 @@ function ProductLoading() {
                 <Header
                     title="Produto"
                     showBack={true}
-                    onBack={() => window.history.back()}
+                    onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
@@ -222,6 +228,85 @@ export default function ProductClientPage() {
 
     const ownerSlugParam = params.ownerSlug as string
     const slug = params.slug as string
+
+    // ===== CARRINHO DE COMPRAS =====
+    const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
+
+    const storeKey = ownerSlugParam || (data?.ownerSlug || '')
+    const storeCartItems = useMemo(() => {
+        if (!storeKey) return []
+        return itemsByStore[storeKey] || []
+    }, [itemsByStore, storeKey])
+
+    const currentCartItem = useMemo(() => {
+        if (!data?.product?.id) return null
+        return storeCartItems.find((item) => item.product.id === data.product.id)
+    }, [data?.product?.id, storeCartItems])
+
+    const quantityInCart = currentCartItem ? currentCartItem.quantity : 0
+
+    const totalCartQuantity = useMemo(() => {
+        return storeCartItems.reduce((sum, item) => sum + item.quantity, 0)
+    }, [storeCartItems])
+
+    const totalCartValue = useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                const price = item.product?.price || 0
+                const quantity = item.quantity || 1
+                total += Number(price) * quantity
+            })
+        })
+        return total
+    }, [itemsByStore])
+
+    const handleAddToCart = () => {
+        if (!data) return
+        const storeDetails = {
+            name: data.ownerName,
+            logo_url: data.ownerAvatar,
+        }
+        const cartProduct = {
+            id: data.product.id,
+            name: data.product.name,
+            price: data.product.price || 0,
+            image_url: data.product.image_url ? getPublicUrl('product-images', data.product.image_url) : null,
+            slug: data.product.slug,
+            description: data.product.description || undefined,
+            category: data.product.category || undefined,
+        }
+        addItem(storeKey, storeDetails, cartProduct as any)
+        toast.success('Produto adicionado à sacola!')
+    }
+
+    const handleIncreaseQuantity = () => {
+        if (!data) return
+        const storeDetails = {
+            name: data.ownerName,
+            logo_url: data.ownerAvatar,
+        }
+        const cartProduct = {
+            id: data.product.id,
+            name: data.product.name,
+            price: data.product.price || 0,
+            image_url: data.product.image_url ? getPublicUrl('product-images', data.product.image_url) : null,
+            slug: data.product.slug,
+            description: data.product.description || undefined,
+            category: data.product.category || undefined,
+        }
+        addItem(storeKey, storeDetails, cartProduct as any)
+    }
+
+    const handleDecreaseQuantity = () => {
+        if (!data) return
+        if (quantityInCart <= 1) {
+            removeItem(storeKey, data.product.id)
+            toast.info('Produto removido da sacola.')
+        } else {
+            updateQuantity(storeKey, data.product.id, -1)
+        }
+    }
 
     useEffect(() => {
         const fetchProductData = async () => {
@@ -388,7 +473,7 @@ export default function ProductClientPage() {
                     <Header
                         title="Produto"
                         showBack={true}
-                        onBack={() => router.push('/')}
+                        onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
                         greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                         avatarUrl={avatarUrl}
                         loading={profileLoading}
@@ -400,7 +485,7 @@ export default function ProductClientPage() {
                                 {error || 'Produto não encontrado'}
                             </h2>
                             <button
-                                onClick={() => router.back()}
+                                onClick={() => router.back()} // ← CORRIGIDO: volta para página anterior
                                 className="mt-4 px-6 py-2 rounded-lg font-bold transition-all hover:scale-105"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                             >
@@ -469,7 +554,7 @@ export default function ProductClientPage() {
                 <Header
                     title={product.name}
                     showBack={true}
-                    onBack={() => router.push('/')}
+                    onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
@@ -669,13 +754,41 @@ export default function ProductClientPage() {
 
                             {/* Action Buttons */}
                             <div className="flex flex-wrap gap-3 pt-2">
-                                <button
-                                    className="flex-1 min-w-[140px] px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                >
-                                    <ShoppingBag size={20} />
-                                    Comprar
-                                </button>
+                                {quantityInCart === 0 ? (
+                                    <button
+                                        onClick={handleAddToCart}
+                                        className="flex-1 min-w-[160px] px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                    >
+                                        <ShoppingBag size={20} />
+                                        Adicionar à Sacola
+                                    </button>
+                                ) : (
+                                    <div className="flex-1 min-w-[180px] flex items-center justify-between p-1.5 rounded-xl border shadow-lg" style={{ background: colors.surface, borderColor: '#f97316' }}>
+                                        <button
+                                            onClick={handleDecreaseQuantity}
+                                            className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg shadow transition hover:scale-105 active:scale-95"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                            title="Diminuir quantidade"
+                                        >
+                                            <Minus size={18} />
+                                        </button>
+
+                                        <div className="flex flex-col items-center px-4">
+                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-75" style={{ color: colors.textSecondary }}>Na Sacola</span>
+                                            <span className="text-xl font-black" style={{ color: '#f97316' }}>{quantityInCart}</span>
+                                        </div>
+
+                                        <button
+                                            onClick={handleIncreaseQuantity}
+                                            className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg shadow transition hover:scale-105 active:scale-95"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                            title="Aumentar quantidade"
+                                        >
+                                            <Plus size={18} />
+                                        </button>
+                                    </div>
+                                )}
                                 <button
                                     className="px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                                     style={{
@@ -789,6 +902,17 @@ export default function ProductClientPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Floating Sacola Button */}
+                {totalCartQuantity > 0 && (
+                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                        <SacolaButton
+                            totalItems={totalCartQuantity}
+                            totalValue={totalCartValue}
+                            animate={true}
+                        />
+                    </div>
+                )}
             </main>
         </div>
     )

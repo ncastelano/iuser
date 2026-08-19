@@ -1262,7 +1262,11 @@ export function Store({
 
                                             const handleProductInteraction = (e: React.MouseEvent) => {
                                                 e.stopPropagation()
-                                                handleProductClick(product, e)
+                                                if (productIsDisabled) {
+                                                    handleProductClick(product, e)
+                                                } else {
+                                                    increaseQuantity(product)
+                                                }
                                             }
 
                                             if (!hasImage) {

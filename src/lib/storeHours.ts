@@ -72,7 +72,7 @@ function getOpenIntervals(dayConfig: DayConfig): { start: number; end: number }[
 // ---------- funções originais (mantidas) ----------
 
 export function isStoreOpenNow(businessHours: BusinessHours | null | undefined): boolean {
-    if (!businessHours?.weekly) return false
+    if (!businessHours?.weekly || Object.keys(businessHours.weekly).length === 0) return true
 
     const now = new Date()
     const todayStr = toLocalDateString(now)
@@ -166,8 +166,8 @@ export function getStoreStatusWithLunch(businessHours: BusinessHours | null | un
     text: string
     isLunchTime?: boolean
 } {
-    if (!businessHours?.weekly) {
-        return { isOpen: false, text: 'Horário não definido' }
+    if (!businessHours?.weekly || Object.keys(businessHours.weekly).length === 0) {
+        return { isOpen: true, text: 'Aberto' }
     }
 
     const now = new Date()
