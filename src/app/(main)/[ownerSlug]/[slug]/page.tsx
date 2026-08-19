@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import { supabase } from '@/lib/supabase/client'
-import { notFound } from 'next/navigation'
 
 // ===== INTERFACES =====
 interface ProfileData {
@@ -30,17 +29,6 @@ interface StoreData {
     created_at: string
 }
 
-interface ProductData {
-    id: string
-    name: string
-    slug: string
-    description: string | null
-    price: number | null
-    image_url: string | null
-    listing_type: string
-    created_at: string
-}
-
 // ===== FUNÇÕES AUXILIARES =====
 function getAvatarUrl(avatarPath: string | null): string | null {
     if (!avatarPath) return null
@@ -67,19 +55,6 @@ function getPublicUrl(bucket: string, path: string | null): string | null {
     } catch {
         return null
     }
-}
-
-const formatPrice = (price: number | null) => {
-    if (price == null) return 'Preço sob consulta'
-    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-
-const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    })
 }
 
 // ===== METADADOS DINÂMICOS =====
@@ -194,7 +169,7 @@ export async function generateMetadata({ params }: { params: { ownerSlug: string
     }
 }
 
-// ===== COMPONENTE PRINCIPAL =====
+// ===== COMPONENTE PRINCIPAL (CLIENT) =====
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -213,16 +188,37 @@ import {
     Globe,
     Calendar,
     Package,
-    ShoppingBag,
-    Heart,
-    Share2,
-    Eye,
-    Star,
 } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-// Componente de Loading
+// ===== TIPOS PARA O CLIENT =====
+interface ProductData {
+    id: string
+    name: string
+    slug: string
+    description: string | null
+    price: number | null
+    image_url: string | null
+    listing_type: string
+    created_at: string
+}
+
+// ===== FUNÇÕES AUXILIARES DO CLIENT =====
+const formatPrice = (price: number | null) => {
+    if (price == null) return 'Preço sob consulta'
+    return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    })
+}
+
+// ===== COMPONENTE DE LOADING =====
 function OwnerLoading() {
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
@@ -258,14 +254,14 @@ function OwnerLoading() {
     )
 }
 
-// Componente Principal
+// ===== COMPONENTE PRINCIPAL =====
 export default function OwnerPage({ params }: { params: { ownerSlug: string } }) {
     const router = useRouter()
     const { colors } = useTheme()
     const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
 
-    const [profile, setProfile] = useState<ProfileData | null>(null)
-    const [store, setStore] = useState<StoreData | null>(null)
+    const [profile, setProfile] = useState<any>(null)
+    const [store, setStore] = useState<any>(null)
     const [products, setProducts] = useState<ProductData[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -290,7 +286,6 @@ export default function OwnerPage({ params }: { params: { ownerSlug: string } })
                     setIsProfile(true)
                     setProfile(profileData)
 
-                    // Buscar produtos do perfil
                     const { data: productsData } = await supabase
                         .from('products')
                         .select('*')
@@ -305,7 +300,7 @@ export default function OwnerPage({ params }: { params: { ownerSlug: string } })
                     return
                 }
 
-                // 2. Se não encontrou perfil, buscar loja
+                // 2. Buscar loja
                 const { data: storeData, error: storeErr } = await supabase
                     .from('stores')
                     .select('*')
@@ -316,7 +311,6 @@ export default function OwnerPage({ params }: { params: { ownerSlug: string } })
                     setIsProfile(false)
                     setStore(storeData)
 
-                    // Buscar produtos da loja
                     const { data: productsData } = await supabase
                         .from('products')
                         .select('*')
@@ -330,7 +324,6 @@ export default function OwnerPage({ params }: { params: { ownerSlug: string } })
                     return
                 }
 
-                // 3. Não encontrou nada
                 setError('Perfil ou loja não encontrado')
 
             } catch (error) {
@@ -567,7 +560,7 @@ export default function OwnerPage({ params }: { params: { ownerSlug: string } })
                                                 border: `1px solid ${colors.border}`
                                             }}
                                         >
-                                            <div className="aspect-square rounded-lg overflow-hidden mb-3" style={{ background: colors.background }}>
+                                            <div className="aspect-square rounded-lg overflow-hidden mb-3 relative" style={{ background: colors.background }}>
                                                 {productImage ? (
                                                     <img
                                                         src={productImage}
