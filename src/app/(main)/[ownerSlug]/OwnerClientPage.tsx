@@ -24,6 +24,9 @@ type OwnerType = 'profile' | 'store'
 // GRADIENTE FIXO
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// GRADIENTE ROXO (para o botão "Compra Simples")
+const PURPLE_GRADIENT = 'linear-gradient(135deg, #4c1d95, #7c3aed)'
+
 // ---------- Funções de horário ----------
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
@@ -105,6 +108,11 @@ export default function OwnerClientPage() {
         setShowProfile(false)
         setShowStoreDashboard(null)
     }, [publicationsStore])
+
+    // ========== FUNÇÃO PARA ABRIR CATÁLOGO ==========
+    const handleOpenCatalogo = useCallback(() => {
+        router.push(`/${ownerSlug}/catalogo`)
+    }, [ownerSlug, router])
 
     // ========== DETECTAR OWNER ==========
     const detectOwnerType = async (slug: string) => {
@@ -564,36 +572,57 @@ export default function OwnerClientPage() {
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
                 {!showProfile && !showStoreDashboard && !showPublications && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                        <SacolaButton
-                            totalItems={totalCartQuantity}
-                            totalValue={totalCartValue}
-                            statusCounts={{
-                                pending: pendingCount,
-                                preparing: preparingCount,
-                                ready: readyCount,
-                                reviews: pendingReviewsCount,
-                            }}
-                            animate={cartAnimating}
-                        />
+                    <>
+                        {/* Botão "Compra Simples" - lado esquerdo */}
+                        {ownerType === 'store' && (
+                            <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
+                                <button
+                                    onClick={handleOpenCatalogo}
+                                    className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] active:scale-95"
+                                    style={{
+                                        background: PURPLE_GRADIENT,
+                                        boxShadow: '0 8px 24px rgba(76, 29, 149, 0.5)',
+                                        border: '2px solid rgba(124, 58, 237, 0.3)',
+                                    }}
+                                    aria-label="Compra Simples"
+                                >
+                                    <span className="text-sm font-bold tracking-wide">Compra Simples</span>
+                                </button>
+                            </div>
+                        )}
 
-                        <button
-                            onClick={() => router.push('/')}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #f97316',
-                                borderLeft: '2px solid #f97316',
-                                boxShadow: `0 8px 24px #f9731660`,
-                            }}
-                            aria-label="Voltar ao início"
-                        >
-                            <Home size={24} />
-                        </button>
-                    </div>
+                        {/* Botões do lado direito */}
+                        <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                            <SacolaButton
+                                totalItems={totalCartQuantity}
+                                totalValue={totalCartValue}
+                                statusCounts={{
+                                    pending: pendingCount,
+                                    preparing: preparingCount,
+                                    ready: readyCount,
+                                    reviews: pendingReviewsCount,
+                                }}
+                                animate={cartAnimating}
+                            />
+
+                            <button
+                                onClick={() => router.push('/')}
+                                className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    borderTop: '2px solid #f97316',
+                                    borderRight: '2px solid #f97316',
+                                    borderBottom: '2px solid #f97316',
+                                    borderLeft: '2px solid #f97316',
+                                    boxShadow: `0 8px 24px #f9731660`,
+                                }}
+                                aria-label="Voltar ao início"
+                            >
+                                <Home size={24} />
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 {/* Botão Home - visível quando está em um dashboard */}
