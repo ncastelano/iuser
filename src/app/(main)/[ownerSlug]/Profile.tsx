@@ -20,7 +20,6 @@ import {
     X,
     Store,
     Clock,
-    ExternalLink,
     Trash2,
     Eye,
     Share2,
@@ -634,13 +633,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                         })}
                         className="px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 flex items-center gap-2"
                         style={{
-                            background: glassBg,
-                            color: colors.textPrimary,
-                            border: `1px solid ${colors.border}`,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            border: 'none',
+                            boxShadow: `0 4px 14px #f9731660`,
                         }}
                     >
                         <Share2 className="w-4 h-4" />
-                        <span>Compartilhar</span>
+                        Compartilhar
                     </button>
 
                     {isOwner && (
@@ -801,8 +801,6 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     </h4>
                                     <div className="grid grid-cols-2 gap-2">
                                         {products.map(product => {
-                                            const hasImage = !!product.image_url
-
                                             return (
                                                 <div
                                                     key={product.id}
@@ -840,23 +838,20 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                     </div>
                                                     <div className="px-2 pb-2 flex items-center justify-end gap-1">
                                                         {isOwner ? (
-                                                            <>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        router.push(`/${ownerSlug}/${product.slug || product.id}/editar`)
-                                                                    }}
-                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
-                                                                    style={{
-                                                                        background: glassBg,
-                                                                        color: colors.textSecondary,
-                                                                        border: `1px solid ${colors.border}`,
-                                                                    }}
-                                                                >
-                                                                    <Pencil size={10} />
-                                                                    Editar
-                                                                </button>
-                                                            </>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    router.push(`/${ownerSlug}/${product.slug || product.id}/editar`)
+                                                                }}
+                                                                className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105"
+                                                                style={{
+                                                                    background: glassBg,
+                                                                    color: colors.textSecondary,
+                                                                    border: `1px solid ${colors.border}`,
+                                                                }}
+                                                            >
+                                                                Editar
+                                                            </button>
                                                         ) : (
                                                             <>
                                                                 <button
@@ -867,14 +862,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                                             text: product.description || `Confira ${product.name} no iUser!`
                                                                         })
                                                                     }}
-                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
+                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105"
                                                                     style={{
-                                                                        background: glassBg,
-                                                                        color: colors.textSecondary,
-                                                                        border: `1px solid ${colors.border}`,
+                                                                        background: GRADIENT,
+                                                                        color: '#ffffff',
+                                                                        border: 'none',
+                                                                        boxShadow: `0 2px 8px #f9731660`,
                                                                     }}
                                                                 >
-                                                                    <Share2 size={10} />
                                                                     Compartilhar
                                                                 </button>
                                                                 <button
@@ -882,10 +877,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                                         e.stopPropagation()
                                                                         router.push(`/${ownerSlug}/${product.slug || product.id}`)
                                                                     }}
-                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                    style={{ background: GRADIENT }}
+                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105"
+                                                                    style={{
+                                                                        background: glassBg,
+                                                                        color: colors.textSecondary,
+                                                                        border: `1px solid ${colors.border}`,
+                                                                    }}
                                                                 >
-                                                                    <Plus size={12} />
+                                                                    Ver
                                                                 </button>
                                                             </>
                                                         )}
@@ -985,14 +984,13 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                             <div className="flex items-center gap-1 mt-1" onClick={e => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => router.push(`/${ownerSlug}/${pub.slug || pub.id}/editar`)}
-                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
+                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105"
                                                     style={{
                                                         background: glassBg,
                                                         color: colors.textSecondary,
                                                         border: `1px solid ${colors.border}`,
                                                     }}
                                                 >
-                                                    <Pencil size={10} />
                                                     Editar
                                                 </button>
                                                 <button
@@ -1021,14 +1019,14 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                         text: pub.description || `Confira ${pub.name} no iUser!`
                                                     })
                                                 }}
-                                                className="mt-1 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105 w-fit"
+                                                className="mt-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105 w-fit"
                                                 style={{
-                                                    background: glassBg,
-                                                    color: colors.textSecondary,
-                                                    border: `1px solid ${colors.border}`,
+                                                    background: GRADIENT,
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    boxShadow: `0 2px 8px #f9731660`,
                                                 }}
                                             >
-                                                <Share2 size={10} />
                                                 Compartilhar
                                             </button>
                                         )}
