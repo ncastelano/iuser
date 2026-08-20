@@ -9,7 +9,6 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import {
     AlertTriangle,
     ArrowLeft,
-
     ShoppingBag,
     Megaphone,
     Star,
@@ -18,12 +17,10 @@ import {
     Pencil,
     Plus,
     Search,
-
     X,
     Store,
     Clock,
     ExternalLink,
-
     Trash2,
     Eye,
     Share2,
@@ -841,29 +838,56 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                             </p>
                                                         )}
                                                     </div>
-                                                    <div className="px-2 pb-2 flex justify-end">
+                                                    <div className="px-2 pb-2 flex items-center justify-end gap-1">
                                                         {isOwner ? (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    router.push(`/${ownerSlug}/editar-produto/${product.slug || product.id}`)
-                                                                }}
-                                                                className="w-7 h-7 rounded-full border flex items-center justify-center text-xs"
-                                                                style={{ borderColor: colors.border, color: '#f97316' }}
-                                                            >
-                                                                <ExternalLink size={12} />
-                                                            </button>
+                                                            <>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        router.push(`/${ownerSlug}/${product.slug || product.id}/editar`)
+                                                                    }}
+                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
+                                                                    style={{
+                                                                        background: glassBg,
+                                                                        color: colors.textSecondary,
+                                                                        border: `1px solid ${colors.border}`,
+                                                                    }}
+                                                                >
+                                                                    <Pencil size={10} />
+                                                                    Editar
+                                                                </button>
+                                                            </>
                                                         ) : (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    router.push(`/${ownerSlug}/${product.slug || product.id}`)
-                                                                }}
-                                                                className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                                                                style={{ background: GRADIENT }}
-                                                            >
-                                                                <Plus size={12} />
-                                                            </button>
+                                                            <>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleShareLink({
+                                                                            title: product.name,
+                                                                            text: product.description || `Confira ${product.name} no iUser!`
+                                                                        })
+                                                                    }}
+                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
+                                                                    style={{
+                                                                        background: glassBg,
+                                                                        color: colors.textSecondary,
+                                                                        border: `1px solid ${colors.border}`,
+                                                                    }}
+                                                                >
+                                                                    <Share2 size={10} />
+                                                                    Compartilhar
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        router.push(`/${ownerSlug}/${product.slug || product.id}`)
+                                                                    }}
+                                                                    className="w-7 h-7 rounded-full text-white flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                                                                    style={{ background: GRADIENT }}
+                                                                >
+                                                                    <Plus size={12} />
+                                                                </button>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
@@ -942,7 +966,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                             router.push(`/${ownerSlug}/${pub.slug}`)
                                         }}
                                     >
-                                        <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100">
+                                        <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 relative">
                                             {pub.image_url ? (
                                                 <img src={pub.image_url} className="w-full h-full object-cover" alt={pub.name} />
                                             ) : (
@@ -957,14 +981,19 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                         <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                             {pub.name}
                                         </p>
-                                        {isOwner && (
-                                            <div className="flex items-center justify-between mt-1" onClick={e => e.stopPropagation()}>
+                                        {isOwner ? (
+                                            <div className="flex items-center gap-1 mt-1" onClick={e => e.stopPropagation()}>
                                                 <button
-                                                    onClick={() => router.push(`/${ownerSlug}/${pub.slug}/editar-produto`)}
-                                                    className="p-1 rounded hover:bg-white/10 transition-colors"
-                                                    title="Editar"
+                                                    onClick={() => router.push(`/${ownerSlug}/${pub.slug || pub.id}/editar`)}
+                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105"
+                                                    style={{
+                                                        background: glassBg,
+                                                        color: colors.textSecondary,
+                                                        border: `1px solid ${colors.border}`,
+                                                    }}
                                                 >
-                                                    <ExternalLink size={12} style={{ color: colors.textSecondary }} />
+                                                    <Pencil size={10} />
+                                                    Editar
                                                 </button>
                                                 <button
                                                     onClick={async () => {
@@ -983,6 +1012,25 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                     <Trash2 size={12} style={{ color: '#ef4444' }} />
                                                 </button>
                                             </div>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleShareLink({
+                                                        title: pub.name,
+                                                        text: pub.description || `Confira ${pub.name} no iUser!`
+                                                    })
+                                                }}
+                                                className="mt-1 px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all hover:scale-105 w-fit"
+                                                style={{
+                                                    background: glassBg,
+                                                    color: colors.textSecondary,
+                                                    border: `1px solid ${colors.border}`,
+                                                }}
+                                            >
+                                                <Share2 size={10} />
+                                                Compartilhar
+                                            </button>
                                         )}
                                     </div>
                                 ))}

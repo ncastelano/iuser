@@ -1,3 +1,5 @@
+//app/(main)/[ownerSlug]/[slug]/ProductClientPage.tsx
+
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
