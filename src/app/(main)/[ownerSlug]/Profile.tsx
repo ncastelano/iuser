@@ -859,10 +859,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                                         e.stopPropagation()
                                                                         handleShareLink({
                                                                             title: product.name,
-                                                                            text: product.description || `Confira ${product.name} no iUser!`
+                                                                            text: product.description || `Confira ${product.name} no iUser!`,
+                                                                            url: `${window.location.origin}/${ownerSlug}/${product.slug || product.id}`
                                                                         })
                                                                     }}
-                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105"
+                                                                    className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105 flex items-center gap-1"
                                                                     style={{
                                                                         background: GRADIENT,
                                                                         color: '#ffffff',
@@ -870,6 +871,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                                         boxShadow: `0 2px 8px #f9731660`,
                                                                     }}
                                                                 >
+                                                                    <Share2 size={10} />
                                                                     Compartilhar
                                                                 </button>
                                                                 <button
@@ -1016,10 +1018,11 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                     e.stopPropagation()
                                                     handleShareLink({
                                                         title: pub.name,
-                                                        text: pub.description || `Confira ${pub.name} no iUser!`
+                                                        text: pub.description || `Confira ${pub.name} no iUser!`,
+                                                        url: `${window.location.origin}/${ownerSlug}/${pub.slug || pub.id}`
                                                     })
                                                 }}
-                                                className="mt-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105 w-fit"
+                                                className="mt-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all hover:scale-105 flex items-center gap-1 w-fit"
                                                 style={{
                                                     background: GRADIENT,
                                                     color: '#ffffff',
@@ -1027,6 +1030,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                                     boxShadow: `0 2px 8px #f9731660`,
                                                 }}
                                             >
+                                                <Share2 size={10} />
                                                 Compartilhar
                                             </button>
                                         )}
