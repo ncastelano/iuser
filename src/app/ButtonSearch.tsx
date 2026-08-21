@@ -99,14 +99,18 @@ export default function ButtonSearch({
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' && searchValue.trim()) {
-            router.push(`/busca?q=${encodeURIComponent(searchValue.trim())}`)
-            if (onSearch) {
-                onSearch(searchValue.trim())
-            }
-        }
+        // REMOVIDO: não faz mais navegação com Enter
+        // Apenas mantém o Escape para fechar
         if (e.key === 'Escape') {
             handleClose()
+        }
+        // Enter agora apenas mantém o foco e não navega
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            // Mantém o foco no input
+            if (inputRef.current) {
+                inputRef.current.focus()
+            }
         }
     }
 
@@ -126,6 +130,9 @@ export default function ButtonSearch({
     const handleButtonClick = () => {
         setIsExpanded(true)
     }
+
+    // Modificar o tipo de input para "search" para evitar o botão "Go" em alguns navegadores
+    // e adicionar o atributo enterkeyhint="done" para sugerir "Concluído" no teclado virtual
 
     return (
         <div
@@ -182,7 +189,9 @@ export default function ButtonSearch({
             >
                 <input
                     ref={inputRef}
-                    type="text"
+                    type="search"
+                    inputMode="search"
+                    enterKeyHint="done"
                     placeholder={placeholder}
                     value={searchValue}
                     onChange={(e) => handleSearch(e.target.value)}
@@ -295,6 +304,17 @@ export default function ButtonSearch({
                 input:-moz-placeholder {
                     color: rgba(255,255,255,0.7) !important;
                     opacity: 1;
+                }
+                /* Remove o botão de busca padrão do Safari/WebKit */
+                input[type="search"]::-webkit-search-decoration,
+                input[type="search"]::-webkit-search-cancel-button,
+                input[type="search"]::-webkit-search-results-button,
+                input[type="search"]::-webkit-search-results-decoration {
+                    display: none;
+                    -webkit-appearance: none;
+                }
+                input[type="search"] {
+                    -webkit-appearance: none;
                 }
             `}</style>
         </div>
