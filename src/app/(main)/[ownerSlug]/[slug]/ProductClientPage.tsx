@@ -1,4 +1,4 @@
-//app/(main)/[ownerSlug]/[slug]/ProductClientPage.tsx
+// app/(main)/[ownerSlug]/[slug]/ProductClientPage.tsx
 
 'use client'
 
@@ -17,9 +17,7 @@ import {
     Phone,
     Mail,
     Globe,
-    ChevronRight,
     Store,
-    Calendar,
     User,
     Plus,
     Minus,
@@ -188,7 +186,7 @@ function ProductLoading() {
                 <Header
                     title="Produto"
                     showBack={true}
-                    onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
+                    onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
@@ -475,7 +473,7 @@ export default function ProductClientPage() {
                     <Header
                         title="Produto"
                         showBack={true}
-                        onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
+                        onBack={() => router.back()}
                         greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                         avatarUrl={avatarUrl}
                         loading={profileLoading}
@@ -487,7 +485,7 @@ export default function ProductClientPage() {
                                 {error || 'Produto não encontrado'}
                             </h2>
                             <button
-                                onClick={() => router.back()} // ← CORRIGIDO: volta para página anterior
+                                onClick={() => router.back()}
                                 className="mt-4 px-6 py-2 rounded-lg font-bold transition-all hover:scale-105"
                                 style={{ background: GRADIENT, color: '#ffffff' }}
                             >
@@ -556,7 +554,7 @@ export default function ProductClientPage() {
                 <Header
                     title={product.name}
                     showBack={true}
-                    onBack={() => router.back()} // ← CORRIGIDO: volta para página anterior
+                    onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
