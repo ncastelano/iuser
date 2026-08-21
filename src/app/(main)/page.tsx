@@ -681,6 +681,9 @@ export default function HomePage() {
     const shouldShowSacola = !showProfile && !showStoreDashboard
     const shouldShowSearch = !showProfile && !showStoreDashboard && !showConfig && !showCreateStore && !showLogin
 
+    // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
+    const isSearching = searchQuery.trim().length > 0
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -744,65 +747,76 @@ export default function HomePage() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {(searchFocused || searchQuery.trim()) && (
+                        {/* ===== SEARCH RESULTS - APARECE SOZINHO QUANDO PESQUISANDO ===== */}
+                        {isSearching ? (
                             <div className="mb-6">
-                                {searchQuery.trim() ? (
-                                    <SearchResultsSection
-                                        searchQuery={searchQuery}
-                                        onSearchSelect={(query) => {
-                                            setSearchQuery(query)
-                                            setSearchFocused(false)
-                                            searchInputRef.current?.focus()
-                                        }}
-                                    />
-                                ) : (
-                                    <div ref={lastSearchedRef}>
-                                        <LastSearched
-                                            onItemClick={(item) => {
-                                                if (item.url) {
-                                                    router.push(item.url)
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
-                        {editMode ? (
-                            <div className="space-y-6">
-                                {Array.from(new Set(sections)).map((sectionId, index) => {
-                                    const section = renderSection(sectionId)
-                                    if (!section) return null
-                                    const uniqueSections = Array.from(new Set(sections))
-                                    const isFirst = index === 0
-                                    const isLast = index === uniqueSections.length - 1
-                                    const isCategorias = sectionId === 'categorias'
-
-                                    return (
-                                        <SortableSection
-                                            key={sectionId}
-                                            id={sectionId}
-                                            isEditing={editMode}
-                                            onMoveUp={!isCategorias ? (id: string) => moveSection(id, 'up') : undefined}
-                                            onMoveDown={!isCategorias ? (id: string) => moveSection(id, 'down') : undefined}
-                                            isFirst={isFirst}
-                                            isLast={isLast}
-                                        >
-                                            {section}
-                                        </SortableSection>
-                                    )
-                                })}
+                                <SearchResultsSection
+                                    searchQuery={searchQuery}
+                                    onSearchSelect={(query) => {
+                                        setSearchQuery(query)
+                                        setSearchFocused(false)
+                                        searchInputRef.current?.focus()
+                                    }}
+                                />
                             </div>
                         ) : (
-                            <div className="space-y-6">
-                                {displayedSections.map((sectionId) => {
-                                    const section = renderSection(sectionId)
-                                    if (!section) return null
-                                    return <div key={sectionId}>{section}</div>
-                                })}
-                            </div>
+                            <>
+                                {/* ===== LAST SEARCHED - APARECE APENAS QUANDO FOCADO E SEM PESQUISA ===== */}
+                                {searchFocused && !searchQuery.trim() && (
+                                    <div className="mb-6">
+                                        <div ref={lastSearchedRef}>
+                                            <LastSearched
+                                                onItemClick={(item) => {
+                                                    if (item.url) {
+                                                        router.push(item.url)
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ===== SEÇÕES DA HOME - OCULTAS DURANTE PESQUISA ===== */}
+                                {!searchFocused && !searchQuery.trim() && (
+                                    <>
+                                        {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
+                                        {editMode ? (
+                                            <div className="space-y-6">
+                                                {Array.from(new Set(sections)).map((sectionId, index) => {
+                                                    const section = renderSection(sectionId)
+                                                    if (!section) return null
+                                                    const uniqueSections = Array.from(new Set(sections))
+                                                    const isFirst = index === 0
+                                                    const isLast = index === uniqueSections.length - 1
+                                                    const isCategorias = sectionId === 'categorias'
+
+                                                    return (
+                                                        <SortableSection
+                                                            key={sectionId}
+                                                            id={sectionId}
+                                                            isEditing={editMode}
+                                                            onMoveUp={!isCategorias ? (id: string) => moveSection(id, 'up') : undefined}
+                                                            onMoveDown={!isCategorias ? (id: string) => moveSection(id, 'down') : undefined}
+                                                            isFirst={isFirst}
+                                                            isLast={isLast}
+                                                        >
+                                                            {section}
+                                                        </SortableSection>
+                                                    )
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-6">
+                                                {displayedSections.map((sectionId) => {
+                                                    const section = renderSection(sectionId)
+                                                    if (!section) return null
+                                                    return <div key={sectionId}>{section}</div>
+                                                })}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

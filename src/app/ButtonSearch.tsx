@@ -89,6 +89,15 @@ export default function ButtonSearch({
         }
     }
 
+    const handleClose = () => {
+        setIsExpanded(false)
+        handleSearch('')
+        if (onBlur) onBlur()
+        if (inputRef.current) {
+            inputRef.current.blur()
+        }
+    }
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && searchValue.trim()) {
             router.push(`/busca?q=${encodeURIComponent(searchValue.trim())}`)
@@ -97,8 +106,7 @@ export default function ButtonSearch({
             }
         }
         if (e.key === 'Escape') {
-            setIsExpanded(false)
-            if (onBlur) onBlur()
+            handleClose()
         }
     }
 
@@ -157,25 +165,6 @@ export default function ButtonSearch({
                 onClick={handleButtonClick}
             >
                 <Search size={24} strokeWidth={2.5} />
-
-                {searchValue && (
-                    <span
-                        style={{
-                            position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: '#10b981',
-                            borderTop: '2px solid #ffffff',
-                            borderRight: '2px solid #ffffff',
-                            borderBottom: '2px solid #ffffff',
-                            borderLeft: '2px solid #ffffff',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        }}
-                    />
-                )}
             </div>
 
             {/* Input - aparece quando expandido */}
@@ -218,9 +207,10 @@ export default function ButtonSearch({
                     }}
                 />
 
-                {showClear && searchValue && (
+                {/* Botão único: X para fechar OU limpar */}
+                {isExpanded && (
                     <button
-                        onClick={handleClear}
+                        onClick={searchValue ? handleClear : handleClose}
                         style={{
                             width: 32,
                             height: 32,
@@ -238,6 +228,7 @@ export default function ButtonSearch({
                             flexShrink: 0,
                             transition: 'all 0.2s ease',
                             color: '#ffffff',
+                            marginRight: 4,
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
@@ -245,9 +236,10 @@ export default function ButtonSearch({
                         onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
                         }}
-                        aria-label="Limpar busca"
+                        aria-label={searchValue ? "Limpar busca" : "Fechar"}
+                        title={searchValue ? "Limpar busca" : "Fechar"}
                     >
-                        <X size={16} />
+                        <X size={18} strokeWidth={2.5} />
                     </button>
                 )}
             </div>

@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Star, Clock, ChevronRight, Search, Loader2, User, Package, Store as StoreIcon, MapPin } from 'lucide-react'
+import { Star, Clock, ChevronRight, Search, Loader2, MapPin, User, Store } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -88,7 +88,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             const query = trimmed
 
             try {
-                // 1. Buscar perfis com mais informações
+                // 1. Buscar perfis
                 const { data: profilesData, error: profilesError } = await supabase
                     .from('profiles')
                     .select(`
@@ -117,7 +117,6 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     console.error('Erro ao buscar perfis:', profilesError)
                 }
 
-                // CORRIGIDO: Usando getAvatarUrl para obter a URL correta
                 const mappedProfiles = (profilesData || []).map((p: any) => ({
                     ...p,
                     avatar_url: getAvatarUrl(supabase, p.avatar_url),
@@ -127,7 +126,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                 }))
                 setProfiles(mappedProfiles)
 
-                // 2. Buscar lojas que correspondem ao nome
+                // 2. Buscar lojas
                 const { data: storesData, error: storesError } = await supabase
                     .from('stores')
                     .select('id, name, "storeSlug", description, logo_url, ratings_avg, ratings_count, prep_time_min, prep_time_max, category')
@@ -138,7 +137,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     console.error('Erro ao buscar lojas:', storesError)
                 }
 
-                // 3. Buscar produtos que correspondem ao nome
+                // 3. Buscar produtos
                 const { data: productsData, error: productsError } = await supabase
                     .from('products')
                     .select('id, name, description, price, image_url, slug, store_id, category, type')
@@ -150,7 +149,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     console.error('Erro ao buscar produtos:', productsError)
                 }
 
-                // 4. Mapear produtos encontrados
+                // 4. Mapear produtos
                 const mappedProducts = (productsData || []).map((p: any) => ({
                     ...p,
                     image_url: p.image_url
@@ -158,7 +157,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         : null,
                 }))
 
-                // 5. Criar um mapa de storeId -> produtos
+                // 5. Produtos por loja
                 const productsByStore: Record<string, any[]> = {}
                 mappedProducts.forEach(product => {
                     if (!productsByStore[product.store_id]) {
@@ -167,12 +166,11 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     productsByStore[product.store_id].push(product)
                 })
 
-                // 6. Combinar lojas com seus produtos
+                // 6. Combinar lojas com produtos
                 const storeIdsWithProducts = Object.keys(productsByStore)
                 const storeIdsFromSearch = (storesData || []).map((s: any) => s.id)
                 const allStoreIds = [...new Set([...storeIdsFromSearch, ...storeIdsWithProducts])]
 
-                // Buscar todas as lojas relevantes
                 let allStores: any[] = []
                 if (allStoreIds.length > 0) {
                     const { data: allStoresData } = await supabase
@@ -190,7 +188,6 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     }
                 }
 
-                // 7. Construir lista de lojas com produtos
                 const storesWithProductsList: StoreWithProducts[] = allStores.map(store => {
                     const storeProducts = productsByStore[store.id] || []
                     return {
@@ -199,14 +196,13 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     }
                 })
 
-                // Filtrar lojas que não têm produtos e não foram encontradas pelo nome
                 const filteredStores = storesWithProductsList.filter(item =>
                     item.products.length > 0 || storesData?.some((s: any) => s.id === item.store.id)
                 )
 
                 setStoresWithProducts(filteredStores)
 
-                // 8. Agrupar por categoria
+                // 7. Agrupar por categoria
                 const grouped: Record<string, StoreWithProducts[]> = {}
                 for (const item of filteredStores) {
                     const cat = getCategoryForStore(item.store)
@@ -331,28 +327,27 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
             {!loading && totalResults > 0 && (
                 <div className="space-y-6">
-                    {/* Perfis - Estilo igual ao SocialList */}
+                    {/* Perfis - Cards com imagem em destaque */}
                     {profiles.length > 0 && (
                         <div>
                             <div className="flex items-center gap-2 mb-3">
-                                <User size={16} style={{ color: '#3b82f6' }} />
-                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#3b82f6' }}>
+                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                                     Perfis
                                 </span>
-                                <span className="text-[10px] font-bold opacity-60" style={{ color: '#3b82f6' }}>
+                                <span className="text-[10px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
                                     ({profiles.length})
                                 </span>
                             </div>
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                 {profiles.map((profile) => (
                                     <Link
                                         key={profile.id}
                                         href={`/${profile.profileSlug}`}
                                         onClick={() => handleProfileClick(profile)}
-                                        className="block group"
+                                        className="group"
                                     >
                                         <div
-                                            className="rounded-2xl p-4 border transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5"
+                                            className="rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
                                             style={{
                                                 background: cardBg,
                                                 backdropFilter: 'blur(12px)',
@@ -360,163 +355,34 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                 boxShadow: colors.shadow,
                                             }}
                                         >
-                                            <div className="flex gap-4">
-                                                <div
-                                                    className="w-20 h-20 rounded-full overflow-hidden shrink-0"
-                                                    style={{
-                                                        background: `${colors.surface}44`,
-                                                        padding: '2px',
-                                                        backgroundImage: GRADIENT,
-                                                    }}
-                                                >
-                                                    <div
-                                                        className="w-full h-full rounded-full overflow-hidden"
-                                                        style={{
-                                                            background: colors.surface,
-                                                        }}
-                                                    >
-                                                        {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
-                                                            <img
-                                                                src={profile.avatar_url}
-                                                                alt={profile.name || 'Perfil'}
-                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                                onError={(e) => {
-                                                                    const target = e.target as HTMLImageElement
-                                                                    target.style.display = 'none'
-                                                                    const parent = target.parentElement
-                                                                    if (parent) {
-                                                                        const fallback = document.createElement('div')
-                                                                        fallback.className = 'w-full h-full flex items-center justify-center text-3xl font-black'
-                                                                        fallback.style.color = colors.textSecondary
-                                                                        fallback.textContent = profile.name?.charAt(0).toUpperCase() || '?'
-                                                                        parent.appendChild(fallback)
-                                                                    }
-                                                                }}
-                                                            />
-                                                        ) : (
-                                                            <div
-                                                                className="w-full h-full flex items-center justify-center text-3xl font-black"
-                                                                style={{ color: colors.textSecondary }}
-                                                            >
-                                                                {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                            </div>
-                                                        )}
+                                            <div className="w-full aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
+                                                {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
+                                                    <img
+                                                        src={profile.avatar_url}
+                                                        alt={profile.name || 'Perfil'}
+                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                        <span className="text-4xl font-black text-white/70">
+                                                            {profile.name?.charAt(0).toUpperCase() || '?'}
+                                                        </span>
                                                     </div>
-                                                </div>
-
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="flex-1 min-w-0">
-                                                            <h3
-                                                                className="text-lg font-black truncate"
-                                                                style={{ color: colors.textPrimary }}
-                                                            >
-                                                                {profile.name || 'Usuário'}
-                                                            </h3>
-                                                            <p className="text-sm" style={{ color: colors.accent }}>
-                                                                @{profile.profileSlug}
-                                                            </p>
-
-                                                            {(profile.bio || profile.description) && (
-                                                                <p
-                                                                    className="text-xs line-clamp-2 mt-1"
-                                                                    style={{ color: colors.textSecondary }}
-                                                                >
-                                                                    {profile.bio || profile.description}
-                                                                </p>
-                                                            )}
-
-                                                            {profile.address && (
-                                                                <div className="flex items-center gap-1 mt-1">
-                                                                    <MapPin className="w-3 h-3 opacity-50" style={{ color: colors.textSecondary }} />
-                                                                    <span className="text-xs truncate" style={{ color: colors.textSecondary }}>
-                                                                        {profile.address.split(',')[0]?.trim() || profile.address}
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="flex flex-col items-end gap-1 shrink-0">
-                                                            {profile.is_seller && (
-                                                                <span
-                                                                    className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                                                                    style={{
-                                                                        background: `${colors.accent}20`,
-                                                                        color: colors.accent
-                                                                    }}
-                                                                >
-                                                                    <StoreIcon className="w-3 h-3 inline mr-0.5" />
-                                                                    Vendedor
-                                                                </span>
-                                                            )}
-                                                            {profile.category && (
-                                                                <span
-                                                                    className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                                                                    style={{
-                                                                        background: `#f9731620`,
-                                                                        color: '#f97316'
-                                                                    }}
-                                                                >
-                                                                    {profile.category}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                )}
+                                                {profile.is_seller && (
+                                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
+                                                        Vendedor
                                                     </div>
+                                                )}
+                                            </div>
 
-                                                    <div className="flex items-center gap-4 mt-3 flex-wrap">
-                                                        {profile.ratings_avg !== null &&
-                                                            profile.ratings_avg !== undefined &&
-                                                            profile.ratings_avg > 0 && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <Star size={14} className="text-yellow-400 fill-yellow-400" />
-                                                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                                                        {Number(profile.ratings_avg).toFixed(1)}
-                                                                    </span>
-                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                        ({profile.ratings_count || 0})
-                                                                    </span>
-                                                                </div>
-                                                            )}
-
-                                                        {profile.view_count !== null &&
-                                                            profile.view_count !== undefined &&
-                                                            profile.view_count > 0 && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <User size={14} style={{ color: colors.textSecondary }} />
-                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                        {profile.view_count} visualizações
-                                                                    </span>
-                                                                </div>
-                                                            )}
-
-                                                        {profile.created_at && (
-                                                            <div className="flex items-center gap-1">
-                                                                <Clock size={14} style={{ color: colors.textSecondary }} />
-                                                                <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                                                    {formatDate(profile.created_at)}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                                        {profile.whatsapp && (
-                                                            <span className="text-[10px] font-bold text-green-600">
-                                                                📱 WhatsApp
-                                                            </span>
-                                                        )}
-                                                        {profile.instagram && (
-                                                            <span className="text-[10px] font-bold text-pink-600">
-                                                                📸 Instagram
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                <ChevronRight
-                                                    className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors"
-                                                    style={{ color: colors.textSecondary }}
-                                                />
+                                            <div className="p-2 text-center">
+                                                <h3 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                    {profile.name || 'Usuário'}
+                                                </h3>
+                                                <p className="text-[9px]" style={{ color: colors.accent }}>
+                                                    @{profile.profileSlug}
+                                                </p>
                                             </div>
                                         </div>
                                     </Link>
@@ -525,7 +391,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         </div>
                     )}
 
-                    {/* Lojas com produtos */}
+                    {/* Lojas com produtos - Cards com imagem em destaque */}
                     {Object.entries(storesByCategory).map(([slug, storesList]) => {
                         const catInfo = categoriasInfo.find(c => c.slug === slug)
                         const titulo = catInfo?.titulo || 'Outros'
@@ -534,7 +400,6 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         return (
                             <div key={slug}>
                                 <div className="flex items-center gap-2 mb-3">
-                                    <StoreIcon size={16} style={{ color }} />
                                     <span className="text-xs font-black uppercase tracking-wider" style={{ color }}>
                                         {titulo}
                                     </span>
@@ -542,97 +407,93 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         ({storesList.length})
                                     </span>
                                 </div>
-                                <div className="space-y-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                     {storesList.map(({ store, products }) => {
                                         const storeUrl = `/${store.storeSlug}`
                                         const hasProducts = products.length > 0
 
                                         return (
-                                            <div key={store.id} className="rounded-2xl border overflow-hidden" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
-                                                {/* Card da Loja */}
+                                            <div key={store.id} className="rounded-xl border overflow-hidden" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
                                                 <Link
                                                     href={storeUrl}
                                                     onClick={() => handleStoreClick(store)}
                                                     className="block group"
                                                 >
-                                                    <div className="p-4 flex gap-4 items-center">
-                                                        <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0" style={{ background: `${colors.surface}44` }}>
-                                                            {store.logo_url ? (
-                                                                <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: colors.textSecondary }}>
+                                                    <div className="w-full aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
+                                                        {store.logo_url ? (
+                                                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                <span className="text-4xl font-black text-white/70">
                                                                     {store.name?.charAt(0) || '?'}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <h3 className="text-lg font-black truncate" style={{ color: colors.textPrimary }}>{store.name}</h3>
-                                                            <p className="text-xs line-clamp-2 mt-1" style={{ color: colors.textSecondary }}>{store.description || 'Sem descrição'}</p>
-                                                            <div className="flex items-center gap-4 mt-2">
-                                                                <div className="flex items-center gap-1">
-                                                                    <Star size={14} className="text-yellow-400 fill-yellow-400" />
-                                                                    <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1) || '0.0'}</span>
-                                                                    <span className="text-xs" style={{ color: colors.textSecondary }}>({store.ratings_count || 0})</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-1">
-                                                                    <Clock size={14} style={{ color: colors.accent }} />
-                                                                    <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>{formatPrepTime(store)}</span>
-                                                                </div>
-                                                                {hasProducts && (
-                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                                                        {products.length} produtos
-                                                                    </span>
-                                                                )}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        {hasProducts && (
+                                                            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
+                                                                {products.length}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="p-2">
+                                                        <h3 className="text-xs font-bold truncate text-center" style={{ color: colors.textPrimary }}>{store.name}</h3>
+                                                        <div className="flex items-center justify-center gap-2 mt-1">
+                                                            <div className="flex items-center gap-0.5">
+                                                                <Star size={10} className="text-yellow-400 fill-yellow-400" />
+                                                                <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1) || '0.0'}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-0.5">
+                                                                <Clock size={10} style={{ color: colors.accent }} />
+                                                                <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>{formatPrepTime(store)}</span>
                                                             </div>
                                                         </div>
-                                                        <ChevronRight className="w-5 h-5 self-center group-hover:text-orange-400 transition-colors" style={{ color: colors.textSecondary }} />
                                                     </div>
                                                 </Link>
 
-                                                {/* Produtos da Loja */}
+                                                {/* Produtos da Loja - miniaturas */}
                                                 {hasProducts && (
-                                                    <div className="px-4 pb-4">
-                                                        <div className="border-t pt-3" style={{ borderColor: colors.border }}>
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <Package size={14} style={{ color: '#f97316' }} />
-                                                                <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                                                    Produtos encontrados
-                                                                </span>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                                {products.map((product) => (
+                                                    <div className="px-2 pb-2">
+                                                        <div className="border-t pt-1.5" style={{ borderColor: colors.border }}>
+                                                            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                                                                {products.slice(0, 3).map((product) => (
                                                                     <Link
                                                                         key={product.id}
                                                                         href={`/${store.storeSlug}/${product.slug || product.id}`}
                                                                         onClick={() => handleProductClick(product, store.storeSlug)}
-                                                                        className="group/product"
+                                                                        className="group/product flex-shrink-0 w-16"
                                                                     >
-                                                                        <div className="rounded-xl border p-2 transition-all hover:scale-[1.02] hover:shadow-lg" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
-                                                                            <div className="w-full aspect-square rounded-lg overflow-hidden" style={{ background: colors.accentLight }}>
+                                                                        <div className="rounded-lg border overflow-hidden transition-all hover:scale-105" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
+                                                                            <div className="w-full aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
                                                                                 {product.image_url ? (
-                                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover/product:scale-110 transition-transform duration-300" />
                                                                                 ) : (
-                                                                                    <div className="w-full h-full flex items-center justify-center text-2xl font-black" style={{ color: '#f97316' }}>
-                                                                                        {product.name?.charAt(0) || '?'}
+                                                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                                        <span className="text-[10px] font-black text-white/50">
+                                                                                            {product.name?.charAt(0) || '?'}
+                                                                                        </span>
                                                                                     </div>
                                                                                 )}
                                                                             </div>
-                                                                            <div className="mt-1.5">
-                                                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                            <div className="p-1">
+                                                                                <p className="text-[8px] font-bold truncate text-center" style={{ color: colors.textPrimary }}>
                                                                                     {product.name}
                                                                                 </p>
-                                                                                <p className="text-[10px] font-bold" style={{ color: '#f97316' }}>
-                                                                                    R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                                                </p>
-                                                                                {product.category && (
-                                                                                    <span className="text-[8px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
-                                                                                        {product.category}
-                                                                                    </span>
-                                                                                )}
                                                                             </div>
                                                                         </div>
                                                                     </Link>
                                                                 ))}
+                                                                {products.length > 3 && (
+                                                                    <Link
+                                                                        href={storeUrl}
+                                                                        className="flex-shrink-0 w-16 rounded-lg border-2 border-dashed flex items-center justify-center aspect-square transition-all hover:bg-white/5"
+                                                                        style={{ borderColor: colors.border }}
+                                                                    >
+                                                                        <span className="text-[8px] font-bold text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                                                            +{products.length - 3}
+                                                                        </span>
+                                                                    </Link>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -646,6 +507,16 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     })}
                 </div>
             )}
+
+            <style jsx>{`
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+                .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+            `}</style>
         </section>
     )
 }
