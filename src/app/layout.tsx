@@ -35,20 +35,41 @@ export const metadata: Metadata = {
     description: 'Os melhores produtos e serviços, você encontra aqui!',
     url: 'https://iuser.com.br',
     siteName: 'iuser.com.br',
-    images: [{
-      url: '/logo.png',
-      width: 400,
-      height: 400,
-      alt: 'iUser'
-    }],
+    images: [
+      {
+        url: '/logo-og.png', // Use uma imagem específica para OG
+        width: 1200,
+        height: 630,
+        alt: 'iUser',
+        type: 'image/png',
+      },
+      {
+        url: '/logo.png', // Fallback
+        width: 400,
+        height: 400,
+        alt: 'iUser',
+      }
+    ],
     type: 'website',
+    locale: 'pt_BR',
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image', // Mude para summary_large_image para imagem maior
     title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Os melhores produtos e serviços, você encontra aqui!',
-    images: ['/logo.png'],
-  }
+    images: ['/logo-og.png'], // Use a imagem com proporção correta
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 }
 
 export default function RootLayout({
