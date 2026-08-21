@@ -3,20 +3,21 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X, User, Store, Package, Search } from 'lucide-react'
+import { Clock, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ---------- Tipos e funções do histórico ----------
 export interface RecentClickItem {
-    type: 'profile' | 'store' | 'product' // ADICIONADO 'product'
+    type: 'profile' | 'store' | 'product'
     id: string
     name: string
     imageUrl: string | null
     url: string
+    timestamp?: number // timestamp do clique
 }
 
 const STORAGE_KEY = 'recent_clicks_v1'
-const MAX_ITEMS = 10
+const MAX_ITEMS = 20 // Aumentado para 20
 
 export function getRecentClicks(): RecentClickItem[] {
     if (typeof window === 'undefined') return []
@@ -36,9 +37,8 @@ function saveRecentClicks(items: RecentClickItem[]) {
 
 export function addRecentClick(item: RecentClickItem) {
     const current = getRecentClicks()
-    // Remove duplicata (mesmo type e id)
     const filtered = current.filter(i => !(i.type === item.type && i.id === item.id))
-    const updated = [item, ...filtered]
+    const updated = [{ ...item, timestamp: Date.now() }, ...filtered]
     saveRecentClicks(updated)
 }
 
@@ -73,33 +73,13 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         if (onItemClick) {
             onItemClick(item)
         } else {
-            // Fallback: usa o router diretamente
             router.push(item.url)
         }
     }
 
     if (items.length === 0) return null
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const num = parseInt(clean, 16)
-        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
-    }
-    const surfaceRgb = hexToRgb(colors.surface)
-    const chipBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.5)`
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'profile':
-                return <User size={12} style={{ color: '#3b82f6' }} />
-            case 'store':
-                return <Store size={12} style={{ color: '#f97316' }} />
-            case 'product':
-                return <Package size={12} style={{ color: '#8b5cf6' }} />
-            default:
-                return <Search size={12} style={{ color: colors.textSecondary }} />
-        }
-    }
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
     const getTypeLabel = (type: string) => {
         switch (type) {
@@ -114,6 +94,64 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         }
     }
 
+    const getTypeColor = (type: string) => {
+        switch (type) {
+            case 'profile':
+                return '#3b82f6'
+            case 'store':
+                return '#f97316'
+            case 'product':
+                return '#8b5cf6'
+            default:
+                return colors.textSecondary
+        }
+    }
+
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const num = parseInt(clean, 16)
+        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
+    }
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
+    // Função para agrupar itens por data
+    const getDateLabel = (timestamp?: number) => {
+        if (!timestamp) return 'Hoje'
+        const date = new Date(timestamp)
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const yesterday = new Date(today.getTime() - 86400000)
+        const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+        if (itemDate.getTime() === today.getTime()) return 'Hoje'
+        if (itemDate.getTime() === yesterday.getTime()) return 'Ontem'
+
+        const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / 86400000)
+        if (diffDays < 7) return `${diffDays} dias atrás`
+        if (diffDays < 14) return 'Semana passada'
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)} semanas atrás`
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+    }
+
+    // Agrupar itens por data
+    const groupedItems = items.reduce((groups, item) => {
+        const label = getDateLabel(item.timestamp)
+        if (!groups[label]) groups[label] = []
+        groups[label].push(item)
+        return groups
+    }, {} as Record<string, RecentClickItem[]>)
+
+    // Ordenar grupos (Hoje, Ontem, ...)
+    const groupOrder = ['Hoje', 'Ontem']
+    const sortedGroups = Object.keys(groupedItems).sort((a, b) => {
+        if (a === 'Hoje') return -1
+        if (b === 'Hoje') return 1
+        if (a === 'Ontem') return -1
+        if (b === 'Ontem') return 1
+        return a.localeCompare(b)
+    })
+
     return (
         <div className="mb-6">
             <div className="flex items-center justify-between mb-3 px-1">
@@ -125,6 +163,9 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                     >
                         Últimos acessados
                     </h3>
+                    <span className="text-[10px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
+                        ({items.length})
+                    </span>
                 </div>
                 <button
                     onClick={clearAll}
@@ -135,83 +176,80 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                 </button>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-rounded">
-                {items.map((item) => (
-                    <button
-                        key={`${item.type}-${item.id}`}
-                        onClick={() => handleItemClick(item)}
-                        className="group inline-flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all duration-200 whitespace-nowrap flex-shrink-0 min-w-[140px] max-w-[200px]"
-                        style={{
-                            background: chipBg,
-                            borderColor: colors.border,
-                            boxShadow: colors.shadow,
-                            color: colors.textPrimary,
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = colors.accent + '20'
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.background = chipBg
-                        }}
-                    >
-                        {/* Avatar / Logo */}
-                        <div
-                            className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 relative"
-                            style={{ background: colors.surface }}
-                        >
-                            {item.imageUrl ? (
-                                <img
-                                    src={item.imageUrl}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <div
-                                    className="w-full h-full flex items-center justify-center text-sm font-black"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    {item.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                            {/* Ícone de tipo no canto inferior direito */}
-                            <div
-                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
-                                style={{ background: colors.surface, border: `1px solid ${colors.border}` }}
-                            >
-                                {getIcon(item.type)}
-                            </div>
-                        </div>
-
-                        {/* Nome e tipo */}
-                        <div className="flex-1 min-w-0 text-left">
-                            <span
-                                className="text-xs font-semibold truncate block"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                {item.name}
-                            </span>
-                            <span
-                                className="text-[8px] font-bold uppercase opacity-60"
-                                style={{ color: colors.textSecondary }}
-                            >
-                                {getTypeLabel(item.type)}
-                            </span>
-                        </div>
-
-                        {/* Remover */}
-                        <span
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                removeItem(item)
-                            }}
-                            className="ml-1 p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                            title="Remover"
-                        >
-                            <X size={12} style={{ color: colors.textSecondary }} />
+            {sortedGroups.map((groupLabel) => (
+                <div key={groupLabel} className="mb-4 last:mb-0">
+                    {/* Cabeçalho do grupo */}
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60" style={{ color: colors.textSecondary }}>
+                            {groupLabel}
                         </span>
-                    </button>
-                ))}
-            </div>
+                        <div className="flex-1 h-px" style={{ background: colors.border }} />
+                    </div>
+
+                    <div className="space-y-2">
+                        {groupedItems[groupLabel].map((item) => (
+                            <div
+                                key={`${item.type}-${item.id}`}
+                                className="rounded-xl border overflow-hidden transition-all hover:shadow-md cursor-pointer"
+                                style={{
+                                    background: cardBg,
+                                    backdropFilter: 'blur(12px)',
+                                    borderColor: colors.border,
+                                    boxShadow: colors.shadow
+                                }}
+                                onClick={() => handleItemClick(item)}
+                            >
+                                <div className="flex items-center gap-3 p-2.5">
+                                    {/* Imagem - mini */}
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
+                                        {item.imageUrl ? (
+                                            <img
+                                                src={item.imageUrl}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                <span className="text-base font-black text-white/70">
+                                                    {item.name.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Informações */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {item.name}
+                                            </h3>
+                                        </div>
+                                        <span
+                                            className="text-[9px] font-bold"
+                                            style={{ color: getTypeColor(item.type) }}
+                                        >
+                                            {getTypeLabel(item.type)}
+                                        </span>
+                                    </div>
+
+                                    {/* Botão de remover */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            removeItem(item)
+                                        }}
+                                        className="p-1 rounded-full hover:bg-black/10 transition-colors flex-shrink-0"
+                                        style={{ color: colors.textSecondary }}
+                                        title="Remover"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
         </div>
     )
 }

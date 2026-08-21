@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase/client'
-import { Star, Clock, ChevronRight, Search, Loader2, MapPin, User, Store } from 'lucide-react'
+import { Star, Clock, Search, Loader2, Package, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -344,46 +344,38 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         key={profile.id}
                                         href={`/${profile.profileSlug}`}
                                         onClick={() => handleProfileClick(profile)}
-                                        className="group"
+                                        className="group relative block overflow-hidden rounded-xl aspect-square"
                                     >
-                                        <div
-                                            className="rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
-                                            style={{
-                                                background: cardBg,
-                                                backdropFilter: 'blur(12px)',
-                                                borderColor: colors.border,
-                                                boxShadow: colors.shadow,
-                                            }}
-                                        >
-                                            <div className="w-full aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
-                                                {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
-                                                    <img
-                                                        src={profile.avatar_url}
-                                                        alt={profile.name || 'Perfil'}
-                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                        <span className="text-4xl font-black text-white/70">
-                                                            {profile.name?.charAt(0).toUpperCase() || '?'}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                                {profile.is_seller && (
-                                                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
-                                                        Vendedor
-                                                    </div>
-                                                )}
-                                            </div>
+                                        <div className="w-full h-full relative">
+                                            {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
+                                                <img
+                                                    src={profile.avatar_url}
+                                                    alt={profile.name || 'Perfil'}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                    <span className="text-4xl font-black text-white/70">
+                                                        {profile.name?.charAt(0).toUpperCase() || '?'}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                            <div className="p-2 text-center">
-                                                <h3 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                    {profile.name || 'Usuário'}
-                                                </h3>
-                                                <p className="text-[9px]" style={{ color: colors.accent }}>
-                                                    @{profile.profileSlug}
-                                                </p>
-                                            </div>
+                                        <div className="absolute inset-0 bg-gradient-to-l from-black/70 via-black/40 to-transparent pointer-events-none" />
+
+                                        <div className="absolute bottom-2 right-2 left-2 text-right pointer-events-none">
+                                            <h3 className="text-sm font-bold text-white truncate">
+                                                {profile.name || 'Usuário'}
+                                            </h3>
+                                            <p className="text-[10px] text-white/80">
+                                                @{profile.profileSlug}
+                                            </p>
+                                            {profile.is_seller && (
+                                                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase bg-orange-500/80 text-white">
+                                                    Vendedor
+                                                </span>
+                                            )}
                                         </div>
                                     </Link>
                                 ))}
@@ -391,7 +383,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                         </div>
                     )}
 
-                    {/* Lojas com produtos - Cards com imagem em destaque */}
+                    {/* Lojas com produtos - CARDS HORIZONTAIS */}
                     {Object.entries(storesByCategory).map(([slug, storesList]) => {
                         const catInfo = categoriasInfo.find(c => c.slug === slug)
                         const titulo = catInfo?.titulo || 'Outros'
@@ -407,97 +399,112 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                         ({storesList.length})
                                     </span>
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                                <div className="space-y-3">
                                     {storesList.map(({ store, products }) => {
                                         const storeUrl = `/${store.storeSlug}`
                                         const hasProducts = products.length > 0
+                                        const productCount = products.length
 
                                         return (
-                                            <div key={store.id} className="rounded-xl border overflow-hidden" style={{ background: cardBg, backdropFilter: 'blur(12px)', borderColor: colors.border, boxShadow: colors.shadow }}>
-                                                <Link
-                                                    href={storeUrl}
+                                            <div
+                                                key={store.id}
+                                                className="rounded-xl border overflow-hidden transition-all hover:shadow-md"
+                                                style={{
+                                                    background: cardBg,
+                                                    backdropFilter: 'blur(12px)',
+                                                    borderColor: colors.border,
+                                                    boxShadow: colors.shadow
+                                                }}
+                                            >
+                                                {/* PRODUTOS EM CARDS HORIZONTAIS - TOPO */}
+                                                {hasProducts && (
+                                                    <div className="p-3 pb-2">
+                                                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                                            {products.map((product) => (
+                                                                <Link
+                                                                    key={product.id}
+                                                                    href={`/${store.storeSlug}/${product.slug || product.id}`}
+                                                                    onClick={() => handleProductClick(product, store.storeSlug)}
+                                                                    className="group/product flex-shrink-0 w-28 sm:w-32"
+                                                                >
+                                                                    <div className="rounded-lg border overflow-hidden transition-all hover:shadow-lg hover:scale-105" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
+                                                                        <div className="w-full aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
+                                                                            {product.image_url ? (
+                                                                                <img
+                                                                                    src={product.image_url}
+                                                                                    alt={product.name}
+                                                                                    className="w-full h-full object-cover group-hover/product:scale-110 transition-transform duration-300"
+                                                                                />
+                                                                            ) : (
+                                                                                <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                                    <Package size={20} className="text-white/50" />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="p-1.5">
+                                                                            <p className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                                {product.name}
+                                                                            </p>
+                                                                            <p className="text-[9px] font-bold" style={{ color: '#f97316' }}>
+                                                                                R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                </Link>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* INFORMAÇÕES DA LOJA - PARTE INFERIOR */}
+                                                <div
+                                                    className="border-t flex items-center gap-3 p-2.5 hover:bg-white/5 transition-colors cursor-pointer"
+                                                    style={{ borderColor: colors.border }}
                                                     onClick={() => handleStoreClick(store)}
-                                                    className="block group"
                                                 >
-                                                    <div className="w-full aspect-square relative overflow-hidden" style={{ background: colors.accentLight }}>
+                                                    {/* Logo da loja - mini */}
+                                                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
                                                         {store.logo_url ? (
-                                                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                            <img src={store.logo_url} alt={store.name} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                                <span className="text-4xl font-black text-white/70">
+                                                                <span className="text-sm font-black text-white/70">
                                                                     {store.name?.charAt(0) || '?'}
                                                                 </span>
                                                             </div>
                                                         )}
-                                                        {hasProducts && (
-                                                            <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold backdrop-blur-md" style={{ background: 'rgba(0,0,0,0.5)', color: '#fff' }}>
-                                                                {products.length}
-                                                            </div>
-                                                        )}
                                                     </div>
 
-                                                    <div className="p-2">
-                                                        <h3 className="text-xs font-bold truncate text-center" style={{ color: colors.textPrimary }}>{store.name}</h3>
-                                                        <div className="flex items-center justify-center gap-2 mt-1">
+                                                    {/* Informações da loja */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                                {store.name}
+                                                            </h3>
+                                                            {hasProducts && (
+                                                                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: '#f9731620', color: '#f97316' }}>
+                                                                    {productCount}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 mt-0.5">
                                                             <div className="flex items-center gap-0.5">
                                                                 <Star size={10} className="text-yellow-400 fill-yellow-400" />
-                                                                <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>{store.ratings_avg?.toFixed(1) || '0.0'}</span>
+                                                                <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
+                                                                    {store.ratings_avg?.toFixed(1) || '0.0'}
+                                                                </span>
                                                             </div>
                                                             <div className="flex items-center gap-0.5">
                                                                 <Clock size={10} style={{ color: colors.accent }} />
-                                                                <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>{formatPrepTime(store)}</span>
+                                                                <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                                                    {formatPrepTime(store)}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                </Link>
 
-                                                {/* Produtos da Loja - miniaturas */}
-                                                {hasProducts && (
-                                                    <div className="px-2 pb-2">
-                                                        <div className="border-t pt-1.5" style={{ borderColor: colors.border }}>
-                                                            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                                                                {products.slice(0, 3).map((product) => (
-                                                                    <Link
-                                                                        key={product.id}
-                                                                        href={`/${store.storeSlug}/${product.slug || product.id}`}
-                                                                        onClick={() => handleProductClick(product, store.storeSlug)}
-                                                                        className="group/product flex-shrink-0 w-16"
-                                                                    >
-                                                                        <div className="rounded-lg border overflow-hidden transition-all hover:scale-105" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
-                                                                            <div className="w-full aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
-                                                                                {product.image_url ? (
-                                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover/product:scale-110 transition-transform duration-300" />
-                                                                                ) : (
-                                                                                    <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                                                        <span className="text-[10px] font-black text-white/50">
-                                                                                            {product.name?.charAt(0) || '?'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                            <div className="p-1">
-                                                                                <p className="text-[8px] font-bold truncate text-center" style={{ color: colors.textPrimary }}>
-                                                                                    {product.name}
-                                                                                </p>
-                                                                            </div>
-                                                                        </div>
-                                                                    </Link>
-                                                                ))}
-                                                                {products.length > 3 && (
-                                                                    <Link
-                                                                        href={storeUrl}
-                                                                        className="flex-shrink-0 w-16 rounded-lg border-2 border-dashed flex items-center justify-center aspect-square transition-all hover:bg-white/5"
-                                                                        style={{ borderColor: colors.border }}
-                                                                    >
-                                                                        <span className="text-[8px] font-bold text-center leading-tight" style={{ color: colors.textSecondary }}>
-                                                                            +{products.length - 3}
-                                                                        </span>
-                                                                    </Link>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                    <ChevronRight size={16} className="flex-shrink-0 opacity-50" style={{ color: colors.textSecondary }} />
+                                                </div>
                                             </div>
                                         )
                                     })}
