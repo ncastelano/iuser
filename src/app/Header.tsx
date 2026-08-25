@@ -133,7 +133,7 @@ export default function Header({
             }}
             className="sm:px-6 sm:pt-5"
         >
-            {/* Marca d'água */}
+            {/* Marca d'água - Logo sem container circular */}
             <div
                 style={{
                     position: 'absolute',
@@ -143,16 +143,15 @@ export default function Header({
                     height: avatarUrl ? 160 : 120,
                     opacity: avatarUrl ? 0.5 : 0.4,
                     transform: 'rotate(10deg)',
-                    maskImage:
-                        'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                    WebkitMaskImage:
-                        'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                    maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                    WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                     pointerEvents: 'none',
-                    background: avatarUrl ? 'transparent' : colors.accent,
+                    background: 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1,
+                    borderRadius: '0',
                 }}
             >
                 {avatarUrl ? (
@@ -163,14 +162,19 @@ export default function Header({
                             width: '100%',
                             height: '100%',
                             objectFit: 'cover',
-                            borderRadius: '50%',
+                            borderRadius: '0',
                         }}
                     />
                 ) : (
                     <img
                         src="/logotransparente.png"
                         alt="headerimage"
-                        style={{ width: 60, height: 60, objectFit: 'contain' }}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            borderRadius: '0',
+                        }}
                     />
                 )}
             </div>
