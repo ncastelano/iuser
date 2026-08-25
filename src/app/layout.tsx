@@ -14,7 +14,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL('https://iuser.com.br'),
   title: 'iUser | Mostre o que você tem de melhor!',
-  description: 'Os melhores produtos e serviços, você encontra aqui!',
+  description: 'iUser: Mostre o que você tem de melhor!',
   verification: {
     google: 'lUgD-IyItAD8DLPH6GiHQxOcIXArO5WVoqV-yAZFXQk',
   },
