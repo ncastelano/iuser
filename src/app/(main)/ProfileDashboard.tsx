@@ -13,43 +13,33 @@ import { toast } from 'sonner'
 import {
     Eye,
     Settings,
-    Plus,
-    Users,
     X,
-    Send,
     DollarSign,
     ShoppingCart,
     Package,
-    ArrowUpDown,
     Pencil,
-    MapPin,
     Phone,
     User,
     Calendar,
-    Clock,
     Store,
     Heart,
     Star,
-    Truck,
     Home,
-    UserCircle,
     Copy,
     ExternalLink,
-    ChevronUp,
-    ChevronDown,
     AlertCircle,
     Check,
     Loader2,
+    BarChart3,
 } from 'lucide-react'
-import { OrderModal } from '../../components/OrderModal'
-import ButtonInPersonSale from './ButtonInPersonSale'
-import Employee from './Employee'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileOperatingDays from './ProfileOperatingDays'
 import Commission from './Commission'
+import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
+import { ptBR as ptBRLocale } from 'date-fns/locale'
 
 // ===== IMPORTAR DO PROFILEHOURS (com suporte a intervalo) =====
 import { isProfileOpenNow, getProfileStatusWithLunch } from '@/lib/profileHours'
@@ -80,63 +70,10 @@ const pillButtonFullStyle = {
     fontSize: '0.875rem',
 }
 
-function startOfDay(date: Date = new Date()): string {
-    date.setHours(0, 0, 0, 0)
-    return date.toISOString()
-}
-
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
     const bigint = parseInt(clean, 16)
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-}
-
-// ---------- Funções de rota (entregas) ----------
-const ROUTE_COLORS = ['#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#eab308']
-
-interface DeliveryStop {
-    lat: number | null
-    lng: number | null
-    label: string
-    address: string
-    status: string
-    payment_method: string
-    total_amount: number
-    delivery_fee: number
-    items: { product_name: string; quantity: number }[]
-}
-
-interface EmployeeRoute {
-    employeeId: string
-    employeeName: string
-    color: string
-    stops: DeliveryStop[]
-}
-
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-function optimizeRoute(storeLat: number, storeLng: number, stops: { id: string; lat: number; lng: number }[]) {
-    if (stops.length === 0) return []
-    const remaining = [...stops]
-    const sequence: { id: string; sequence: number }[] = []
-    let curLat = storeLat, curLng = storeLng, seq = 1
-    while (remaining.length > 0) {
-        let nearestIdx = 0, nearestDist = Infinity
-        remaining.forEach((s, i) => {
-            const d = haversineDistance(curLat, curLng, s.lat, s.lng)
-            if (d < nearestDist) { nearestDist = d; nearestIdx = i }
-        })
-        const next = remaining.splice(nearestIdx, 1)[0]
-        sequence.push({ id: next.id, sequence: seq++ })
-        curLat = next.lat; curLng = next.lng
-    }
-    return sequence
 }
 
 export default function ProfileDashboard({
@@ -152,19 +89,21 @@ export default function ProfileDashboard({
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const { itemsByStore } = useCartStore()
-    const [isProductsExpanded, setIsProductsExpanded] = useState(false)
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [refreshing, setRefreshing] = useState(false)
 
     const [orders, setOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({
         daily: { spent: 0, orders: 0 },
         total: { spent: 0, orders: 0, stores: 0 },
-        revenue: { daily: 0, orders: 0 },
     })
 
+    const [dailySpendingData, setDailySpendingData] = useState<{ date: string; amount: number }[]>([])
+    const [spendingPeriod, setSpendingPeriod] = useState<'7days' | '30days'>('7days')
+    const [totalPeriodSpent, setTotalPeriodSpent] = useState(0)
+
     const [favoriteStores, setFavoriteStores] = useState<any[]>([])
+    const [favoriteStoresNotOwned, setFavoriteStoresNotOwned] = useState<any[]>([])
     const [recentViews, setRecentViews] = useState<any[]>([])
     const [reviews, setReviews] = useState<any[]>([])
     const [upcomingSchedules, setUpcomingSchedules] = useState<any[]>([])
@@ -175,38 +114,33 @@ export default function ProfileDashboard({
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
     const [cartAnimating, setCartAnimating] = useState(false)
 
-    const [groupedOrders, setGroupedOrders] = useState<any[]>([])
-    const [products, setProducts] = useState<any[]>([])
-    const [sortBy, setSortBy] = useState<'mostSold' | 'leastSold' | 'mostExpensive' | 'cheapest'>('mostSold')
-    const [employees, setEmployees] = useState<any[]>([])
-    const [employeeRoutes, setEmployeeRoutes] = useState<EmployeeRoute[]>([])
-    const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set())
-    const [showAssignModal, setShowAssignModal] = useState(false)
-    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
-    const [assigning, setAssigning] = useState(false)
-    const [selectedOrder, setSelectedOrder] = useState<any>(null)
-    const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
-    const [singleAssignOpen, setSingleAssignOpen] = useState<{ order: any } | null>(null)
-    const [assignmentMap, setAssignmentMap] = useState<Map<string, { employeeName: string; status: string }>>(new Map())
-    const [ownerProfile, setOwnerProfile] = useState<{ name: string; phone?: string } | null>(null)
-
-    const [acceptsPix, setAcceptsPix] = useState(false)
-    const [acceptsCard, setAcceptsCard] = useState(false)
-    const [acceptsDelivery, setAcceptsDelivery] = useState(false)
-    const [acceptsPickup, setAcceptsPickup] = useState(false)
-    const [pixKey, setPixKey] = useState('')
-    const [pixKeyType, setPixKeyType] = useState<'cpf' | 'email' | 'phone' | 'random'>('cpf')
-    const [deliveryMode, setDeliveryMode] = useState<'fixed' | 'distance'>('fixed')
-    const [fixedDeliveryFee, setFixedDeliveryFee] = useState('')
-    const [distanceRules, setDistanceRules] = useState<{ max_km: string; fee: string }[]>([])
-    const [initialBusinessHours, setInitialBusinessHours] = useState<Record<string, { open: string; close: string }>>({})
-
     // Estado para o aviso de WhatsApp
     const [showWhatsAppAlert, setShowWhatsAppAlert] = useState(true)
     const [whatsAppInput, setWhatsAppInput] = useState('')
     const [savingWhatsApp, setSavingWhatsApp] = useState(false)
 
+    // Tab controle
+    const [activeTab, setActiveTab] = useState<'compras' | 'favoritas' | 'avaliacoes'>('compras')
+
     const intervalRef = useRef<any>(null)
+
+    // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
+    const totalCartItems = React.useMemo(() => {
+        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
+    }, [itemsByStore])
+
+    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
+    const totalCartValue = React.useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                const price = item.product?.price || 0
+                const quantity = item.quantity || 1
+                total += Number(price) * quantity
+            })
+        })
+        return total
+    }, [itemsByStore])
 
     // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
     const isProfileOpen = useMemo(() => {
@@ -219,10 +153,6 @@ export default function ProfileDashboard({
         const status = getProfileStatusWithLunch(profile.business_hours)
         return status.text
     }, [profile])
-
-    const totalCartItems = React.useMemo(() => {
-        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
-    }, [itemsByStore])
 
     React.useEffect(() => {
         if (totalCartItems > 0) {
@@ -289,7 +219,6 @@ export default function ProfileDashboard({
     const handleSaveWhatsApp = async () => {
         if (!profile || !profileSlug) return
 
-        // Limpa o número: remove espaços, parênteses, hífens
         const cleanPhone = whatsAppInput.replace(/\s/g, '').replace(/[()\-]/g, '')
 
         if (cleanPhone.length < 10) {
@@ -306,20 +235,9 @@ export default function ProfileDashboard({
 
             if (error) throw error
 
-            // Atualiza o estado local
             setProfile({ ...profile, whatsapp: cleanPhone })
-
-            // Corrigido: Verifica se ownerProfile existe antes de atualizar
-            if (ownerProfile) {
-                setOwnerProfile({ ...ownerProfile, phone: cleanPhone })
-            } else {
-                setOwnerProfile({ name: profile.name || '', phone: cleanPhone })
-            }
-
             setShowWhatsAppAlert(false)
             toast.success('WhatsApp adicionado com sucesso! 🎉')
-
-            // Recarrega o dashboard para refletir as mudanças
             loadDashboard()
         } catch (error: any) {
             toast.error('Erro ao salvar WhatsApp: ' + error.message)
@@ -349,35 +267,22 @@ export default function ProfileDashboard({
             : null)
 
         setProfile({ ...profileData, avatar_url: finalAvatarUrl })
-        setInitialBusinessHours(profileData.business_hours || {})
 
-        setAcceptsPix(profileData.accepts_pix ?? true)
-        setAcceptsCard(profileData.accepts_card ?? true)
-        setAcceptsDelivery(profileData.accepts_delivery ?? false)
-        setAcceptsPickup(profileData.accepts_pickup ?? false)
-        setPixKey(profileData.pix_key || '')
-        setPixKeyType(profileData.pix_key_type || 'cpf')
-
-        if (profileData.delivery_type === 'fixed') {
-            setDeliveryMode('fixed')
-            setFixedDeliveryFee(profileData.delivery_fee ? String(profileData.delivery_fee) : '')
-        } else if (profileData.delivery_type === 'distance') {
-            setDeliveryMode('distance')
-            setDistanceRules(profileData.delivery_distance_rules || [])
-        } else {
-            setDeliveryMode('fixed')
-            setFixedDeliveryFee('')
-        }
-
-        const profileId = profileData.id
-        setOwnerProfile({ name: profileData.name, phone: profileData.whatsapp })
-
-        // Verifica se tem WhatsApp para mostrar o aviso
         if (profileData.whatsapp) {
             setShowWhatsAppAlert(false)
         } else {
             setShowWhatsAppAlert(true)
         }
+
+        const profileId = profileData.id
+
+        // Buscar lojas do usuário para saber quais são dele
+        const { data: userStores } = await supabase
+            .from('stores')
+            .select('storeSlug')
+            .eq('owner_id', profileId)
+
+        const userStoreSlugs = new Set(userStores?.map(s => s.storeSlug) || [])
 
         const { data: ordersData } = await supabase
             .from('orders')
@@ -441,7 +346,7 @@ export default function ProfileDashboard({
 
             setOrders(formattedOrders)
 
-            const todayStart = startOfDay()
+            const todayStart = startOfDay(new Date()).toISOString()
             const dailyOrders = formattedOrders.filter((o: any) =>
                 new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
                 o.status === 'paid'
@@ -458,6 +363,40 @@ export default function ProfileDashboard({
                 total: { spent: totalSpent, orders: paidOrders.length, stores: uniqueStores },
             }))
 
+            // --- Dados para o gráfico de gastos diários ---
+            const endDate = new Date()
+            const startDate = spendingPeriod === '7days' ? subDays(endDate, 6) : subDays(endDate, 29)
+            const startISO = startDate.toISOString()
+            const endISO = endDate.toISOString()
+
+            const { data: dailySpending } = await supabase
+                .from('orders')
+                .select('created_at, total_amount')
+                .eq('buyer_id', profileId)
+                .eq('status', 'paid')
+                .gte('created_at', startISO)
+                .lte('created_at', endISO)
+
+            const dayMap = new Map<string, number>()
+            let periodTotal = 0
+            dailySpending?.forEach(order => {
+                const day = format(new Date(order.created_at), 'yyyy-MM-dd')
+                const amount = Number(order.total_amount) || 0
+                dayMap.set(day, (dayMap.get(day) || 0) + amount)
+                periodTotal += amount
+            })
+            setTotalPeriodSpent(periodTotal)
+
+            const dateRange = eachDayOfInterval({ start: startDate, end: endDate })
+            const chartData = dateRange.map(date => {
+                const key = format(date, 'yyyy-MM-dd')
+                return {
+                    date: format(date, 'dd/MM'),
+                    amount: dayMap.get(key) || 0,
+                }
+            })
+            setDailySpendingData(chartData)
+
             const storeCounts = new Map<string, number>()
             ordersData.forEach((order: any) => {
                 const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
@@ -470,7 +409,7 @@ export default function ProfileDashboard({
             if (storeCounts.size > 0) {
                 const sortedStores = Array.from(storeCounts.entries())
                     .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5)
+                    .slice(0, 10)
 
                 const favoriteStoresData = sortedStores.map(([slug, count]) => {
                     const order = ordersData.find((o: any) => {
@@ -485,15 +424,19 @@ export default function ProfileDashboard({
                         logoUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
                     }
 
+                    const isOwned = userStoreSlugs.has(slug)
+
                     return {
                         name: storeData?.name || slug,
                         slug: slug,
                         logo_url: logoUrl,
                         orderCount: count,
+                        isOwned,
                     }
                 })
 
                 setFavoriteStores(favoriteStoresData)
+                setFavoriteStoresNotOwned(favoriteStoresData.filter(s => !s.isOwned))
             }
         }
 
@@ -624,257 +567,8 @@ export default function ProfileDashboard({
             setUpcomingSchedules(formattedSchedules)
         }
 
-        const { data: storeOrdersData, error: storeOrdersError } = await supabase
-            .from('orders')
-            .select(`
-                id,
-                checkout_id,
-                buyer_id,
-                buyer_name,
-                buyer_profile_slug,
-                total_amount,
-                delivery_fee,
-                delivery_option,
-                payment_method,
-                delivery_address,
-                delivery_lat,
-                delivery_lng,
-                status,
-                created_at,
-                order_items (
-                    id,
-                    product_id,
-                    product_name,
-                    quantity,
-                    unit_price,
-                    total_price
-                )
-            `)
-            .eq('store_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(100)
-
-        if (!storeOrdersError && storeOrdersData) {
-            const grouped = storeOrdersData.map(order => {
-                const items = order.order_items || []
-                const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
-                const deliveryFee = Number(order.delivery_fee || 0)
-                return {
-                    id: order.id,
-                    checkout_id: order.checkout_id,
-                    buyer_name: order.buyer_name,
-                    buyer_profile_slug: order.buyer_profile_slug,
-                    created_at: order.created_at,
-                    status: order.status,
-                    delivery_address: order.delivery_address,
-                    delivery_lat: order.delivery_lat,
-                    delivery_lng: order.delivery_lng,
-                    items,
-                    subtotal,
-                    deliveryFee,
-                    totalPrice: Number(order.total_amount || subtotal + deliveryFee),
-                }
-            }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-            setGroupedOrders(grouped)
-
-            const todayStartISO = startOfDay()
-            const dailyOrders = storeOrdersData.filter(o =>
-                new Date(o.created_at).getTime() >= new Date(todayStartISO).getTime() &&
-                o.status === 'paid'
-            )
-            const dailyRev = dailyOrders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0)
-            setMetrics(prev => ({
-                ...prev,
-                revenue: { daily: dailyRev, orders: dailyOrders.length }
-            }))
-        }
-
-        const { data: productsData, error: productsError } = await supabase
-            .from('products')
-            .select('id, name, price, image_url, slug, store_id, owner_id, owner_image_url')
-            .eq('owner_id', profileId)
-            .is('store_id', null)
-            .order('created_at', { ascending: false })
-            .limit(12)
-
-        if (productsError) {
-            console.error('[ProfileDashboard] Erro ao buscar produtos:', productsError)
-        }
-
-        if (productsData && productsData.length > 0) {
-            const productIds = productsData.map(p => p.id)
-            const todayStartISO = startOfDay()
-
-            const { data: viewsToday } = await supabase.from('product_views')
-                .select('product_id').in('product_id', productIds).gte('created_at', todayStartISO)
-            const viewsTodayMap = new Map()
-            viewsToday?.forEach(v => viewsTodayMap.set(v.product_id, (viewsTodayMap.get(v.product_id) || 0) + 1))
-
-            const { data: viewsTotal } = await supabase.from('product_views')
-                .select('product_id').in('product_id', productIds)
-            const viewsTotalMap = new Map()
-            viewsTotal?.forEach(v => viewsTotalMap.set(v.product_id, (viewsTotalMap.get(v.product_id) || 0) + 1))
-
-            const { data: orderIdsData } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('store_id', profileId)
-            const orderIds = orderIdsData?.map(o => o.id) || []
-            const salesCountMap = new Map()
-            if (orderIds.length > 0) {
-                const { data: orderItemsSales } = await supabase
-                    .from('order_items')
-                    .select('product_id, quantity')
-                    .in('order_id', orderIds)
-                    .in('product_id', productIds)
-                orderItemsSales?.forEach(s => {
-                    salesCountMap.set(s.product_id, (salesCountMap.get(s.product_id) || 0) + (s.quantity || 1))
-                })
-            }
-
-            let cartMap = new Map()
-            try {
-                const { data: carts } = await supabase
-                    .from('carts')
-                    .select('items')
-                    .eq('store_id', profileId)
-
-                if (carts) {
-                    carts.forEach(cart => {
-                        if (cart.items) {
-                            const items = typeof cart.items === 'string' ? JSON.parse(cart.items) : cart.items
-                            items?.forEach((item: any) => {
-                                cartMap.set(item.product_id, (cartMap.get(item.product_id) || 0) + (item.quantity || 1))
-                            })
-                        }
-                    })
-                }
-            } catch (e) {
-                console.error('[ProfileDashboard] Erro ao buscar carrinhos:', e)
-            }
-
-            const combined = productsData.map(p => ({
-                ...p,
-                viewsToday: viewsTodayMap.get(p.id) || 0,
-                viewsTotal: viewsTotalMap.get(p.id) || 0,
-                inCart: cartMap.get(p.id) || 0,
-                salesCount: salesCountMap.get(p.id) || 0,
-            }))
-            setProducts(combined)
-        } else {
-            setProducts([])
-        }
-
-        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', profileId).eq('is_active', true)
-        setEmployees(empData || [])
-
         setLoading(false)
-    }, [profileSlug, avatarUrl])
-
-    const fetchEmployeeRoutes = useCallback(async () => {
-        if (!profile?.id) return
-
-        const { data: assignments, error: assignError } = await supabase
-            .from('delivery_assignments')
-            .select('employee_id, checkout_id, sequence_order, status')
-            .eq('store_id', profile.id)
-            .order('sequence_order')
-
-        if (assignError || !assignments || assignments.length === 0) {
-            setEmployeeRoutes([])
-            setAssignmentMap(new Map())
-            return
-        }
-
-        const checkoutIds = [...new Set(assignments.map(a => a.checkout_id))]
-
-        const { data: orders, error: ordersError } = await supabase
-            .from('orders')
-            .select(`
-                checkout_id,
-                delivery_lat,
-                delivery_lng,
-                delivery_address,
-                buyer_name,
-                payment_method,
-                total_amount,
-                delivery_fee,
-                order_items (
-                    product_name,
-                    quantity
-                )
-            `)
-            .in('checkout_id', checkoutIds)
-
-        if (ordersError) return
-
-        const ordersMap = new Map<string, any>()
-        orders?.forEach(order => {
-            ordersMap.set(order.checkout_id, order)
-        })
-
-        const map = new Map<string, any[]>()
-        assignments.forEach(assignment => {
-            const order = ordersMap.get(assignment.checkout_id)
-            if (!map.has(assignment.employee_id)) map.set(assignment.employee_id, [])
-
-            const items = order ? (order.order_items || []).map((item: any) => ({
-                product_name: item.product_name,
-                quantity: item.quantity,
-            })) : []
-
-            map.get(assignment.employee_id)!.push({
-                checkout_id: assignment.checkout_id,
-                sequence: assignment.sequence_order,
-                status: assignment.status,
-                lat: order?.delivery_lat || null,
-                lng: order?.delivery_lng || null,
-                address: order?.delivery_address || '',
-                buyer: order?.buyer_name || '',
-                payment_method: order?.payment_method || '',
-                total_amount: order?.total_amount || 0,
-                delivery_fee: order?.delivery_fee || 0,
-                items,
-            })
-        })
-
-        const routes: EmployeeRoute[] = Array.from(map.entries()).map(([eid, stops], idx) => {
-            const emp = employees.find(e => e.id === eid)
-            return {
-                employeeId: eid,
-                employeeName: emp?.name || 'Entregador',
-                color: ROUTE_COLORS[idx % ROUTE_COLORS.length],
-                stops: stops.map(s => ({
-                    lat: s.lat,
-                    lng: s.lng,
-                    label: s.sequence.toString(),
-                    address: s.address || '',
-                    status: s.status,
-                    payment_method: s.payment_method,
-                    total_amount: s.total_amount,
-                    delivery_fee: s.delivery_fee,
-                    items: s.items,
-                })),
-            }
-        })
-
-        setEmployeeRoutes(routes)
-
-        const newMap = new Map<string, { employeeName: string; status: string }>()
-        assignments.forEach(a => {
-            const emp = employees.find(e => e.id === a.employee_id)
-            if (emp) {
-                newMap.set(a.checkout_id, {
-                    employeeName: emp.name,
-                    status: a.status
-                })
-            }
-        })
-        setAssignmentMap(newMap)
-    }, [profile?.id, employees])
-
-    useEffect(() => { if (profile?.id) fetchEmployeeRoutes() }, [profile?.id, employees, fetchEmployeeRoutes])
+    }, [profileSlug, avatarUrl, spendingPeriod])
 
     useEffect(() => {
         if (!profile?.id) return
@@ -882,28 +576,18 @@ export default function ProfileDashboard({
             .channel(`painel-orders-${profile.id}`)
             .on(
                 'postgres_changes',
-                { event: '*', schema: 'public', table: 'orders', filter: `store_id=eq.${profile.id}` },
+                { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${profile.id}` },
                 () => loadDashboard()
-            )
-            .subscribe()
-
-        const assignmentsChannel = supabase
-            .channel(`painel-assignments-${profile.id}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'delivery_assignments', filter: `store_id=eq.${profile.id}` },
-                () => fetchEmployeeRoutes()
             )
             .subscribe()
 
         return () => {
             supabase.removeChannel(ordersChannel)
-            supabase.removeChannel(assignmentsChannel)
             clearInterval(intervalRef.current)
         }
-    }, [profile?.id, loadDashboard, fetchEmployeeRoutes])
+    }, [profile?.id, loadDashboard])
 
-    useEffect(() => { loadDashboard() }, [loadDashboard])
+    useEffect(() => { loadDashboard() }, [loadDashboard, spendingPeriod])
 
     const goToPublicProfile = () => {
         if (profileSlug) {
@@ -932,241 +616,18 @@ export default function ProfileDashboard({
         return statusMap[status] || { label: status, color: '#6b7280' }
     }
 
-    const formatAssignmentStatus = (status: string) => {
-        switch (status) {
-            case 'pending': return 'Pendente'
-            case 'in_transit': return 'A caminho'
-            case 'delivered': return 'Entregue'
-            default: return status
+    // Calcular máximo para o gráfico
+    const maxAmount = Math.max(...dailySpendingData.map(d => d.amount), 1)
+
+    // Função para agrupar dados de 30 dias em semanas
+    const getWeeklyData = () => {
+        const weeks: { week: string; days: { date: string; amount: number }[] }[] = []
+        for (let i = 0; i < dailySpendingData.length; i += 7) {
+            const weekData = dailySpendingData.slice(i, i + 7)
+            const weekLabel = `${weekData[0]?.date || ''} - ${weekData[weekData.length - 1]?.date || ''}`
+            weeks.push({ week: weekLabel, days: weekData })
         }
-    }
-
-    const ensureOwnerEmployee = async (): Promise<string | null> => {
-        if (!profile?.id || !profile?.name) return null
-
-        const { data: existing } = await supabase
-            .from('employees')
-            .select('id')
-            .eq('store_id', profile.id)
-            .eq('profile_id', profile.id)
-            .maybeSingle()
-
-        if (existing) return existing.id
-
-        const { data: newEmp, error } = await supabase
-            .from('employees')
-            .insert({
-                store_id: profile.id,
-                name: profile.name || 'Dono',
-                phone: profile.whatsapp || '',
-                is_active: true,
-                profile_id: profile.id,
-            })
-            .select('id')
-            .single()
-
-        if (error) {
-            toast.error('Erro ao criar seu perfil de entregador')
-            console.error(error)
-            return null
-        }
-
-        const { data: empData } = await supabase.from('employees').select('*').eq('store_id', profile.id).eq('is_active', true)
-        setEmployees(empData || [])
-        await fetchEmployeeRoutes()
-
-        return newEmp.id
-    }
-
-    const handleAssignDelivery = async (employeeId?: string) => {
-        const empId = employeeId || selectedEmployeeId
-        if (!empId || selectedOrderIds.size === 0 || !profile) return
-        setAssigning(true)
-
-        try {
-            const { store_lat, store_lng } = profile
-            if (!store_lat || !store_lng) {
-                toast.error('Configure as coordenadas do perfil.')
-                setAssigning(false)
-                return
-            }
-
-            const ordersToAssign = groupedOrders.filter(o => selectedOrderIds.has(o.checkout_id))
-            if (ordersToAssign.some(o => !o.delivery_lat || !o.delivery_lng)) {
-                toast.error('Alguns pedidos não têm coordenadas de entrega.')
-                setAssigning(false)
-                return
-            }
-
-            const { error: deleteError } = await supabase
-                .from('delivery_assignments')
-                .delete()
-                .in('checkout_id', Array.from(selectedOrderIds))
-
-            if (deleteError) {
-                console.error('[Painel] Erro ao limpar atribuições anteriores:', deleteError)
-                toast.error('Erro ao limpar atribuições anteriores.')
-                setAssigning(false)
-                return
-            }
-
-            const stops = ordersToAssign.map(o => ({ id: o.checkout_id, lat: o.delivery_lat, lng: o.delivery_lng }))
-            const optimized = optimizeRoute(store_lat, store_lng, stops)
-            const inserts = optimized.map(stop => ({
-                store_id: profile.id,
-                employee_id: empId,
-                checkout_id: stop.id,
-                sequence_order: stop.sequence,
-                status: 'pending'
-            }))
-
-            const { error: insertError } = await supabase.from('delivery_assignments').insert(inserts)
-            if (insertError) {
-                console.error('[Painel] Erro ao atribuir entregas:', insertError)
-                toast.error(`Erro ao atribuir: ${insertError.message}`)
-                setAssigning(false)
-                return
-            }
-
-            toast.success('Entregas atribuídas com sucesso!')
-            setSelectedOrderIds(new Set())
-            setShowAssignModal(false)
-            setSelectedEmployeeId(null)
-            loadDashboard()
-            fetchEmployeeRoutes()
-        } catch (err: any) {
-            console.error('[Painel] Erro inesperado:', err)
-            toast.error('Erro inesperado ao atribuir entregas.')
-        } finally {
-            setAssigning(false)
-        }
-    }
-
-    const handleSingleAssign = async (employeeId: string, order: any) => {
-        if (!profile || !employeeId) return
-        setAssigning(true)
-        try {
-            await supabase.from('delivery_assignments').delete().eq('checkout_id', order.checkout_id)
-
-            const { error } = await supabase.from('delivery_assignments').insert({
-                store_id: profile.id,
-                employee_id: employeeId,
-                checkout_id: order.checkout_id,
-                sequence_order: 1,
-                status: 'pending'
-            })
-
-            if (error) throw error
-
-            toast.success(`Pedido atribuído ao entregador!`)
-            setSingleAssignOpen(null)
-            loadDashboard()
-            fetchEmployeeRoutes()
-        } catch (err: any) {
-            toast.error(`Erro: ${err.message}`)
-        } finally {
-            setAssigning(false)
-        }
-    }
-
-    const handleAssignAsOwner = async () => {
-        const ownerId = await ensureOwnerEmployee()
-        if (ownerId) {
-            await handleAssignDelivery(ownerId)
-        }
-    }
-
-    const handleSingleAssignAsOwner = async () => {
-        if (!singleAssignOpen) return
-        const ownerId = await ensureOwnerEmployee()
-        if (ownerId) {
-            await handleSingleAssign(ownerId, singleAssignOpen.order)
-        }
-    }
-
-    const handleOrderAction = async (status: string) => {
-        if (!selectedOrder) return
-        await supabase.from('orders').update({ status }).eq('checkout_id', selectedOrder.checkout_id)
-        setSelectedOrder(null); loadDashboard(); toast.success('Status atualizado.')
-    }
-
-    const sortedProducts = [...products].sort((a, b) => {
-        switch (sortBy) {
-            case 'mostSold': return b.salesCount - a.salesCount
-            case 'leastSold': return a.salesCount - b.salesCount
-            case 'mostExpensive': return b.price - a.price
-            case 'cheapest': return a.price - b.price
-            default: return 0
-        }
-    })
-
-    const newOrders = groupedOrders.filter(o => o.status === 'pending')
-    const preparing = groupedOrders.filter(o => o.status === 'preparing')
-    const ready = groupedOrders.filter(o => o.status === 'ready')
-    const finished = groupedOrders.filter(o => o.status === 'paid')
-
-    const selectedAssignment = selectedOrder ? assignmentMap.get(selectedOrder.checkout_id) : null
-
-    const OrderItem = ({ order, showAssignButton = true }: { order: any; showAssignButton?: boolean }) => {
-        const isInPerson = !order.buyer_profile_slug
-        const channelLabel = isInPerson ? 'v. presencial' : 'v. online'
-        const channelColor = isInPerson ? '#22c55e' : '#3b82f6'
-        const channelBg = isInPerson ? '#22c55e15' : '#3b82f615'
-
-        return (
-            <div
-                className="flex items-center justify-between p-2 rounded-lg mb-1"
-                style={{ background: channelBg }}
-            >
-                <div className="flex-1 flex items-center justify-between cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                    <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5">
-                            {isInPerson ? (
-                                <>
-                                    <Store size={12} style={{ color: '#22c55e' }} />
-                                    <span className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {order.buyer_name || 'Presencial'}
-                                    </span>
-                                </>
-                            ) : (
-                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
-                                    @{order.buyer_profile_slug}
-                                </span>
-                            )}
-                            <span
-                                className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                                style={{ background: channelBg, color: channelColor }}
-                            >
-                                {channelLabel}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs mt-0.5">
-                            <span style={{ color: colors.textPrimary }}>
-                                R$ {order.totalPrice.toFixed(2)}
-                            </span>
-                            {order.deliveryFee > 0 && (
-                                <span style={{ color: colors.textSecondary }}>
-                                    frete R$ {order.deliveryFee.toFixed(2)}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="text-right" />
-                </div>
-                {showAssignButton && !isInPerson && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            setSingleAssignOpen({ order })
-                        }}
-                        className="ml-2 p-1.5 rounded-full hover:bg-white/10 transition-colors"
-                        title="Atribuir entregador"
-                    >
-                        <Send size={14} style={{ color: '#f97316' }} />
-                    </button>
-                )}
-            </div>
-        )
+        return weeks
     }
 
     if (loading) return <LoadingSpinner message="Carregando perfil..." />
@@ -1211,53 +672,44 @@ export default function ProfileDashboard({
                 </div>
             </div>
 
-            {/* ===== CARD DE AVISO - WHATSAPP (ACIMA DOS GASTOS) ===== */}
+            {/* ===== CARD DE AVISO - WHATSAPP ===== */}
             {showWhatsAppAlert && (
                 <div className="mb-6 mt-4">
                     <div
-                        className="rounded-2xl p-6 pt-7 flex flex-col gap-4 relative"
+                        className="rounded-2xl p-4 flex flex-col gap-3 relative"
                         style={{
                             background: `rgba(255, 165, 0, 0.08)`,
                             backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
                             border: `2px solid #f97316`,
                             boxShadow: `0 4px 20px rgba(249, 115, 22, 0.15)`,
                         }}
                     >
                         <div className="flex items-start gap-3">
                             <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{
                                     background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                     color: '#ffffff',
                                 }}
                             >
-                                <AlertCircle size={20} />
+                                <AlertCircle size={16} />
                             </div>
                             <div className="flex-1">
                                 <h4 className="text-sm font-black" style={{ color: '#f97316' }}>
                                     Adicione seu WhatsApp
                                 </h4>
-                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    Receba pedidos e notificações diretamente no seu WhatsApp.
-                                    <br />
-                                    <span className="font-medium" style={{ color: '#f97316' }}>
-                                        ✅ Clientes podem entrar em contato
-                                    </span>
-                                    {' • '}
-                                    <span className="font-medium" style={{ color: '#f97316' }}>
-                                        📱 Notificações em tempo real
-                                    </span>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                    Receba pedidos e notificações diretamente
                                 </p>
                             </div>
                         </div>
 
                         <div className="flex gap-2">
                             <div className="flex-1 relative">
-                                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
                                 <input
                                     type="tel"
-                                    className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                                    className="w-full pl-8 pr-3 py-2 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
                                         border: `2px solid ${colors.border}`,
@@ -1273,30 +725,23 @@ export default function ProfileDashboard({
                             <button
                                 onClick={handleSaveWhatsApp}
                                 disabled={savingWhatsApp || !whatsAppInput.trim()}
-                                className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50 whitespace-nowrap"
+                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-50"
                                 style={{
                                     background: 'linear-gradient(135deg, #f97316, #dc2626)',
                                     color: '#ffffff',
                                     boxShadow: `0 4px 12px #f9731640`,
                                 }}
                             >
-                                {savingWhatsApp ? (
-                                    <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                    <>
-                                        <Check size={16} />
-                                        Salvar
-                                    </>
-                                )}
+                                {savingWhatsApp ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
                             </button>
                         </div>
 
                         <button
                             onClick={() => setShowWhatsAppAlert(false)}
-                            className="absolute top-3 right-3 p-1 rounded-full hover:bg-white/10 transition-colors"
+                            className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/10 transition-colors"
                             style={{ color: colors.textSecondary }}
                         >
-                            <X size={18} />
+                            <X size={16} />
                         </button>
                     </div>
                 </div>
@@ -1316,7 +761,7 @@ export default function ProfileDashboard({
                         className="hover:scale-105 transition-transform"
                     >
                         <ExternalLink size={18} />
-                        Página do Perfil
+                        Perfil
                     </button>
                     <button
                         onClick={copyStoreLink}
@@ -1329,7 +774,7 @@ export default function ProfileDashboard({
                         className="hover:scale-105 transition-transform"
                     >
                         <Copy size={18} />
-                        Copiar Link
+                        Copiar
                     </button>
                     <button
                         onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
@@ -1342,494 +787,397 @@ export default function ProfileDashboard({
                         className="hover:scale-105 transition-transform"
                     >
                         <Pencil size={18} />
-                        Editar Perfil
+                        Editar
                     </button>
                 </div>
             </div>
 
-            {/* ===== Métricas (Comprador) ===== */}
-            <div className="mb-6 mt-4">
+            {/* ===== CARD PRINCIPAL - GASTOS ===== */}
+            <div className="mb-6">
                 <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                    className="rounded-2xl p-5"
                     style={{
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                         backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
                         border: `1px solid ${colors.border}`,
                         boxShadow: colors.shadow,
                     }}
                 >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <DollarSign size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Gastos Hoje
-                            </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
+                    {/* Gastos Hoje - Destaque */}
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                }}
+                            >
+                                <DollarSign size={20} />
+                            </div>
+                            <div>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>Gastos Hoje</p>
+                                <p className="text-2xl font-black" style={{ color: '#f97316' }}>
                                     R$ {metrics.daily.spent.toFixed(2)}
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>
-                                        {metrics.daily.orders}
-                                    </span>{' '}
-                                    pedidos hoje
-                                </span>
+                                </p>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Cards de resumo - PILL */}
-                    <div className="grid grid-cols-3 gap-3">
-                        <div
-                            className="p-3 rounded-full text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <ShoppingCart size={20} style={{ color: '#f97316', margin: '0 auto 4px' }} />
-                            <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                {metrics.total.orders}
+                        <div className="text-right">
+                            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                {spendingPeriod === '7days' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
                             </p>
-                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                Total de compras
-                            </p>
-                        </div>
-                        <div
-                            className="p-3 rounded-full text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <Store size={20} style={{ color: '#22c55e', margin: '0 auto 4px' }} />
-                            <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                {metrics.total.stores}
-                            </p>
-                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                Lojas diferentes
-                            </p>
-                        </div>
-                        <div
-                            className="p-3 rounded-full text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <Star size={20} style={{ color: '#f59e0b', margin: '0 auto 4px' }} />
-                            <p className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                {reviews.length}
-                            </p>
-                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                Avaliações
+                            <p className="text-xl font-black" style={{ color: '#10b981' }}>
+                                R$ {totalPeriodSpent.toFixed(2)}
                             </p>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            {/* ===== Métricas de Vendas (Vendedor) ===== */}
-            <div className="mb-6 mt-4">
-                <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <DollarSign size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Vendas Hoje
-                            </h3>
-                            <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                <span className="text-2xl font-black" style={{ color: '#f97316' }}>
-                                    R$ {metrics.revenue.daily.toFixed(2)}
-                                </span>
-                                <span>•</span>
-                                <span>
-                                    <span className="font-bold" style={{ color: '#10b981' }}>
-                                        {metrics.revenue.orders}
-                                    </span>{' '}
-                                    pedidos finalizados
-                                </span>
+                    {/* Gráfico de gastos diários */}
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                <BarChart3 size={14} style={{ color: '#f97316' }} />
+                                {spendingPeriod === '7days' ? 'Gastos de 7 dias' : 'Gastos de 30 dias'}
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* ===== Venda Presencial ===== */}
-            {profile && (
-                <div className="mb-6 mt-4">
-                    <ButtonInPersonSale
-                        storeId={profile.id}
-                        storeName={profile.name || 'Perfil'}
-                        storeSlug={profileSlug || ''}
-                        profileSlug={profileSlug || ''}
-                        onSaleCompleted={() => loadDashboard()}
-                    />
-                </div>
-            )}
-
-            {/* ===== Pedidos da Loja ===== */}
-            <div className="mb-6 mt-4">
-                <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <ShoppingCart size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Pedidos para mim
-                                </h3>
-                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#3b82f6' }}>{newOrders.length}</span> pendentes
-                                    </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#f59e0b' }}>{preparing.length}</span> preparo
-                                    </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#8b5cf6' }}>{ready.length}</span> prontos
-                                    </span>
-                                    <span>•</span>
-                                    <span>
-                                        <span className="font-bold" style={{ color: '#10b981' }}>{finished.length}</span> finalizados
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {selectedOrderIds.size > 0 && (
-                            <button
-                                onClick={() => setShowAssignModal(true)}
-                                style={{
-                                    ...pillButtonStyle,
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    boxShadow: `0 4px 12px #f9731640`,
-                                }}
-                                className="hover:scale-105 transition-transform"
-                            >
-                                <Send size={14} />
-                                Atribuir {selectedOrderIds.size}
-                            </button>
-                        )}
-                    </div>
-
-                    {groupedOrders.length === 0 ? (
-                        <div
-                            className="rounded-2xl p-6 text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido ainda.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {newOrders.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#3b82f6' }}>
-                                        Novos ({newOrders.length})
-                                    </h4>
-                                    {newOrders.map(order => <OrderItem key={order.checkout_id} order={order} />)}
-                                </div>
-                            )}
-
-                            {preparing.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#f59e0b' }}>
-                                        Em Preparo ({preparing.length})
-                                    </h4>
-                                    {preparing.map(order => {
-                                        const isAssigned = assignmentMap.has(order.checkout_id)
-                                        return (
-                                            <div key={order.checkout_id} className="mb-1">
-                                                <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
-                                                        <span className="text-[10px]" style={{ color: '#f97316' }}>
-                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => setSingleAssignOpen({ order })}
-                                                            className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                                        >
-                                                            Trocar entregador
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            {ready.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#8b5cf6' }}>
-                                        Prontos ({ready.length})
-                                    </h4>
-                                    {ready.map(order => {
-                                        const isAssigned = assignmentMap.has(order.checkout_id)
-                                        return (
-                                            <div key={order.checkout_id} className="mb-1">
-                                                <OrderItem order={order} showAssignButton={!isAssigned} />
-                                                {isAssigned && (
-                                                    <div className="flex items-center justify-between px-2 py-1 ml-2 border-l-2" style={{ borderColor: '#f97316' }}>
-                                                        <span className="text-[10px]" style={{ color: '#f97316' }}>
-                                                            🚚 {assignmentMap.get(order.checkout_id)?.employeeName} • {formatAssignmentStatus(assignmentMap.get(order.checkout_id)?.status || '')}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => setSingleAssignOpen({ order })}
-                                                            className="px-3 py-1 rounded-full text-xs font-bold"
-                                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                                        >
-                                                            Trocar entregador
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                            {finished.length > 0 && (
-                                <div>
-                                    <h4 className="text-xs font-black uppercase mb-2" style={{ color: '#22c55e' }}>
-                                        Finalizados ({finished.length})
-                                    </h4>
-                                    {finished.slice(0, 5).map(order => <OrderItem key={order.checkout_id} order={order} showAssignButton={false} />)}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ===== Produtos do Perfil ===== */}
-            <div className="mb-6 mt-4">
-                <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    {/* Cabeçalho com toggle - PILL */}
-                    <button
-                        onClick={() => setIsProductsExpanded(!isProductsExpanded)}
-                        className="w-full flex items-center justify-between text-left"
-                        style={{
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: '9999px',
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Package size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Meus Produtos
-                                </h3>
-                                <div className="flex items-center gap-3 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                    <span>{products.length} cadastrados</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {products.length > 0 && (
-                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#f9731620', color: '#f97316' }}>
-                                    {products.length}
-                                </span>
-                            )}
-                            {isProductsExpanded ? (
-                                <ChevronUp size={22} style={{ color: colors.textSecondary }} />
-                            ) : (
-                                <ChevronDown size={22} style={{ color: colors.textSecondary }} />
-                            )}
-                        </div>
-                    </button>
-
-                    {isProductsExpanded && (
-                        <>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1 text-xs" style={{ color: colors.textSecondary }}>
-                                        <ArrowUpDown size={14} />
-                                        <select
-                                            value={sortBy}
-                                            onChange={e => setSortBy(e.target.value as any)}
-                                            className="bg-transparent border rounded-full px-3 py-1 text-xs"
-                                            style={{ borderColor: colors.border, color: colors.textPrimary }}
-                                        >
-                                            <option value="mostSold">Mais vendidos</option>
-                                            <option value="leastSold">Menos vendidos</option>
-                                            <option value="mostExpensive">Mais caro</option>
-                                            <option value="cheapest">Mais barato</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => router.push(`/${profileSlug}/criar-produto`)}
-                                    style={{
-                                        ...pillButtonStyle,
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 12px #f9731640`,
-                                    }}
-                                    className="hover:scale-105 transition-transform"
-                                >
-                                    <Plus size={14} /> Adicionar
-                                </button>
-                            </div>
-
-                            {products.length === 0 ? (
-                                <div
-                                    className="rounded-2xl p-6 text-center"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px dashed ${colors.border}`,
-                                    }}
-                                >
-                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                        Nenhum produto cadastrado.
-                                    </p>
+                            <div className="flex gap-1">
+                                {(['7days', '30days'] as const).map(p => (
                                     <button
-                                        onClick={() => router.push(`/${profileSlug}/criar-produto`)}
+                                        key={p}
+                                        onClick={() => setSpendingPeriod(p)}
                                         style={{
                                             ...pillButtonStyle,
-                                            background: GRADIENT,
-                                            color: '#ffffff',
+                                            padding: '0.15rem 0.5rem',
+                                            fontSize: '0.55rem',
+                                            background: spendingPeriod === p ? GRADIENT : 'transparent',
+                                            color: spendingPeriod === p ? '#ffffff' : colors.textSecondary,
+                                            border: `1px solid ${spendingPeriod === p ? 'transparent' : colors.border}`,
                                         }}
-                                        className="mx-auto hover:opacity-80 transition-opacity"
+                                        className="hover:scale-105 transition-transform"
                                     >
-                                        <Plus size={14} /> Criar primeiro produto
+                                        {p === '7days' ? '7 dias' : '30 dias'}
                                     </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {spendingPeriod === '7days' ? (
+                            // Gráfico de barras para 7 dias
+                            <div className="flex items-end gap-1 h-16">
+                                {dailySpendingData.map((item, idx) => {
+                                    const height = maxAmount > 0 ? (item.amount / maxAmount) * 100 : 0
+                                    return (
+                                        <div key={idx} className="flex-1 flex flex-col items-center">
+                                            <div
+                                                className="w-full rounded-t transition-all duration-300"
+                                                style={{
+                                                    height: `${Math.max(height, 2)}%`,
+                                                    background: item.amount > 0 ? GRADIENT : `${'#f97316'}30`,
+                                                    minHeight: item.amount > 0 ? '8px' : '4px',
+                                                }}
+                                            />
+                                            <span className="text-[7px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                {item.date}
+                                            </span>
+                                            {item.amount > 0 && (
+                                                <span className="text-[7px] font-bold" style={{ color: '#f97316' }}>
+                                                    R${item.amount.toFixed(0)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        ) : (
+                            // Grid para 30 dias (agrupado por semanas)
+                            <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                                {getWeeklyData().map((week, weekIdx) => (
+                                    <div key={weekIdx}>
+                                        <p className="text-[8px] font-bold mb-1" style={{ color: colors.textSecondary }}>
+                                            Semana {weekIdx + 1}: {week.week}
+                                        </p>
+                                        <div className="flex items-end gap-1">
+                                            {week.days.map((day, dayIdx) => {
+                                                const height = maxAmount > 0 ? (day.amount / maxAmount) * 100 : 0
+                                                return (
+                                                    <div key={dayIdx} className="flex-1 flex flex-col items-center">
+                                                        <div
+                                                            className="w-full rounded-t transition-all duration-300"
+                                                            style={{
+                                                                height: `${Math.max(height, 2)}%`,
+                                                                background: day.amount > 0 ? GRADIENT : `${'#f97316'}30`,
+                                                                minHeight: day.amount > 0 ? '8px' : '4px',
+                                                            }}
+                                                        />
+                                                        <span className="text-[6px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                            {day.date}
+                                                        </span>
+                                                        {day.amount > 0 && (
+                                                            <span className="text-[6px] font-bold" style={{ color: '#f97316' }}>
+                                                                R${day.amount.toFixed(0)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ===== TABS: Compras Recentes | Lojas Favoritas | Avaliações ===== */}
+            <div className="mb-6">
+                <div
+                    className="rounded-2xl overflow-hidden"
+                    style={{
+                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                        backdropFilter: 'blur(12px)',
+                        border: `1px solid ${colors.border}`,
+                        boxShadow: colors.shadow,
+                    }}
+                >
+                    {/* Tabs Header */}
+                    <div className="flex border-b" style={{ borderColor: colors.border }}>
+                        <button
+                            onClick={() => setActiveTab('compras')}
+                            className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
+                            style={{
+                                color: activeTab === 'compras' ? '#f97316' : colors.textSecondary,
+                            }}
+                        >
+                            <div className="flex items-center justify-center gap-1.5">
+                                <Package size={14} />
+                                Compras
+                                {orders.length > 0 && (
+                                    <span
+                                        className="px-1.5 py-0.5 rounded-full text-[8px]"
+                                        style={{
+                                            background: '#f9731620',
+                                            color: '#f97316',
+                                        }}
+                                    >
+                                        {orders.length}
+                                    </span>
+                                )}
+                            </div>
+                            {activeTab === 'compras' && (
+                                <div
+                                    className="absolute bottom-0 left-0 right-0 h-0.5"
+                                    style={{ background: GRADIENT }}
+                                />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('favoritas')}
+                            className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
+                            style={{
+                                color: activeTab === 'favoritas' ? '#f97316' : colors.textSecondary,
+                            }}
+                        >
+                            <div className="flex items-center justify-center gap-1.5">
+                                <Heart size={14} />
+                                Favoritas
+                                {favoriteStoresNotOwned.length > 0 && (
+                                    <span
+                                        className="px-1.5 py-0.5 rounded-full text-[8px]"
+                                        style={{
+                                            background: '#22c55e20',
+                                            color: '#22c55e',
+                                        }}
+                                    >
+                                        {favoriteStoresNotOwned.length}
+                                    </span>
+                                )}
+                            </div>
+                            {activeTab === 'favoritas' && (
+                                <div
+                                    className="absolute bottom-0 left-0 right-0 h-0.5"
+                                    style={{ background: GRADIENT }}
+                                />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('avaliacoes')}
+                            className="flex-1 py-2.5 text-[10px] font-bold transition-all relative"
+                            style={{
+                                color: activeTab === 'avaliacoes' ? '#f97316' : colors.textSecondary,
+                            }}
+                        >
+                            <div className="flex items-center justify-center gap-1.5">
+                                <Star size={14} />
+                                Avaliações
+                                {reviews.length > 0 && (
+                                    <span
+                                        className="px-1.5 py-0.5 rounded-full text-[8px]"
+                                        style={{
+                                            background: '#f59e0b20',
+                                            color: '#f59e0b',
+                                        }}
+                                    >
+                                        {reviews.length}
+                                    </span>
+                                )}
+                            </div>
+                            {activeTab === 'avaliacoes' && (
+                                <div
+                                    className="absolute bottom-0 left-0 right-0 h-0.5"
+                                    style={{ background: GRADIENT }}
+                                />
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Conteúdo da Tab */}
+                    <div className="p-4">
+                        {activeTab === 'compras' ? (
+                            orders.length === 0 ? (
+                                <div className="py-8 text-center">
+                                    <ShoppingCart size={32} style={{ color: colors.textSecondary, margin: '0 auto 8px' }} />
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                        Nenhuma compra ainda
+                                    </p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Suas compras aparecerão aqui
+                                    </p>
                                 </div>
                             ) : (
-                                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-400">
-                                    {sortedProducts.map(prod => {
-                                        const imgUrl = prod.image_url ? supabase.storage.from('product-images').getPublicUrl(prod.image_url).data.publicUrl : null
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {orders.slice(0, 10).map((order: any) => {
+                                        const status = formatStatus(order.status)
                                         return (
                                             <div
-                                                key={prod.id}
-                                                className="flex-shrink-0 w-40 rounded-2xl border p-3 flex flex-col gap-2 cursor-pointer hover:shadow-md transition-shadow relative"
-                                                style={{ background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`, borderColor: colors.border }}
-                                                onClick={() => router.push(`/${profileSlug}/${prod.slug || prod.id}`)}
+                                                key={order.checkout_id}
+                                                className="flex items-center justify-between p-2 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
+                                                style={{
+                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                    border: `1px solid ${colors.border}`,
+                                                }}
+                                                onClick={() => router.push(`/${profileSlug}/${order.store_slug}`)}
                                             >
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        router.push(`/${profileSlug}/${prod.slug || prod.id}/editar-produto`)
-                                                    }}
-                                                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center hover:bg-black/50 transition-colors z-10"
-                                                    title="Editar produto"
-                                                >
-                                                    <Pencil size={14} color="white" />
-                                                </button>
-
-                                                <div className="w-full h-28 rounded-xl overflow-hidden bg-gray-100">
-                                                    {imgUrl ? <img src={imgUrl} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center text-2xl" style={{ color: colors.textSecondary }}>📦</div>}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>{prod.name}</p>
-                                                    <p className="text-xs font-bold mt-1" style={{ color: '#f97316' }}>R$ {Number(prod.price).toFixed(2)}</p>
-                                                    <div className="flex flex-col text-[10px] mt-1 space-y-0.5" style={{ color: colors.textSecondary }}>
-                                                        <span>👁 {prod.viewsToday} hoje</span>
-                                                        <span>🛒 {prod.inCart} na sacola</span>
-                                                        <span>📊 {prod.viewsTotal} views</span>
-                                                        <span>💰 {prod.salesCount} vendas</span>
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                                                        {order.store_logo ? (
+                                                            <img src={order.store_logo} className="w-full h-full object-cover" alt="" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-xs font-bold">
+                                                                {order.store_name?.charAt(0)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                            {order.store_name}
+                                                        </p>
+                                                        <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                            {order.items?.length || 0} itens • R$ {order.totalPrice.toFixed(2)}
+                                                        </p>
                                                     </div>
                                                 </div>
+                                                <span
+                                                    className="px-2 py-0.5 rounded-full text-[8px] font-bold flex-shrink-0"
+                                                    style={{ background: `${status.color}20`, color: status.color }}
+                                                >
+                                                    {status.label}
+                                                </span>
                                             </div>
                                         )
                                     })}
                                 </div>
-                            )}
-                        </>
-                    )}
+                            )
+                        ) : activeTab === 'favoritas' ? (
+                            favoriteStoresNotOwned.length === 0 ? (
+                                <div className="py-8 text-center">
+                                    <Heart size={32} style={{ color: colors.textSecondary, margin: '0 auto 8px' }} />
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                        Nenhuma loja favorita
+                                    </p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Suas lojas favoritas aparecerão aqui
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-3">
+                                    {favoriteStoresNotOwned.map((store: any, idx: number) => (
+                                        <div
+                                            key={idx}
+                                            className="text-center cursor-pointer hover:scale-105 transition-transform p-2 rounded-xl"
+                                            style={{
+                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                border: `1px solid ${colors.border}`,
+                                            }}
+                                            onClick={() => router.push(`/${profileSlug}/${store.slug}`)}
+                                        >
+                                            <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 mx-auto mb-1 relative">
+                                                {store.logo_url ? (
+                                                    <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xl font-bold">
+                                                        {store.name?.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                {store.name}
+                                            </p>
+                                            <p className="text-[8px]" style={{ color: colors.textSecondary }}>
+                                                {store.orderCount} pedidos
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        ) : (
+                            reviews.length === 0 ? (
+                                <div className="py-8 text-center">
+                                    <Star size={32} style={{ color: colors.textSecondary, margin: '0 auto 8px' }} />
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                        Nenhuma avaliação ainda
+                                    </p>
+                                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        Suas avaliações aparecerão aqui
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {reviews.map((review: any) => (
+                                        <div
+                                            key={review.id}
+                                            className="p-2 rounded-xl"
+                                            style={{
+                                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                                border: `1px solid ${colors.border}`,
+                                            }}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                    {review.product_name}
+                                                </p>
+                                                <RatingStars value={review.rating} size={10} />
+                                            </div>
+                                            <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                {review.store_name}
+                                            </p>
+                                            {review.comment && (
+                                                <p className="text-[10px] mt-0.5" style={{ color: colors.textPrimary }}>
+                                                    "{review.comment}"
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        )}
+                    </div>
                 </div>
-            </div>
-
-            {/* ===== Funcionários ===== */}
-            <div className="mb-6 mt-4">
-                <Employee
-                    employees={employees}
-                    employeeRoutes={employeeRoutes}
-                    assignmentMap={assignmentMap}
-                    expandedEmployee={expandedEmployee}
-                    onToggleExpand={setExpandedEmployee}
-                    storeId={profile?.id || ''}
-                    onRefresh={fetchEmployeeRoutes}
-                />
             </div>
 
             {/* ===== Informações do Perfil ===== */}
             <StoreAddress address={profile.address} whatsapp={profile.whatsapp} />
 
-            {/* ===== Agendamentos (AtalhoCompromissosPessoal) ===== */}
+            {/* ===== Agendamentos ===== */}
             <AtalhoCompromissosPessoal
                 profileSlug={profileSlug}
                 userAvatarUrl={profile.avatar_url}
@@ -1846,7 +1194,7 @@ export default function ProfileDashboard({
 
             {/* ===== SISTEMA DE COMISSÕES ===== */}
             {profile && (
-                <div className="mb-6 mt-4">
+                <div className="mb-6">
                     <Commission userId={profile.id} />
                 </div>
             )}
@@ -1854,219 +1202,48 @@ export default function ProfileDashboard({
             {/* ===== Visitantes ===== */}
             <ProfileVisitors key={profile.id} profileId={profile.id} />
 
-            {/* ===== Pedidos Recentes (Comprador) ===== */}
-            <div className="mb-6 mt-4">
-                <div
-                    className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                    style={{
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                        backdropFilter: 'blur(12px)',
-                        WebkitBackdropFilter: 'blur(12px)',
-                        border: `1px solid ${colors.border}`,
-                        boxShadow: colors.shadow,
-                    }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                            }}
-                        >
-                            <Package size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Compras Recentes
-                            </h3>
-                            <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                {orders.length} compras encontradas
-                            </p>
-                        </div>
-                    </div>
-
-                    {orders.length === 0 ? (
-                        <div
-                            className="rounded-2xl p-6 text-center"
-                            style={{
-                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                border: `1px dashed ${colors.border}`,
-                            }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido ainda.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
-                            {orders.slice(0, 10).map((order: any) => {
-                                const status = formatStatus(order.status)
-                                return (
-                                    <div
-                                        key={order.checkout_id}
-                                        className="flex items-center justify-between p-3 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                            border: `1px solid ${colors.border}`,
-                                        }}
-                                        onClick={() => router.push(`/${profileSlug}/${order.store_slug}`)}
-                                    >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
-                                                {order.store_logo ? (
-                                                    <img src={order.store_logo} className="w-full h-full object-cover" alt="" />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-sm font-bold">
-                                                        {order.store_name?.charAt(0)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                    {order.store_name}
-                                                </p>
-                                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                                    {order.items?.length || 0} itens • R$ {order.totalPrice.toFixed(2)}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <span
-                                            className="px-2 py-1 rounded-full text-[10px] font-bold flex-shrink-0"
-                                            style={{ background: `${status.color}20`, color: status.color }}
-                                        >
-                                            {status.label}
-                                        </span>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* ===== Lojas Favoritas ===== */}
-            {favoriteStores.length > 0 && (
-                <div className="mb-6 mt-4">
-                    <div
-                        className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: `1px solid ${colors.border}`,
-                            boxShadow: colors.shadow,
-                        }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Heart size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Lojas Favoritas
-                                </h3>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Mais pedidas por você
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 overflow-x-auto pb-2">
-                            {favoriteStores.map((store: any, idx: number) => (
-                                <div
-                                    key={idx}
-                                    className="flex-shrink-0 w-32 rounded-2xl p-3 text-center cursor-pointer hover:shadow-md transition-shadow"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px solid ${colors.border}`,
-                                    }}
-                                    onClick={() => router.push(`/${profileSlug}/${store.slug}`)}
-                                >
-                                    <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-200 mx-auto mb-2">
-                                        {store.logo_url ? (
-                                            <img src={store.logo_url} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-lg font-bold">
-                                                {store.name?.charAt(0)}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                        {store.name}
-                                    </p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                        {store.orderCount} pedidos
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* ===== Produtos Visualizados ===== */}
             {recentViews.length > 0 && (
-                <div className="mb-6 mt-4">
+                <div className="mb-6">
                     <div
-                        className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                        className="rounded-2xl p-5"
                         style={{
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
                             border: `1px solid ${colors.border}`,
                             boxShadow: colors.shadow,
                         }}
                     >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Eye size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Vistos Recentemente
-                                </h3>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Produtos que você visitou
-                                </p>
-                            </div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Eye size={18} style={{ color: '#f97316' }} />
+                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                Vistos Recentemente
+                            </h3>
                         </div>
 
-                        <div className="flex gap-3 overflow-x-auto pb-2">
+                        <div className="flex gap-2 overflow-x-auto pb-1">
                             {recentViews.map((view: any, idx: number) => (
                                 <div
                                     key={idx}
-                                    className="flex-shrink-0 w-36 rounded-2xl p-3 cursor-pointer hover:shadow-md transition-shadow"
+                                    className="flex-shrink-0 w-28 rounded-xl p-2 cursor-pointer hover:scale-105 transition-transform"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
                                         border: `1px solid ${colors.border}`,
                                     }}
                                     onClick={() => router.push(`/${profileSlug}/${view.store_slug}/${view.product_slug}`)}
                                 >
-                                    <div className="w-full h-24 rounded-xl overflow-hidden bg-gray-100 mb-2">
+                                    <div className="w-full h-16 rounded-lg overflow-hidden bg-gray-100 mb-1">
                                         {view.image_url ? (
                                             <img src={view.image_url} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+                                            <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
                                         )}
                                     </div>
-                                    <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                    <p className="text-[9px] font-bold truncate" style={{ color: colors.textPrimary }}>
                                         {view.product_name}
                                     </p>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                        {view.store_name} • R$ {Number(view.price).toFixed(2)}
+                                    <p className="text-[8px]" style={{ color: colors.textSecondary }}>
+                                        R$ {Number(view.price).toFixed(2)}
                                     </p>
                                 </div>
                             ))}
@@ -2075,144 +1252,61 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            {/* ===== Avaliações ===== */}
-            {reviews.length > 0 && (
-                <div className="mb-6 mt-4">
-                    <div
-                        className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
-                        style={{
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            border: `1px solid ${colors.border}`,
-                            boxShadow: colors.shadow,
-                        }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Star size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Avaliações que fiz
-                                </h3>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    {reviews.length} avaliações feitas
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {reviews.map((review: any) => (
-                                <div
-                                    key={review.id}
-                                    className="p-3 rounded-2xl"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                        border: `1px solid ${colors.border}`,
-                                    }}
-                                >
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                            {review.product_name}
-                                        </p>
-                                        <RatingStars value={review.rating} size={12} />
-                                    </div>
-                                    <p className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                        {review.store_name}
-                                    </p>
-                                    {review.comment && (
-                                        <p className="text-xs mt-1" style={{ color: colors.textPrimary }}>
-                                            "{review.comment}"
-                                        </p>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ===== Agendamentos ===== */}
+            {/* ===== Agendamentos Futuros ===== */}
             {upcomingSchedules.length > 0 && (
-                <div className="mb-6 mt-4">
+                <div className="mb-6">
                     <div
-                        className="rounded-2xl p-6 pt-7 flex flex-col gap-5 relative"
+                        className="rounded-2xl p-5"
                         style={{
                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                             backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
                             border: `1px solid ${colors.border}`,
                             boxShadow: colors.shadow,
                         }}
                     >
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <Calendar size={24} />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                    Agendamentos
-                                </h3>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Próximos compromissos
-                                </p>
-                            </div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Calendar size={18} style={{ color: '#f97316' }} />
+                            <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                Próximos Agendamentos
+                            </h3>
                         </div>
 
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {upcomingSchedules.map((schedule: any) => (
+                        <div className="space-y-2">
+                            {upcomingSchedules.slice(0, 5).map((schedule: any) => (
                                 <div
                                     key={schedule.id}
-                                    className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer hover:bg-white/5 transition-colors"
+                                    className="flex items-center gap-2 p-2 rounded-xl cursor-pointer hover:bg-white/5 transition-colors"
                                     style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
                                         border: `1px solid ${colors.border}`,
                                     }}
                                     onClick={() => router.push(`/${profileSlug}/${schedule.store_slug}`)}
                                 >
-                                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
                                         {schedule.store_logo ? (
                                             <img src={schedule.store_logo} className="w-full h-full object-cover" alt="" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-sm font-bold">
+                                            <div className="w-full h-full flex items-center justify-center text-xs font-bold">
                                                 {schedule.store_name?.charAt(0)}
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                             {schedule.store_name}
                                         </p>
-                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        <p className="text-[9px]" style={{ color: colors.textSecondary }}>
                                             {new Date(schedule.date).toLocaleDateString('pt-BR')} às {schedule.time}
                                         </p>
-                                        {schedule.service_type && (
-                                            <p className="text-[10px]" style={{ color: '#f97316' }}>
-                                                {schedule.service_type}
-                                            </p>
-                                        )}
                                     </div>
                                     <span
-                                        className="px-2 py-1 rounded-full text-[10px] font-bold"
+                                        className="px-2 py-0.5 rounded-full text-[8px] font-bold"
                                         style={{
                                             background: schedule.status === 'confirmed' ? '#22c55e20' : '#f59e0b20',
                                             color: schedule.status === 'confirmed' ? '#22c55e' : '#f59e0b',
                                         }}
                                     >
-                                        {schedule.status === 'confirmed' ? 'Confirmado' : 'Pendente'}
+                                        {schedule.status === 'confirmed' ? '✓' : '⏳'}
                                     </span>
                                 </div>
                             ))}
@@ -2221,8 +1315,8 @@ export default function ProfileDashboard({
                 </div>
             )}
 
-            {/* ===== Ações rápidas - PILL ===== */}
-            <div className="grid grid-cols-2 gap-3 mt-4">
+            {/* ===== Ações rápidas ===== */}
+            <div className="grid grid-cols-2 gap-2 mt-4">
                 <button
                     onClick={goToPublicProfile}
                     style={{
@@ -2233,7 +1327,7 @@ export default function ProfileDashboard({
                     }}
                     className="hover:opacity-70 transition-opacity"
                 >
-                    <User size={18} /> Ver perfil público
+                    <User size={16} /> Ver Perfil
                 </button>
                 <button
                     onClick={() => router.push(`/${profileSlug}/configuracoes`)}
@@ -2245,19 +1339,7 @@ export default function ProfileDashboard({
                     }}
                     className="hover:opacity-70 transition-opacity"
                 >
-                    <Settings size={18} /> Configurações
-                </button>
-                <button
-                    onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
-                    style={{
-                        ...pillButtonFullStyle,
-                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                        border: `1px solid ${colors.border}`,
-                        color: colors.textPrimary,
-                    }}
-                    className="hover:opacity-70 transition-opacity"
-                >
-                    <Pencil size={18} /> Editar perfil
+                    <Settings size={16} /> Config
                 </button>
             </div>
 
@@ -2265,6 +1347,7 @@ export default function ProfileDashboard({
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <SacolaButton
                     totalItems={totalCartItems}
+                    totalValue={totalCartValue}
                     statusCounts={{
                         pending: pendingCount,
                         preparing: preparingCount,
@@ -2287,95 +1370,6 @@ export default function ProfileDashboard({
                     <Home size={24} />
                 </button>
             </div>
-
-            {/* ===== Modais ===== */}
-            {showAssignModal && (
-                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
-                    <div className="w-full max-w-sm rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Selecionar Entregador</h3>
-                            <button onClick={() => setShowAssignModal(false)}><X size={20} /></button>
-                        </div>
-                        <div className="space-y-2">
-                            {ownerProfile && (
-                                <div onClick={handleAssignAsOwner} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
-                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name?.charAt(0) || 'D'}</div>
-                                    <div>
-                                        <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
-                                        {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
-                                    </div>
-                                </div>
-                            )}
-                            {employees.map(emp => (
-                                <div key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className={`p-3 rounded-2xl cursor-pointer ${selectedEmployeeId === emp.id ? 'ring-2' : ''}`} style={{ background: selectedEmployeeId === emp.id ? '#f9731620' : 'transparent', border: `1px solid ${colors.border}` }}>
-                                    <p className="font-bold" style={{ color: colors.textPrimary }}>{emp.name}</p>
-                                    {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            onClick={() => handleAssignDelivery()}
-                            disabled={!selectedEmployeeId || assigning}
-                            style={{
-                                ...pillButtonFullStyle,
-                                width: '100%',
-                                background: selectedEmployeeId ? GRADIENT : colors.border,
-                                color: selectedEmployeeId ? '#ffffff' : colors.textSecondary,
-                            }}
-                            className="hover:opacity-80 transition-opacity"
-                        >
-                            {assigning ? 'Atribuindo...' : 'Confirmar'}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {singleAssignOpen && (
-                <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSingleAssignOpen(null)}>
-                    <div className="w-full max-w-xs rounded-3xl p-6 shadow-2xl" style={{ background: colors.surface }} onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between mb-4">
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>Atribuir pedido</h3>
-                            <button onClick={() => setSingleAssignOpen(null)}><X size={20} /></button>
-                        </div>
-                        <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>Pedido de @{singleAssignOpen.order.buyer_profile_slug || singleAssignOpen.order.buyer_name || 'Cliente'} • R$ {singleAssignOpen.order.totalPrice.toFixed(2)}</p>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {ownerProfile && (
-                                <div onClick={handleSingleAssignAsOwner} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
-                                    <div className="w-8 h-8 rounded-full bg-yellow-500 flex items-center justify-center text-sm text-white font-bold">{ownerProfile.name?.charAt(0) || 'D'}</div>
-                                    <div>
-                                        <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>Eu (dono)</p>
-                                        {ownerProfile.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{ownerProfile.phone}</p>}
-                                    </div>
-                                </div>
-                            )}
-                            {employees.length === 0 ? (
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>Nenhum funcionário cadastrado.</p>
-                            ) : (
-                                employees.map(emp => (
-                                    <div key={emp.id} onClick={() => handleSingleAssign(emp.id, singleAssignOpen.order)} className="p-3 rounded-2xl cursor-pointer border flex items-center gap-3 hover:bg-white/5 transition-colors" style={{ borderColor: colors.border }}>
-                                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white font-bold">{emp.name.charAt(0)}</div>
-                                        <div>
-                                            <p className="font-bold text-sm" style={{ color: colors.textPrimary }}>{emp.name}</p>
-                                            {emp.phone && <p className="text-xs" style={{ color: colors.textSecondary }}>{emp.phone}</p>}
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {selectedOrder && (
-                <OrderModal
-                    order={selectedOrder}
-                    onClose={() => setSelectedOrder(null)}
-                    onAction={handleOrderAction}
-                    assignmentInfo={selectedAssignment || undefined}
-                    storeLat={profile.store_lat}
-                    storeLng={profile.store_lng}
-                />
-            )}
         </div>
     )
 }

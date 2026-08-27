@@ -58,6 +58,7 @@ const STORE_ROUTES = [
     '/publicacoes',
     '/dashboard',
     '/compromissos',
+    '/compromissos/agendar', // <-- ROTA ADICIONADA
 ]
 
 // ===== ROTAS DE PERFIL =====

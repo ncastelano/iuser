@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, X } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
@@ -678,7 +678,7 @@ export default function HomePage() {
     }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
-    const shouldShowSacola = !showProfile && !showStoreDashboard
+    const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin // <-- MODIFICADO: esconde sacola no login
     const shouldShowSearch = !showProfile && !showStoreDashboard && !showConfig && !showCreateStore && !showLogin
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
@@ -821,7 +821,7 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== BOTÕES FLUTUANTES ===== */}
+                {/* ===== BOTÕES FLUTUANTES - LADO ESQUERDO ===== */}
                 {/* ButtonSearch - LADO ESQUERDO */}
                 {shouldShowSearch && (
                     <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
@@ -850,50 +850,53 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== SACOLA BUTTON - LADO DIREITO ===== */}
-                {shouldShowSacola && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                        {loadingStatus ? (
-                            <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
-                                <ShoppingCart size={24} style={{ color: '#ffffff' }} />
+                {/* ===== BOTÕES FLUTUANTES - LADO DIREITO ===== */}
+                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                    <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
+                        {/* Sacola - aparece apenas quando NÃO está no login */}
+                        {shouldShowSacola && (
+                            <div>
+                                {loadingStatus ? (
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
+                                        <ShoppingCart size={24} style={{ color: '#ffffff' }} />
+                                    </div>
+                                ) : (
+                                    <SacolaButton
+                                        totalItems={totalCartItems}
+                                        totalValue={totalCartValue}
+                                        statusCounts={{
+                                            pending: pendingCount,
+                                            preparing: preparingCount,
+                                            ready: readyCount,
+                                            reviews: pendingReviewsCount,
+                                        }}
+                                        animate={cartAnimating}
+                                    />
+                                )}
                             </div>
-                        ) : (
-                            <SacolaButton
-                                totalItems={totalCartItems}
-                                totalValue={totalCartValue}
-                                statusCounts={{
-                                    pending: pendingCount,
-                                    preparing: preparingCount,
-                                    ready: readyCount,
-                                    reviews: pendingReviewsCount,
+                        )}
+
+                        {/* Home - aparece quando em outras telas (login, config, etc) */}
+                        {showFab && (
+                            <button
+                                onClick={showHomeSections}
+                                className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    borderTop: '2px solid #f97316',
+                                    borderRight: '2px solid #f97316',
+                                    borderBottom: '2px solid #f97316',
+                                    borderLeft: '2px solid #f97316',
+                                    boxShadow: `0 8px 24px #f9731660`,
                                 }}
-                                animate={cartAnimating}
-                            />
+                                aria-label="Voltar ao início"
+                            >
+                                <Home size={24} />
+                            </button>
                         )}
                     </div>
-                )}
-
-                {/* Botão Home - visível quando não está na home */}
-                {showFab && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                        <button
-                            onClick={showHomeSections}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                            style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #f97316',
-                                borderLeft: '2px solid #f97316',
-                                boxShadow: `0 8px 24px #f9731660`,
-                            }}
-                            aria-label="Voltar ao início"
-                        >
-                            <Home size={24} />
-                        </button>
-                    </div>
-                )}
+                </div>
 
                 {showLocationDialog && (
                     <LocationPicker

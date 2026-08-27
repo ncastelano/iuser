@@ -193,14 +193,19 @@ export default function Header({
                     ) : (
                         <button
                             onClick={handleHome}
-                            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-lg"
+                            className="flex items-center gap-2"
                             style={{
-                                background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                border: '2px solid rgba(255,255,255,0.2)',
+                                background: 'transparent',
+                                border: 'none',
                                 cursor: 'pointer',
+                                padding: 0,
                             }}
                         >
-                            <img src="/logo.png" alt="iUser" className="w-5 h-5 sm:w-6 sm:h-6 object-contain" />
+                            <img
+                                src="/logo.png"
+                                alt="iUser"
+                                className="h-5 sm:h-6 object-contain"
+                            />
                         </button>
                     )}
                     {title && (
