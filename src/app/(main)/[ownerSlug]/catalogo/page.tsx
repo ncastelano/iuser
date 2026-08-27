@@ -10,7 +10,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import SacolaButton from '@/app/ButtonSacola'
 import { useCartStore } from '@/store/useCartStore'
-import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, ArrowLeft } from 'lucide-react'
+import { Plus, X, Info, Search, Clock, Tag, Package, Calendar } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
@@ -388,18 +388,18 @@ export default function CatalogoPage() {
                     }}
                     className="sm:px-6 sm:pt-5"
                 >
-                    {/* Marca d'água */}
+                    {/* Marca d'água - MAIS VISÍVEL */}
                     <div
                         style={{
                             position: 'absolute',
-                            right: storeInfo.logo_url ? -25 : -15,
-                            top: storeInfo.logo_url ? -25 : -15,
-                            width: storeInfo.logo_url ? 160 : 120,
-                            height: storeInfo.logo_url ? 160 : 120,
-                            opacity: storeInfo.logo_url ? 0.5 : 0.4,
-                            transform: 'rotate(10deg)',
-                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
-                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
+                            right: storeInfo.logo_url ? -20 : -10,
+                            top: storeInfo.logo_url ? -20 : -10,
+                            width: storeInfo.logo_url ? 140 : 100,
+                            height: storeInfo.logo_url ? 140 : 100,
+                            opacity: storeInfo.logo_url ? 0.25 : 0.2,
+                            transform: 'rotate(8deg)',
+                            maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0) 70%)',
+                            WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0) 70%)',
                             pointerEvents: 'none',
                             background: storeInfo.logo_url ? 'transparent' : colors.accent,
                             display: 'flex',
@@ -423,7 +423,7 @@ export default function CatalogoPage() {
                             <img
                                 src="/logotransparente.png"
                                 alt="headerimage"
-                                style={{ width: 60, height: 60, objectFit: 'contain' }}
+                                style={{ width: 50, height: 50, objectFit: 'contain' }}
                             />
                         )}
                     </div>
@@ -431,16 +431,18 @@ export default function CatalogoPage() {
                     {/* Conteúdo do Header */}
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 mb-1">
+                            {/* Logo sem círculo laranja/vermelho */}
                             <button
                                 onClick={handleHome}
-                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-lg flex-shrink-0"
+                                className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0"
                                 style={{
-                                    background: GRADIENT,
-                                    border: '2px solid rgba(255,255,255,0.2)',
+                                    background: 'transparent',
+                                    border: 'none',
                                     cursor: 'pointer',
+                                    padding: 0,
                                 }}
                             >
-                                <img src="/logo.png" alt="iUser" className="w-5 h-5 sm:w-6 sm:h-6 object-contain" />
+                                <img src="/logo.png" alt="iUser" className="w-6 h-6 sm:w-7 sm:h-7 object-contain" />
                             </button>
                             <button
                                 onClick={handleHome}
@@ -448,19 +450,6 @@ export default function CatalogoPage() {
                                 style={{ color: colors.textPrimary }}
                             >
                                 iUser
-                            </button>
-                            <button
-                                onClick={handleGoBack}
-                                className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 flex-shrink-0"
-                                style={{
-                                    background: `${colors.surface}88`,
-                                    backdropFilter: 'blur(10px)',
-                                    border: `1px solid ${colors.border}`,
-                                    color: colors.textSecondary,
-                                }}
-                            >
-                                <ArrowLeft size={14} />
-                                <span className="hidden sm:inline">Voltar</span>
                             </button>
                         </div>
 
@@ -476,11 +465,15 @@ export default function CatalogoPage() {
                             </h1>
                         </div>
 
-                        {/* Tabs de categorias com contagens e gradientes */}
+                        {/* Tabs de categorias - COM PADDING MAIOR NAS LATERAIS */}
                         {categories.length > 1 && (
                             <div
-                                className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
-                                style={{ overflowY: 'visible' }}
+                                className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide px-1"
+                                style={{
+                                    overflowY: 'visible',
+                                    paddingLeft: '4px',
+                                    paddingRight: '4px',
+                                }}
                             >
                                 {categories.map((cat) => {
                                     const isActive = selectedCategory === cat.name
@@ -492,10 +485,7 @@ export default function CatalogoPage() {
                                             style={{
                                                 background: isActive
                                                     ? GRADIENT
-                                                    : cat.name === 'Todos'
-                                                        ? GRADIENT_DARKER
-                                                        : GRADIENT_DARK,
-                                                backdropFilter: 'blur(10px)',
+                                                    : 'transparent',
                                                 color: isActive ? '#ffffff' : colors.textSecondary,
                                                 boxShadow: isActive ? `0 2px 12px #f9731650` : 'none',
                                                 border: isActive ? 'none' : `1px solid ${colors.border}44`,
@@ -510,8 +500,7 @@ export default function CatalogoPage() {
                                                 style={{
                                                     background: isActive
                                                         ? 'linear-gradient(135deg, #f97316, #dc2626)'
-                                                        : `${colors.surface}66`,
-                                                    backdropFilter: 'blur(10px)',
+                                                        : colors.surface,
                                                     color: isActive ? '#ffffff' : colors.textSecondary,
                                                     border: isActive ? 'none' : `1px solid ${colors.border}33`,
                                                 }}
@@ -567,13 +556,7 @@ export default function CatalogoPage() {
                 )}
 
                 {/* Catálogo de produtos */}
-                <div className="max-w-7xl mx-auto px-4 py-8">
-                    {/* Contador de produtos */}
-                    <div className="mb-4">
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                            {filteredProducts.length} {filteredProducts.length === 1 ? 'produto' : 'produtos'} disponíveis
-                        </p>
-                    </div>
+                <div className="max-w-7xl mx-auto px-1 py-1">
 
                     {/* Grade de produtos - cards horizontais */}
                     {filteredProducts.length === 0 ? (
@@ -607,7 +590,7 @@ export default function CatalogoPage() {
                                     <div
                                         key={product.id}
                                         onClick={(e) => handleProductClick(product, e)}
-                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border-2 flex flex-row`}
+                                        className={`group rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl cursor-pointer border-4 flex flex-row`}
                                         style={{
                                             background: '#ffffff',
                                             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',

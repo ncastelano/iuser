@@ -73,7 +73,10 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         if (onItemClick) {
             onItemClick(item)
         } else {
-            router.push(item.url)
+            // Extrair o slug da URL (remove a barra inicial se existir)
+            const urlPath = item.url.startsWith('/') ? item.url.slice(1) : item.url
+            // Navegar para a ownerpage
+            router.push(`/${urlPath}`)
         }
     }
 

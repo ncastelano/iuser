@@ -678,7 +678,7 @@ export default function HomePage() {
     }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
-    const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin // <-- MODIFICADO: esconde sacola no login
+    const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
     const shouldShowSearch = !showProfile && !showStoreDashboard && !showConfig && !showCreateStore && !showLogin
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
@@ -763,16 +763,23 @@ export default function HomePage() {
                             <>
                                 {/* ===== LAST SEARCHED - APARECE APENAS QUANDO FOCADO E SEM PESQUISA ===== */}
                                 {searchFocused && !searchQuery.trim() && (
-                                    <div className="mb-6">
-                                        <div ref={lastSearchedRef}>
-                                            <LastSearched
-                                                onItemClick={(item) => {
-                                                    if (item.url) {
+                                    <div
+                                        className="mb-6 last-searched-container"
+                                        ref={lastSearchedRef}
+                                    >
+                                        <LastSearched
+                                            onItemClick={(item) => {
+                                                if (item.url) {
+                                                    // Fecha o search antes de navegar
+                                                    setSearchFocused(false)
+                                                    setSearchQuery('')
+                                                    // Delay para garantir a navegação
+                                                    setTimeout(() => {
                                                         router.push(item.url)
-                                                    }
-                                                }}
-                                            />
-                                        </div>
+                                                    }, 50)
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 )}
 
@@ -834,11 +841,15 @@ export default function HomePage() {
                                 setSearchFocused(true)
                             }}
                             onBlur={() => {
+                                // Delay para permitir cliques no LastSearched
                                 setTimeout(() => {
-                                    if (!document.activeElement?.closest('.last-searched-container')) {
+                                    // Verifica se o foco não está em elementos do LastSearched
+                                    const activeElement = document.activeElement
+                                    const isLastSearched = activeElement?.closest?.('.last-searched-container')
+                                    if (!isLastSearched) {
                                         setSearchFocused(false)
                                     }
-                                }, 100)
+                                }, 150)
                             }}
                             initialValue={searchQuery}
                             inputRef={searchInputRef}

@@ -41,15 +41,27 @@ export default function ButtonSearch({
     const [internalSearchValue, setInternalSearchValue] = useState(initialValue)
     const internalInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
+    const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     const searchValue = externalSearchValue !== undefined ? externalSearchValue : internalSearchValue
     const inputRef = externalInputRef || internalInputRef
 
     const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+    // MODIFICADO: Agora com verificação de elementos relacionados
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                // Verifica se o clique foi no LastSearched ou em elementos relacionados
+                const target = event.target as HTMLElement
+                const isLastSearched = target.closest?.('.last-searched-container')
+                const isSearchResult = target.closest?.('.search-result-item')
+
+                // Se clicou no LastSearched ou em resultados de busca, NÃO fecha
+                if (isLastSearched || isSearchResult) {
+                    return
+                }
+
                 if (isExpanded) {
                     setIsExpanded(false)
                     if (onBlur) onBlur()
@@ -99,15 +111,11 @@ export default function ButtonSearch({
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        // REMOVIDO: não faz mais navegação com Enter
-        // Apenas mantém o Escape para fechar
         if (e.key === 'Escape') {
             handleClose()
         }
-        // Enter agora apenas mantém o foco e não navega
         if (e.key === 'Enter') {
             e.preventDefault()
-            // Mantém o foco no input
             if (inputRef.current) {
                 inputRef.current.focus()
             }
@@ -122,17 +130,22 @@ export default function ButtonSearch({
     }
 
     const handleBlur = () => {
-        if (!expandOnFocus) {
-            if (onBlur) onBlur()
+        // Limpa timeout anterior
+        if (blurTimeoutRef.current) {
+            clearTimeout(blurTimeoutRef.current)
         }
+
+        // Delay para permitir cliques em elementos relacionados
+        blurTimeoutRef.current = setTimeout(() => {
+            if (!expandOnFocus) {
+                if (onBlur) onBlur()
+            }
+        }, 200)
     }
 
     const handleButtonClick = () => {
         setIsExpanded(true)
     }
-
-    // Modificar o tipo de input para "search" para evitar o botão "Go" em alguns navegadores
-    // e adicionar o atributo enterkeyhint="done" para sugerir "Concluído" no teclado virtual
 
     return (
         <div
@@ -156,7 +169,6 @@ export default function ButtonSearch({
                 borderLeft: '2px solid #f97316',
             }}
         >
-            {/* Ícone de busca - sempre visível */}
             <div
                 style={{
                     width: 48,
@@ -174,7 +186,6 @@ export default function ButtonSearch({
                 <Search size={24} strokeWidth={2.5} />
             </div>
 
-            {/* Input - aparece quando expandido */}
             <div
                 style={{
                     flex: 1,
@@ -216,7 +227,6 @@ export default function ButtonSearch({
                     }}
                 />
 
-                {/* Botão único: X para fechar OU limpar */}
                 {isExpanded && (
                     <button
                         onClick={searchValue ? handleClear : handleClose}
@@ -253,7 +263,6 @@ export default function ButtonSearch({
                 )}
             </div>
 
-            {/* Label flutuante quando fechado */}
             {!isExpanded && (
                 <div
                     style={{
@@ -305,7 +314,6 @@ export default function ButtonSearch({
                     color: rgba(255,255,255,0.7) !important;
                     opacity: 1;
                 }
-                /* Remove o botão de busca padrão do Safari/WebKit */
                 input[type="search"]::-webkit-search-decoration,
                 input[type="search"]::-webkit-search-cancel-button,
                 input[type="search"]::-webkit-search-results-button,

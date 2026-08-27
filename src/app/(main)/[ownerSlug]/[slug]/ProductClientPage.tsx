@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
     Star,
@@ -226,8 +226,14 @@ export default function ProductClientPage() {
     const [error, setError] = useState<string | null>(null)
     const [showFullDescription, setShowFullDescription] = useState(false)
 
-    const ownerSlugParam = params.ownerSlug as string
-    const slug = params.slug as string
+    // Extrair os parâmetros de forma estável
+    const ownerSlugParam = useMemo(() => {
+        return params.ownerSlug as string || ''
+    }, [params.ownerSlug])
+
+    const slug = useMemo(() => {
+        return params.slug as string || ''
+    }, [params.slug])
 
     // ===== CARRINHO DE COMPRAS =====
     const { itemsByStore, addItem, updateQuantity, removeItem } = useCartStore()
@@ -308,8 +314,13 @@ export default function ProductClientPage() {
         }
     }
 
+    const isFetchingRef = useRef(false)
+
     useEffect(() => {
+        if (isFetchingRef.current || !slug) return
+
         const fetchProductData = async () => {
+            isFetchingRef.current = true
             setLoading(true)
             setError(null)
 
@@ -324,6 +335,7 @@ export default function ProductClientPage() {
                 if (productErr || !product) {
                     setError('Produto não encontrado')
                     setLoading(false)
+                    isFetchingRef.current = false
                     return
                 }
 
@@ -333,23 +345,44 @@ export default function ProductClientPage() {
                 let store: StoreData | null = null
                 let profile: ProfileData | null = null
                 let ownerName = ''
-                let ownerSlug = ''
+                let ownerSlug = ownerSlugParam || `user-${product.owner_id?.slice(0, 8) || 'unknown'}`
                 let ownerAvatar: string | null = null
 
-                // 3. Buscar informações do dono (perfil)
-                const { data: profileData, error: profileErr } = await supabase
-                    .from('profiles')
-                    .select('id, name, profileSlug, avatar_url, bio, phone, email')
-                    .eq('id', product.owner_id)
-                    .single()
+                // 3. Buscar informações do dono (perfil) - SEMPRE existe owner_id
+                if (product.owner_id) {
+                    const { data: profileData, error: profileErr } = await supabase
+                        .from('profiles')
+                        .select('id, name, profileSlug, avatar_url, bio, phone, email')
+                        .eq('id', product.owner_id)
+                        .maybeSingle()
 
-                if (profileErr) {
-                    console.error('[ProductPage] Erro ao buscar perfil:', profileErr)
-                } else if (profileData) {
-                    profile = profileData
-                    ownerName = profileData.name || 'Usuário'
-                    ownerSlug = profileData.profileSlug || ''
-                    ownerAvatar = getAvatarUrl(profileData.avatar_url)
+                    // CORREÇÃO: Verificar se o erro existe e não é apenas um objeto vazio
+                    const hasError = profileErr && Object.keys(profileErr).length > 0
+
+                    if (hasError) {
+                        // Verifica se é erro de "não encontrado" de várias formas
+                        const isNotFound =
+                            profileErr.code === 'PGRST116' ||
+                            profileErr.message?.includes('not found') ||
+                            profileErr.message?.includes('no rows') ||
+                            profileErr.details?.includes('not found')
+
+                        if (isNotFound) {
+                            console.log('[ProductPage] Perfil não encontrado para owner_id:', product.owner_id)
+                        } else {
+                            console.error('[ProductPage] Erro ao buscar perfil:', profileErr)
+                        }
+                        // Usa fallback
+                        ownerName = `Usuário ${product.owner_id.slice(0, 8)}`
+                    } else if (profileData) {
+                        profile = profileData
+                        ownerName = profileData.name || 'Usuário'
+                        ownerSlug = profileData.profileSlug || ownerSlugParam || `user-${product.owner_id.slice(0, 8)}`
+                        ownerAvatar = getAvatarUrl(profileData.avatar_url)
+                    } else {
+                        // Fallback para quando profileData é null
+                        ownerName = `Usuário ${product.owner_id.slice(0, 8)}`
+                    }
                 }
 
                 // 4. Se tiver store_id, buscar loja
@@ -358,10 +391,19 @@ export default function ProductClientPage() {
                         .from('stores')
                         .select('*')
                         .eq('id', product.store_id)
-                        .single()
+                        .maybeSingle()
 
-                    if (storeErr) {
-                        console.error('[ProductPage] Erro ao buscar loja:', storeErr)
+                    const hasStoreError = storeErr && Object.keys(storeErr).length > 0
+
+                    if (hasStoreError) {
+                        const isNotFound =
+                            storeErr.code === 'PGRST116' ||
+                            storeErr.message?.includes('not found') ||
+                            storeErr.message?.includes('no rows')
+
+                        if (!isNotFound) {
+                            console.error('[ProductPage] Erro ao buscar loja:', storeErr)
+                        }
                     } else if (storeData) {
                         store = storeData
                         if (storeData.name) ownerName = storeData.name
@@ -389,8 +431,19 @@ export default function ProductClientPage() {
                     .eq('product_id', product.id)
                     .order('created_at', { ascending: false })
 
-                if (reviewsErr) {
-                    console.error('[ProductPage] Erro ao buscar avaliações:', reviewsErr)
+                const hasReviewsError = reviewsErr && Object.keys(reviewsErr).length > 0
+
+                if (hasReviewsError) {
+                    const isNotFound =
+                        reviewsErr.code === 'PGRST116' ||
+                        reviewsErr.message?.includes('not found') ||
+                        reviewsErr.message?.includes('no rows')
+
+                    if (isNotFound) {
+                        console.log('[ProductPage] Nenhuma avaliação encontrada para o produto')
+                    } else {
+                        console.error('[ProductPage] Erro ao buscar avaliações:', reviewsErr)
+                    }
                 }
 
                 // 6. Processar avaliações
@@ -419,15 +472,31 @@ export default function ProductClientPage() {
                     .or(`owner_id.eq.${product.owner_id},category.eq.${product.category || 'none'}`)
                     .limit(8)
 
-                if (!relatedErr && relatedData) {
+                const hasRelatedError = relatedErr && Object.keys(relatedErr).length > 0
+
+                if (hasRelatedError) {
+                    const isNotFound =
+                        relatedErr.code === 'PGRST116' ||
+                        relatedErr.message?.includes('not found') ||
+                        relatedErr.message?.includes('no rows')
+
+                    if (!isNotFound) {
+                        console.error('[ProductPage] Erro ao buscar produtos relacionados:', relatedErr)
+                    }
+                } else if (relatedData) {
                     relatedProducts = relatedData
                 }
 
-                // 8. Incrementar view_count
-                await supabase
-                    .from('products')
-                    .update({ view_count: (product.view_count || 0) + 1 })
-                    .eq('id', product.id)
+                // 8. Incrementar view_count (não precisa esperar)
+                try {
+                    await supabase
+                        .from('products')
+                        .update({ view_count: (product.view_count || 0) + 1 })
+                        .eq('id', product.id)
+                } catch (viewErr) {
+                    // Ignora erro na atualização de view_count
+                    console.log('[ProductPage] Erro ao incrementar view_count:', viewErr)
+                }
 
                 // 9. Montar dados finais
                 setData({
@@ -449,13 +518,12 @@ export default function ProductClientPage() {
                 setError('Erro ao carregar produto')
             } finally {
                 setLoading(false)
+                isFetchingRef.current = false
             }
         }
 
-        if (slug) {
-            fetchProductData()
-        }
-    }, [slug])
+        fetchProductData()
+    }, [slug, ownerSlugParam])
 
     // Loading
     if (loading) {
