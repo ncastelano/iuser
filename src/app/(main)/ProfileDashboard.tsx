@@ -31,6 +31,8 @@ import {
     Check,
     Loader2,
     BarChart3,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-react'
 import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
@@ -38,7 +40,7 @@ import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
 import ProfileOperatingDays from './ProfileOperatingDays'
 import Commission from './Commission'
-import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns'
+import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
 
 // ===== IMPORTAR DO PROFILEHOURS (com suporte a intervalo) =====
@@ -99,8 +101,10 @@ export default function ProfileDashboard({
     })
 
     const [dailySpendingData, setDailySpendingData] = useState<{ date: string; amount: number }[]>([])
-    const [spendingPeriod, setSpendingPeriod] = useState<'7days' | '30days'>('7days')
+    const [spendingPeriod, setSpendingPeriod] = useState<'week' | 'month'>('week')
+    const [currentDate, setCurrentDate] = useState(new Date())
     const [totalPeriodSpent, setTotalPeriodSpent] = useState(0)
+    const [periodLabel, setPeriodLabel] = useState('')
 
     const [favoriteStores, setFavoriteStores] = useState<any[]>([])
     const [favoriteStoresNotOwned, setFavoriteStoresNotOwned] = useState<any[]>([])
@@ -363,9 +367,27 @@ export default function ProfileDashboard({
                 total: { spent: totalSpent, orders: paidOrders.length, stores: uniqueStores },
             }))
 
-            // --- Dados para o gráfico de gastos diários ---
-            const endDate = new Date()
-            const startDate = spendingPeriod === '7days' ? subDays(endDate, 6) : subDays(endDate, 29)
+            // --- Dados para o gráfico de gastos ---
+            let startDate: Date
+            let endDate: Date
+            let label: string
+
+            if (spendingPeriod === 'week') {
+                const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+                const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 })
+                startDate = weekStart
+                endDate = weekEnd
+                label = `Semana de ${format(weekStart, 'dd/MM')} a ${format(weekEnd, 'dd/MM')}`
+            } else {
+                const monthStart = startOfMonth(currentDate)
+                const monthEnd = endOfMonth(currentDate)
+                startDate = monthStart
+                endDate = monthEnd
+                label = format(currentDate, 'MMMM/yyyy', { locale: ptBRLocale })
+            }
+
+            setPeriodLabel(label)
+
             const startISO = startDate.toISOString()
             const endISO = endDate.toISOString()
 
@@ -568,7 +590,7 @@ export default function ProfileDashboard({
         }
 
         setLoading(false)
-    }, [profileSlug, avatarUrl, spendingPeriod])
+    }, [profileSlug, avatarUrl, spendingPeriod, currentDate])
 
     useEffect(() => {
         if (!profile?.id) return
@@ -587,7 +609,7 @@ export default function ProfileDashboard({
         }
     }, [profile?.id, loadDashboard])
 
-    useEffect(() => { loadDashboard() }, [loadDashboard, spendingPeriod])
+    useEffect(() => { loadDashboard() }, [loadDashboard, spendingPeriod, currentDate])
 
     const goToPublicProfile = () => {
         if (profileSlug) {
@@ -619,15 +641,33 @@ export default function ProfileDashboard({
     // Calcular máximo para o gráfico
     const maxAmount = Math.max(...dailySpendingData.map(d => d.amount), 1)
 
-    // Função para agrupar dados de 30 dias em semanas
+    // Função para agrupar dados em semanas para o mês
     const getWeeklyData = () => {
         const weeks: { week: string; days: { date: string; amount: number }[] }[] = []
         for (let i = 0; i < dailySpendingData.length; i += 7) {
             const weekData = dailySpendingData.slice(i, i + 7)
-            const weekLabel = `${weekData[0]?.date || ''} - ${weekData[weekData.length - 1]?.date || ''}`
-            weeks.push({ week: weekLabel, days: weekData })
+            if (weekData.length > 0) {
+                const weekLabel = `${weekData[0]?.date || ''} - ${weekData[weekData.length - 1]?.date || ''}`
+                weeks.push({ week: weekLabel, days: weekData })
+            }
         }
         return weeks
+    }
+
+    // Navegação entre semanas/meses
+    const navigatePeriod = (direction: 'prev' | 'next') => {
+        setCurrentDate(prev => {
+            if (spendingPeriod === 'week') {
+                return direction === 'prev' ? subDays(prev, 7) : addMonths(prev, 1)
+            } else {
+                return direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1)
+            }
+        })
+    }
+
+    // Voltar para a semana/mês atual
+    const goToCurrentPeriod = () => {
+        setCurrentDate(new Date())
     }
 
     if (loading) return <LoadingSpinner message="Carregando perfil..." />
@@ -803,31 +843,76 @@ export default function ProfileDashboard({
                         boxShadow: colors.shadow,
                     }}
                 >
-                    {/* Gastos Hoje - Destaque */}
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div
-                                className="w-10 h-10 rounded-full flex items-center justify-center"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                }}
+                    {/* Seletor de período e Gastos Hoje */}
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <div className="flex gap-1 bg-black/10 rounded-full p-0.5">
+                                <button
+                                    onClick={() => {
+                                        setSpendingPeriod('week')
+                                        setCurrentDate(new Date())
+                                    }}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        padding: '0.2rem 0.6rem',
+                                        fontSize: '0.6rem',
+                                        background: spendingPeriod === 'week' ? GRADIENT : 'transparent',
+                                        color: spendingPeriod === 'week' ? '#ffffff' : colors.textSecondary,
+                                    }}
+                                    className="hover:scale-105 transition-transform"
+                                >
+                                    Semana
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSpendingPeriod('month')
+                                        setCurrentDate(new Date())
+                                    }}
+                                    style={{
+                                        ...pillButtonStyle,
+                                        padding: '0.2rem 0.6rem',
+                                        fontSize: '0.6rem',
+                                        background: spendingPeriod === 'month' ? GRADIENT : 'transparent',
+                                        color: spendingPeriod === 'month' ? '#ffffff' : colors.textSecondary,
+                                    }}
+                                    className="hover:scale-105 transition-transform"
+                                >
+                                    Mês
+                                </button>
+                            </div>
+                            <button
+                                onClick={goToCurrentPeriod}
+                                className="text-[8px] font-bold px-2 py-0.5 rounded-full hover:bg-white/10 transition-colors"
+                                style={{ color: colors.textSecondary }}
                             >
-                                <DollarSign size={20} />
-                            </div>
-                            <div>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>Gastos Hoje</p>
-                                <p className="text-2xl font-black" style={{ color: '#f97316' }}>
-                                    R$ {metrics.daily.spent.toFixed(2)}
-                                </p>
-                            </div>
+                                Hoje
+                            </button>
                         </div>
                         <div className="text-right">
-                            <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                {spendingPeriod === '7days' ? 'Últimos 7 dias' : 'Últimos 30 dias'}
+                            <p className="text-[8px]" style={{ color: colors.textSecondary }}>
+                                {spendingPeriod === 'week' ? 'Esta semana' : 'Este mês'}
                             </p>
-                            <p className="text-xl font-black" style={{ color: '#10b981' }}>
+                            <p className="text-sm font-black" style={{ color: '#10b981' }}>
                                 R$ {totalPeriodSpent.toFixed(2)}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Gastos Hoje - Destaque */}
+                    <div className="flex items-center gap-3 mb-3 pb-3 border-b" style={{ borderColor: colors.border }}>
+                        <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                                background: GRADIENT,
+                                color: '#ffffff',
+                            }}
+                        >
+                            <DollarSign size={16} />
+                        </div>
+                        <div>
+                            <p className="text-[8px]" style={{ color: colors.textSecondary }}>Gastos Hoje</p>
+                            <p className="text-lg font-black" style={{ color: '#f97316' }}>
+                                R$ {metrics.daily.spent.toFixed(2)}
                             </p>
                         </div>
                     </div>
@@ -835,34 +920,34 @@ export default function ProfileDashboard({
                     {/* Gráfico de gastos diários */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                <BarChart3 size={14} style={{ color: '#f97316' }} />
-                                {spendingPeriod === '7days' ? 'Gastos de 7 dias' : 'Gastos de 30 dias'}
+                            <div className="flex items-center gap-1.5 text-[9px] font-bold" style={{ color: colors.textPrimary }}>
+                                <BarChart3 size={12} style={{ color: '#f97316' }} />
+                                {spendingPeriod === 'week' ? 'Gastos da semana' : 'Gastos do mês'}
                             </div>
-                            <div className="flex gap-1">
-                                {(['7days', '30days'] as const).map(p => (
-                                    <button
-                                        key={p}
-                                        onClick={() => setSpendingPeriod(p)}
-                                        style={{
-                                            ...pillButtonStyle,
-                                            padding: '0.15rem 0.5rem',
-                                            fontSize: '0.55rem',
-                                            background: spendingPeriod === p ? GRADIENT : 'transparent',
-                                            color: spendingPeriod === p ? '#ffffff' : colors.textSecondary,
-                                            border: `1px solid ${spendingPeriod === p ? 'transparent' : colors.border}`,
-                                        }}
-                                        className="hover:scale-105 transition-transform"
-                                    >
-                                        {p === '7days' ? '7 dias' : '30 dias'}
-                                    </button>
-                                ))}
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => navigatePeriod('prev')}
+                                    className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
+                                    style={{ color: colors.textSecondary }}
+                                >
+                                    <ChevronLeft size={12} />
+                                </button>
+                                <span className="text-[8px] font-medium px-1" style={{ color: colors.textSecondary }}>
+                                    {periodLabel}
+                                </span>
+                                <button
+                                    onClick={() => navigatePeriod('next')}
+                                    className="p-0.5 rounded-full hover:bg-white/10 transition-colors"
+                                    style={{ color: colors.textSecondary }}
+                                >
+                                    <ChevronRight size={12} />
+                                </button>
                             </div>
                         </div>
 
-                        {spendingPeriod === '7days' ? (
-                            // Gráfico de barras para 7 dias
-                            <div className="flex items-end gap-1 h-16">
+                        {spendingPeriod === 'week' ? (
+                            // Gráfico de barras para semana
+                            <div className="flex items-end gap-1 h-14">
                                 {dailySpendingData.map((item, idx) => {
                                     const height = maxAmount > 0 ? (item.amount / maxAmount) * 100 : 0
                                     return (
@@ -872,14 +957,14 @@ export default function ProfileDashboard({
                                                 style={{
                                                     height: `${Math.max(height, 2)}%`,
                                                     background: item.amount > 0 ? GRADIENT : `${'#f97316'}30`,
-                                                    minHeight: item.amount > 0 ? '8px' : '4px',
+                                                    minHeight: item.amount > 0 ? '6px' : '3px',
                                                 }}
                                             />
-                                            <span className="text-[7px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                            <span className="text-[6px] mt-0.5" style={{ color: colors.textSecondary }}>
                                                 {item.date}
                                             </span>
                                             {item.amount > 0 && (
-                                                <span className="text-[7px] font-bold" style={{ color: '#f97316' }}>
+                                                <span className="text-[6px] font-bold" style={{ color: '#f97316' }}>
                                                     R${item.amount.toFixed(0)}
                                                 </span>
                                             )}
@@ -888,11 +973,11 @@ export default function ProfileDashboard({
                                 })}
                             </div>
                         ) : (
-                            // Grid para 30 dias (agrupado por semanas)
-                            <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                            // Grid para mês (agrupado por semanas)
+                            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                                 {getWeeklyData().map((week, weekIdx) => (
                                     <div key={weekIdx}>
-                                        <p className="text-[8px] font-bold mb-1" style={{ color: colors.textSecondary }}>
+                                        <p className="text-[7px] font-bold mb-0.5" style={{ color: colors.textSecondary }}>
                                             Semana {weekIdx + 1}: {week.week}
                                         </p>
                                         <div className="flex items-end gap-1">
@@ -905,14 +990,14 @@ export default function ProfileDashboard({
                                                             style={{
                                                                 height: `${Math.max(height, 2)}%`,
                                                                 background: day.amount > 0 ? GRADIENT : `${'#f97316'}30`,
-                                                                minHeight: day.amount > 0 ? '8px' : '4px',
+                                                                minHeight: day.amount > 0 ? '6px' : '3px',
                                                             }}
                                                         />
-                                                        <span className="text-[6px] mt-0.5" style={{ color: colors.textSecondary }}>
+                                                        <span className="text-[5px] mt-0.5" style={{ color: colors.textSecondary }}>
                                                             {day.date}
                                                         </span>
                                                         {day.amount > 0 && (
-                                                            <span className="text-[6px] font-bold" style={{ color: '#f97316' }}>
+                                                            <span className="text-[5px] font-bold" style={{ color: '#f97316' }}>
                                                                 R${day.amount.toFixed(0)}
                                                             </span>
                                                         )}
