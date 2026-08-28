@@ -9,7 +9,7 @@ import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore } from '@/store/useCartStore'
-import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, ShoppingBag, Minus, Trash2, MessageCircle } from 'lucide-react'
+import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, ShoppingBag, Minus, Trash2, MessageCircle, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
@@ -45,6 +45,9 @@ interface CartItemWithComment {
     comment?: string
 }
 
+// ===== GRADIENTE FIXO LARANJA-VERMELHO =====
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
 export default function CatalogoPage() {
     const params = useParams()
     const router = useRouter()
@@ -56,7 +59,7 @@ export default function CatalogoPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
-    const { itemsByStore, addItem, removeItem, updateQuantity } = useCartStore()
+    const { itemsByStore, addItem, removeItem, updateQuantity, clearStoreCart, syncToSupabase } = useCartStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
 
@@ -73,15 +76,66 @@ export default function CatalogoPage() {
     const [searchExpanded, setSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
 
-    // ===== NOVOS STATES PARA O BUTTON SHOPPING BAG =====
+    // ===== STATES PARA O BUTTON SHOPPING BAG =====
     const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [bagItems, setBagItems] = useState<CartItemWithComment[]>([])
     const [showAddCommentModal, setShowAddCommentModal] = useState(false)
-    const [commentProduct, setCommentProduct] = useState<any | null>(null)
     const [commentText, setCommentText] = useState('')
     const [pendingProduct, setPendingProduct] = useState<any | null>(null)
 
-    // ========== STATUS DA LOJA ==========
+    // ===== STATES PARA FINALIZAÇÃO =====
+    const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+    const [checkoutLoading, setCheckoutLoading] = useState(false)
+    const [checkoutStep, setCheckoutStep] = useState<'auth' | 'delivery' | 'payment' | 'confirm'>('auth')
+
+    // ===== AUTH =====
+    const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+    const [authEmail, setAuthEmail] = useState('')
+    const [authPassword, setAuthPassword] = useState('')
+    const [authConfirmPassword, setAuthConfirmPassword] = useState('')
+    const [authName, setAuthName] = useState('')
+    const [authProfileSlug, setAuthProfileSlug] = useState('')
+    const [authLoading, setAuthLoading] = useState(false)
+    const [authError, setAuthError] = useState<string | null>(null)
+    const [showPassword, setShowPassword] = useState(false)
+    const [isSlugAvailable, setIsSlugAvailable] = useState<boolean | null>(null)
+    const slugTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+    const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null)
+    const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null)
+    const [currentUserName, setCurrentUserName] = useState<string | null>(null)
+
+    // ===== DELIVERY =====
+    const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada'>('retirada')
+    const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro'>('pix')
+    const [deliveryAddress, setDeliveryAddress] = useState('')
+    const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
+    const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
+    const [locationSearchQuery, setLocationSearchQuery] = useState('')
+    const [isSearchingLocation, setIsSearchingLocation] = useState(false)
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number; address: string } | null>(null)
+    const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+    const [userAddress, setUserAddress] = useState<string | null>(null)
+    const [addressInput, setAddressInput] = useState('')
+
+    // ===== CONFIGS DA LOJA =====
+    const [storeConfig, setStoreConfig] = useState<{
+        accepts_delivery: boolean
+        accepts_pickup: boolean
+        accepts_pix: boolean
+        accepts_card: boolean
+        accepts_cash: boolean
+        delivery_type: string | null
+        delivery_fee: number | null
+        delivery_fee_per_km: number | null
+        delivery_base_distance: number | null
+        delivery_base_fee: number | null
+        store_lat: number | null
+        store_lng: number | null
+        business_hours?: BusinessHours
+    } | null>(null)
+
+    // ===== STATUS DA LOJA =====
     const isStoreOpen = useMemo(() => {
         if (!storeInfo) return false
         return isStoreOpenNow(storeInfo.business_hours)
@@ -96,11 +150,6 @@ export default function CatalogoPage() {
             open: next.time,
         }
     }, [storeInfo?.business_hours])
-
-    // ========== GRADIENTES ==========
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-    const GRADIENT_DARK = 'linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(220, 38, 38, 0.15))'
-    const GRADIENT_DARKER = 'linear-gradient(135deg, rgba(249, 115, 22, 0.25), rgba(220, 38, 38, 0.25))'
 
     // ========== CORES DO HEADER ==========
     const hexToRgb = (hex: string) => {
@@ -134,7 +183,7 @@ export default function CatalogoPage() {
             try {
                 const { data: store, error: storeError } = await supabase
                     .from('stores')
-                    .select('id, name, storeSlug, logo_url, banner_url, business_hours')
+                    .select('id, name, storeSlug, logo_url, banner_url, business_hours, accepts_delivery, accepts_pickup, accepts_pix, accepts_card, accepts_cash, delivery_type, delivery_fee, delivery_fee_per_km, delivery_base_distance, delivery_base_fee, store_lat, store_lng')
                     .eq('storeSlug', ownerSlug)
                     .maybeSingle()
 
@@ -194,6 +243,22 @@ export default function CatalogoPage() {
                     business_hours: store.business_hours,
                 })
 
+                setStoreConfig({
+                    accepts_delivery: store.accepts_delivery || false,
+                    accepts_pickup: store.accepts_pickup || true,
+                    accepts_pix: store.accepts_pix || false,
+                    accepts_card: store.accepts_card || false,
+                    accepts_cash: store.accepts_cash || false,
+                    delivery_type: store.delivery_type || null,
+                    delivery_fee: store.delivery_fee || null,
+                    delivery_fee_per_km: store.delivery_fee_per_km || null,
+                    delivery_base_distance: store.delivery_base_distance || null,
+                    delivery_base_fee: store.delivery_base_fee || null,
+                    store_lat: store.store_lat || null,
+                    store_lng: store.store_lng || null,
+                    business_hours: store.business_hours,
+                })
+
                 setProducts(productsWithUrls)
             } catch (err: any) {
                 console.error('Erro ao carregar dados:', err)
@@ -208,9 +273,53 @@ export default function CatalogoPage() {
 
     useEffect(() => {
         setMounted(true)
+        loadUserData()
     }, [])
 
-    // ========== FUNÇÕES DO CARRINHO (integrado com o bag) ==========
+    // ========== FUNÇÕES DO USUÁRIO ==========
+    const loadUserData = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            setCurrentUserId(user.id)
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('profileSlug, avatar_url, name, address, store_lat, store_lng')
+                .eq('id', user.id)
+                .single()
+            if (profile) {
+                setCurrentUserSlug(profile.profileSlug)
+                setCurrentUserAvatar(profile.avatar_url)
+                setCurrentUserName(profile.name)
+                setUserAddress(profile.address)
+                setAddressInput(profile.address || '')
+                if (profile.store_lat && profile.store_lng) {
+                    setUserLocation({ lat: profile.store_lat, lng: profile.store_lng })
+                }
+            }
+        }
+    }, [supabase])
+
+    // ===== VERIFICA SLUG DISPONÍVEL =====
+    useEffect(() => {
+        if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
+        if (authProfileSlug.length < 3) {
+            setIsSlugAvailable(null)
+            return
+        }
+        slugTimeoutRef.current = setTimeout(async () => {
+            const { data } = await supabase
+                .from('profiles')
+                .select('profileSlug')
+                .eq('profileSlug', authProfileSlug)
+                .single()
+            setIsSlugAvailable(!data)
+        }, 500)
+        return () => {
+            if (slugTimeoutRef.current) clearTimeout(slugTimeoutRef.current)
+        }
+    }, [authProfileSlug, supabase])
+
+    // ========== FUNÇÕES DO CARRINHO ==========
     const storeKey = useMemo(() => {
         if (!ownerSlug) return ''
         return ownerSlug
@@ -221,7 +330,6 @@ export default function CatalogoPage() {
         return itemsByStore[storeKey] || []
     }, [itemsByStore, storeKey])
 
-    // Sincroniza o bag com o cart
     useEffect(() => {
         const items = cartItems.map(item => ({
             product: item.product,
@@ -258,7 +366,7 @@ export default function CatalogoPage() {
         [itemsByStore, ownerSlug]
     )
 
-    // ===== NOVA FUNÇÃO: Adicionar com comentário =====
+    // ===== FUNÇÃO: Adicionar com comentário =====
     const handleAddWithComment = (product: any) => {
         if (!storeInfo || !ownerSlug) return
 
@@ -290,7 +398,6 @@ export default function CatalogoPage() {
             category: pendingProduct.category || undefined,
         }
 
-        // Adiciona com comentário
         addItem(ownerSlug, storeDetails, cartProduct as any)
 
         // Atualiza o item com comentário
@@ -298,14 +405,12 @@ export default function CatalogoPage() {
             const storeItems = itemsByStore[ownerSlug] || []
             const found = storeItems.find((item: any) => item.product.id === pendingProduct.id)
             if (found) {
-                // Atualiza o comentário via store
                 const updatedItems = storeItems.map((item: any) => {
                     if (item.product.id === pendingProduct.id) {
                         return { ...item, comment: commentText.trim() || undefined }
                     }
                     return item
                 })
-                // Atualiza o estado do bag
                 const items = updatedItems.map(item => ({
                     product: item.product,
                     quantity: item.quantity,
@@ -347,7 +452,6 @@ export default function CatalogoPage() {
         (productId: string) => {
             if (!ownerSlug) return
             removeItem(ownerSlug, productId)
-            // Remove do bag também
             setBagItems(prev => prev.filter(item => item.product.id !== productId))
         },
         [ownerSlug, removeItem]
@@ -364,6 +468,318 @@ export default function CatalogoPage() {
         setSelectedProduct(product)
         setShowProductModal(true)
     }
+
+    // ===== FUNÇÕES DE GEOLOCALIZAÇÃO =====
+    const geocodeAddress = async (query: string): Promise<{ lat: number; lng: number; address: string } | null> => {
+        try {
+            const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+            if (!token) return null
+            const res = await fetch(
+                `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&limit=1&country=BR`
+            )
+            const data = await res.json()
+            if (data?.features?.length > 0) {
+                const [lng, lat] = data.features[0].center
+                return {
+                    lat,
+                    lng,
+                    address: data.features[0].place_name || query
+                }
+            }
+            return null
+        } catch {
+            return null
+        }
+    }
+
+    const searchLocation = async () => {
+        if (!locationSearchQuery.trim()) return
+        setIsSearchingLocation(true)
+        const result = await geocodeAddress(locationSearchQuery.trim())
+        setIsSearchingLocation(false)
+
+        if (result) {
+            setSelectedLocation(result)
+            setDeliveryAddress(result.address)
+            setDeliveryLat(result.lat)
+            setDeliveryLng(result.lng)
+            toast.success('Endereço localizado!')
+        } else {
+            toast.error('Endereço não encontrado')
+        }
+    }
+
+    // ===== FUNÇÃO DE LOGIN/REGISTRO =====
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: authEmail,
+            password: authPassword,
+        })
+        if (error) {
+            setAuthError('Email ou senha inválidos')
+            setAuthLoading(false)
+            return
+        }
+        if (data.user) {
+            setCurrentUserId(data.user.id)
+            await loadUserData()
+            setCheckoutStep('delivery')
+            toast.success('Login realizado com sucesso!')
+        }
+        setAuthLoading(false)
+    }
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setAuthLoading(true)
+        setAuthError(null)
+        if (authPassword !== authConfirmPassword) {
+            setAuthError('As senhas não coincidem')
+            setAuthLoading(false)
+            return
+        }
+        if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
+            setAuthError('O link do perfil deve conter apenas letras, números e hifens')
+            setAuthLoading(false)
+            return
+        }
+        const { data: slugCheck } = await supabase
+            .from('profiles')
+            .select('profileSlug')
+            .eq('profileSlug', authProfileSlug)
+            .single()
+        if (slugCheck) {
+            setAuthError('Este link de perfil já está em uso')
+            setAuthLoading(false)
+            return
+        }
+        const { data, error } = await supabase.auth.signUp({
+            email: authEmail,
+            password: authPassword,
+            options: { data: { full_name: authName, slug: authProfileSlug } },
+        })
+        if (error) {
+            setAuthError(error.message)
+            setAuthLoading(false)
+            return
+        }
+        if (data.user) {
+            await supabase.from('profiles').upsert({
+                id: data.user.id,
+                name: authName,
+                profileSlug: authProfileSlug,
+            })
+            setCurrentUserId(data.user.id)
+            await loadUserData()
+            setCheckoutStep('delivery')
+            toast.success('Conta criada com sucesso!')
+        }
+        setAuthLoading(false)
+    }
+
+    // ===== FUNÇÃO DE FINALIZAR COMPRA =====
+    const calculateDeliveryFee = useCallback((): { fee: number; isCalculating: boolean } => {
+        if (deliveryOption !== 'entrega' || !storeConfig) {
+            return { fee: 0, isCalculating: false }
+        }
+
+        if (!deliveryLat || !deliveryLng) {
+            return { fee: 0, isCalculating: true }
+        }
+
+        const dtype = storeConfig.delivery_type
+        if (dtype === 'fixed') {
+            return { fee: Number(storeConfig.delivery_fee) || 0, isCalculating: false }
+        } else if (dtype === 'distance') {
+            const feePerKm = Number(storeConfig.delivery_fee_per_km) || 0
+            const storeLat = storeConfig.store_lat
+            const storeLng = storeConfig.store_lng
+
+            if (storeLat == null || storeLng == null) {
+                return { fee: 0, isCalculating: true }
+            }
+
+            // Haversine
+            const R = 6371
+            const dLat = (deliveryLat - storeLat) * Math.PI / 180
+            const dLng = (deliveryLng - storeLng) * Math.PI / 180
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(storeLat * Math.PI / 180) * Math.cos(deliveryLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+            const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+            if (storeConfig.delivery_base_distance != null && storeConfig.delivery_base_fee != null) {
+                const baseDist = Number(storeConfig.delivery_base_distance) || 0
+                const baseFee = Number(storeConfig.delivery_base_fee) || 0
+                if (dist <= baseDist) {
+                    return { fee: baseFee, isCalculating: false }
+                } else {
+                    const extraKm = dist - baseDist
+                    return { fee: baseFee + (extraKm * feePerKm), isCalculating: false }
+                }
+            }
+            return { fee: dist * feePerKm, isCalculating: false }
+        }
+        return { fee: 0, isCalculating: false }
+    }, [deliveryOption, storeConfig, deliveryLat, deliveryLng])
+
+    const getStoreTotals = useCallback(() => {
+        const items = cartItems
+        const itemsTotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+        const { fee: deliveryFee, isCalculating } = calculateDeliveryFee()
+        const finalTotal = isCalculating ? itemsTotal : itemsTotal + deliveryFee
+        return { itemsTotal, deliveryFee, finalTotal, isCalculating }
+    }, [cartItems, calculateDeliveryFee])
+
+    const handleFinalizeOrder = async () => {
+        if (!currentUserId) {
+            setCheckoutStep('auth')
+            return
+        }
+
+        if (!storeInfo || !storeConfig) {
+            toast.error('Dados da loja não carregados')
+            return
+        }
+
+        const { isOpen } = getStoreStatus()
+        if (!isOpen) {
+            let message = '🕐 Loja fechada no momento.'
+            if (nextAvailable) {
+                message += ` Abre ${nextAvailable.day} às ${nextAvailable.open}.`
+            }
+            toast.error(message)
+            return
+        }
+
+        if (cartItems.length === 0) {
+            toast.error('Sua sacola está vazia')
+            return
+        }
+
+        if (deliveryOption === 'entrega' && !deliveryAddress.trim()) {
+            toast.error('Informe o endereço de entrega')
+            return
+        }
+
+        setCheckoutLoading(true)
+
+        try {
+            const { itemsTotal, deliveryFee, finalTotal } = getStoreTotals()
+            const checkout_id = crypto.randomUUID()
+            const address = deliveryOption === 'entrega' ? deliveryAddress : 'Retirada no local'
+
+            const { data: orderData, error: orderError } = await supabase
+                .from('orders')
+                .insert({
+                    store_id: storeInfo.id,
+                    buyer_id: currentUserId,
+                    buyer_name: (currentUserName || 'Cliente').trim(),
+                    buyer_profile_slug: (currentUserSlug || currentUserId).trim(),
+                    total_amount: finalTotal,
+                    delivery_fee: deliveryFee,
+                    delivery_option: deliveryOption,
+                    payment_method: paymentMethod,
+                    delivery_address: address,
+                    delivery_lat: deliveryOption === 'entrega' ? deliveryLat : null,
+                    delivery_lng: deliveryOption === 'entrega' ? deliveryLng : null,
+                    status: 'pending',
+                    checkout_id,
+                })
+                .select()
+                .single()
+
+            if (orderError) {
+                console.error('[Checkout] Erro ao inserir order:', orderError)
+                toast.error(`Erro ao criar pedido: ${orderError.message}`)
+                setCheckoutLoading(false)
+                return
+            }
+
+            const orderItemsToInsert = cartItems.map((item) => ({
+                order_id: orderData.id,
+                product_id: item.product.id,
+                product_name: item.product.name,
+                quantity: item.quantity,
+                unit_price: item.product.price,
+                total_price: item.product.price * item.quantity,
+                comment: (item as any).comment || null,
+            }))
+
+            const { error: itemsError } = await supabase
+                .from('order_items')
+                .insert(orderItemsToInsert)
+
+            if (itemsError) {
+                console.error('[Checkout] Erro ao inserir order_items:', itemsError)
+                await supabase.from('orders').delete().eq('id', orderData.id)
+                toast.error(`Erro ao salvar itens: ${itemsError.message}`)
+                setCheckoutLoading(false)
+                return
+            }
+
+            // Limpa o carrinho
+            clearStoreCart(ownerSlug)
+            await syncToSupabase(currentUserId)
+
+            // Abre WhatsApp
+            try {
+                const { data: storeData } = await supabase
+                    .from('stores')
+                    .select('whatsapp, owner_id')
+                    .eq('id', storeInfo.id)
+                    .single()
+                let whatsapp = storeData?.whatsapp
+                if (!whatsapp && storeData?.owner_id) {
+                    const { data: owner } = await supabase
+                        .from('profiles')
+                        .select('whatsapp')
+                        .eq('id', storeData.owner_id)
+                        .single()
+                    whatsapp = owner?.whatsapp
+                }
+                if (whatsapp) {
+                    const paymentLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'cartao' ? 'Cartão' : 'Dinheiro'
+                    const deliveryLabel = deliveryOption === 'entrega'
+                        ? `Entrega (${address})${deliveryFee > 0 ? ` - Taxa: R$ ${deliveryFee.toFixed(2)}` : ' - Grátis'}`
+                        : 'Retirada no Balcão'
+                    const message = encodeURIComponent(
+                        `*Novo Pedido - iUser*\n\n` +
+                        `*Cliente:* @${currentUserSlug || 'cliente'}\n` +
+                        `*Pagamento:* ${paymentLabel}\n` +
+                        `*Entrega:* ${deliveryLabel}\n` +
+                        `*Itens:*\n${cartItems.map((i: any) => `- ${i.quantity}x ${i.product.name} (R$ ${(i.product.price * i.quantity).toFixed(2)})${(i as any).comment ? ` - Obs: ${(i as any).comment}` : ''}`).join('\n')}\n\n` +
+                        `*Subtotal: R$ ${itemsTotal.toFixed(2)}*\n` +
+                        `*Taxa de entrega: R$ ${deliveryFee.toFixed(2)}*\n` +
+                        `*Total: R$ ${finalTotal.toFixed(2)}*`
+                    )
+                    window.open(`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${message}`, '_blank')
+                }
+            } catch (waErr) {
+                console.warn('[Checkout] Falha ao abrir WhatsApp:', waErr)
+            }
+
+            toast.success('Pedido realizado com sucesso! 🎉')
+            setShowCheckoutModal(false)
+            setIsBagExpanded(false)
+            setCheckoutStep('auth')
+            setCheckoutLoading(false)
+
+        } catch (err: any) {
+            console.error('[Checkout] Erro inesperado:', err)
+            toast.error(`Erro inesperado: ${err?.message ?? 'Tente novamente.'}`)
+            setCheckoutLoading(false)
+        }
+    }
+
+    const getStoreStatus = useCallback(() => {
+        if (!storeConfig || !storeConfig.business_hours) {
+            return { isOpen: true, statusText: 'Aberto', nextOpening: null }
+        }
+        const isOpen = isStoreOpenNow(storeConfig.business_hours)
+        return { isOpen, statusText: isOpen ? 'Aberto' : 'Fechado', nextOpening: nextAvailable }
+    }, [storeConfig, nextAvailable])
 
     // ========== FILTRO DE PRODUTOS ==========
     const filteredProducts = useMemo(() => {
@@ -385,7 +801,7 @@ export default function CatalogoPage() {
         return result
     }, [products, searchQuery, selectedCategory])
 
-    // ========== CATEGORIAS PARA TABS COM CONTAGENS ==========
+    // ========== CATEGORIAS ==========
     const categories = useMemo(() => {
         const cats = new Map<string, number>()
         products.forEach(p => {
@@ -399,7 +815,7 @@ export default function CatalogoPage() {
         ]
     }, [products])
 
-    // ========== VOLTAR PARA A PÁGINA DA LOJA ==========
+    // ========== VOLTAR ==========
     const handleGoBack = () => {
         if (!ownerSlug) {
             router.push('/')
@@ -457,20 +873,28 @@ export default function CatalogoPage() {
         const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
         const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
 
+        const openCheckout = () => {
+            if (totalItems === 0) {
+                toast.info('Sua sacola está vazia')
+                return
+            }
+            setCheckoutStep(currentUserId ? 'delivery' : 'auth')
+            setShowCheckoutModal(true)
+            setIsBagExpanded(false)
+        }
+
         return (
             <div className="relative">
-                {/* Botão principal - sempre visível com informações */}
                 <div
                     className="rounded-2xl shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden"
                     style={{
                         background: cardBackground,
                         border: `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
                         boxShadow: totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`,
-                        minWidth: isBagExpanded ? 280 : 56,
-                        maxWidth: isBagExpanded ? 360 : 56,
+                        minWidth: isBagExpanded ? 280 : 'auto',
+                        maxWidth: isBagExpanded ? 360 : 'auto',
                     }}
                 >
-                    {/* Header do botão - sempre visível com informações */}
                     <div
                         className="flex items-center gap-2 p-2"
                         onClick={() => setIsBagExpanded(!isBagExpanded)}
@@ -482,59 +906,39 @@ export default function CatalogoPage() {
                             <ShoppingBag size={18} />
                         </div>
 
-                        {!isBagExpanded ? (
-                            // Estado recolhido - mostra informações resumidas com o valor total
-                            <div className="flex items-center gap-2">
-                                {totalItems > 0 ? (
-                                    <>
-                                        <span className="font-bold text-sm" style={{ color: textColor }}>
-                                            {totalItems}
-                                        </span>
-                                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                            {totalItems === 1 ? 'item' : 'itens'}
-                                        </span>
-                                        <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
-                                            {formatPrice(totalValue)}
-                                        </span>
-                                    </>
-                                ) : (
-                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        Vazio
-                                    </span>
-                                )}
-                            </div>
-                        ) : (
-                            // Estado expandido - mostra mais detalhes
-                            <div className="flex-1 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
+                            {totalItems > 0 ? (
+                                <>
                                     <span className="font-bold text-sm" style={{ color: textColor }}>
-                                        Sacola
+                                        {totalItems}
                                     </span>
                                     <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        ({totalItems} {totalItems === 1 ? 'item' : 'itens'})
+                                        {totalItems === 1 ? 'item' : 'itens'}
                                     </span>
-                                </div>
-                                <span className="text-sm font-bold" style={{ color: '#f97316' }}>
-                                    {formatPrice(totalValue)}
+                                    <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
+                                        {formatPrice(totalValue)}
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                    Vazio
                                 </span>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
-                        {isBagExpanded && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setIsBagExpanded(false)
-                                }}
-                                className="p-1 rounded-full hover:bg-black/5 transition"
+                        <div className="ml-auto flex items-center">
+                            <svg
+                                className={`w-4 h-4 transition-transform duration-300 ${isBagExpanded ? 'rotate-180' : ''}`}
                                 style={{ color: colors.textSecondary }}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                             >
-                                <X size={16} />
-                            </button>
-                        )}
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
 
-                    {/* Conteúdo expandido */}
                     {isBagExpanded && (
                         <div className="border-t px-2 py-2 max-h-64 overflow-y-auto" style={{ borderColor: colors.border }}>
                             {bagItems.length === 0 ? (
@@ -549,7 +953,6 @@ export default function CatalogoPage() {
                                             className="flex items-center gap-2 p-1.5 rounded-lg"
                                             style={{ background: `${colors.surface}66` }}
                                         >
-                                            {/* Imagem mini */}
                                             <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
                                                 {item.product.image_url ? (
                                                     <img
@@ -558,13 +961,10 @@ export default function CatalogoPage() {
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-lg">
-                                                        📦
-                                                    </div>
+                                                    <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
                                                 )}
                                             </div>
 
-                                            {/* Info */}
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-medium truncate" style={{ color: textColor }}>
                                                     {item.product.name}
@@ -585,7 +985,6 @@ export default function CatalogoPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Ações rápidas */}
                                             <div className="flex items-center gap-1 flex-shrink-0">
                                                 <button
                                                     onClick={(e) => {
@@ -628,13 +1027,12 @@ export default function CatalogoPage() {
                                         </div>
                                     ))}
 
-                                    {/* Total e botão de finalizar */}
                                     <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: colors.border }}>
                                         <span className="text-xs font-bold" style={{ color: textColor }}>
                                             Total: {formatPrice(totalValue)}
                                         </span>
                                         <button
-                                            onClick={() => router.push('/sacola')}
+                                            onClick={openCheckout}
                                             className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                         >
@@ -673,7 +1071,6 @@ export default function CatalogoPage() {
                     }}
                     className="sm:px-6 sm:pt-5"
                 >
-                    {/* Marca d'água */}
                     <div
                         style={{
                             position: 'absolute',
@@ -713,7 +1110,6 @@ export default function CatalogoPage() {
                         )}
                     </div>
 
-                    {/* Conteúdo do Header */}
                     <div className="relative z-10">
                         <div className="flex items-center gap-2 mb-1">
                             <button
@@ -866,7 +1262,6 @@ export default function CatalogoPage() {
                                     if (productIsDisabled) {
                                         handleProductClick(product, e)
                                     } else {
-                                        // Abre o modal de comentário em vez de adicionar direto
                                         handleAddWithComment(product)
                                     }
                                 }
@@ -1012,7 +1407,6 @@ export default function CatalogoPage() {
                 </div>
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
-                {/* Busca */}
                 <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                     <ButtonSearch
                         placeholder="Buscar produtos..."
@@ -1023,10 +1417,538 @@ export default function CatalogoPage() {
                     />
                 </div>
 
-                {/* ButtonShoppingBag - novo componente */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <ButtonShoppingBag />
                 </div>
+
+                {/* ===== MODAL DE COMENTÁRIO ===== */}
+                {showAddCommentModal && pendingProduct && (
+                    <div
+                        className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => {
+                            setShowAddCommentModal(false)
+                            setPendingProduct(null)
+                            setCommentText('')
+                        }}
+                    >
+                        <div
+                            className="w-full max-w-md rounded-2xl p-6 animate-fade-in"
+                            style={{ background: cardBackground }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-black" style={{ color: textColor }}>
+                                    Adicionar à Sacola
+                                </h3>
+                                <button
+                                    onClick={() => {
+                                        setShowAddCommentModal(false)
+                                        setPendingProduct(null)
+                                        setCommentText('')
+                                    }}
+                                    className="p-1.5 rounded-full hover:bg-black/5 transition"
+                                    style={{ color: colors.textSecondary }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 rounded-xl mb-4" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                                    {pendingProduct.image_url ? (
+                                        <img src={pendingProduct.image_url} alt={pendingProduct.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate" style={{ color: textColor }}>
+                                        {pendingProduct.name}
+                                    </p>
+                                    <p className="text-sm font-bold" style={{ color: '#f97316' }}>
+                                        {formatPrice(pendingProduct.price)}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="text-sm font-medium block mb-1" style={{ color: textColor }}>
+                                    Observação (opcional)
+                                </label>
+                                <textarea
+                                    value={commentText}
+                                    onChange={(e) => setCommentText(e.target.value)}
+                                    placeholder="Ex: Sem cebola, ponto da carne, etc..."
+                                    className="w-full p-3 rounded-xl resize-none text-sm"
+                                    style={{
+                                        background: `${colors.surface}44`,
+                                        border: `1px solid ${colors.border}`,
+                                        color: textColor,
+                                        minHeight: 80,
+                                        outline: 'none',
+                                    }}
+                                />
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowAddCommentModal(false)
+                                        setPendingProduct(null)
+                                        setCommentText('')
+                                    }}
+                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
+                                    style={{
+                                        background: 'transparent',
+                                        border: `2px solid ${colors.border}`,
+                                        color: colors.textSecondary
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmAddWithComment}
+                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
+                                    style={{
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        boxShadow: `0 4px 14px #f9731660`,
+                                    }}
+                                >
+                                    Adicionar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ===== MODAL DE CHECKOUT ===== */}
+                {showCheckoutModal && (
+                    <div
+                        className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        onClick={() => {
+                            if (!checkoutLoading) {
+                                setShowCheckoutModal(false)
+                                setCheckoutStep('auth')
+                            }
+                        }}
+                    >
+                        <div
+                            className="w-full max-w-md rounded-2xl p-6 animate-fade-in max-h-[90vh] overflow-y-auto"
+                            style={{ background: cardBackground }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* ===== STEP AUTH ===== */}
+                            {checkoutStep === 'auth' && (
+                                <>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-black" style={{ color: textColor }}>
+                                            {authMode === 'login' ? 'Entrar' : 'Criar Conta'}
+                                        </h3>
+                                        <button
+                                            onClick={() => {
+                                                setShowCheckoutModal(false)
+                                                setCheckoutStep('auth')
+                                            }}
+                                            className="p-1.5 rounded-full hover:bg-black/5 transition"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>
+                                        {authMode === 'login'
+                                            ? 'Entre para finalizar seu pedido'
+                                            : 'Crie sua conta e finalize seu pedido'}
+                                    </p>
+
+                                    {authError && (
+                                        <div className="p-3 border rounded-full text-[8px] font-black uppercase text-center mb-3"
+                                            style={{ background: '#f9731620', borderColor: '#f97316', color: '#f97316' }}>
+                                            ⚠️ {authError}
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-2 mb-4">
+                                        <button
+                                            onClick={() => setAuthMode('login')}
+                                            className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'login' ? 'shadow-sm' : ''}`}
+                                            style={authMode === 'login' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}
+                                        >
+                                            Entrar
+                                        </button>
+                                        <button
+                                            onClick={() => setAuthMode('register')}
+                                            className={`flex-1 py-2.5 rounded-full text-xs font-black uppercase transition-all ${authMode === 'register' ? 'shadow-sm' : ''}`}
+                                            style={authMode === 'register' ? { background: GRADIENT, color: '#ffffff' } : { background: colors.surface, color: colors.textSecondary, border: `2px solid ${colors.border}` }}
+                                        >
+                                            Criar Conta
+                                        </button>
+                                    </div>
+
+                                    {authMode === 'login' ? (
+                                        <form onSubmit={handleLogin} className="space-y-3">
+                                            <input
+                                                type="email"
+                                                placeholder="seu@email.com"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                value={authEmail}
+                                                onChange={(e) => setAuthEmail(e.target.value)}
+                                                required
+                                                autoComplete="email"
+                                            />
+                                            <div className="relative">
+                                                <input
+                                                    type={showPassword ? 'text' : 'password'}
+                                                    placeholder="sua senha"
+                                                    className="w-full border-2 rounded-full px-4 py-2.5 text-sm pr-10"
+                                                    style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                    value={authPassword}
+                                                    onChange={(e) => setAuthPassword(e.target.value)}
+                                                    required
+                                                    autoComplete="current-password"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPassword(!showPassword)}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                                                    style={{ color: colors.textSecondary }}
+                                                >
+                                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                                </button>
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                disabled={authLoading}
+                                                className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50"
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                            >
+                                                {authLoading ? 'Entrando...' : 'Entrar'}
+                                            </button>
+                                        </form>
+                                    ) : (
+                                        <form onSubmit={handleRegister} className="space-y-3">
+                                            <input
+                                                type="text"
+                                                placeholder="Nome Completo"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                value={authName}
+                                                onChange={(e) => setAuthName(e.target.value)}
+                                                required
+                                                autoComplete="name"
+                                            />
+                                            <div className="flex items-center gap-1 border-2 rounded-full px-3" style={{ background: colors.surface, borderColor: colors.border }}>
+                                                <span className="text-[9px] font-black" style={{ color: colors.textSecondary }}>iuser.com.br/</span>
+                                                <input
+                                                    type="text"
+                                                    placeholder="seu-perfil"
+                                                    className="flex-1 py-2.5 bg-transparent text-sm outline-none"
+                                                    style={{ color: colors.textPrimary }}
+                                                    value={authProfileSlug}
+                                                    onChange={(e) => setAuthProfileSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                    required
+                                                    autoComplete="off"
+                                                />
+                                                {isSlugAvailable !== null && (
+                                                    <span className={`text-[9px] font-black ${isSlugAvailable ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {isSlugAvailable ? '✓' : '✗'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="email"
+                                                placeholder="seu@email.com"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                value={authEmail}
+                                                onChange={(e) => setAuthEmail(e.target.value)}
+                                                required
+                                                autoComplete="email"
+                                            />
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder="Senha"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                value={authPassword}
+                                                onChange={(e) => setAuthPassword(e.target.value)}
+                                                required
+                                                autoComplete="new-password"
+                                            />
+                                            <input
+                                                type={showPassword ? 'text' : 'password'}
+                                                placeholder="Confirmar senha"
+                                                className="w-full border-2 rounded-full px-4 py-2.5 text-sm"
+                                                style={{ background: colors.surface, borderColor: colors.border, color: colors.textPrimary }}
+                                                value={authConfirmPassword}
+                                                onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                                                required
+                                                autoComplete="new-password"
+                                            />
+                                            <button
+                                                type="submit"
+                                                disabled={authLoading || isSlugAvailable === false}
+                                                className="w-full py-2.5 rounded-full font-black uppercase text-[9px] tracking-wider transition-all disabled:opacity-50"
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                            >
+                                                {authLoading ? 'Criando...' : 'Criar Conta'}
+                                            </button>
+                                        </form>
+                                    )}
+                                </>
+                            )}
+
+                            {/* ===== STEP DELIVERY ===== */}
+                            {checkoutStep === 'delivery' && (
+                                <>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-black" style={{ color: textColor }}>
+                                            Finalizar Pedido
+                                        </h3>
+                                        <button
+                                            onClick={() => {
+                                                setShowCheckoutModal(false)
+                                                setCheckoutStep('auth')
+                                            }}
+                                            className="p-1.5 rounded-full hover:bg-black/5 transition"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+
+                                    {/* Itens resumidos com observações */}
+                                    <div className="mb-4 p-3 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                                        <p className="text-xs font-bold mb-2" style={{ color: colors.textPrimary }}>
+                                            {bagItems.length} {bagItems.length === 1 ? 'item' : 'itens'} na sacola
+                                        </p>
+                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                            {bagItems.map((item) => (
+                                                <div key={item.product.id} className="flex justify-between text-xs">
+                                                    <span style={{ color: colors.textSecondary }}>
+                                                        {item.quantity}x {item.product.name}
+                                                        {item.comment && <span className="text-[8px] ml-1 opacity-60">({item.comment})</span>}
+                                                    </span>
+                                                    <span className="font-bold" style={{ color: textColor }}>
+                                                        {formatPrice(item.product.price * item.quantity)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="border-t mt-2 pt-2 flex justify-between font-bold text-sm" style={{ borderColor: colors.border }}>
+                                            <span style={{ color: textColor }}>Subtotal</span>
+                                            <span style={{ color: '#f97316' }}>{formatPrice(getStoreTotals().itemsTotal)}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Status da loja */}
+                                    <div
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
+                                        style={{
+                                            background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                            color: isStoreOpen ? '#22c55e' : '#ef4444',
+                                            border: `1px solid ${isStoreOpen ? '#22c55e30' : '#ef444430'}`,
+                                        }}
+                                    >
+                                        <Clock size={14} />
+                                        <span>{isStoreOpen ? '🟢 Aberto' : '🔴 Fechado'}</span>
+                                        {!isStoreOpen && nextAvailable && (
+                                            <span style={{ opacity: 0.7 }}>
+                                                • Abre {nextAvailable.day} às {nextAvailable.open}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Delivery Option */}
+                                    <div className="mb-3">
+                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Recebimento</p>
+                                        <div className="flex gap-2">
+                                            {storeConfig?.accepts_delivery && (
+                                                <button
+                                                    onClick={() => setDeliveryOption('entrega')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOption === 'entrega' ? 'text-white' : ''}`}
+                                                    style={deliveryOption === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                >
+                                                    <Truck size={14} /> Entrega
+                                                </button>
+                                            )}
+                                            {storeConfig?.accepts_pickup && (
+                                                <button
+                                                    onClick={() => setDeliveryOption('retirada')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOption === 'retirada' ? 'text-white' : ''}`}
+                                                    style={deliveryOption === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                >
+                                                    <Store size={14} /> Retirada
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Delivery Address */}
+                                    {deliveryOption === 'entrega' && (
+                                        <div className="mb-3">
+                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
+
+                                            {/* Endereço salvo do perfil */}
+                                            {userAddress && userLocation && (
+                                                <button
+                                                    onClick={() => {
+                                                        setDeliveryAddress(userAddress)
+                                                        setDeliveryLat(userLocation.lat)
+                                                        setDeliveryLng(userLocation.lng)
+                                                        setSelectedLocation({
+                                                            lat: userLocation.lat,
+                                                            lng: userLocation.lng,
+                                                            address: userAddress
+                                                        })
+                                                        toast.success('Endereço do perfil selecionado!')
+                                                    }}
+                                                    className="w-full p-2 rounded-xl mb-2 border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2 text-xs"
+                                                    style={{ background: 'rgba(16,185,129,0.05)' }}
+                                                >
+                                                    <Home size={16} style={{ color: '#10b981' }} />
+                                                    <span className="flex-1 truncate" style={{ color: colors.textPrimary }}>{userAddress}</span>
+                                                    <CheckCircle2 size={14} style={{ color: '#10b981' }} />
+                                                </button>
+                                            )}
+
+                                            {/* Buscar endereço */}
+                                            <div className="flex gap-2">
+                                                <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
+                                                    <Search size={14} style={{ color: colors.textSecondary }} />
+                                                    <input
+                                                        type="text"
+                                                        value={locationSearchQuery}
+                                                        onChange={(e) => setLocationSearchQuery(e.target.value)}
+                                                        placeholder="Buscar endereço..."
+                                                        className="flex-1 bg-transparent outline-none text-sm"
+                                                        style={{ color: colors.textPrimary }}
+                                                        onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    onClick={searchLocation}
+                                                    disabled={isSearchingLocation}
+                                                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50"
+                                                    style={{ background: GRADIENT }}
+                                                >
+                                                    {isSearchingLocation ? '...' : 'Buscar'}
+                                                </button>
+                                            </div>
+
+                                            {selectedLocation && (
+                                                <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}>
+                                                    <p className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>📍 {selectedLocation.address}</p>
+                                                </div>
+                                            )}
+
+                                            {deliveryAddress && !selectedLocation && (
+                                                <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                                                    <p className="text-[10px]" style={{ color: colors.textPrimary }}>{deliveryAddress}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Payment */}
+                                    <div className="mb-4">
+                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Pagamento</p>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {storeConfig?.accepts_pix && (
+                                                <button
+                                                    onClick={() => setPaymentMethod('pix')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'pix' ? 'text-white' : ''}`}
+                                                    style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                >
+                                                    <QrCode size={14} /> Pix
+                                                </button>
+                                            )}
+                                            {storeConfig?.accepts_card && (
+                                                <button
+                                                    onClick={() => setPaymentMethod('cartao')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'cartao' ? 'text-white' : ''}`}
+                                                    style={paymentMethod === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                >
+                                                    <CreditCard size={14} /> Cartão
+                                                </button>
+                                            )}
+                                            {storeConfig?.accepts_cash && (
+                                                <button
+                                                    onClick={() => setPaymentMethod('dinheiro')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'dinheiro' ? 'text-white' : ''}`}
+                                                    style={paymentMethod === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                                >
+                                                    <Banknote size={14} /> Dinheiro
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Total e finalizar */}
+                                    <div className="border-t pt-3" style={{ borderColor: colors.border }}>
+                                        {deliveryOption === 'entrega' && (
+                                            <div className="flex justify-between text-xs mb-1">
+                                                <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
+                                                {getStoreTotals().isCalculating ? (
+                                                    <span className="italic animate-pulse" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                                ) : getStoreTotals().deliveryFee === 0 ? (
+                                                    <span className="font-bold text-green-500">Grátis</span>
+                                                ) : (
+                                                    <span className="font-bold" style={{ color: '#f97316' }}>
+                                                        {formatPrice(getStoreTotals().deliveryFee)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between text-base font-bold">
+                                            <span style={{ color: textColor }}>Total</span>
+                                            {getStoreTotals().isCalculating ? (
+                                                <span className="italic" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                            ) : (
+                                                <span style={{ color: '#f97316' }}>{formatPrice(getStoreTotals().finalTotal)}</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3 mt-4">
+                                        <button
+                                            onClick={() => {
+                                                setShowCheckoutModal(false)
+                                                setCheckoutStep('auth')
+                                            }}
+                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
+                                            style={{
+                                                background: 'transparent',
+                                                border: `2px solid ${colors.border}`,
+                                                color: colors.textSecondary
+                                            }}
+                                        >
+                                            Voltar
+                                        </button>
+                                        <button
+                                            onClick={handleFinalizeOrder}
+                                            disabled={checkoutLoading || getStoreTotals().isCalculating || (deliveryOption === 'entrega' && !deliveryAddress.trim())}
+                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                            style={{
+                                                background: GRADIENT,
+                                                color: '#ffffff',
+                                                boxShadow: `0 4px 14px #f9731660`,
+                                            }}
+                                        >
+                                            {checkoutLoading ? 'Finalizando...' :
+                                                getStoreTotals().isCalculating ? 'Calculando...' :
+                                                    (deliveryOption === 'entrega' && !deliveryAddress.trim()) ? 'Informe o endereço' :
+                                                        'Confirmar Pedido'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* ===== MODAL DE DETALHES DO PRODUTO ===== */}
                 {showProductModal && selectedProduct && (
@@ -1226,107 +2148,6 @@ export default function CatalogoPage() {
                                         )}
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* ===== MODAL DE COMENTÁRIO ===== */}
-                {showAddCommentModal && pendingProduct && (
-                    <div
-                        className="fixed inset-0 z-[300] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
-                        onClick={() => {
-                            setShowAddCommentModal(false)
-                            setPendingProduct(null)
-                            setCommentText('')
-                        }}
-                    >
-                        <div
-                            className="w-full max-w-md rounded-2xl p-6 animate-fade-in"
-                            style={{ background: cardBackground }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-black" style={{ color: textColor }}>
-                                    Adicionar à Sacola
-                                </h3>
-                                <button
-                                    onClick={() => {
-                                        setShowAddCommentModal(false)
-                                        setPendingProduct(null)
-                                        setCommentText('')
-                                    }}
-                                    className="p-1.5 rounded-full hover:bg-black/5 transition"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            <div className="flex items-center gap-3 p-3 rounded-xl mb-4" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
-                                <div className="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                    {pendingProduct.image_url ? (
-                                        <img src={pendingProduct.image_url} alt={pendingProduct.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm truncate" style={{ color: textColor }}>
-                                        {pendingProduct.name}
-                                    </p>
-                                    <p className="text-sm font-bold" style={{ color: '#f97316' }}>
-                                        {formatPrice(pendingProduct.price)}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="text-sm font-medium block mb-1" style={{ color: textColor }}>
-                                    Observação (opcional)
-                                </label>
-                                <textarea
-                                    value={commentText}
-                                    onChange={(e) => setCommentText(e.target.value)}
-                                    placeholder="Ex: Sem cebola, ponto da carne, etc..."
-                                    className="w-full p-3 rounded-xl resize-none text-sm"
-                                    style={{
-                                        background: `${colors.surface}44`,
-                                        border: `1px solid ${colors.border}`,
-                                        color: textColor,
-                                        minHeight: 80,
-                                        outline: 'none',
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => {
-                                        setShowAddCommentModal(false)
-                                        setPendingProduct(null)
-                                        setCommentText('')
-                                    }}
-                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                    style={{
-                                        background: 'transparent',
-                                        border: `2px solid ${colors.border}`,
-                                        color: colors.textSecondary
-                                    }}
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmAddWithComment}
-                                    className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        boxShadow: `0 4px 14px #f9731660`,
-                                    }}
-                                >
-                                    Adicionar
-                                </button>
                             </div>
                         </div>
                     </div>
