@@ -719,9 +719,11 @@ export default function CatalogoPage() {
                 return
             }
 
-            // Limpa o carrinho
-            clearStoreCart(ownerSlug)
-            await syncToSupabase(currentUserId)
+            // Limpa o carrinho - CORREÇÃO: verifica se ownerSlug existe
+            if (ownerSlug) {
+                clearStoreCart(ownerSlug)
+                await syncToSupabase(currentUserId)
+            }
 
             // Abre WhatsApp
             try {
@@ -976,13 +978,15 @@ export default function CatalogoPage() {
                                                     <span className="text-[10px]" style={{ color: colors.textSecondary }}>
                                                         x{item.quantity}
                                                     </span>
-                                                    {item.comment && (
-                                                        <span className="text-[10px] flex items-center gap-0.5" style={{ color: colors.textSecondary }}>
-                                                            <MessageCircle size={10} />
-                                                            {item.comment.length > 15 ? item.comment.slice(0, 15) + '...' : item.comment}
-                                                        </span>
-                                                    )}
                                                 </div>
+                                                {item.comment && (
+                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                        <MessageCircle size={10} style={{ color: colors.textSecondary }} />
+                                                        <span className="text-[9px] italic truncate" style={{ color: colors.textSecondary }}>
+                                                            {item.comment}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center gap-1 flex-shrink-0">
