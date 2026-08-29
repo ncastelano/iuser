@@ -191,7 +191,11 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                 }
 
                 const storesWithProductsList: StoreWithProducts[] = allStores.map(store => {
-                    const storeProducts = productsByStore[store.id] || []
+                    const storeProducts = (productsByStore[store.id] || []).map((p: any) => ({
+                        ...p,
+                        _storeName: store.name,
+                        _storeImage: store.logo_url,
+                    }))
                     return {
                         store,
                         products: storeProducts
@@ -270,6 +274,9 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             name: product.name,
             imageUrl: product.image_url,
             url: `/${storeSlug}/${product.slug || product.id}`,
+            storeName: product._storeName,
+            storeImage: product._storeImage,
+            price: product.price,
         })
 
         // Navega diretamente sem limpar a busca

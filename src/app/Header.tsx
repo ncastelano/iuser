@@ -1,8 +1,10 @@
+// src/components/Header.tsx
 'use client'
 
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Search } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import ButtonSearch from './ButtonSearch'
 
 export interface Tab {
     id: string
@@ -322,35 +324,23 @@ export default function Header({
                 )}
 
                 {showSearch && (
-                    <div className="mt-2 flex items-center gap-2 pb-2">
-                        <div
-                            className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm"
-                            style={{
-                                background: `${colors.surface}88`,
-                                backdropFilter: 'blur(10px)',
-                                border: `1px solid ${colors.border}`,
+                    <div className="mt-3 pb-3">
+                        <ButtonSearch
+                            placeholder={searchPlaceholder}
+                            onSearch={onSearch}
+                            onFocus={onSearchFocus}
+                            onBlur={() => {
+                                if (onSearchBlur) {
+                                    onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+                                }
                             }}
-                        >
-                            <Search size={14} style={{ color: colors.textSecondary }} />
-                            <input
-                                ref={searchRef}
-                                type="text"
-                                placeholder={searchPlaceholder}
-                                value={searchValue}
-                                onChange={(e) => {
-                                    const value = e.target.value
-                                    onSearch?.(value)
-                                }}
-                                onFocus={onSearchFocus}
-                                onBlur={(e) => {
-                                    if (onSearchBlur) {
-                                        onSearchBlur(e)
-                                    }
-                                }}
-                                className="flex-1 bg-transparent outline-none"
-                                style={{ color: colors.textPrimary }}
-                            />
-                        </div>
+                            initialValue={searchValue}
+                            inputRef={searchRef}
+                            searchValue={searchValue}
+                            expandOnFocus={true}
+                            showClear={true}
+                            maxWidth={600}
+                        />
                     </div>
                 )}
             </div>

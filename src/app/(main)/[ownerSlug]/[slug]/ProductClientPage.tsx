@@ -356,8 +356,8 @@ export default function ProductClientPage() {
                         .eq('id', product.owner_id)
                         .maybeSingle()
 
-                    // CORREÇÃO: Verificar se o erro existe e não é apenas um objeto vazio
-                    const hasError = profileErr && Object.keys(profileErr).length > 0
+                    // Considera erro real apenas se tiver code ou message
+                    const hasError = !!(profileErr?.code || profileErr?.message)
 
                     if (hasError) {
                         // Verifica se é erro de "não encontrado" de várias formas
@@ -369,8 +369,6 @@ export default function ProductClientPage() {
 
                         if (isNotFound) {
                             console.log('[ProductPage] Perfil não encontrado para owner_id:', product.owner_id)
-                        } else {
-                            console.error('[ProductPage] Erro ao buscar perfil:', profileErr)
                         }
                         // Usa fallback
                         ownerName = `Usuário ${product.owner_id.slice(0, 8)}`
@@ -393,7 +391,7 @@ export default function ProductClientPage() {
                         .eq('id', product.store_id)
                         .maybeSingle()
 
-                    const hasStoreError = storeErr && Object.keys(storeErr).length > 0
+                    const hasStoreError = !!(storeErr?.code || storeErr?.message)
 
                     if (hasStoreError) {
                         const isNotFound =
@@ -431,7 +429,7 @@ export default function ProductClientPage() {
                     .eq('product_id', product.id)
                     .order('created_at', { ascending: false })
 
-                const hasReviewsError = reviewsErr && Object.keys(reviewsErr).length > 0
+                const hasReviewsError = !!(reviewsErr?.code || reviewsErr?.message)
 
                 if (hasReviewsError) {
                     const isNotFound =
@@ -439,9 +437,7 @@ export default function ProductClientPage() {
                         reviewsErr.message?.includes('not found') ||
                         reviewsErr.message?.includes('no rows')
 
-                    if (isNotFound) {
-                        console.log('[ProductPage] Nenhuma avaliação encontrada para o produto')
-                    } else {
+                    if (!isNotFound) {
                         console.error('[ProductPage] Erro ao buscar avaliações:', reviewsErr)
                     }
                 }

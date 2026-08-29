@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X } from 'lucide-react'
+import { Clock, X, History, User, Store, Package } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ---------- Tipos e funções do histórico ----------
@@ -14,10 +14,13 @@ export interface RecentClickItem {
     imageUrl: string | null
     url: string
     timestamp?: number // timestamp do clique
+    storeName?: string // Nome da loja para produtos
+    storeImage?: string | null // Imagem da loja para produtos
+    price?: number // Preço para produtos
 }
 
 const STORAGE_KEY = 'recent_clicks_v1'
-const MAX_ITEMS = 20 // Aumentado para 20
+const MAX_ITEMS = 20
 
 export function getRecentClicks(): RecentClickItem[] {
     if (typeof window === 'undefined') return []
@@ -45,35 +48,20 @@ export function addRecentClick(item: RecentClickItem) {
 interface LastSearchedProps {
     onItemClick?: (item: RecentClickItem) => void
 }
-// --------------------------------------------------
 
 export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const [items, setItems] = useState<RecentClickItem[]>([])
     const containerRef = useRef<HTMLDivElement>(null)
-    const titleRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setItems(getRecentClicks())
     }, [])
 
-    // Scroll para que o título fique visível no final da tela
-    useEffect(() => {
-        if (items.length > 0 && titleRef.current) {
-            setTimeout(() => {
-                titleRef.current?.scrollIntoView({
-                    block: 'end',
-                    behavior: 'auto'
-                })
-            }, 100)
-        }
-    }, [items])
-
-    const removeItem = (item: RecentClickItem) => {
-        const updated = items.filter(
-            i => !(i.type === item.type && i.id === item.id)
-        )
+    const removeItem = (item: RecentClickItem, e: React.MouseEvent) => {
+        e.stopPropagation()
+        const updated = items.filter(i => !(i.type === item.type && i.id === item.id))
         setItems(updated)
         saveRecentClicks(updated)
     }
@@ -98,37 +86,30 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
     const getTypeLabel = (type: string) => {
         switch (type) {
-            case 'profile':
-                return 'Perfil'
-            case 'store':
-                return 'Loja'
-            case 'product':
-                return 'Produto'
-            default:
-                return ''
+            case 'profile': return 'Perfil'
+            case 'store': return 'Loja'
+            case 'product': return 'Produto'
+            default: return ''
         }
     }
 
     const getTypeColor = (type: string) => {
         switch (type) {
-            case 'profile':
-                return '#3b82f6'
-            case 'store':
-                return '#f97316'
-            case 'product':
-                return '#8b5cf6'
-            default:
-                return colors.textSecondary
+            case 'profile': return '#3b82f6'
+            case 'store': return '#f97316'
+            case 'product': return '#8b5cf6'
+            default: return colors.textSecondary
         }
     }
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const num = parseInt(clean, 16)
-        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }
+    const getTypeIcon = (type: string) => {
+        switch (type) {
+            case 'profile': return User
+            case 'store': return Store
+            case 'product': return Package
+            default: return Clock
+        }
     }
-    const surfaceRgb = hexToRgb(colors.surface)
-    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
     const getDateLabel = (timestamp?: number) => {
         if (!timestamp) return 'Hoje'
@@ -158,17 +139,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         })
     }
 
-    const formatFullDate = (timestamp?: number) => {
-        if (!timestamp) return ''
-        const date = new Date(timestamp)
-        return date.toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        })
-    }
-
-    // Agrupar itens por data
     const groupedItems = items.reduce((groups, item) => {
         const label = getDateLabel(item.timestamp)
         if (!groups[label]) groups[label] = []
@@ -176,7 +146,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return groups
     }, {} as Record<string, RecentClickItem[]>)
 
-    // Ordenar grupos: Hoje primeiro, depois Ontem, depois os mais antigos (do mais recente para o mais antigo)
     const sortedGroups = Object.keys(groupedItems).sort((a, b) => {
         if (a === 'Hoje') return -1
         if (b === 'Hoje') return 1
@@ -185,120 +154,218 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return a.localeCompare(b)
     })
 
-    // Altura do botão de busca (56px) + padding extra para não ficar colado
-    const SEARCH_BUTTON_HEIGHT = 80
+    // Função para obter a inicial ou o valor
+    const getDisplayText = (item: RecentClickItem) => {
+        // Para produto sem imagem, mostra o preço formatado no placeholder
+        if (item.type === 'product' && !item.imageUrl) {
+            return item.price != null ? `R$\n${item.price.toFixed(2)}` : '?'
+        }
+        return item.name?.charAt(0).toUpperCase() || '?'
+    }
+
+    // Função para obter o nome a ser exibido
+    const getDisplayName = (item: RecentClickItem) => {
+        if (item.type === 'product' && !item.name) {
+            return item.price ? `R$ ${item.price.toFixed(2)}` : 'Produto'
+        }
+        return item.name || 'Sem nome'
+    }
 
     return (
-        <div ref={containerRef} className="flex flex-col-reverse mb-6">
-            {/* Título - vem primeiro no DOM (mas visualmente embaixo) */}
-            <div ref={titleRef} className="flex items-center justify-between mt-2 px-1">
+        <div ref={containerRef} className="w-full">
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between px-2 py-3">
                 <div className="flex items-center gap-2">
-                    <Clock size={14} style={{ color: colors.accent }} />
-                    <h3
-                        className="text-xs font-bold uppercase tracking-wide"
-                        style={{ color: colors.textPrimary }}
+                    <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: GRADIENT }}
                     >
-                        Últimos acessados
-                    </h3>
-                    <span className="text-[9px] font-bold opacity-50" style={{ color: colors.textSecondary }}>
-                        ({items.length})
-                    </span>
+                        <History size={16} className="text-white" />
+                    </div>
+                    <div>
+                        <h3
+                            className="text-sm font-bold"
+                            style={{ color: colors.textPrimary }}
+                        >
+                            Últimos acessados
+                        </h3>
+                        <span
+                            className="text-[10px] font-medium opacity-60"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            {items.length} {items.length === 1 ? 'item' : 'itens'}
+                        </span>
+                    </div>
                 </div>
-                <button
-                    onClick={clearAll}
-                    className="text-[10px] font-semibold hover:underline"
-                    style={{ color: colors.textSecondary }}
-                >
-                    Limpar tudo
-                </button>
+                {items.length > 0 && (
+                    <button
+                        onClick={clearAll}
+                        className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0"
+                        style={{
+                            color: colors.textSecondary,
+                            background: `${colors.textSecondary}15`
+                        }}
+                    >
+                        Limpar tudo
+                    </button>
+                )}
             </div>
 
-            {/* Lista - ordem: Hoje (primeiro/embaixo), Ontem, Mais antigos (último/topo) */}
-            {sortedGroups.map((groupLabel) => (
-                <div key={groupLabel} className="mb-3 last:mb-0">
-                    {/* Cabeçalho do grupo */}
-                    <div className="flex items-center gap-2 mb-1.5 px-1">
-                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
-                            {groupLabel}
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: colors.border }} />
-                    </div>
-
-                    <div className="space-y-1.5">
-                        {groupedItems[groupLabel].map((item) => (
-                            <div
-                                key={`${item.type}-${item.id}`}
-                                className="rounded-xl border overflow-hidden transition-all hover:shadow-md cursor-pointer"
-                                style={{
-                                    background: cardBg,
-                                    backdropFilter: 'blur(12px)',
-                                    borderColor: colors.border,
-                                    boxShadow: colors.shadow
-                                }}
-                                onClick={() => handleItemClick(item)}
+            {/* Lista de itens em grid */}
+            <div className="space-y-4">
+                {sortedGroups.map((groupLabel) => (
+                    <div key={groupLabel}>
+                        {/* Separador do grupo */}
+                        <div className="flex items-center gap-2 px-2 mb-2">
+                            <span
+                                className="text-[9px] font-bold uppercase tracking-wider opacity-50 flex-shrink-0"
+                                style={{ color: colors.textSecondary }}
                             >
-                                <div className="flex items-center gap-3 p-2">
-                                    {/* Imagem - mini */}
-                                    <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
-                                        {item.imageUrl ? (
-                                            <img
-                                                src={item.imageUrl}
-                                                alt={item.name}
-                                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                <span className="text-xs font-black text-white/70">
-                                                    {item.name.charAt(0).toUpperCase()}
-                                                </span>
+                                {groupLabel}
+                            </span>
+                            <div
+                                className="flex-1 h-px"
+                                style={{ background: colors.border }}
+                            />
+                        </div>
+
+                        {/* Grid de cards quadrados */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                            {groupedItems[groupLabel].map((item) => {
+                                const TypeIcon = getTypeIcon(item.type)
+                                const typeColor = getTypeColor(item.type)
+
+                                return (
+                                    <div
+                                        key={`${item.type}-${item.id}`}
+                                        onClick={() => handleItemClick(item)}
+                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
+                                    >
+                                        {/* Imagem de fundo */}
+                                        <div className="w-full h-full relative">
+                                            {item.imageUrl ? (
+                                                <img
+                                                    src={item.imageUrl}
+                                                    alt={item.name || 'Item'}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ background: GRADIENT }}>
+                                                    {item.type === 'product' && item.price != null ? (
+                                                        // Produto sem imagem → mostra o preço
+                                                        <>
+                                                            <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">R$</span>
+                                                            <span className="text-xl font-black text-white leading-none">
+                                                                {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-4xl font-black text-white/70">
+                                                            {getDisplayText(item)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Overlay gradiente */}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+
+                                        {/* Loja (avatar + nome) no canto superior esquerdo — apenas para produtos */}
+                                        {item.type === 'product' && (item.storeName || item.storeImage) && (
+                                            <div className="absolute top-2 left-2 flex items-center gap-1 max-w-[70%] pointer-events-none">
+                                                <div
+                                                    className="w-5 h-5 rounded-md overflow-hidden flex-shrink-0 shadow-md"
+                                                    style={{
+                                                        border: '1.5px solid rgba(255,255,255,0.35)',
+                                                        background: 'rgba(0,0,0,0.4)'
+                                                    }}
+                                                >
+                                                    {item.storeImage ? (
+                                                        <img
+                                                            src={item.storeImage}
+                                                            alt={item.storeName || 'Loja'}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <Store size={10} className="text-white/70" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {item.storeName && (
+                                                    <span
+                                                        className="text-[8px] font-semibold text-white/80 truncate"
+                                                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}
+                                                    >
+                                                        {item.storeName}
+                                                    </span>
+                                                )}
                                             </div>
                                         )}
-                                    </div>
 
-                                    {/* Informações */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
-                                                {item.name}
-                                            </h3>
+                                        {/* Badge do tipo no canto superior direito */}
+                                        <div
+                                            className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider pointer-events-none flex items-center gap-1"
+                                            style={{
+                                                background: `${typeColor}dd`,
+                                                color: '#ffffff',
+                                                backdropFilter: 'blur(4px)',
+                                                border: '1px solid rgba(255,255,255,0.2)'
+                                            }}
+                                        >
+                                            <TypeIcon size={10} />
+                                            {getTypeLabel(item.type)}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className="text-[8px] font-bold"
-                                                style={{ color: getTypeColor(item.type) }}
-                                            >
-                                                {getTypeLabel(item.type)}
-                                            </span>
-                                            <span className="text-[8px] opacity-40" style={{ color: colors.textSecondary }}>
-                                                •
-                                            </span>
-                                            <span className="text-[8px] opacity-50" style={{ color: colors.textSecondary }}>
-                                                {formatFullDate(item.timestamp)} {formatTime(item.timestamp)}
-                                            </span>
+
+                                        {/* Botão de remover - aparece no hover */}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                removeItem(item, e)
+                                            }}
+                                            className="absolute top-8 left-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:bg-black/30 pointer-events-auto"
+                                            style={{ color: '#ffffff' }}
+                                            title="Remover"
+                                        >
+                                            <X size={14} />
+                                        </button>
+
+                                        {/* Informações na parte inferior */}
+                                        <div className="absolute bottom-0 left-0 right-0 p-2.5 pointer-events-none">
+                                            <h4 className="text-sm font-bold truncate text-white">
+                                                {getDisplayName(item)}
+                                            </h4>
+                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                {/* Preço em destaque para produtos */}
+                                                {item.type === 'product' && item.price != null && (
+                                                    <div
+                                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md self-start"
+                                                        style={{
+                                                            background: 'rgba(249,115,22,0.85)',
+                                                            backdropFilter: 'blur(4px)'
+                                                        }}
+                                                    >
+                                                        <span className="text-[11px] font-black text-white">
+                                                            R$ {item.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    <Clock size={10} className="text-white/60" />
+                                                    <span className="text-[10px] text-white/60">
+                                                        {formatTime(item.timestamp)}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-
-                                    {/* Botão de remover */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            removeItem(item)
-                                        }}
-                                        className="p-1 rounded-full hover:bg-black/10 transition-colors flex-shrink-0"
-                                        style={{ color: colors.textSecondary }}
-                                        title="Remover"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                                )
+                            })}
+                        </div>
                     </div>
-                </div>
-            ))}
-
-            {/* Espaço extra do tamanho do botão de busca + margem */}
-            <div style={{ height: SEARCH_BUTTON_HEIGHT }} />
+                ))}
+            </div>
         </div>
     )
 }

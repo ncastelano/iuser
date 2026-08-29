@@ -679,7 +679,6 @@ export default function HomePage() {
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
-    const shouldShowSearch = !showProfile && !showStoreDashboard && !showConfig && !showCreateStore && !showLogin
 
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
@@ -698,7 +697,27 @@ export default function HomePage() {
                     avatarUrl={avatarUrl}
                     loading={loading}
                     tabs={tabs}
-                    showSearch={false}
+                    showSearch={true}
+                    searchPlaceholder="Buscar restaurantes, mercados..."
+                    searchValue={searchQuery}
+                    searchRef={searchInputRef}
+                    onSearch={(query) => {
+                        setSearchQuery(query)
+                    }}
+                    onSearchFocus={() => {
+                        setSearchFocused(true)
+                    }}
+                    onSearchBlur={() => {
+                        // Delay para permitir cliques no LastSearched
+                        setTimeout(() => {
+                            // Verifica se o foco não está em elementos do LastSearched
+                            const activeElement = document.activeElement
+                            const isLastSearched = activeElement?.closest?.('.last-searched-container')
+                            if (!isLastSearched) {
+                                setSearchFocused(false)
+                            }
+                        }, 150)
+                    }}
                     profileSlug={profileSlug}
                     locationElement={
                         <button
@@ -825,39 +844,6 @@ export default function HomePage() {
                                 )}
                             </>
                         )}
-                    </div>
-                )}
-
-                {/* ===== BOTÕES FLUTUANTES - LADO ESQUERDO ===== */}
-                {/* ButtonSearch - LADO ESQUERDO */}
-                {shouldShowSearch && (
-                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
-                        <ButtonSearch
-                            placeholder="Buscar restaurantes, mercados..."
-                            onSearch={(query) => {
-                                setSearchQuery(query)
-                            }}
-                            onFocus={() => {
-                                setSearchFocused(true)
-                            }}
-                            onBlur={() => {
-                                // Delay para permitir cliques no LastSearched
-                                setTimeout(() => {
-                                    // Verifica se o foco não está em elementos do LastSearched
-                                    const activeElement = document.activeElement
-                                    const isLastSearched = activeElement?.closest?.('.last-searched-container')
-                                    if (!isLastSearched) {
-                                        setSearchFocused(false)
-                                    }
-                                }, 150)
-                            }}
-                            initialValue={searchQuery}
-                            inputRef={searchInputRef}
-                            searchValue={searchQuery}
-                            maxWidth={400}
-                            expandOnFocus={true}
-                            showClear={true}
-                        />
                     </div>
                 )}
 
