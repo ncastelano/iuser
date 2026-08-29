@@ -53,11 +53,33 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const [items, setItems] = useState<RecentClickItem[]>([])
+    const [visibleItems, setVisibleItems] = useState<Set<string>>(new Set())
     const containerRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setItems(getRecentClicks())
     }, [])
+
+    // Efeito de entrada cascata
+    useEffect(() => {
+        if (items.length === 0) return
+
+        // Resetar visíveis
+        setVisibleItems(new Set())
+
+        // Adicionar cada item com delay
+        const allKeys = items.map(item => `${item.type}-${item.id}`)
+        allKeys.forEach((key, index) => {
+            setTimeout(() => {
+                setVisibleItems(prev => new Set(prev).add(key))
+            }, 80 + index * 50) // 80ms + 50ms por item
+        })
+
+        return () => {
+            // Limpar timeouts se o componente desmontar
+            setVisibleItems(new Set())
+        }
+    }, [items])
 
     const removeItem = (item: RecentClickItem, e: React.MouseEvent) => {
         e.stopPropagation()
@@ -156,7 +178,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
     // Função para obter a inicial ou o valor
     const getDisplayText = (item: RecentClickItem) => {
-        // Para produto sem imagem, mostra o preço formatado no placeholder
         if (item.type === 'product' && !item.imageUrl) {
             return item.price != null ? `R$\n${item.price.toFixed(2)}` : '?'
         }
@@ -173,8 +194,14 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
     return (
         <div ref={containerRef} className="w-full">
-            {/* Cabeçalho */}
-            <div className="flex items-center justify-between px-2 py-3">
+            {/* Cabeçalho - animado */}
+            <div
+                className="flex items-center justify-between px-2 py-3 transition-all duration-500 ease-out"
+                style={{
+                    opacity: 1,
+                    transform: 'translateY(0)',
+                }}
+            >
                 <div className="flex items-center gap-2">
                     <div
                         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
@@ -213,10 +240,17 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
             {/* Lista de itens em grid */}
             <div className="space-y-4">
-                {sortedGroups.map((groupLabel) => (
+                {sortedGroups.map((groupLabel, groupIndex) => (
                     <div key={groupLabel}>
                         {/* Separador do grupo */}
-                        <div className="flex items-center gap-2 px-2 mb-2">
+                        <div
+                            className="flex items-center gap-2 px-2 mb-2 transition-all duration-500 ease-out"
+                            style={{
+                                opacity: 1,
+                                transform: 'translateY(0)',
+                                transitionDelay: `${groupIndex * 100}ms`,
+                            }}
+                        >
                             <span
                                 className="text-[9px] font-bold uppercase tracking-wider opacity-50 flex-shrink-0"
                                 style={{ color: colors.textSecondary }}
@@ -231,15 +265,23 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
                         {/* Grid de cards quadrados */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                            {groupedItems[groupLabel].map((item) => {
+                            {groupedItems[groupLabel].map((item, index) => {
                                 const TypeIcon = getTypeIcon(item.type)
                                 const typeColor = getTypeColor(item.type)
+                                const key = `${item.type}-${item.id}`
+                                const isVisible = visibleItems.has(key)
 
                                 return (
                                     <div
-                                        key={`${item.type}-${item.id}`}
+                                        key={key}
                                         onClick={() => handleItemClick(item)}
-                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
+                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer transition-all duration-500 ease-out"
+                                        style={{
+                                            opacity: isVisible ? 1 : 0,
+                                            transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
+                                            transitionDelay: `${index * 50}ms`,
+                                            willChange: 'transform, opacity',
+                                        }}
                                     >
                                         {/* Imagem de fundo */}
                                         <div className="w-full h-full relative">
@@ -252,7 +294,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                             ) : (
                                                 <div className="w-full h-full flex flex-col items-center justify-center gap-1" style={{ background: GRADIENT }}>
                                                     {item.type === 'product' && item.price != null ? (
-                                                        // Produto sem imagem → mostra o preço
                                                         <>
                                                             <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">R$</span>
                                                             <span className="text-xl font-black text-white leading-none">
@@ -366,6 +407,20 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                     </div>
                 ))}
             </div>
+
+            {/* Estilos globais para a animação */}
+            <style jsx global>{`
+                @keyframes fadeInUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px) scale(0.95);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0) scale(1);
+                    }
+                }
+            `}</style>
         </div>
     )
 }

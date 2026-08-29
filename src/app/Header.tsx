@@ -2,9 +2,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Search } from 'lucide-react'
+import { ArrowLeft, Search, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import ButtonSearch from './ButtonSearch'
+import { useState, useRef, useEffect } from 'react'
 
 export interface Tab {
     id: string
@@ -57,7 +57,7 @@ export default function Header({
     searchPlaceholder = 'Buscar...',
     onSearch,
     searchValue = '',
-    searchRef,
+    searchRef: externalSearchRef,
     onSearchFocus,
     onSearchBlur,
     profileSlug,
@@ -66,6 +66,110 @@ export default function Header({
 }: HeaderProps) {
     const router = useRouter()
     const { colors } = useTheme()
+
+    // State para o ButtonSearch
+    const [isExpanded, setIsExpanded] = useState(false)
+    const [internalSearchValue, setInternalSearchValue] = useState('')
+    const internalInputRef = useRef<HTMLInputElement>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    const inputRef = externalSearchRef || internalInputRef
+    const currentSearchValue = searchValue !== undefined ? searchValue : internalSearchValue
+
+    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+    // Efeito para clique fora
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                const target = event.target as HTMLElement
+                const isLastSearched = target.closest?.('.last-searched-container')
+                const isSearchResult = target.closest?.('.search-result-item')
+
+                if (isLastSearched || isSearchResult) {
+                    return
+                }
+
+                if (isExpanded) {
+                    setIsExpanded(false)
+                    if (onSearchBlur) {
+                        onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+                    }
+                }
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [isExpanded, onSearchBlur])
+
+    // Foco automático
+    useEffect(() => {
+        if (isExpanded && inputRef.current) {
+            inputRef.current.focus()
+        }
+    }, [isExpanded, inputRef])
+
+    const handleSearch = (value: string) => {
+        if (searchValue === undefined) {
+            setInternalSearchValue(value)
+        }
+        if (onSearch) {
+            onSearch(value)
+        }
+    }
+
+    const handleClear = () => {
+        handleSearch('')
+        if (inputRef.current) {
+            inputRef.current.focus()
+        }
+    }
+
+    const handleClose = () => {
+        setIsExpanded(false)
+        handleSearch('')
+        if (onSearchBlur) {
+            onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+        }
+        if (inputRef.current) {
+            inputRef.current.blur()
+        }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Escape') {
+            handleClose()
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            if (inputRef.current) {
+                inputRef.current.focus()
+            }
+        }
+    }
+
+    const handleFocus = () => {
+        setIsExpanded(true)
+        if (onSearchFocus) onSearchFocus()
+    }
+
+    const handleBlur = () => {
+        if (blurTimeoutRef.current) {
+            clearTimeout(blurTimeoutRef.current)
+        }
+
+        blurTimeoutRef.current = setTimeout(() => {
+            if (onSearchBlur) {
+                onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+            }
+        }, 200)
+    }
+
+    const handleButtonClick = () => {
+        setIsExpanded(true)
+    }
 
     const handleBack = () => {
         if (onBack) onBack()
@@ -131,7 +235,8 @@ export default function Header({
                 background: gradientBg,
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                minHeight: 120,
+                minHeight: isExpanded ? 80 : 120,
+                transition: 'min-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
             className="sm:px-6 sm:pt-5"
         >
@@ -143,7 +248,7 @@ export default function Header({
                     top: avatarUrl ? -25 : -15,
                     width: avatarUrl ? 160 : 120,
                     height: avatarUrl ? 160 : 120,
-                    opacity: avatarUrl ? 0.5 : 0.4,
+                    opacity: isExpanded ? 0 : (avatarUrl ? 0.5 : 0.4),
                     transform: 'rotate(10deg)',
                     maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                     WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
@@ -154,6 +259,7 @@ export default function Header({
                     justifyContent: 'center',
                     zIndex: 1,
                     borderRadius: '0',
+                    transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
             >
                 {avatarUrl ? (
@@ -182,165 +288,320 @@ export default function Header({
             </div>
 
             {/* Conteúdo */}
-            <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-1">
-                    {showBack ? (
-                        <button
-                            onClick={handleBack}
-                            className="w-8 h-8 rounded-full flex items-center justify-center"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                        >
-                            <ArrowLeft size={16} color={colors.accent} />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleHome}
-                            className="flex items-center gap-2"
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: 0,
-                            }}
-                        >
-                            <img
-                                src="/logo.png"
-                                alt="iUser"
-                                className="h-5 sm:h-6 object-contain"
-                            />
-                        </button>
+            <div
+                className="relative z-10"
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: isExpanded ? 'center' : 'flex-start',
+                    height: isExpanded ? '100%' : 'auto',
+                    minHeight: isExpanded ? 56 : 'auto',
+                }}
+            >
+                {/* Elementos que escondem quando expandido */}
+                <div
+                    style={{
+                        maxHeight: isExpanded ? 0 : 1000,
+                        opacity: isExpanded ? 0 : 1,
+                        overflow: 'hidden',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        marginBottom: isExpanded ? 0 : undefined,
+                    }}
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        {showBack ? (
+                            <button
+                                onClick={handleBack}
+                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                            >
+                                <ArrowLeft size={16} color={colors.accent} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleHome}
+                                className="flex items-center gap-2"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                }}
+                            >
+                                <img
+                                    src="/logo.png"
+                                    alt="iUser"
+                                    className="h-5 sm:h-6 object-contain"
+                                />
+                            </button>
+                        )}
+                        {title && (
+                            <button
+                                onClick={handleHome}
+                                className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer"
+                                style={{ color: colors.textPrimary }}
+                            >
+                                {title}
+                            </button>
+                        )}
+                        {locationElement && (
+                            <div className="ml-auto flex-shrink-0">
+                                {locationElement}
+                            </div>
+                        )}
+                    </div>
+
+                    {greeting && (
+                        <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold mt-1 tracking-tight break-words">
+                            {greeting}
+                        </h1>
                     )}
-                    {title && (
-                        <button
-                            onClick={handleHome}
-                            className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer"
-                            style={{ color: colors.textPrimary }}
+
+                    {enhancedTabs.length > 0 && (
+                        <div
+                            className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
+                            style={{ overflowY: 'visible' }}
                         >
-                            {title}
-                        </button>
-                    )}
-                    {locationElement && (
-                        <div className="ml-auto flex-shrink-0">
-                            {locationElement}
+                            {enhancedTabs.map((tab) => {
+                                const backgroundColor = getTabBackground(tab)
+                                const textColor = getTabTextColor(tab)
+
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={tab.onClick}
+                                        disabled={loading}
+                                        className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                                        style={{
+                                            background: backgroundColor,
+                                            backdropFilter: 'blur(10px)',
+                                            color: textColor,
+                                            overflow: 'visible',
+                                            ...(tab.isActive && !tab.statusColor ? {
+                                                boxShadow: `0 2px 8px #f9731640`,
+                                                fontWeight: 'bold',
+                                            } : {}),
+                                            ...(tab.isActive && tab.statusColor ? {
+                                                boxShadow: `0 2px 8px ${tab.statusColor}60`,
+                                                fontWeight: 'bold',
+                                                transform: 'scale(1.05)',
+                                            } : {}),
+                                        }}
+                                    >
+                                        {tab.imageUrl ? (
+                                            <img
+                                                src={tab.imageUrl}
+                                                alt=""
+                                                className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                                style={{
+                                                    background: tab.isActive
+                                                        ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
+                                                        : `${colors.surface}88`,
+                                                    backdropFilter: 'blur(10px)',
+                                                }}
+                                            >
+                                                <tab.icon
+                                                    size={14}
+                                                    color={textColor}
+                                                />
+                                            </div>
+                                        )}
+                                        <span className="ml-1.5 sm:ml-2">{tab.label}</span>
+
+                                        {tab.indicator && (
+                                            <div className="absolute -top-1 -right-1 flex gap-0.5">
+                                                {tab.indicator.pending > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.pending}
+                                                    </span>
+                                                )}
+                                                {tab.indicator.preparing > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.preparing}
+                                                    </span>
+                                                )}
+                                                {tab.indicator.ready > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.ready}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {tab.badge && tab.badge.count > 0 && (
+                                            <div className="absolute -top-1 -right-1">
+                                                <span
+                                                    className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
+                                                    style={{ backgroundColor: tab.badge.color || '#ef4444' }}
+                                                >
+                                                    {tab.badge.count}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
 
-                {greeting && (
-                    <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold mt-1 tracking-tight break-words">
-                        {greeting}
-                    </h1>
-                )}
-
-                {enhancedTabs.length > 0 && (
+                {/* ButtonSearch - SEMPRE COM O DESIGN ORIGINAL QUANDO NÃO EXPANDIDO */}
+                {showSearch && (
                     <div
-                        className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
-                        style={{ overflowY: 'visible' }}
+                        className="mt-3 pb-3 w-full"
+                        style={{
+                            marginTop: isExpanded ? 0 : undefined,
+                            paddingBottom: isExpanded ? 0 : undefined,
+                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
                     >
-                        {enhancedTabs.map((tab) => {
-                            const backgroundColor = getTabBackground(tab)
-                            const textColor = getTabTextColor(tab)
+                        <div
+                            ref={containerRef}
+                            className="transition-all duration-300 ease-in-out"
+                            style={{
+                                position: 'relative',
+                                height: 56,
+                                width: isExpanded ? '100%' : 56,
+                                borderRadius: 999,
+                                background: GRADIENT,
+                                boxShadow: isExpanded ? 'none' : `0 8px 24px #f9731660`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '0 4px',
+                                cursor: 'pointer',
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #f97316',
+                                borderLeft: '2px solid #f97316',
+                                transition: 'all 0.3s ease-in-out',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: 48,
+                                    height: 48,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    color: '#ffffff',
+                                    transition: 'all 0.3s ease',
+                                }}
+                                onClick={handleButtonClick}
+                            >
+                                <Search size={24} strokeWidth={2.5} />
+                            </div>
 
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={tab.onClick}
-                                    disabled={loading}
-                                    className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                            <div
+                                style={{
+                                    flex: 1,
+                                    height: '100%',
+                                    overflow: 'hidden',
+                                    opacity: isExpanded ? 1 : 0,
+                                    transition: 'opacity 0.3s ease-in-out',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    paddingRight: isExpanded ? 8 : 0,
+                                }}
+                            >
+                                <input
+                                    ref={inputRef}
+                                    type="search"
+                                    inputMode="search"
+                                    enterKeyHint="done"
+                                    placeholder={searchPlaceholder}
+                                    value={currentSearchValue}
+                                    onChange={(e) => handleSearch(e.target.value)}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                    onKeyDown={handleKeyDown}
                                     style={{
-                                        background: backgroundColor,
+                                        flex: 1,
+                                        height: '100%',
+                                        background: 'transparent',
+                                        borderTop: 'none',
+                                        borderRight: 'none',
+                                        borderBottom: 'none',
+                                        borderLeft: 'none',
+                                        outline: 'none',
+                                        padding: '0 12px',
+                                        fontSize: 15,
+                                        fontWeight: 500,
+                                        color: '#ffffff',
+                                        minWidth: 0,
+                                        letterSpacing: '0.3px',
+                                    }}
+                                />
+
+                                {isExpanded && (
+                                    <button
+                                        onClick={currentSearchValue ? handleClear : handleClose}
+                                        style={{
+                                            width: 32,
+                                            height: 32,
+                                            borderRadius: '50%',
+                                            background: 'rgba(255,255,255,0.2)',
+                                            backdropFilter: 'blur(10px)',
+                                            borderTop: 'none',
+                                            borderRight: 'none',
+                                            borderBottom: 'none',
+                                            borderLeft: 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                            transition: 'all 0.2s ease',
+                                            color: '#ffffff',
+                                            marginRight: 4,
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.3)'
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.2)'
+                                        }}
+                                        aria-label={currentSearchValue ? "Limpar busca" : "Fechar"}
+                                        title={currentSearchValue ? "Limpar busca" : "Fechar"}
+                                    >
+                                        <X size={18} strokeWidth={2.5} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {!isExpanded && (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: -6,
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        fontSize: 8,
+                                        fontWeight: 600,
+                                        color: 'rgba(255,255,255,0.8)',
+                                        background: 'rgba(0,0,0,0.3)',
                                         backdropFilter: 'blur(10px)',
-                                        color: textColor,
-                                        overflow: 'visible',
-                                        ...(tab.isActive && !tab.statusColor ? {
-                                            boxShadow: `0 2px 8px #f9731640`,
-                                            fontWeight: 'bold',
-                                        } : {}),
-                                        ...(tab.isActive && tab.statusColor ? {
-                                            boxShadow: `0 2px 8px ${tab.statusColor}60`,
-                                            fontWeight: 'bold',
-                                            transform: 'scale(1.05)',
-                                        } : {}),
+                                        padding: '2px 8px',
+                                        borderRadius: 999,
+                                        borderTop: '1px solid rgba(255,255,255,0.1)',
+                                        borderRight: '1px solid rgba(255,255,255,0.1)',
+                                        borderBottom: '1px solid rgba(255,255,255,0.1)',
+                                        borderLeft: '1px solid rgba(255,255,255,0.1)',
+                                        opacity: 0.8,
+                                        whiteSpace: 'nowrap',
+                                        pointerEvents: 'none',
+                                        textShadow: '0 1px 4px rgba(0,0,0,0.2)',
                                     }}
                                 >
-                                    {tab.imageUrl ? (
-                                        <img
-                                            src={tab.imageUrl}
-                                            alt=""
-                                            className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
-                                            style={{
-                                                background: tab.isActive
-                                                    ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
-                                                    : `${colors.surface}88`,
-                                                backdropFilter: 'blur(10px)',
-                                            }}
-                                        >
-                                            <tab.icon
-                                                size={14}
-                                                color={textColor}
-                                            />
-                                        </div>
-                                    )}
-                                    <span className="ml-1.5 sm:ml-2">{tab.label}</span>
-
-                                    {tab.indicator && (
-                                        <div className="absolute -top-1 -right-1 flex gap-0.5">
-                                            {tab.indicator.pending > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.pending}
-                                                </span>
-                                            )}
-                                            {tab.indicator.preparing > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.preparing}
-                                                </span>
-                                            )}
-                                            {tab.indicator.ready > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.ready}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {tab.badge && tab.badge.count > 0 && (
-                                        <div className="absolute -top-1 -right-1">
-                                            <span
-                                                className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
-                                                style={{ backgroundColor: tab.badge.color || '#ef4444' }}
-                                            >
-                                                {tab.badge.count}
-                                            </span>
-                                        </div>
-                                    )}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {showSearch && (
-                    <div className="mt-3 pb-3">
-                        <ButtonSearch
-                            placeholder={searchPlaceholder}
-                            onSearch={onSearch}
-                            onFocus={onSearchFocus}
-                            onBlur={() => {
-                                if (onSearchBlur) {
-                                    onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
-                                }
-                            }}
-                            initialValue={searchValue}
-                            inputRef={searchRef}
-                            searchValue={searchValue}
-                            expandOnFocus={true}
-                            showClear={true}
-                            maxWidth={600}
-                        />
+                                    Buscar
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -354,24 +615,36 @@ export default function Header({
                     scrollbar-width: none;
                 }
                 input::placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.7;
+                    color: rgba(255,255,255,0.7) !important;
+                    opacity: 1;
+                    font-weight: 400;
+                    letter-spacing: 0.3px;
                 }
                 input::-webkit-input-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.7;
+                    color: rgba(255,255,255,0.7) !important;
+                    opacity: 1;
                 }
                 input::-moz-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.7;
+                    color: rgba(255,255,255,0.7) !important;
+                    opacity: 1;
                 }
                 input:-ms-input-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.7;
+                    color: rgba(255,255,255,0.7) !important;
+                    opacity: 1;
                 }
                 input:-moz-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.7;
+                    color: rgba(255,255,255,0.7) !important;
+                    opacity: 1;
+                }
+                input[type="search"]::-webkit-search-decoration,
+                input[type="search"]::-webkit-search-cancel-button,
+                input[type="search"]::-webkit-search-results-button,
+                input[type="search"]::-webkit-search-results-decoration {
+                    display: none;
+                    -webkit-appearance: none;
+                }
+                input[type="search"] {
+                    -webkit-appearance: none;
                 }
             `}</style>
         </div>
