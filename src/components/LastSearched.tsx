@@ -1,7 +1,7 @@
 // src/components/LastSearched.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, X } from 'lucide-react'
 import { useTheme } from '@/app/theme'
@@ -51,10 +51,24 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const [items, setItems] = useState<RecentClickItem[]>([])
+    const containerRef = useRef<HTMLDivElement>(null)
+    const titleRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setItems(getRecentClicks())
     }, [])
+
+    // Scroll para que o título fique visível no final da tela
+    useEffect(() => {
+        if (items.length > 0 && titleRef.current) {
+            setTimeout(() => {
+                titleRef.current?.scrollIntoView({
+                    block: 'end',
+                    behavior: 'auto'
+                })
+            }, 100)
+        }
+    }, [items])
 
     const removeItem = (item: RecentClickItem) => {
         const updated = items.filter(
@@ -73,9 +87,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         if (onItemClick) {
             onItemClick(item)
         } else {
-            // Extrair o slug da URL (remove a barra inicial se existir)
             const urlPath = item.url.startsWith('/') ? item.url.slice(1) : item.url
-            // Navegar para a ownerpage
             router.push(`/${urlPath}`)
         }
     }
@@ -118,7 +130,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
-    // Função para agrupar itens por data
     const getDateLabel = (timestamp?: number) => {
         if (!timestamp) return 'Hoje'
         const date = new Date(timestamp)
@@ -137,6 +148,26 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
     }
 
+    const formatTime = (timestamp?: number) => {
+        if (!timestamp) return ''
+        const date = new Date(timestamp)
+        return date.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        })
+    }
+
+    const formatFullDate = (timestamp?: number) => {
+        if (!timestamp) return ''
+        const date = new Date(timestamp)
+        return date.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        })
+    }
+
     // Agrupar itens por data
     const groupedItems = items.reduce((groups, item) => {
         const label = getDateLabel(item.timestamp)
@@ -145,8 +176,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return groups
     }, {} as Record<string, RecentClickItem[]>)
 
-    // Ordenar grupos (Hoje, Ontem, ...)
-    const groupOrder = ['Hoje', 'Ontem']
+    // Ordenar grupos: Hoje primeiro, depois Ontem, depois os mais antigos (do mais recente para o mais antigo)
     const sortedGroups = Object.keys(groupedItems).sort((a, b) => {
         if (a === 'Hoje') return -1
         if (b === 'Hoje') return 1
@@ -155,41 +185,46 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return a.localeCompare(b)
     })
 
+    // Altura do botão de busca (56px) + padding extra para não ficar colado
+    const SEARCH_BUTTON_HEIGHT = 80
+
     return (
-        <div className="mb-6">
-            <div className="flex items-center justify-between mb-3 px-1">
+        <div ref={containerRef} className="flex flex-col-reverse mb-6">
+            {/* Título - vem primeiro no DOM (mas visualmente embaixo) */}
+            <div ref={titleRef} className="flex items-center justify-between mt-2 px-1">
                 <div className="flex items-center gap-2">
-                    <Clock size={16} style={{ color: colors.accent }} />
+                    <Clock size={14} style={{ color: colors.accent }} />
                     <h3
-                        className="text-sm font-bold uppercase tracking-wide"
+                        className="text-xs font-bold uppercase tracking-wide"
                         style={{ color: colors.textPrimary }}
                     >
                         Últimos acessados
                     </h3>
-                    <span className="text-[10px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
+                    <span className="text-[9px] font-bold opacity-50" style={{ color: colors.textSecondary }}>
                         ({items.length})
                     </span>
                 </div>
                 <button
                     onClick={clearAll}
-                    className="text-xs font-semibold hover:underline"
+                    className="text-[10px] font-semibold hover:underline"
                     style={{ color: colors.textSecondary }}
                 >
                     Limpar tudo
                 </button>
             </div>
 
+            {/* Lista - ordem: Hoje (primeiro/embaixo), Ontem, Mais antigos (último/topo) */}
             {sortedGroups.map((groupLabel) => (
-                <div key={groupLabel} className="mb-4 last:mb-0">
+                <div key={groupLabel} className="mb-3 last:mb-0">
                     {/* Cabeçalho do grupo */}
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider opacity-60" style={{ color: colors.textSecondary }}>
+                    <div className="flex items-center gap-2 mb-1.5 px-1">
+                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
                             {groupLabel}
                         </span>
                         <div className="flex-1 h-px" style={{ background: colors.border }} />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                         {groupedItems[groupLabel].map((item) => (
                             <div
                                 key={`${item.type}-${item.id}`}
@@ -202,9 +237,9 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                 }}
                                 onClick={() => handleItemClick(item)}
                             >
-                                <div className="flex items-center gap-3 p-2.5">
+                                <div className="flex items-center gap-3 p-2">
                                     {/* Imagem - mini */}
-                                    <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
+                                    <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
                                         {item.imageUrl ? (
                                             <img
                                                 src={item.imageUrl}
@@ -213,7 +248,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                <span className="text-base font-black text-white/70">
+                                                <span className="text-xs font-black text-white/70">
                                                     {item.name.charAt(0).toUpperCase()}
                                                 </span>
                                             </div>
@@ -223,16 +258,24 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                     {/* Informações */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-sm font-bold truncate" style={{ color: colors.textPrimary }}>
+                                            <h3 className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
                                                 {item.name}
                                             </h3>
                                         </div>
-                                        <span
-                                            className="text-[9px] font-bold"
-                                            style={{ color: getTypeColor(item.type) }}
-                                        >
-                                            {getTypeLabel(item.type)}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span
+                                                className="text-[8px] font-bold"
+                                                style={{ color: getTypeColor(item.type) }}
+                                            >
+                                                {getTypeLabel(item.type)}
+                                            </span>
+                                            <span className="text-[8px] opacity-40" style={{ color: colors.textSecondary }}>
+                                                •
+                                            </span>
+                                            <span className="text-[8px] opacity-50" style={{ color: colors.textSecondary }}>
+                                                {formatFullDate(item.timestamp)} {formatTime(item.timestamp)}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {/* Botão de remover */}
@@ -245,7 +288,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                         style={{ color: colors.textSecondary }}
                                         title="Remover"
                                     >
-                                        <X size={14} />
+                                        <X size={12} />
                                     </button>
                                 </div>
                             </div>
@@ -253,6 +296,9 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                     </div>
                 </div>
             ))}
+
+            {/* Espaço extra do tamanho do botão de busca + margem */}
+            <div style={{ height: SEARCH_BUTTON_HEIGHT }} />
         </div>
     )
 }

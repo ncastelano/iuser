@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { Star, Clock, Search, Loader2, Package, ChevronRight } from 'lucide-react'
 import { useTheme } from '@/app/theme'
@@ -52,6 +53,7 @@ interface StoreWithProducts {
 
 export default function SearchResultsSection({ searchQuery, onSearchSelect }: SearchResultsSectionProps) {
     const { colors } = useTheme()
+    const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [profiles, setProfiles] = useState<any[]>([])
     const [storesWithProducts, setStoresWithProducts] = useState<StoreWithProducts[]>([])
@@ -226,7 +228,10 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
         }
     }, [searchQuery])
 
-    const handleProfileClick = (profile: any) => {
+    const handleProfileClick = (profile: any, e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+
         addRecentClick({
             type: 'profile',
             id: profile.id,
@@ -234,12 +239,15 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             imageUrl: profile.avatar_url,
             url: `/${profile.profileSlug}`,
         })
-        if (onSearchSelect) {
-            onSearchSelect('')
-        }
+
+        // Navega diretamente sem limpar a busca
+        router.push(`/${profile.profileSlug}`)
     }
 
-    const handleStoreClick = (store: any) => {
+    const handleStoreClick = (store: any, e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+
         addRecentClick({
             type: 'store',
             id: store.id,
@@ -247,12 +255,15 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             imageUrl: store.logo_url,
             url: `/${store.storeSlug}`,
         })
-        if (onSearchSelect) {
-            onSearchSelect('')
-        }
+
+        // Navega diretamente sem limpar a busca
+        router.push(`/${store.storeSlug}`)
     }
 
-    const handleProductClick = (product: any, storeSlug: string) => {
+    const handleProductClick = (product: any, storeSlug: string, e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+
         addRecentClick({
             type: 'product',
             id: product.id,
@@ -260,9 +271,9 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
             imageUrl: product.image_url,
             url: `/${storeSlug}/${product.slug || product.id}`,
         })
-        if (onSearchSelect) {
-            onSearchSelect('')
-        }
+
+        // Navega diretamente sem limpar a busca
+        router.push(`/${storeSlug}/${product.slug || product.id}`)
     }
 
     const hexToRgb = (hex: string) => {
@@ -340,11 +351,10 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                                 {profiles.map((profile) => (
-                                    <Link
+                                    <div
                                         key={profile.id}
-                                        href={`/${profile.profileSlug}`}
-                                        onClick={() => handleProfileClick(profile)}
-                                        className="group relative block overflow-hidden rounded-xl aspect-square"
+                                        onClick={(e) => handleProfileClick(profile, e)}
+                                        className="group relative block overflow-hidden rounded-xl aspect-square cursor-pointer"
                                     >
                                         <div className="w-full h-full relative">
                                             {profile.avatar_url && profile.avatar_url.trim() !== '' ? (
@@ -377,7 +387,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                 </span>
                                             )}
                                         </div>
-                                    </Link>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -421,11 +431,10 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                     <div className="p-3 pb-2">
                                                         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                                             {products.map((product) => (
-                                                                <Link
+                                                                <div
                                                                     key={product.id}
-                                                                    href={`/${store.storeSlug}/${product.slug || product.id}`}
-                                                                    onClick={() => handleProductClick(product, store.storeSlug)}
-                                                                    className="group/product flex-shrink-0 w-28 sm:w-32"
+                                                                    onClick={(e) => handleProductClick(product, store.storeSlug, e)}
+                                                                    className="group/product flex-shrink-0 w-28 sm:w-32 cursor-pointer"
                                                                 >
                                                                     <div className="rounded-lg border overflow-hidden transition-all hover:shadow-lg hover:scale-105" style={{ borderColor: colors.border, background: `rgba(255,255,255,0.03)` }}>
                                                                         <div className="w-full aspect-square overflow-hidden" style={{ background: colors.accentLight }}>
@@ -450,7 +459,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                                             </p>
                                                                         </div>
                                                                     </div>
-                                                                </Link>
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     </div>
@@ -460,7 +469,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                 <div
                                                     className="border-t flex items-center gap-3 p-2.5 hover:bg-white/5 transition-colors cursor-pointer"
                                                     style={{ borderColor: colors.border }}
-                                                    onClick={() => handleStoreClick(store)}
+                                                    onClick={(e) => handleStoreClick(store, e)}
                                                 >
                                                     {/* Logo da loja - mini */}
                                                     <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0" style={{ background: colors.accentLight }}>
