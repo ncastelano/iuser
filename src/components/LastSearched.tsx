@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, X, History, User, Store, Package } from 'lucide-react'
+import { Clock, X, History, User, Store, Package, Search } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ---------- Tipos e funções do histórico ----------
@@ -47,9 +47,10 @@ export function addRecentClick(item: RecentClickItem) {
 
 interface LastSearchedProps {
     onItemClick?: (item: RecentClickItem) => void
+    onClearResults?: () => void
 }
 
-export default function LastSearched({ onItemClick }: LastSearchedProps) {
+export default function LastSearched({ onItemClick, onClearResults }: LastSearchedProps) {
     const router = useRouter()
     const { colors } = useTheme()
     const [items, setItems] = useState<RecentClickItem[]>([])
@@ -64,19 +65,16 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     useEffect(() => {
         if (items.length === 0) return
 
-        // Resetar visíveis
         setVisibleItems(new Set())
 
-        // Adicionar cada item com delay
         const allKeys = items.map(item => `${item.type}-${item.id}`)
         allKeys.forEach((key, index) => {
             setTimeout(() => {
                 setVisibleItems(prev => new Set(prev).add(key))
-            }, 80 + index * 50) // 80ms + 50ms por item
+            }, 80 + index * 50)
         })
 
         return () => {
-            // Limpar timeouts se o componente desmontar
             setVisibleItems(new Set())
         }
     }, [items])
@@ -91,6 +89,9 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
     const clearAll = () => {
         setItems([])
         saveRecentClicks([])
+        if (onClearResults) {
+            onClearResults()
+        }
     }
 
     const handleItemClick = (item: RecentClickItem) => {
@@ -176,7 +177,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return a.localeCompare(b)
     })
 
-    // Função para obter a inicial ou o valor
     const getDisplayText = (item: RecentClickItem) => {
         if (item.type === 'product' && !item.imageUrl) {
             return item.price != null ? `R$\n${item.price.toFixed(2)}` : '?'
@@ -184,7 +184,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
         return item.name?.charAt(0).toUpperCase() || '?'
     }
 
-    // Função para obter o nome a ser exibido
     const getDisplayName = (item: RecentClickItem) => {
         if (item.type === 'product' && !item.name) {
             return item.price ? `R$ ${item.price.toFixed(2)}` : 'Produto'
@@ -194,7 +193,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
 
     return (
         <div ref={containerRef} className="w-full">
-            {/* Cabeçalho - animado */}
+            {/* Cabeçalho com botão de limpar resultados */}
             <div
                 className="flex items-center justify-between px-2 py-3 transition-all duration-500 ease-out"
                 style={{
@@ -224,25 +223,40 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                         </span>
                     </div>
                 </div>
-                {items.length > 0 && (
-                    <button
-                        onClick={clearAll}
-                        className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0"
-                        style={{
-                            color: colors.textSecondary,
-                            background: `${colors.textSecondary}15`
-                        }}
-                    >
-                        Limpar tudo
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {items.length > 0 && (
+                        <button
+                            onClick={clearAll}
+                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0"
+                            style={{
+                                color: colors.textSecondary,
+                                background: `${colors.textSecondary}15`
+                            }}
+                        >
+                            Limpar histórico
+                        </button>
+                    )}
+                    {/* Botão de limpar resultados da busca */}
+                    {onClearResults && (
+                        <button
+                            onClick={onClearResults}
+                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0 flex items-center gap-1"
+                            style={{
+                                color: colors.accent,
+                                background: `${colors.accent}15`
+                            }}
+                        >
+                            <Search size={12} />
+                            Limpar busca
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Lista de itens em grid */}
             <div className="space-y-4">
                 {sortedGroups.map((groupLabel, groupIndex) => (
                     <div key={groupLabel}>
-                        {/* Separador do grupo */}
                         <div
                             className="flex items-center gap-2 px-2 mb-2 transition-all duration-500 ease-out"
                             style={{
@@ -263,7 +277,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                             />
                         </div>
 
-                        {/* Grid de cards quadrados */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                             {groupedItems[groupLabel].map((item, index) => {
                                 const TypeIcon = getTypeIcon(item.type)
@@ -312,7 +325,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                         {/* Overlay gradiente */}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
-                                        {/* Loja (avatar + nome) no canto superior esquerdo — apenas para produtos */}
+                                        {/* Loja (avatar + nome) no canto superior esquerdo */}
                                         {item.type === 'product' && (item.storeName || item.storeImage) && (
                                             <div className="absolute top-2 left-2 flex items-center gap-1 max-w-[70%] pointer-events-none">
                                                 <div
@@ -359,7 +372,7 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                             {getTypeLabel(item.type)}
                                         </div>
 
-                                        {/* Botão de remover - aparece no hover */}
+                                        {/* Botão de remover */}
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation()
@@ -378,7 +391,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                                                 {getDisplayName(item)}
                                             </h4>
                                             <div className="flex flex-col gap-0.5 mt-0.5">
-                                                {/* Preço em destaque para produtos */}
                                                 {item.type === 'product' && item.price != null && (
                                                     <div
                                                         className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md self-start"
@@ -408,7 +420,6 @@ export default function LastSearched({ onItemClick }: LastSearchedProps) {
                 ))}
             </div>
 
-            {/* Estilos globais para a animação */}
             <style jsx global>{`
                 @keyframes fadeInUp {
                     from {

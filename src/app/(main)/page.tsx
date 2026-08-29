@@ -29,7 +29,6 @@ import FeaturedPublications from './inicio/sections/FeaturePublications'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from './StoreDashboard'
-import ButtonSearch from '../ButtonSearch'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -174,7 +173,6 @@ export default function HomePage() {
         let total = 0
         Object.values(itemsByStore).forEach(items => {
             items.forEach(item => {
-                // O price está dentro de product
                 const price = item.product?.price || 0
                 const quantity = item.quantity || 1
                 total += Number(price) * quantity
@@ -545,8 +543,6 @@ export default function HomePage() {
         }
     }
 
-    const isSearchVisible = !showConfig && !showCreateStore && !showLogin && !showProfile && !showStoreDashboard
-
     // ---------- RENDERIZAR SEÇÃO ----------
     const renderSection = (sectionId: string) => {
         switch (sectionId) {
@@ -683,6 +679,15 @@ export default function HomePage() {
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
 
+    // ===== FUNÇÃO PARA LIMPAR A BUSCA =====
+    const clearSearch = () => {
+        setSearchQuery('')
+        setSearchFocused(false)
+        if (searchInputRef.current) {
+            searchInputRef.current.blur()
+        }
+    }
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -698,7 +703,7 @@ export default function HomePage() {
                     loading={loading}
                     tabs={tabs}
                     showSearch={true}
-                    searchPlaceholder="Buscar restaurantes, mercados..."
+                    searchPlaceholder="Procurar, espetinho, cabeleireiro..."
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
                     onSearch={(query) => {
@@ -708,15 +713,14 @@ export default function HomePage() {
                         setSearchFocused(true)
                     }}
                     onSearchBlur={() => {
-                        // Delay para permitir cliques no LastSearched
                         setTimeout(() => {
-                            // Verifica se o foco não está em elementos do LastSearched
                             const activeElement = document.activeElement
                             const isLastSearched = activeElement?.closest?.('.last-searched-container')
-                            if (!isLastSearched) {
+                            const isSearchResult = activeElement?.closest?.('.search-result-item')
+                            if (!isLastSearched && !isSearchResult) {
                                 setSearchFocused(false)
                             }
-                        }, 150)
+                        }, 200)
                     }}
                     profileSlug={profileSlug}
                     locationElement={
@@ -766,7 +770,7 @@ export default function HomePage() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {/* ===== SEARCH RESULTS - APARECE SOZINHO QUANDO PESQUISANDO ===== */}
+                        {/* ===== SEARCH RESULTS - APARECE QUANDO PESQUISANDO ===== */}
                         {isSearching ? (
                             <div className="mb-6">
                                 <SearchResultsSection
@@ -780,7 +784,7 @@ export default function HomePage() {
                             </div>
                         ) : (
                             <>
-                                {/* ===== LAST SEARCHED - APARECE APENAS QUANDO FOCADO E SEM PESQUISA ===== */}
+                                {/* ===== LAST SEARCHED - APARECE APENAS QUANDO FOCADO ===== */}
                                 {searchFocused && !searchQuery.trim() && (
                                     <div
                                         className="mb-6 last-searched-container"
@@ -789,15 +793,14 @@ export default function HomePage() {
                                         <LastSearched
                                             onItemClick={(item) => {
                                                 if (item.url) {
-                                                    // Fecha o search antes de navegar
                                                     setSearchFocused(false)
                                                     setSearchQuery('')
-                                                    // Delay para garantir a navegação
                                                     setTimeout(() => {
                                                         router.push(item.url)
                                                     }, 50)
                                                 }
                                             }}
+                                            onClearResults={clearSearch}
                                         />
                                     </div>
                                 )}
@@ -805,7 +808,6 @@ export default function HomePage() {
                                 {/* ===== SEÇÕES DA HOME - OCULTAS DURANTE PESQUISA ===== */}
                                 {!searchFocused && !searchQuery.trim() && (
                                     <>
-                                        {/* ===== MODO DE EDIÇÃO COM BOTÕES SUBIR/DESCER ===== */}
                                         {editMode ? (
                                             <div className="space-y-6">
                                                 {Array.from(new Set(sections)).map((sectionId, index) => {
@@ -850,7 +852,6 @@ export default function HomePage() {
                 {/* ===== BOTÕES FLUTUANTES - LADO DIREITO ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                        {/* Sacola - aparece apenas quando NÃO está no login */}
                         {shouldShowSacola && (
                             <div>
                                 {loadingStatus ? (
@@ -873,7 +874,6 @@ export default function HomePage() {
                             </div>
                         )}
 
-                        {/* Home - aparece quando em outras telas (login, config, etc) */}
                         {showFab && (
                             <button
                                 onClick={showHomeSections}
