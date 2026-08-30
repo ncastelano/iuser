@@ -236,20 +236,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                             Limpar histórico
                         </button>
                     )}
-                    {/* Botão de limpar resultados da busca */}
-                    {onClearResults && (
-                        <button
-                            onClick={onClearResults}
-                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0 flex items-center gap-1"
-                            style={{
-                                color: colors.accent,
-                                background: `${colors.accent}15`
-                            }}
-                        >
-                            <Search size={12} />
-                            Limpar busca
-                        </button>
-                    )}
+
                 </div>
             </div>
 

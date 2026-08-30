@@ -1,4 +1,4 @@
-// components/Publication.tsx
+// components/StorePublication.tsx
 'use client'
 
 import { useState, useEffect, useRef } from 'react'

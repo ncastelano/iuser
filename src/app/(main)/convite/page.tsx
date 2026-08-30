@@ -381,7 +381,7 @@ function ConviteContent() {
                                     <div className="flex items-center gap-3 mt-2">
                                         <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
                                             <Rocket className="w-3 h-3" />
-                                            Comece grátis
+                                            Taxa 0%!
                                         </span>
                                         <span className="text-[10px] flex items-center gap-1" style={{ color: accentColor }}>
                                             <Star className="w-3 h-3" />

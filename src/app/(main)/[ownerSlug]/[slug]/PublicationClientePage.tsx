@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -31,7 +31,7 @@ import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 
 // ===== TIPOS =====
-interface PublicationWithStore {
+interface PublicationWithOwner {
     id: string
     name: string
     slug: string
@@ -39,21 +39,7 @@ interface PublicationWithStore {
     image_url: string | null
     view_count: number | null
     created_at: string
-    store_id: string | null
-    owner_id: string | null
-    store?: {
-        id: string
-        name: string
-        storeSlug: string
-        logo_url: string | null
-        owner_id: string
-        profile?: {
-            id: string
-            name: string
-            avatar_url: string | null
-            profileSlug: string
-        } | null
-    } | null
+    owner_id: string
     profile?: {
         id: string
         name: string
@@ -83,16 +69,31 @@ interface Comment {
     is_liked?: boolean
 }
 
-export default function PublicationClientPage() {
-    const params = useParams()
-    const router = useRouter()
-    const { colors } = useTheme()
-    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+interface PublicationClientPageProps {
+    ownerSlug: string
+    slug: string
+    colors: any
+    bgMode: string
+    customBgUrl?: string | null
+    profileSlug?: string | null
+    avatarUrl?: string | null
+    profileLoading?: boolean
+}
 
-    const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug
+export function PublicationClientPage({
+    ownerSlug,
+    slug,
+    colors,
+    bgMode,
+    customBgUrl,
+    profileSlug,
+    avatarUrl,
+    profileLoading = false
+}: PublicationClientPageProps) {
+    const router = useRouter()
 
     const [loading, setLoading] = useState(true)
-    const [publication, setPublication] = useState<PublicationWithStore | null>(null)
+    const [publication, setPublication] = useState<PublicationWithOwner | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
@@ -134,7 +135,6 @@ export default function PublicationClientPage() {
                         image_url,
                         view_count,
                         created_at,
-                        store_id,
                         owner_id
                     `)
                     .eq('slug', slug)
@@ -152,7 +152,6 @@ export default function PublicationClientPage() {
                             image_url,
                             view_count,
                             created_at,
-                            store_id,
                             owner_id
                         `)
                         .eq('id', slug)
@@ -166,63 +165,23 @@ export default function PublicationClientPage() {
                     pubData = pubById
                 }
 
-                let publicationWithData: PublicationWithStore = {
-                    ...pubData,
-                    store: null,
-                    profile: null
-                }
-
-                // Se tem store_id, busca os dados da loja
-                if (pubData?.store_id) {
-                    const { data: storeData, error: storeErr } = await supabase
-                        .from('stores')
-                        .select(`
-                            id,
-                            name,
-                            storeSlug,
-                            logo_url,
-                            owner_id
-                        `)
-                        .eq('id', pubData.store_id)
-                        .maybeSingle()
-
-                    if (!storeErr && storeData) {
-                        let profileData = null
-                        if (storeData.owner_id) {
-                            const { data: profile } = await supabase
-                                .from('profiles')
-                                .select('id, name, avatar_url, profileSlug')
-                                .eq('id', storeData.owner_id)
-                                .maybeSingle()
-                            profileData = profile
-                        }
-
-                        publicationWithData = {
-                            ...pubData,
-                            store: {
-                                ...storeData,
-                                profile: profileData
-                            },
-                            profile: null
-                        }
-                    }
-                }
-                // Se não tem store_id, busca o perfil do owner
-                else if (pubData?.owner_id) {
+                // Buscar dados do perfil do owner
+                let profileData = null
+                if (pubData?.owner_id) {
                     const { data: profile } = await supabase
                         .from('profiles')
                         .select('id, name, avatar_url, profileSlug')
                         .eq('id', pubData.owner_id)
                         .maybeSingle()
-
-                    publicationWithData = {
-                        ...pubData,
-                        store: null,
-                        profile: profile || null
-                    }
+                    profileData = profile
                 }
 
-                setPublication(publicationWithData)
+                const publicationWithOwner = {
+                    ...pubData,
+                    profile: profileData || null
+                }
+
+                setPublication(publicationWithOwner)
 
                 if (pubData?.id) {
                     await supabase
@@ -658,108 +617,33 @@ export default function PublicationClientPage() {
         })
     }
 
-    // ===== FUNÇÃO PARA IR PARA A LOJA OU PERFIL =====
-    const goToOwner = () => {
-        if (!publication) return
-
-        if (publication.store) {
-            if (publication.store.storeSlug) {
-                router.push(`/${publication.store.storeSlug}`)
-                return
-            }
-            if (publication.store.profile?.profileSlug) {
-                router.push(`/${publication.store.profile.profileSlug}`)
-                return
-            }
-            if (publication.store.id) {
-                router.push(`/loja/${publication.store.id}`)
-                return
-            }
-        }
-
-        if (publication.profile?.profileSlug) {
-            router.push(`/${publication.profile.profileSlug}`)
-            return
-        }
-
-        if (publication.owner_id) {
-            router.push(`/perfil/${publication.owner_id}`)
-        }
+    // ===== FUNÇÃO PARA IR PARA O PERFIL =====
+    const goToProfile = () => {
+        if (!publication?.profile?.profileSlug) return
+        router.push(`/${publication.profile.profileSlug}`)
     }
 
     // ===== DETERMINA O NOME E IMAGEM PARA EXIBIR =====
-    const getOwnerDisplayInfo = () => {
-        if (!publication) {
+    const getOwnerDisplay = () => {
+        if (!publication?.profile) {
             return {
-                name: 'Carregando...',
+                name: 'Usuário',
                 imageUrl: null,
-                slug: null,
                 type: 'unknown'
             }
         }
 
-        if (publication.store) {
-            if (publication.store.profile) {
-                return {
-                    name: publication.store.profile.name || publication.store.name,
-                    imageUrl: publication.store.profile.avatar_url || publication.store.logo_url,
-                    slug: publication.store.profile.profileSlug || publication.store.storeSlug,
-                    type: 'store',
-                    isProfileAvatar: !!publication.store.profile.avatar_url
-                }
-            }
-            return {
-                name: publication.store.name,
-                imageUrl: publication.store.logo_url,
-                slug: publication.store.storeSlug,
-                type: 'store',
-                isProfileAvatar: false
-            }
-        }
-
-        if (publication.profile) {
-            return {
-                name: publication.profile.name || 'Usuário',
-                imageUrl: publication.profile.avatar_url,
-                slug: publication.profile.profileSlug,
-                type: 'profile',
-                isProfileAvatar: true
-            }
-        }
-
         return {
-            name: 'Usuário desconhecido',
-            imageUrl: null,
-            slug: null,
-            type: 'unknown',
-            isProfileAvatar: false
+            name: publication.profile.name || 'Usuário',
+            imageUrl: publication.profile.avatar_url,
+            type: 'profile'
         }
     }
 
-    const ownerDisplay = getOwnerDisplayInfo()
-
-    // ===== FUNÇÃO PARA OBTER A IMAGEM CORRETA =====
-    const getOwnerImageUrl = () => {
-        if (!ownerDisplay.imageUrl) return null
-
-        // Se for avatar de perfil, usa getAvatarUrl
-        if (ownerDisplay.isProfileAvatar) {
-            return getAvatarUrl(supabase, ownerDisplay.imageUrl)
-        }
-
-        // Se for logo de loja, usa o bucket store-logos
-        try {
-            const { data } = supabase.storage.from('store-logos').getPublicUrl(ownerDisplay.imageUrl)
-            return data?.publicUrl || null
-        } catch {
-            return null
-        }
-    }
-
-    const finalOwnerImage = getOwnerImageUrl()
-
-    // ===== ÍCONE DO TIPO =====
-    const OwnerIcon = ownerDisplay.type === 'store' ? Store : UserCircle
+    const ownerDisplay = getOwnerDisplay()
+    const finalOwnerImage = ownerDisplay.imageUrl
+        ? getAvatarUrl(supabase, ownerDisplay.imageUrl)
+        : null
 
     if (loading) {
         return <LoadingSpinner message="Carregando publicação..." background={colors.background} />
@@ -777,12 +661,11 @@ export default function PublicationClientPage() {
                         A publicação que você está procurando não existe ou foi removida.
                     </p>
                     <button
-                        onClick={() => router.push('/publicacoes')}
+                        onClick={() => router.push(`/${ownerSlug}`)}
                         className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
                         style={{ background: colors.accent, color: '#fff' }}
                     >
-                        <ArrowLeft size={18} />
-                        Ver todas as publicações
+                        Voltar para o perfil
                     </button>
                 </div>
             </div>
@@ -804,16 +687,16 @@ export default function PublicationClientPage() {
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                <AnimatedBackgroundiUser customBgUrl={customBgUrl} />
             </div>
 
             <main className="relative z-10 min-h-dvh">
                 <Header
                     title="Publicação"
                     showBack={true}
-                    onBack={() => router.push('/publicacoes')}
+                    onBack={() => router.push(`/${ownerSlug}`)}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
-                    avatarUrl={avatarUrl}
+                    avatarUrl={avatarUrl || null}
                     loading={profileLoading}
                 />
 
@@ -841,10 +724,10 @@ export default function PublicationClientPage() {
 
                         {/* Conteúdo */}
                         <div className="p-6 space-y-4">
-                            {/* Cabeçalho - Dono da publicação (Loja ou Perfil) */}
+                            {/* Cabeçalho - Dono da publicação */}
                             <div
                                 className="flex items-center gap-3 cursor-pointer group"
-                                onClick={goToOwner}
+                                onClick={goToProfile}
                             >
                                 <div
                                     className="w-12 h-12 rounded-full overflow-hidden border-2 flex-shrink-0 transition-all duration-300 group-hover:scale-105"
@@ -858,7 +741,7 @@ export default function PublicationClientPage() {
                                         />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center" style={{ background: colors.border }}>
-                                            <OwnerIcon size={20} style={{ color: colors.textSecondary }} />
+                                            <UserCircle size={20} style={{ color: colors.textSecondary }} />
                                         </div>
                                     )}
                                 </div>
@@ -869,22 +752,12 @@ export default function PublicationClientPage() {
                                         style={{ color: colors.textPrimary }}
                                     >
                                         {ownerDisplay.name}
-                                        {ownerDisplay.type === 'store' && (
-                                            <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
-                                                background: `${colors.accent}20`,
-                                                color: colors.accent
-                                            }}>
-                                                Loja
-                                            </span>
-                                        )}
-                                        {ownerDisplay.type === 'profile' && (
-                                            <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
-                                                background: 'rgba(249, 115, 22, 0.15)',
-                                                color: '#f97316'
-                                            }}>
-                                                Perfil
-                                            </span>
-                                        )}
+                                        <span className="ml-2 text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
+                                            background: 'rgba(249, 115, 22, 0.15)',
+                                            color: '#f97316'
+                                        }}>
+                                            Perfil
+                                        </span>
                                         <span className="ml-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                                             →
                                         </span>
@@ -925,19 +798,15 @@ export default function PublicationClientPage() {
                             {/* Botões de ação */}
                             <div className="pt-4 flex flex-wrap gap-3">
                                 <button
-                                    onClick={goToOwner}
+                                    onClick={goToProfile}
                                     className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
                                     style={{
                                         background: colors.accent,
                                         color: '#fff',
                                     }}
                                 >
-                                    {ownerDisplay.type === 'store' ? (
-                                        <Store size={18} />
-                                    ) : (
-                                        <UserCircle size={18} />
-                                    )}
-                                    Visitar {ownerDisplay.type === 'store' ? 'Loja' : 'Perfil'}
+                                    <UserCircle size={18} />
+                                    Visitar Perfil
                                 </button>
 
                                 <button

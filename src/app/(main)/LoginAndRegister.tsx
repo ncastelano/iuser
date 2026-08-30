@@ -1,3 +1,4 @@
+// src/components/LoginAndRegister.tsx
 'use client'
 
 import { useState, useEffect, Suspense, useRef } from 'react'
@@ -20,6 +21,7 @@ import {
     LogIn,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import RecoverPassword from './RecoverPassword'
 
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
@@ -58,6 +60,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
 
     // Estado para controlar qual tela mostrar
     const [isLogin, setIsLogin] = useState(true)
+    const [showRecoverPassword, setShowRecoverPassword] = useState(false)
 
     const accentColor = colors.accent
     const textPrimary = colors.textPrimary
@@ -296,6 +299,20 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
         )
     }
 
+    // Tela de recuperação de senha
+    if (showRecoverPassword) {
+        return (
+            <RecoverPassword
+                onBack={() => setShowRecoverPassword(false)}
+                onSuccess={() => {
+                    setShowRecoverPassword(false)
+                    // Volta para o login
+                    setIsLogin(true)
+                }}
+            />
+        )
+    }
+
     // TELA PRINCIPAL (Login ou Register)
     return (
         <div
@@ -330,8 +347,8 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                             </h1>
                             <p className="text-sm" style={{ color: textSecondary }}>
                                 {isLogin
-                                    ? 'Entre e comece a vender'
-                                    : 'Comece a vender em minutos. É grátis!'
+                                    ? 'Entre e mostre o que você tem de melhor!'
+                                    : 'Comece a vender em minutos. Taxa 0%! '
                                 }
                             </p>
 
@@ -415,13 +432,14 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                                             <Lock className="w-3.5 h-3.5" style={{ color: accentColor }} />
                                             SENHA
                                         </label>
-                                        <a
-                                            href="/recuperar-senha"
-                                            className="text-[10px] font-bold hover:underline"
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRecoverPassword(true)}
+                                            className="text-[10px] font-bold hover:underline bg-transparent border-none cursor-pointer"
                                             style={{ color: accentColor }}
                                         >
                                             Esqueceu?
-                                        </a>
+                                        </button>
                                     </div>
                                     <div className="relative">
                                         <input

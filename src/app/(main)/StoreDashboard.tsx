@@ -386,7 +386,7 @@ export default function StoreDashboard({
 
             {/* ===== STORE DESCRIPTION COMPONENT ===== */}
             <div className="mb-6">
-                // app/(main)/StoreDashboard.tsx - PARTE CORRIGIDA
+
 
                 <StoreDescription
                     name={name}

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/theme'
-import { MapPin, X, Check, Navigation, Loader2, Search, Home, MoveVertical, Hash, FileText } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Loader2, Search, Home, MoveVertical, Hash, FileText, AlertCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
@@ -127,7 +127,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const { colors } = useTheme()
     const router = useRouter()
 
-    // Simplificar autenticação - usar apenas um estado
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
     const [authChecked, setAuthChecked] = useState(false)
 
@@ -139,6 +138,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const isMovingRef = useRef(false)
     const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
     const initializedRef = useRef(false)
+
+    const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null)
 
     const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
         lat: initialLocation?.lat || -15.7801,
@@ -161,7 +162,16 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     const [mapReady, setMapReady] = useState(false)
     const [usingGPS, setUsingGPS] = useState(false)
 
-    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO - SIMPLIFICADA
+    // ===== CONFIRMATION DIALOG STATE =====
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+    const [pendingLocation, setPendingLocation] = useState<{
+        lat: number;
+        lng: number;
+        address: string;
+        addressNumber: string;
+        addressComplement: string;
+    } | null>(null)
+
     useEffect(() => {
         const checkAuth = async () => {
             try {
@@ -195,6 +205,80 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
             })
         }
     }, [initialLocation, savedPosition])
+
+    const updatePolyline = useCallback((map: any, saved: { lat: number; lng: number } | null, selected: { lat: number; lng: number }) => {
+        const L = (window as any).L
+        if (!L || !map) return
+
+        if (polylineRef.current) {
+            map.removeLayer(polylineRef.current)
+            polylineRef.current = null
+        }
+
+        if (saved) {
+            polylineRef.current = L.polyline(
+                [[saved.lat, saved.lng], [selected.lat, selected.lng]],
+                {
+                    color: '#9CA3AF',
+                    weight: 2,
+                    dashArray: '8, 8',
+                    opacity: 0.6
+                }
+            ).addTo(map)
+        }
+    }, [])
+
+    // ===== FLY TO =====
+    const flyTo = useCallback((lat: number, lng: number) => {
+        if (!mapInstanceRef.current || !movableMarkerRef.current) return
+
+        isMovingRef.current = true
+        mapInstanceRef.current.flyTo([lat, lng], 16, { duration: 0.8 })
+        movableMarkerRef.current.setLatLng([lat, lng])
+        updatePolyline(mapInstanceRef.current, savedPosition, { lat, lng })
+    }, [savedPosition, updatePolyline])
+
+    // ===== PERFORM SEARCH =====
+    const performSearch = useCallback(async (query: string) => {
+        if (!query.trim()) return
+
+        setLoading(true)
+        setError('')
+
+        const result = await geocodeAddress(query.trim())
+
+        if (result) {
+            setSelectedPosition({ lat: result.lat, lng: result.lng })
+            setNewAddress(result.address)
+            flyTo(result.lat, result.lng)
+            setSearchQuery('')
+        } else {
+            setError('Endereço não encontrado.')
+        }
+
+        setLoading(false)
+    }, [flyTo])
+
+    // ===== DEBOUNCE DA BUSCA =====
+    useEffect(() => {
+        if (searchDebounceTimer) {
+            clearTimeout(searchDebounceTimer)
+        }
+
+        if (searchQuery.trim().length >= 3) {
+            const timer = setTimeout(() => {
+                performSearch(searchQuery)
+            }, 800)
+
+            setSearchDebounceTimer(timer)
+        }
+
+        return () => {
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer)
+            }
+        }
+    }, [searchQuery, performSearch])
 
     // 🗺️ INICIALIZAR MAPA
     const initializeMap = useCallback(async () => {
@@ -352,7 +436,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         }
     }, [selectedPosition, savedPosition, newNumber, authChecked, isAuthenticated])
 
-    // Executa a inicialização quando autenticado e container disponível
     useEffect(() => {
         if (!authChecked || !isAuthenticated || !mapContainerRef.current) {
             return
@@ -366,37 +449,6 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
 
         return () => clearTimeout(timer)
     }, [authChecked, isAuthenticated, initializeMap])
-
-    const updatePolyline = useCallback((map: any, saved: { lat: number; lng: number } | null, selected: { lat: number; lng: number }) => {
-        const L = (window as any).L
-        if (!L || !map) return
-
-        if (polylineRef.current) {
-            map.removeLayer(polylineRef.current)
-            polylineRef.current = null
-        }
-
-        if (saved) {
-            polylineRef.current = L.polyline(
-                [[saved.lat, saved.lng], [selected.lat, selected.lng]],
-                {
-                    color: '#9CA3AF',
-                    weight: 2,
-                    dashArray: '8, 8',
-                    opacity: 0.6
-                }
-            ).addTo(map)
-        }
-    }, [])
-
-    const flyTo = useCallback((lat: number, lng: number) => {
-        if (!mapInstanceRef.current || !movableMarkerRef.current) return
-
-        isMovingRef.current = true
-        mapInstanceRef.current.flyTo([lat, lng], 16, { duration: 0.8 })
-        movableMarkerRef.current.setLatLng([lat, lng])
-        updatePolyline(mapInstanceRef.current, savedPosition, { lat, lng })
-    }, [savedPosition, updatePolyline])
 
     const handleGetCurrentLocation = useCallback(() => {
         if (!navigator.geolocation) {
@@ -448,27 +500,8 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
         )
     }, [flyTo])
 
-    const handleSearchAddress = useCallback(async () => {
-        if (!searchQuery.trim()) return
-
-        setLoading(true)
-        setError('')
-
-        const result = await geocodeAddress(searchQuery.trim())
-
-        if (result) {
-            setSelectedPosition({ lat: result.lat, lng: result.lng })
-            setNewAddress(result.address)
-            flyTo(result.lat, result.lng)
-            setSearchQuery('')
-        } else {
-            setError('Endereço não encontrado.')
-        }
-
-        setLoading(false)
-    }, [searchQuery, flyTo])
-
-    const handleSave = useCallback(() => {
+    // ===== HANDLE SAVE WITH CONFIRMATION =====
+    const handleSaveWithConfirmation = useCallback(() => {
         if (!newNumber.trim()) {
             setNumberError('O número é obrigatório')
             return
@@ -486,16 +519,32 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
             }
         }
 
-        onSave({
+        // Salvar dados temporários para confirmação
+        setPendingLocation({
             lat: selectedPosition.lat,
             lng: selectedPosition.lng,
             address: fullAddressWithDetails,
             addressNumber: newNumber,
             addressComplement: newComplement
         })
-    }, [newNumber, newAddress, newComplement, selectedPosition, onSave])
+        setShowConfirmDialog(true)
+    }, [newNumber, newAddress, newComplement, selectedPosition])
 
-    // Loading enquanto verifica autenticação
+    // ===== CONFIRM SAVE =====
+    const confirmSave = useCallback(() => {
+        if (pendingLocation) {
+            onSave(pendingLocation)
+            setShowConfirmDialog(false)
+            setPendingLocation(null)
+        }
+    }, [pendingLocation, onSave])
+
+    // ===== CANCEL CONFIRMATION =====
+    const cancelConfirmation = useCallback(() => {
+        setShowConfirmDialog(false)
+        setPendingLocation(null)
+    }, [])
+
     if (!authChecked) {
         return (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
@@ -523,228 +572,327 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/30 backdrop-blur-sm">
-            <div
-                className="rounded-2xl p-3 sm:p-4 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
-                style={{
-                    background: `${colors.surface}ee`,
-                    backdropFilter: 'blur(20px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                    border: `1px solid ${colors.border}`,
-                    color: colors.textPrimary,
-                }}
-            >
-                <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2">
-                    <MapPin size={20} style={{ color: colors.accent }} />
-                    Definir localização
-                </h3>
+        <>
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
+                <div
+                    className="rounded-2xl p-3 sm:p-4 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
+                    style={{
+                        background: colors.surface,
+                        backdropFilter: 'blur(20px) saturate(180%)',
+                        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                        border: `1px solid ${colors.border}`,
+                        color: colors.textPrimary,
+                    }}
+                >
+                    <h3 className="text-base sm:text-lg font-extrabold mb-3 tracking-tight flex items-center gap-2">
+                        <MapPin size={20} style={{ color: '#f97316' }} />
+                        Definir localização
+                    </h3>
 
-                <div className="flex gap-2 mb-3">
-                    <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
-                        style={{
-                            background: `${colors.surface}88`,
-                            backdropFilter: 'blur(10px)',
-                            border: `1px solid ${colors.border}`,
-                        }}
-                    >
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: `${colors.surface}88` }}>
-                            <Search size={14} color={colors.textSecondary} />
-                        </div>
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Buscar novo endereço..."
-                            className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
-                            style={{ color: colors.textPrimary }}
-                            disabled={loading}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handleSearchAddress() }}
-                        />
-                        {searchQuery && (
-                            <button onClick={handleSearchAddress} disabled={loading}
-                                className="px-3 py-1 rounded-full text-xs font-bold"
-                                style={{ background: colors.accent, color: colors.accentText }}>
+                    {/* ===== TEXTO INSTRUTIVO ACIMA DO INPUT ===== */}
+                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textSecondary }}>
+                        Escreva a localização e clique em <strong>"Ir"</strong> para buscar
+                    </p>
+
+                    <div className="flex gap-2 mb-3">
+                        <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{
+                                background: `${colors.surface}88`,
+                                backdropFilter: 'blur(10px)',
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: `${colors.surface}88` }}>
+                                <Search size={14} color={colors.textSecondary} />
+                            </div>
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Digite o endereço..."
+                                className="flex-1 bg-transparent outline-none ml-1.5 text-xs"
+                                style={{ color: colors.textPrimary }}
+                                disabled={loading}
+                            />
+                            <button
+                                onClick={() => performSearch(searchQuery)}
+                                disabled={loading || !searchQuery.trim()}
+                                className="px-3 py-1 rounded-full text-xs font-bold transition-all hover:scale-105 disabled:opacity-50"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
+                                }}
+                            >
                                 {loading ? '...' : 'Ir'}
                             </button>
+                        </div>
+
+                        <button
+                            onClick={handleGetCurrentLocation}
+                            disabled={loading}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
+                            style={{
+                                background: '#f9731620',
+                                color: '#f97316',
+                                border: '1px solid #f9731640',
+                            }}
+                            title="Usar GPS"
+                        >
+                            {usingGPS ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                            <span className="hidden sm:inline">GPS</span>
+                        </button>
+                    </div>
+
+                    {/* ===== TEXTO INSTRUTIVO ABAIXO DO INPUT ===== */}
+                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textSecondary }}>
+                        Ou arraste o <strong>Pin</strong> ou o <strong>mapa</strong> para ajustar a localização
+                    </p>
+
+                    <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
+                        style={{
+                            border: `2px solid ${colors.border}`,
+                            background: colors.surface,
+                        }}
+                    >
+                        <div ref={mapContainerRef} className="w-full h-full" />
+                        {!mapReady && (
+                            <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
+                                <Loader2 size={24} className="animate-spin" style={{ color: '#f97316' }} />
+                            </div>
                         )}
                     </div>
 
-                    <button
-                        onClick={handleGetCurrentLocation}
-                        disabled={loading}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:opacity-80 disabled:opacity-50 flex-shrink-0"
-                        style={{
-                            background: `${colors.accent}22`,
-                            color: colors.accent,
-                            border: `1px solid ${colors.accent}44`,
-                        }}
-                        title="Usar GPS"
-                    >
-                        {usingGPS ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-                        <span className="hidden sm:inline">GPS</span>
-                    </button>
-                </div>
+                    <div className="space-y-2 mb-3">
+                        {savedPosition && (
+                            <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
+                                style={{
+                                    background: `${colors.surface}88`,
+                                    border: `1px solid #3B82F644`,
+                                }}
+                            >
+                                <div className="flex-shrink-0 mt-0.5">
+                                    <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                        <Home size={14} style={{ color: '#3B82F6' }} />
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
+                                        Localização salva
+                                    </span>
+                                    <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                        {savedAddress || 'Carregando endereço...'}
+                                    </p>
+                                    {savedNumber && (
+                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textSecondary }}>
+                                            Nº {savedNumber}
+                                        </p>
+                                    )}
+                                    {savedComplement && (
+                                        <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textSecondary }}>
+                                            "{savedComplement}"
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3"
-                    style={{
-                        border: `2px solid ${colors.border}`,
-                        background: colors.surface,
-                    }}
-                >
-                    <div ref={mapContainerRef} className="w-full h-full" />
-                    {!mapReady && (
-                        <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                            <Loader2 size={24} className="animate-spin" style={{ color: colors.accent }} />
-                        </div>
-                    )}
-                </div>
-
-                <div className="space-y-2 mb-3">
-                    {savedPosition && (
                         <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                             style={{
                                 background: `${colors.surface}88`,
-                                border: `1px solid #3B82F644`,
+                                border: `1px solid #F9731644`,
                             }}
                         >
                             <div className="flex-shrink-0 mt-0.5">
-                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
-                                    <Home size={14} style={{ color: '#3B82F6' }} />
+                                <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                    <MoveVertical size={14} style={{ color: '#f97316' }} />
                                 </div>
                             </div>
                             <div className="flex-1 min-w-0">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
-                                    Localização salva
+                                    Nova localização
                                 </span>
-                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                    {savedAddress || 'Carregando endereço...'}
-                                </p>
-                                {savedNumber && (
-                                    <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textSecondary }}>
-                                        Nº {savedNumber}
+                                {resolvingAddress ? (
+                                    <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textSecondary }}>
+                                        Obtendo endereço...
+                                    </p>
+                                ) : (
+                                    <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
+                                        {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
                                     </p>
                                 )}
-                                {savedComplement && (
-                                    <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textSecondary }}>
-                                        "{savedComplement}"
-                                    </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {!resolvingAddress && newAddress && (
+                        <div className="space-y-2 mb-3">
+                            <div className="px-3 py-2 rounded-xl"
+                                style={{
+                                    background: `${colors.surface}88`,
+                                    border: `1px solid ${numberError ? '#EF4444' : colors.border}`,
+                                }}
+                            >
+                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
+                                    style={{ color: colors.textSecondary }}>
+                                    <Hash size={12} />
+                                    Número da casa/apto *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newNumber}
+                                    onChange={(e) => {
+                                        setNewNumber(e.target.value)
+                                        setNumberError('')
+                                    }}
+                                    placeholder="Ex: 2836"
+                                    className="w-full bg-transparent outline-none text-xs font-medium"
+                                    style={{ color: colors.textPrimary }}
+                                    required
+                                />
+                                {numberError && (
+                                    <p className="text-red-500 text-[10px] mt-1">{numberError}</p>
                                 )}
+                            </div>
+
+                            <div className="px-3 py-2 rounded-xl"
+                                style={{
+                                    background: `${colors.surface}88`,
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
+                                    style={{ color: colors.textSecondary }}>
+                                    <FileText size={12} />
+                                    Complemento (opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newComplement}
+                                    onChange={(e) => setNewComplement(e.target.value)}
+                                    placeholder="Ex: Casa com parede de cerâmica, portão azul..."
+                                    className="w-full bg-transparent outline-none text-xs font-medium"
+                                    style={{ color: colors.textPrimary }}
+                                />
                             </div>
                         </div>
                     )}
 
-                    <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
-                        style={{
-                            background: `${colors.surface}88`,
-                            border: `1px solid #F9731644`,
-                        }}
-                    >
-                        <div className="flex-shrink-0 mt-0.5">
-                            <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                <MoveVertical size={14} style={{ color: '#F97316' }} />
+                    {error && (
+                        <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
+                    )}
+
+                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textSecondary }}>
+                        💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
+                    </p>
+
+                    <div className="flex gap-2 justify-end">
+                        <button onClick={onClose} disabled={loading}
+                            className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
+                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                            <div className="h-7 w-7 rounded-full flex items-center justify-center"
+                                style={{ background: `${colors.surface}88` }}>
+                                <X size={14} />
                             </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
-                                Nova localização
-                            </span>
-                            {resolvingAddress ? (
-                                <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textSecondary }}>
-                                    Obtendo endereço...
-                                </p>
-                            ) : (
-                                <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
-                                    {newAddress || 'Arraste o marcador laranja ou mova o mapa'}
-                                </p>
-                            )}
-                        </div>
+                            <span className="ml-1.5">Cancelar</span>
+                        </button>
+
+                        <button onClick={handleSaveWithConfirmation} disabled={loading || !newAddress}
+                            className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+                            style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)', color: '#ffffff', boxShadow: '0 2px 10px rgba(249, 115, 22, 0.3)' }}>
+                            <div className="h-7 w-7 rounded-full flex items-center justify-center"
+                                style={{ background: 'linear-gradient(135deg, #f97316, #dc2626)' }}>
+                                <Check size={14} />
+                            </div>
+                            <span className="ml-1.5">Salvar localização</span>
+                        </button>
                     </div>
-                </div>
-
-                {!resolvingAddress && newAddress && (
-                    <div className="space-y-2 mb-3">
-                        <div className="px-3 py-2 rounded-xl"
-                            style={{
-                                background: `${colors.surface}88`,
-                                border: `1px solid ${numberError ? '#EF4444' : colors.border}`,
-                            }}
-                        >
-                            <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                style={{ color: colors.textSecondary }}>
-                                <Hash size={12} />
-                                Número da casa/apto *
-                            </label>
-                            <input
-                                type="text"
-                                value={newNumber}
-                                onChange={(e) => {
-                                    setNewNumber(e.target.value)
-                                    setNumberError('')
-                                }}
-                                placeholder="Ex: 2836"
-                                className="w-full bg-transparent outline-none text-xs font-medium"
-                                style={{ color: colors.textPrimary }}
-                                required
-                            />
-                            {numberError && (
-                                <p className="text-red-500 text-[10px] mt-1">{numberError}</p>
-                            )}
-                        </div>
-
-                        <div className="px-3 py-2 rounded-xl"
-                            style={{
-                                background: `${colors.surface}88`,
-                                border: `1px solid ${colors.border}`,
-                            }}
-                        >
-                            <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                style={{ color: colors.textSecondary }}>
-                                <FileText size={12} />
-                                Complemento (opcional)
-                            </label>
-                            <input
-                                type="text"
-                                value={newComplement}
-                                onChange={(e) => setNewComplement(e.target.value)}
-                                placeholder="Ex: Casa com parede de cerâmica, portão azul..."
-                                className="w-full bg-transparent outline-none text-xs font-medium"
-                                style={{ color: colors.textPrimary }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {error && (
-                    <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
-                )}
-
-                <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textSecondary }}>
-                    💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
-                </p>
-
-                <div className="flex gap-2 justify-end">
-                    <button onClick={onClose} disabled={loading}
-                        className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
-                        style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
-                        <div className="h-7 w-7 rounded-full flex items-center justify-center"
-                            style={{ background: `${colors.surface}88` }}>
-                            <X size={14} />
-                        </div>
-                        <span className="ml-1.5">Cancelar</span>
-                    </button>
-
-                    <button onClick={handleSave} disabled={loading}
-                        className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-90 active:scale-95"
-                        style={{ background: colors.accent, color: colors.accentText }}>
-                        <div className="h-7 w-7 rounded-full flex items-center justify-center"
-                            style={{ background: colors.accent }}>
-                            <Check size={14} />
-                        </div>
-                        <span className="ml-1.5">Salvar localização</span>
-                    </button>
                 </div>
             </div>
-        </div>
+
+            {/* ===== CONFIRMATION DIALOG ===== */}
+            {showConfirmDialog && pendingLocation && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div
+                        className="w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5 animate-slide-up"
+                        style={{
+                            background: colors.surface,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: '#f9731620' }}>
+                                <AlertCircle size={20} style={{ color: '#f97316' }} />
+                            </div>
+                            <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Confirmar localização
+                            </h2>
+                        </div>
+
+                        <div className="space-y-2 p-3 rounded-xl" style={{ background: `${colors.surface}88` }}>
+                            <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                Você está prestes a salvar esta localização:
+                            </p>
+                            <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                📍 {pendingLocation.address}
+                            </p>
+                            <div className="flex gap-3 text-xs" style={{ color: colors.textSecondary }}>
+                                <span>Nº: <strong style={{ color: colors.textPrimary }}>{pendingLocation.addressNumber}</strong></span>
+                                {pendingLocation.addressComplement && (
+                                    <span>Complemento: <strong style={{ color: colors.textPrimary }}>{pendingLocation.addressComplement}</strong></span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                onClick={cancelConfirmation}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02]"
+                                style={{
+                                    background: `${colors.surface}88`,
+                                    color: colors.textSecondary,
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                Voltar
+                            </button>
+                            <button
+                                onClick={confirmSave}
+                                className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
+                                    border: 'none',
+                                }}
+                            >
+                                <Check size={14} />
+                                Confirmar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style jsx global>{`
+                @keyframes fade-in {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slide-up {
+                    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .animate-fade-in {
+                    animation: fade-in 0.2s ease-out forwards;
+                }
+                .animate-slide-up {
+                    animation: slide-up 0.3s ease-out forwards;
+                }
+            `}</style>
+        </>
     )
 }

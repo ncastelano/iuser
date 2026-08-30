@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { generateProductOrPublicationMetadata } from '@/lib/getOwnerMetadata'
-import ProductClientPage from './ProductClientPage'
+import SlugClientPage from './SlugClientPage'
 
 type Props = {
     params: Promise<{ ownerSlug: string; slug: string }>
@@ -12,5 +12,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default function Page() {
-    return <ProductClientPage />
+    return <SlugClientPage />
 }

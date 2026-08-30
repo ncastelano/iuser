@@ -67,9 +67,8 @@ export default function Header({
     const router = useRouter()
     const { colors } = useTheme()
 
-    // State para o ButtonSearch
-    const [isExpanded, setIsExpanded] = useState(true) // Sempre expandido
     const [internalSearchValue, setInternalSearchValue] = useState('')
+    const [isFocused, setIsFocused] = useState(false)
     const internalInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -78,9 +77,9 @@ export default function Header({
     const currentSearchValue = searchValue !== undefined ? searchValue : internalSearchValue
     const isSearching = currentSearchValue.length > 0
 
-    const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+    // Verifica se deve estar expandido (focado OU com texto)
+    const isExpanded = isFocused || isSearching
 
-    // Efeito para clique fora
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -92,23 +91,19 @@ export default function Header({
                     return
                 }
 
-                // Não fecha o input, apenas perde o foco
-                if (onSearchBlur) {
-                    onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+                // Se não tiver texto, pode fechar
+                if (!isSearching) {
+                    setIsFocused(false)
+                    if (onSearchBlur) {
+                        onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+                    }
                 }
             }
         }
 
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [onSearchBlur])
-
-    // Foco automático
-    useEffect(() => {
-        if (inputRef.current) {
-            inputRef.current.focus()
-        }
-    }, [inputRef])
+    }, [isSearching, onSearchBlur])
 
     const handleSearch = (value: string) => {
         if (searchValue === undefined) {
@@ -126,7 +121,19 @@ export default function Header({
         }
     }
 
+    const handleClose = () => {
+        handleSearch('')
+        setIsFocused(false)
+        if (onSearchBlur) {
+            onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+        }
+        if (inputRef.current) {
+            inputRef.current.blur()
+        }
+    }
+
     const handleFocus = () => {
+        setIsFocused(true)
         if (onSearchFocus) onSearchFocus()
     }
 
@@ -136,18 +143,19 @@ export default function Header({
         }
 
         blurTimeoutRef.current = setTimeout(() => {
-            if (onSearchBlur) {
-                onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+            // Só fecha se não tiver texto
+            if (!isSearching) {
+                setIsFocused(false)
+                if (onSearchBlur) {
+                    onSearchBlur({} as React.FocusEvent<HTMLInputElement>)
+                }
             }
         }, 200)
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Escape') {
-            handleSearch('')
-            if (inputRef.current) {
-                inputRef.current.blur()
-            }
+            handleClose()
         }
         if (e.key === 'Enter') {
             e.preventDefault()
@@ -182,10 +190,10 @@ export default function Header({
     const surfaceRgb = hexToRgb(colors.surface)
 
     const gradientBg = `linear-gradient(to bottom, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
-    rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.9) 0%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7) 40%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4) 70%, 
+        rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0) 100%)`
 
     const enhancedTabs: Tab[] = tabs || []
 
@@ -196,7 +204,7 @@ export default function Header({
         if (tab.isActive) {
             return 'linear-gradient(135deg, #f97316, #dc2626)'
         }
-        return `${colors.surface}88`
+        return 'transparent'
     }
 
     const getTabTextColor = (tab: Tab): string => {
@@ -209,11 +217,21 @@ export default function Header({
         return colors.textSecondary
     }
 
+    const getTabBorder = (tab: Tab): string => {
+        if (tab.statusColor) {
+            return tab.statusColor
+        }
+        if (tab.isActive) {
+            return 'transparent'
+        }
+        return colors.textSecondary
+    }
+
     return (
         <div
             style={{
                 color: colors.textPrimary,
-                padding: '8px 12px 0 12px',
+                padding: isExpanded ? '8px 12px' : '8px 12px 0 12px',
                 position: 'sticky',
                 top: 0,
                 zIndex: 20,
@@ -221,12 +239,14 @@ export default function Header({
                 background: gradientBg,
                 backdropFilter: 'blur(20px) saturate(180%)',
                 WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                minHeight: 120,
-                transition: 'min-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                minHeight: isExpanded ? 80 : 120,
+                transition: 'min-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), padding 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                display: 'flex',
+                alignItems: isExpanded ? 'center' : 'flex-start',
             }}
             className="sm:px-6 sm:pt-5"
         >
-            {/* Marca d'água - Logo sem container circular */}
+            {/* Marca d'água */}
             <div
                 style={{
                     position: 'absolute',
@@ -234,7 +254,7 @@ export default function Header({
                     top: avatarUrl ? -25 : -15,
                     width: avatarUrl ? 160 : 120,
                     height: avatarUrl ? 160 : 120,
-                    opacity: avatarUrl ? 0.5 : 0.4,
+                    opacity: isExpanded ? 0 : (avatarUrl ? 0.5 : 0.4),
                     transform: 'rotate(10deg)',
                     maskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
                     WebkitMaskImage: 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 30%, rgba(0,0,0,0) 70%)',
@@ -245,7 +265,7 @@ export default function Header({
                     justifyContent: 'center',
                     zIndex: 1,
                     borderRadius: '0',
-                    transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transition: 'opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
             >
                 {avatarUrl ? (
@@ -279,169 +299,192 @@ export default function Header({
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'flex-start',
-                    height: 'auto',
+                    justifyContent: isExpanded ? 'center' : 'flex-start',
+                    height: isExpanded ? '100%' : 'auto',
+                    width: '100%',
+                    transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
             >
-                <div className="flex items-center gap-2 mb-1">
-                    {showBack ? (
-                        <button
-                            onClick={handleBack}
-                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                        >
-                            <ArrowLeft size={16} color={colors.accent} />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleHome}
-                            className="flex items-center gap-2 flex-shrink-0"
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: 0,
-                            }}
-                        >
-                            <img
-                                src="/logo.png"
-                                alt="iUser"
-                                className="h-5 sm:h-6 object-contain"
-                            />
-                        </button>
+                {/* Elementos que escondem quando expandido */}
+                <div
+                    style={{
+                        maxHeight: isExpanded ? 0 : 1000,
+                        opacity: isExpanded ? 0 : 1,
+                        overflow: 'hidden',
+                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        marginBottom: isExpanded ? 0 : undefined,
+                    }}
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        {showBack ? (
+                            <button
+                                onClick={handleBack}
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                            >
+                                <ArrowLeft size={16} color={colors.accent} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleHome}
+                                className="flex items-center gap-2 flex-shrink-0"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                }}
+                            >
+                                <img
+                                    src="/logo.png"
+                                    alt="iUser"
+                                    className="h-5 sm:h-6 object-contain"
+                                />
+                            </button>
+                        )}
+                        {title && (
+                            <button
+                                onClick={handleHome}
+                                className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer flex-shrink-0"
+                                style={{ color: colors.textPrimary }}
+                            >
+                                {title}
+                            </button>
+                        )}
+                        {locationElement && (
+                            <div className="ml-auto flex-shrink-0">
+                                {locationElement}
+                            </div>
+                        )}
+                    </div>
+
+                    {greeting && (
+                        <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold mt-1 tracking-tight break-words">
+                            {greeting}
+                        </h1>
                     )}
-                    {title && (
-                        <button
-                            onClick={handleHome}
-                            className="text-sm sm:text-lg font-semibold opacity-90 bg-transparent border-none cursor-pointer flex-shrink-0"
-                            style={{ color: colors.textPrimary }}
+
+                    {enhancedTabs.length > 0 && (
+                        <div
+                            className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
+                            style={{ overflowY: 'visible' }}
                         >
-                            {title}
-                        </button>
-                    )}
-                    {locationElement && (
-                        <div className="ml-auto flex-shrink-0">
-                            {locationElement}
+                            {enhancedTabs.map((tab) => {
+                                const backgroundColor = getTabBackground(tab)
+                                const textColor = getTabTextColor(tab)
+                                const borderColor = getTabBorder(tab)
+                                const isActive = tab.isActive
+
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={tab.onClick}
+                                        disabled={loading}
+                                        className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
+                                        style={{
+                                            background: backgroundColor,
+                                            backdropFilter: 'blur(10px)',
+                                            color: textColor,
+                                            overflow: 'visible',
+                                            border: isActive ? 'none' : `1.5px solid ${borderColor}`,
+                                            ...(isActive && !tab.statusColor ? {
+                                                boxShadow: `0 2px 8px #f9731640`,
+                                                fontWeight: 'bold',
+                                            } : {}),
+                                            ...(isActive && tab.statusColor ? {
+                                                boxShadow: `0 2px 8px ${tab.statusColor}60`,
+                                                fontWeight: 'bold',
+                                                transform: 'scale(1.05)',
+                                            } : {}),
+                                        }}
+                                    >
+                                        {tab.imageUrl ? (
+                                            <img
+                                                src={tab.imageUrl}
+                                                alt=""
+                                                className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
+                                                style={{
+                                                    background: isActive
+                                                        ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
+                                                        : 'transparent',
+                                                    backdropFilter: 'blur(10px)',
+                                                }}
+                                            >
+                                                <tab.icon
+                                                    size={14}
+                                                    color={textColor}
+                                                />
+                                            </div>
+                                        )}
+                                        <span className="ml-1.5 sm:ml-2">{tab.label}</span>
+
+                                        {tab.indicator && (
+                                            <div className="absolute -top-1 -right-1 flex gap-0.5">
+                                                {tab.indicator.pending > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.pending}
+                                                    </span>
+                                                )}
+                                                {tab.indicator.preparing > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.preparing}
+                                                    </span>
+                                                )}
+                                                {tab.indicator.ready > 0 && (
+                                                    <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
+                                                        {tab.indicator.ready}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {tab.badge && tab.badge.count > 0 && (
+                                            <div className="absolute -top-1 -right-1">
+                                                <span
+                                                    className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
+                                                    style={{ backgroundColor: tab.badge.color || '#ef4444' }}
+                                                >
+                                                    {tab.badge.count}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
 
-                {greeting && (
-                    <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold mt-1 tracking-tight break-words">
-                        {greeting}
-                    </h1>
-                )}
-
-                {enhancedTabs.length > 0 && (
-                    <div
-                        className="flex gap-1.5 mt-2 overflow-x-auto scroll-smooth pb-1 pt-1 scrollbar-hide"
-                        style={{ overflowY: 'visible' }}
-                    >
-                        {enhancedTabs.map((tab) => {
-                            const backgroundColor = getTabBackground(tab)
-                            const textColor = getTabTextColor(tab)
-
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={tab.onClick}
-                                    disabled={loading}
-                                    className="relative flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap disabled:opacity-50 flex-shrink-0"
-                                    style={{
-                                        background: backgroundColor,
-                                        backdropFilter: 'blur(10px)',
-                                        color: textColor,
-                                        overflow: 'visible',
-                                        ...(tab.isActive && !tab.statusColor ? {
-                                            boxShadow: `0 2px 8px #f9731640`,
-                                            fontWeight: 'bold',
-                                        } : {}),
-                                        ...(tab.isActive && tab.statusColor ? {
-                                            boxShadow: `0 2px 8px ${tab.statusColor}60`,
-                                            fontWeight: 'bold',
-                                            transform: 'scale(1.05)',
-                                        } : {}),
-                                    }}
-                                >
-                                    {tab.imageUrl ? (
-                                        <img
-                                            src={tab.imageUrl}
-                                            alt=""
-                                            className="h-7 w-7 sm:h-9 sm:w-9 object-cover rounded-full flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div
-                                            className="h-7 w-7 sm:h-9 sm:w-9 rounded-full flex items-center justify-center flex-shrink-0"
-                                            style={{
-                                                background: tab.isActive
-                                                    ? (tab.statusColor ? `${tab.statusColor}cc` : 'linear-gradient(135deg, #f97316, #dc2626)')
-                                                    : `${colors.surface}88`,
-                                                backdropFilter: 'blur(10px)',
-                                            }}
-                                        >
-                                            <tab.icon
-                                                size={14}
-                                                color={textColor}
-                                            />
-                                        </div>
-                                    )}
-                                    <span className="ml-1.5 sm:ml-2">{tab.label}</span>
-
-                                    {tab.indicator && (
-                                        <div className="absolute -top-1 -right-1 flex gap-0.5">
-                                            {tab.indicator.pending > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.pending}
-                                                </span>
-                                            )}
-                                            {tab.indicator.preparing > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-yellow-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.preparing}
-                                                </span>
-                                            )}
-                                            {tab.indicator.ready > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-purple-500 text-white text-[7px] flex items-center justify-center font-black leading-none">
-                                                    {tab.indicator.ready}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {tab.badge && tab.badge.count > 0 && (
-                                        <div className="absolute -top-1 -right-1">
-                                            <span
-                                                className="w-4 h-4 rounded-full text-white text-[7px] flex items-center justify-center font-black leading-none"
-                                                style={{ backgroundColor: tab.badge.color || '#ef4444' }}
-                                            >
-                                                {tab.badge.count}
-                                            </span>
-                                        </div>
-                                    )}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
-
-                {/* ButtonSearch - SEMPRE EXPANDIDO COM MENSAGEM */}
+                {/* ButtonSearch com brilho sempre ativo */}
                 {showSearch && (
-                    <div className="mt-3 pb-3 w-full">
+                    <div
+                        className="w-full"
+                        style={{
+                            marginTop: isExpanded ? 0 : 12,
+                            paddingBottom: isExpanded ? 0 : 16,
+                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}
+                    >
                         <div
                             ref={containerRef}
-                            className="transition-all duration-300 ease-in-out w-full"
+                            className="relative w-full"
                             style={{
                                 position: 'relative',
                                 height: 48,
                                 borderRadius: 999,
-                                background: `${colors.surface}88`,
-                                backdropFilter: 'blur(12px)',
-                                boxShadow: 'none',
                                 display: 'flex',
                                 alignItems: 'center',
                                 padding: '0 4px',
                                 cursor: 'text',
-                                border: `1.5px solid ${colors.border}`,
-                                transition: 'all 0.3s ease-in-out',
+                                background: 'transparent',
+                                border: `1.5px solid ${isExpanded ? '#f97316' : colors.border}`,
+                                transition: 'border-color 0.3s ease-in-out',
+                                boxShadow: `0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c30, 0 0 15px #f59e0b20`,
+                                animation: 'pulseGlow 2s ease-in-out infinite',
                             }}
                             onClick={() => {
                                 if (inputRef.current) {
@@ -459,7 +502,7 @@ export default function Header({
                                     justifyContent: 'center',
                                     flexShrink: 0,
                                     color: colors.accent,
-                                    background: 'transparent',
+                                    background: isExpanded ? `${colors.accent}15` : 'transparent',
                                     transition: 'all 0.3s ease',
                                 }}
                             >
@@ -472,7 +515,7 @@ export default function Header({
                                     height: '100%',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    paddingRight: 8,
+                                    paddingRight: isExpanded ? 8 : 0,
                                 }}
                             >
                                 <input
@@ -500,84 +543,93 @@ export default function Header({
                                         letterSpacing: '0.3px',
                                     }}
                                 />
-
-                                {isSearching && (
-                                    <button
-                                        onClick={handleClear}
-                                        style={{
-                                            width: 28,
-                                            height: 28,
-                                            borderRadius: '50%',
-                                            background: `${colors.textSecondary}15`,
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0,
-                                            transition: 'all 0.2s ease',
-                                            color: colors.textSecondary,
-                                            marginRight: 4,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.background = `${colors.textSecondary}25`
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.background = `${colors.textSecondary}15`
-                                        }}
-                                        aria-label="Limpar busca"
-                                        title="Limpar busca"
-                                    >
-                                        <X size={16} strokeWidth={2} />
-                                    </button>
-                                )}
                             </div>
+
+                            {/* Botão X - aparece quando expandido */}
+                            {isExpanded && (
+                                <button
+                                    onClick={isSearching ? handleClear : handleClose}
+                                    style={{
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: '50%',
+                                        background: isSearching ? `${colors.textSecondary}15` : 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                        transition: 'all 0.2s ease',
+                                        color: colors.accent,
+                                        marginRight: 4,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = isSearching ? `${colors.textSecondary}25` : `${colors.textSecondary}10`
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = isSearching ? `${colors.textSecondary}15` : 'transparent'
+                                    }}
+                                    aria-label={isSearching ? "Limpar busca" : "Fechar busca"}
+                                    title={isSearching ? "Limpar busca" : "Fechar busca"}
+                                >
+                                    <X size={16} strokeWidth={2} />
+                                </button>
+                            )}
                         </div>
                     </div>
                 )}
             </div>
 
             <style jsx>{`
-                .scrollbar-hide::-webkit-scrollbar {
-                    display: none;
-                }
-                .scrollbar-hide {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
-                }
-                input::placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.6;
-                    font-weight: 400;
-                    letter-spacing: 0.3px;
-                }
-                input::-webkit-input-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.6;
-                }
-                input::-moz-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.6;
-                }
-                input:-ms-input-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.6;
-                }
-                input:-moz-placeholder {
-                    color: ${colors.textSecondary} !important;
-                    opacity: 0.6;
-                }
-                input[type="search"]::-webkit-search-decoration,
-                input[type="search"]::-webkit-search-cancel-button,
-                input[type="search"]::-webkit-search-results-button,
-                input[type="search"]::-webkit-search-results-decoration {
-                    display: none;
-                    -webkit-appearance: none;
-                }
-                input[type="search"] {
-                    -webkit-appearance: none;
-                }
-            `}</style>
+                    .scrollbar-hide::-webkit-scrollbar {
+                        display: none;
+                    }
+                    .scrollbar-hide {
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+                    input::placeholder {
+                        color: ${colors.textSecondary} !important;
+                        opacity: 0.6;
+                        font-weight: 400;
+                        letter-spacing: 0.3px;
+                    }
+                    input::-webkit-input-placeholder {
+                        color: ${colors.textSecondary} !important;
+                        opacity: 0.6;
+                    }
+                    input::-moz-placeholder {
+                        color: ${colors.textSecondary} !important;
+                        opacity: 0.6;
+                    }
+                    input:-ms-input-placeholder {
+                        color: ${colors.textSecondary} !important;
+                        opacity: 0.6;
+                    }
+                    input:-moz-placeholder {
+                        color: ${colors.textSecondary} !important;
+                        opacity: 0.6;
+                    }
+                    input[type="search"]::-webkit-search-decoration,
+                    input[type="search"]::-webkit-search-cancel-button,
+                    input[type="search"]::-webkit-search-results-button,
+                    input[type="search"]::-webkit-search-results-decoration {
+                        display: none;
+                        -webkit-appearance: none;
+                    }
+                    input[type="search"] {
+                        -webkit-appearance: none;
+                    }
+                    @keyframes pulseGlow {
+                        0%, 100% {
+                            box-shadow: 0 0 0 1px #f97316, 0 0 5px #f9731640, 0 0 10px #fb923c20;
+                        }
+                        50% {
+                            box-shadow: 0 0 0 2px #fb923c, 0 0 10px #f9731660, 0 0 20px #fb923c40, 0 0 30px #f59e0b20;
+                        }
+                    }
+                `}</style>
         </div>
     )
 }

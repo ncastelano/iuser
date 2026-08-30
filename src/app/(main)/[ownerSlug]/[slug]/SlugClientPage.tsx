@@ -1,0 +1,161 @@
+//app/(main)/[ownerSlug]/[slug]/SlugClientPage.tsx
+'use client'
+
+import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
+import { useTheme } from '@/app/theme'
+import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { ProductClientPage } from './ProductClientPage'
+import { PublicationClientPage } from './PublicationClientePage'
+
+type ItemType = 'publication' | 'product' | null
+
+export default function SlugClientPage() {
+    const params = useParams()
+    const router = useRouter()
+    const { colors } = useTheme()
+    const { avatarUrl, bgMode, customBgUrl, profileSlug, loading: profileLoading } = useProfile()
+
+    const ownerSlug = (Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug) ?? ''
+    const slug = (Array.isArray(params.slug) ? params.slug[0] : params.slug) ?? ''
+
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [itemType, setItemType] = useState<ItemType>(null)
+    const [itemData, setItemData] = useState<any>(null)
+
+    useEffect(() => {
+        const detectItemType = async () => {
+            if (!slug || !ownerSlug) {
+                setError('Parâmetros inválidos')
+                setLoading(false)
+                return
+            }
+
+            setLoading(true)
+            setError(null)
+
+            try {
+                // Primeiro, tenta buscar pelo slug
+                let { data: item, error: itemError } = await supabase
+                    .from('products')
+                    .select('id, listing_type, store_id, owner_id')
+                    .eq('slug', slug)
+                    .maybeSingle()
+
+                // Se não encontrou pelo slug, tenta pelo ID
+                if (itemError || !item) {
+                    const { data: itemById, error: byIdErr } = await supabase
+                        .from('products')
+                        .select('id, listing_type, store_id, owner_id')
+                        .eq('id', slug)
+                        .maybeSingle()
+
+                    if (byIdErr || !itemById) {
+                        throw new Error('Item não encontrado')
+                    }
+                    item = itemById
+                }
+
+                // Verifica se o item pertence ao ownerSlug correto
+                // Se for produto de loja, verifica se a loja pertence ao ownerSlug
+                if (item.listing_type === 'product' && item.store_id) {
+                    const { data: store, error: storeErr } = await supabase
+                        .from('stores')
+                        .select('storeSlug')
+                        .eq('id', item.store_id)
+                        .maybeSingle()
+
+                    if (storeErr || !store || store.storeSlug !== ownerSlug) {
+                        throw new Error('Produto não pertence a esta loja')
+                    }
+                }
+                // Se for publicação, verifica se o perfil pertence ao ownerSlug
+                else if (item.listing_type === 'publication' && item.owner_id) {
+                    const { data: profile, error: profileErr } = await supabase
+                        .from('profiles')
+                        .select('profileSlug')
+                        .eq('id', item.owner_id)
+                        .maybeSingle()
+
+                    if (profileErr || !profile || profile.profileSlug !== ownerSlug) {
+                        throw new Error('Publicação não pertence a este perfil')
+                    }
+                }
+
+                setItemType(item.listing_type as ItemType)
+                setItemData(item)
+
+            } catch (err: any) {
+                console.error('Erro ao detectar tipo do item:', err)
+                setError(err.message || 'Item não encontrado')
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        detectItemType()
+    }, [slug, ownerSlug])
+
+    if (loading) {
+        return <LoadingSpinner message="Carregando..." background={colors.background} />
+    }
+
+    if (error || !itemType || !itemData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center px-4" style={{ background: colors.background }}>
+                <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                    <div className="text-6xl">🔍</div>
+                    <h2 className="text-2xl font-black" style={{ color: colors.textPrimary }}>
+                        {error || 'Item não encontrado'}
+                    </h2>
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        O item que você está procurando não existe ou foi removido.
+                    </p>
+                    <button
+                        onClick={() => router.push(`/${ownerSlug}`)}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition hover:scale-105"
+                        style={{ background: colors.accent, color: '#fff' }}
+                    >
+                        Voltar para {ownerSlug}
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // Renderiza o componente correto baseado no tipo
+    if (itemType === 'publication') {
+        return (
+            <PublicationClientPage
+                ownerSlug={ownerSlug}
+                slug={slug}
+                colors={colors}
+                bgMode={bgMode}
+                customBgUrl={customBgUrl}
+                profileSlug={profileSlug}
+                avatarUrl={avatarUrl}
+                profileLoading={profileLoading}
+            />
+        )
+    }
+
+    if (itemType === 'product') {
+        return (
+            <ProductClientPage
+                ownerSlug={ownerSlug}
+                slug={slug}
+                colors={colors}
+                bgMode={bgMode}
+                customBgUrl={customBgUrl}
+                profileSlug={profileSlug}
+                avatarUrl={avatarUrl}
+                profileLoading={profileLoading}
+            />
+        )
+    }
+
+    return null
+}

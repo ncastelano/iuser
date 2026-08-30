@@ -641,7 +641,7 @@ export default function AllStoreList() {
 
             <main className="relative z-10 min-h-dvh" style={{ overscrollBehavior: 'none' }}>
                 <Header
-                    title="Lojas em Destaque"
+                    title="Todas as Lojas"
                     showBack={true}
                     onBack={() => router.push('/')}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}

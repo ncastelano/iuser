@@ -131,6 +131,7 @@ export default function HomePage() {
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
+    const [hasInteractedWithSearch, setHasInteractedWithSearch] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [showCreateStore, setShowCreateStore] = useState(false)
@@ -660,7 +661,7 @@ export default function HomePage() {
         } else {
             allTabs.push({
                 id: 'criar-loja',
-                label: 'Quer criar uma loja?',
+                label: 'Cadastrar loja?',
                 icon: Store,
                 imageUrl: null,
                 onClick: isLoggedIn
@@ -676,6 +677,12 @@ export default function HomePage() {
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
 
+    // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
+    const isLoginScreen = showLogin || showCreateStore
+
+    // ===== VERIFICAR SE ESTÁ EM DASHBOARD =====
+    const isDashboardScreen = showProfile || showStoreDashboard
+
     // ===== VERIFICAR SE ESTÁ PESQUISANDO =====
     const isSearching = searchQuery.trim().length > 0
 
@@ -687,6 +694,17 @@ export default function HomePage() {
             searchInputRef.current.blur()
         }
     }
+
+    // ===== FUNÇÃO PARA FOCAR A BUSCA =====
+    const handleSearchFocus = () => {
+        setHasInteractedWithSearch(true)
+        if (!isSearching && !isLoginScreen && !isDashboardScreen) {
+            setSearchFocused(true)
+        }
+    }
+
+    // ===== VERIFICAR SE DEVE MOSTRAR A BUSCA =====
+    const shouldShowSearch = !isLoginScreen && !isDashboardScreen
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
@@ -702,16 +720,14 @@ export default function HomePage() {
                     avatarUrl={avatarUrl}
                     loading={loading}
                     tabs={tabs}
-                    showSearch={true}
+                    showSearch={shouldShowSearch}
                     searchPlaceholder="Procurar, espetinho, cabeleireiro..."
                     searchValue={searchQuery}
                     searchRef={searchInputRef}
                     onSearch={(query) => {
                         setSearchQuery(query)
                     }}
-                    onSearchFocus={() => {
-                        setSearchFocused(true)
-                    }}
+                    onSearchFocus={handleSearchFocus}
                     onSearchBlur={() => {
                         setTimeout(() => {
                             const activeElement = document.activeElement
@@ -724,20 +740,22 @@ export default function HomePage() {
                     }}
                     profileSlug={profileSlug}
                     locationElement={
-                        <button
-                            onClick={() => setShowLocationDialog(true)}
-                            disabled={isSavingLocation}
-                            className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
-                            style={{ color: colors.textPrimary }}
-                        >
-                            <MapPin size={14} />
-                            {isSavingLocation
-                                ? 'Salvando...'
-                                : savedLocation
-                                    ? formatAddress(savedLocation.address, savedLocation.addressNumber)
-                                    : 'Definir local'
-                            }
-                        </button>
+                        shouldShowSearch && (
+                            <button
+                                onClick={() => setShowLocationDialog(true)}
+                                disabled={isSavingLocation}
+                                className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-black/10 hover:bg-black/20 transition disabled:opacity-50"
+                                style={{ color: colors.textPrimary }}
+                            >
+                                <MapPin size={14} />
+                                {isSavingLocation
+                                    ? 'Salvando...'
+                                    : savedLocation
+                                        ? formatAddress(savedLocation.address, savedLocation.addressNumber)
+                                        : 'Definir local'
+                                }
+                            </button>
+                        )
                     }
                 />
 
@@ -770,7 +788,6 @@ export default function HomePage() {
                     />
                 ) : (
                     <div className="mt-2 px-4 md:px-6">
-                        {/* ===== SEARCH RESULTS - APARECE QUANDO PESQUISANDO ===== */}
                         {isSearching ? (
                             <div className="mb-6">
                                 <SearchResultsSection
@@ -784,8 +801,7 @@ export default function HomePage() {
                             </div>
                         ) : (
                             <>
-                                {/* ===== LAST SEARCHED - APARECE APENAS QUANDO FOCADO ===== */}
-                                {searchFocused && !searchQuery.trim() && (
+                                {searchFocused && !isSearching && hasInteractedWithSearch && (
                                     <div
                                         className="mb-6 last-searched-container"
                                         ref={lastSearchedRef}
@@ -805,8 +821,7 @@ export default function HomePage() {
                                     </div>
                                 )}
 
-                                {/* ===== SEÇÕES DA HOME - OCULTAS DURANTE PESQUISA ===== */}
-                                {!searchFocused && !searchQuery.trim() && (
+                                {!searchFocused && !isSearching && (
                                     <>
                                         {editMode ? (
                                             <div className="space-y-6">
@@ -895,7 +910,8 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                {showLocationDialog && (
+                {/* ===== LOCATION PICKER - APENAS QUANDO NÃO ESTÁ EM TELA DE LOGIN/REGISTRO ===== */}
+                {!isLoginScreen && !isDashboardScreen && showLocationDialog && (
                     <LocationPicker
                         initialLocation={savedLocation ? {
                             lat: savedLocation.lat,
