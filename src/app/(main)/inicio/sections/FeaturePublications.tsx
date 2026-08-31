@@ -2,10 +2,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, Store, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Store, ArrowRight, UserCircle } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { getAvatarUrl } from '@/lib/avatar'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -15,9 +16,13 @@ interface PublicationCard {
     id: string
     slug: string
     imageUrl: string | null
-    storeName: string
-    storeSlug: string
-    storeLogoUrl: string | null
+    title: string | null
+    ownerName: string
+    ownerSlug: string
+    ownerImageUrl: string | null
+    ownerType: 'profile' | 'store'
+    ownerId: string
+    isProfileAvatar: boolean
 }
 
 // ---------- Props ----------
@@ -38,26 +43,13 @@ function usePublications() {
         const fetchPublications = async () => {
             setLoading(true)
             try {
-                // Busca lojas
-                const { data: storesList, error: storesErr } = await supabase
-                    .from('stores')
-                    .select('id, name, storeSlug, logo_url')
-
-                if (storesErr) {
-                    console.error('[FeaturedPublications] Erro ao buscar lojas:', storesErr)
-                    setLoading(false)
-                    return
-                }
-                const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
-
-                // Busca publicações ativas (incluindo slug)
                 const { data: publicationsList, error: pubErr } = await supabase
                     .from('products')
-                    .select('id, slug, image_url, store_id')
+                    .select('id, slug, name, description, image_url, store_id, owner_id, listing_type')
                     .eq('listing_type', 'publication')
                     .eq('is_active', true)
                     .order('view_count', { ascending: false })
-                    .limit(20)
+                    .limit(30)
 
                 if (pubErr) {
                     console.error('[FeaturedPublications] Erro ao buscar publicações:', pubErr)
@@ -74,28 +66,118 @@ function usePublications() {
 
                 console.log(`[FeaturedPublications] ${publicationsList.length} publicações encontradas`)
 
+                const withStore = publicationsList.filter(p => p.store_id)
+                const withProfile = publicationsList.filter(p => p.owner_id && !p.store_id)
+
+                const storeIds = [...new Set(withStore.map(p => p.store_id).filter(Boolean))] as string[]
+                let storeMap = new Map()
+                if (storeIds.length > 0) {
+                    const { data: storesList } = await supabase
+                        .from('stores')
+                        .select('id, name, storeSlug, logo_url, owner_id')
+                        .in('id', storeIds)
+
+                    if (storesList) {
+                        storeMap = new Map(storesList.map(s => [s.id, s]))
+                    }
+                }
+
+                const profileIds = [...new Set([
+                    ...withProfile.map(p => p.owner_id).filter(Boolean),
+                    ...withStore.map(p => {
+                        const store = storeMap.get(p.store_id)
+                        return store?.owner_id
+                    }).filter(Boolean)
+                ])] as string[]
+
+                let profileMap = new Map()
+                if (profileIds.length > 0) {
+                    const { data: profilesList } = await supabase
+                        .from('profiles')
+                        .select('id, name, avatar_url, profileSlug')
+                        .in('id', profileIds)
+
+                    if (profilesList) {
+                        profileMap = new Map(profilesList.map(p => [p.id, p]))
+                    }
+                }
+
                 const cards: PublicationCard[] = publicationsList.map(pub => {
-                    const store = storeMap.get(pub.store_id)
+                    let ownerType: 'profile' | 'store' = 'profile'
+                    let ownerName = 'Usuário'
+                    let ownerSlug = '#'
+                    let ownerImageUrl: string | null = null
+                    let isProfileAvatar = true
+                    let ownerId = pub.owner_id || ''
+
+                    if (pub.store_id) {
+                        const store = storeMap.get(pub.store_id)
+                        if (store) {
+                            ownerType = 'store'
+                            ownerName = store.name || 'Loja'
+                            ownerSlug = store.storeSlug || '#'
+                            ownerImageUrl = store.logo_url || null
+                            isProfileAvatar = false
+                            ownerId = store.owner_id || pub.owner_id || ''
+                        } else {
+                            if (pub.owner_id) {
+                                const profile = profileMap.get(pub.owner_id)
+                                if (profile) {
+                                    ownerType = 'profile'
+                                    ownerName = profile.name || 'Usuário'
+                                    ownerSlug = profile.profileSlug || '#'
+                                    ownerImageUrl = profile.avatar_url || null
+                                    isProfileAvatar = true
+                                    ownerId = profile.id
+                                }
+                            }
+                        }
+                    } else if (pub.owner_id) {
+                        const profile = profileMap.get(pub.owner_id)
+                        if (profile) {
+                            ownerType = 'profile'
+                            ownerName = profile.name || 'Usuário'
+                            ownerSlug = profile.profileSlug || '#'
+                            ownerImageUrl = profile.avatar_url || null
+                            isProfileAvatar = true
+                            ownerId = profile.id
+                        }
+                    }
 
                     const imageUrl = pub.image_url
                         ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
                         : null
 
-                    const logoUrl = store?.logo_url
-                        ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                        : null
+                    let finalOwnerImage: string | null = null
+
+                    if (ownerImageUrl) {
+                        if (isProfileAvatar) {
+                            finalOwnerImage = getAvatarUrl(supabase, ownerImageUrl) || null
+                        } else {
+                            try {
+                                const { data } = supabase.storage.from('store-logos').getPublicUrl(ownerImageUrl)
+                                finalOwnerImage = data?.publicUrl || null
+                            } catch {
+                                finalOwnerImage = null
+                            }
+                        }
+                    }
 
                     return {
                         id: pub.id,
-                        slug: pub.slug || pub.id,  // Fallback para ID se slug não existir
+                        slug: pub.slug || pub.id,
                         imageUrl,
-                        storeName: store?.name ?? 'Loja desconhecida',
-                        storeSlug: store?.storeSlug ?? '#',
-                        storeLogoUrl: logoUrl,
+                        title: pub.name || null,
+                        ownerName,
+                        ownerSlug,
+                        ownerImageUrl: finalOwnerImage,
+                        ownerType,
+                        ownerId,
+                        isProfileAvatar
                     }
                 })
 
-                console.log('[FeaturedPublications] Cards gerados:', cards.map(c => ({ id: c.id, slug: c.slug, storeName: c.storeName })))
+                console.log('[FeaturedPublications] Cards gerados:', cards.length)
                 setPublications(cards)
             } catch (error) {
                 console.error('[FeaturedPublications] Erro inesperado:', error)
@@ -153,20 +235,16 @@ export default function FeaturedPublications({
     const { publications, loading } = usePublications()
     const itemsPerView = useBreakpoint()
 
-    // Aplica maxItems se fornecido
     const displayPublications = useMemo(() => {
         const result = maxItems && publications.length > maxItems
             ? publications.slice(0, maxItems)
             : publications
-
-        console.log('[FeaturedPublications] displayPublications:', result.length, 'itens')
         return result
     }, [publications, maxItems])
 
     const [currentIndex, setCurrentIndex] = useState(0)
     const [isHovered, setIsHovered] = useState(false)
 
-    // ===== VERIFICA SE HÁ PUBLICAÇÕES =====
     const hasPublications = useMemo(() => {
         return displayPublications.length > 0
     }, [displayPublications])
@@ -195,7 +273,6 @@ export default function FeaturedPublications({
         }
     }, [isHovered, totalPages, displayPublications.length])
 
-    // Reset current index quando itemsPerView muda
     useEffect(() => {
         setCurrentIndex(0)
     }, [itemsPerView])
@@ -234,18 +311,20 @@ export default function FeaturedPublications({
                 : itemsPerView >= 3 ? 'grid-cols-3'
                     : 'grid-cols-2'
 
-    // ===== HANDLE CLICK - VAI PARA /publicacoes/[slug] =====
+    // ===== HANDLE CLICK =====
     const handlePublicationClick = (pub: PublicationCard) => {
-        // Navega diretamente para a página da publicação usando o slug
+        if (onPublicationClick) {
+            onPublicationClick(pub.id, pub.slug)
+            return
+        }
         if (pub.slug) {
             router.push(`/publicacoes/${pub.slug}`)
         } else {
-            // Fallback para ID se não tiver slug
             router.push(`/publicacoes/${pub.id}`)
         }
     }
 
-    // ===== HANDLE "VER TODOS" - VAI PARA /publicacoes =====
+    // ===== HANDLE "VER TODOS" =====
     const handleViewAll = () => {
         router.push('/publicacoes')
     }
@@ -285,7 +364,7 @@ export default function FeaturedPublications({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Título com dragHandle e botão "Ver todos" estilo PILLS */}
+            {/* Título */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     {dragHandle}
@@ -300,7 +379,6 @@ export default function FeaturedPublications({
                     </span>
                 </div>
 
-                {/* Botão "Ver todos" - vai para a lista de publicações */}
                 {hasPublications && (
                     <button
                         onClick={handleViewAll}
@@ -317,7 +395,7 @@ export default function FeaturedPublications({
                 )}
             </div>
 
-            {/* Grid de publicações - CADA CARD VAI PARA A PÁGINA INDIVIDUAL */}
+            {/* Grid de publicações */}
             <div className="relative">
                 <div className={`grid ${gridCols} gap-4 transition-all duration-500`}>
                     {currentItems.map((pub, idx) => (
@@ -335,7 +413,7 @@ export default function FeaturedPublications({
                                 <>
                                     <img
                                         src={pub.imageUrl}
-                                        alt={pub.storeName}
+                                        alt={pub.title || pub.ownerName}
                                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                                         loading="lazy"
                                     />
@@ -348,27 +426,27 @@ export default function FeaturedPublications({
                                 </div>
                             )}
 
-                            {/* Conteúdo na parte inferior */}
-                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 flex-shrink-0 shadow-lg">
-                                        {pub.storeLogoUrl ? (
-                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <Store size={12} className="text-white/80" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <h3 className="text-white font-semibold text-xs leading-tight truncate drop-shadow-lg">
-                                        {pub.storeName}
-                                    </h3>
+                            {/* Avatar/Logo no canto superior esquerdo */}
+                            <div className="absolute top-2 left-2 z-10">
+                                <div className="w-8 h-8 rounded-full border-2 border-white/40 overflow-hidden bg-black/50 shadow-lg">
+                                    {pub.ownerImageUrl ? (
+                                        <img src={pub.ownerImageUrl} alt="" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div
+                                            className="w-full h-full flex items-center justify-center text-white font-bold text-xs"
+                                            style={{ background: GRADIENT }}
+                                        >
+                                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Badge com slug para debug */}
-                            <div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded text-[8px] font-mono bg-black/60 text-white/70 backdrop-blur-sm">
-                                {pub.slug ? pub.slug.slice(0, 12) : 'sem-slug'}
+                            {/* Conteúdo na parte inferior - Apenas título da publicação */}
+                            <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
+                                <h3 className="text-white font-semibold text-sm leading-tight line-clamp-2 drop-shadow-lg">
+                                    {pub.title || 'Publicação'}
+                                </h3>
                             </div>
 
                             {/* Efeito de brilho no hover */}

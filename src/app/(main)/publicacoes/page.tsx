@@ -19,41 +19,86 @@ import {
     Share2,
     Calendar,
     User,
+    MessageCircle,
+    Pencil,
+    Trash2,
+    Plus,
+    Megaphone,
+    MessageSquare,
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
+import { getAvatarUrl } from '@/lib/avatar'
+import { handleShareLink } from '@/lib/share'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
+// ========== FUNÇÃO HEX TO RGB ==========
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255,
+    }
+}
+
 // ========== TIPOS ==========
+interface TopComment {
+    id: string
+    content: string
+    profile_id: string
+    like_count: number
+    profiles?: {
+        id: string
+        name: string
+        avatar_url: string | null
+        profileSlug: string
+    }
+}
+
 interface PublicationCard {
     id: string
+    slug: string
     imageUrl: string | null
-    storeName: string
-    storeSlug: string
-    storeLogoUrl: string | null
+    ownerName: string
+    ownerSlug: string
+    ownerImageUrl: string | null
+    ownerType: 'profile' | 'store'
+    ownerId: string
+    isProfileAvatar: boolean
     title: string
     description?: string | null
     view_count?: number
     created_at?: string
-    price?: number
-    listing_type?: string
+    like_count?: number
+    comment_count?: number
+    is_liked?: boolean
+    top_comment?: TopComment | null
 }
 
-// ========== COMPONENTE CARD - ESTILO BLOG ==========
+// ========== COMPONENTE CARD ==========
 function PublicationCardComponent({
     pub,
-    onClick,
     colors,
+    currentUserId,
+    onLike,
 }: {
     pub: PublicationCard
-    onClick: () => void
     colors: any
+    currentUserId?: string | null
+    onLike?: (pubId: string) => void
 }) {
+    const router = useRouter()
+    const [isLiked, setIsLiked] = useState(pub.is_liked || false)
+    const [likeCount, setLikeCount] = useState(pub.like_count || 0)
+    const [liking, setLiking] = useState(false)
+
     const formattedDate = pub.created_at
         ? new Date(pub.created_at).toLocaleDateString('pt-BR', {
             day: 'numeric',
@@ -62,152 +107,264 @@ function PublicationCardComponent({
         })
         : ''
 
+    const handleLike = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!currentUserId) {
+            toast.error('Faça login para curtir')
+            return
+        }
+        if (liking) return
+
+        setLiking(true)
+        try {
+            if (isLiked) {
+                const { error } = await supabase
+                    .from('likes')
+                    .delete()
+                    .eq('publication_id', pub.id)
+                    .eq('profile_id', currentUserId)
+                if (error) throw error
+                setIsLiked(false)
+                setLikeCount(prev => prev - 1)
+                onLike?.(pub.id)
+            } else {
+                const { error } = await supabase
+                    .from('likes')
+                    .insert({
+                        publication_id: pub.id,
+                        profile_id: currentUserId
+                    })
+                if (error) throw error
+                setIsLiked(true)
+                setLikeCount(prev => prev + 1)
+                onLike?.(pub.id)
+            }
+        } catch (error: any) {
+            toast.error('Erro ao curtir: ' + error.message)
+        } finally {
+            setLiking(false)
+        }
+    }
+
+    const handleClick = () => {
+        if (pub.slug) {
+            router.push(`/publicacoes/${pub.slug}`)
+        } else {
+            router.push(`/publicacoes/${pub.id}`)
+        }
+    }
+
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
     return (
         <div
-            onClick={onClick}
-            className="group rounded-2xl overflow-hidden border transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 cursor-pointer flex flex-col"
+            className="rounded-2xl p-5 flex flex-col gap-1"
             style={{
-                background: colors.surface,
-                borderColor: colors.border,
+                background: cardBg,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+            }}
+            onClick={handleClick}
+            onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.01)'
+                e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.15)'
+            }}
+            onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = colors.shadow
             }}
         >
-            {/* Imagem com overlay */}
-            <div
-                className="relative w-full overflow-hidden flex-shrink-0"
-                style={{ aspectRatio: '4/3' }}
-            >
-                {pub.imageUrl ? (
-                    <>
-                        <img
-                            src={pub.imageUrl}
-                            alt={pub.title || pub.storeName}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            loading="lazy"
-                        />
-                        {/* Overlay gradiente */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    </>
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center"
-                        style={{ background: GRADIENT, opacity: 0.3 }}>
-                        <Store className="w-16 h-16 opacity-50" style={{ color: colors.textPrimary }} />
-                    </div>
-                )}
-
-                {/* Badge de visualizações */}
-                {pub.view_count && pub.view_count > 0 && (
-                    <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full text-[9px] font-medium shadow-md flex items-center gap-1.5 backdrop-blur-sm"
-                        style={{
-                            background: 'rgba(0,0,0,0.6)',
-                            color: '#fff',
-                        }}
-                    >
-                        <Eye className="w-3 h-3" />
-                        {pub.view_count}
-                    </div>
-                )}
-
-                {/* Data no canto superior */}
-                {formattedDate && (
-                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[8px] font-medium backdrop-blur-sm flex items-center gap-1.5"
-                        style={{
-                            background: 'rgba(0,0,0,0.6)',
-                            color: '#fff',
-                        }}
-                    >
-                        <Calendar className="w-3 h-3" />
-                        {formattedDate}
-                    </div>
-                )}
-            </div>
-
-            {/* Conteúdo */}
-            <div className="p-4 space-y-3 flex-1 flex flex-col">
-                {/* Loja */}
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 border-2"
-                        style={{ borderColor: colors.border }}>
-                        {pub.storeLogoUrl ? (
-                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center"
-                                style={{ background: colors.border }}>
-                                <Store size={14} style={{ color: colors.textSecondary }} />
-                            </div>
-                        )}
-                    </div>
-                    <span className="text-xs font-medium truncate" style={{ color: colors.textSecondary }}>
-                        {pub.storeName}
-                    </span>
+            {/* Header do card */}
+            <div className="flex items-start gap-3">
+                <div
+                    className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                    style={{ background: GRADIENT }}
+                >
+                    {pub.ownerImageUrl ? (
+                        <img src={pub.ownerImageUrl} className="w-full h-full object-cover" alt={pub.ownerName} />
+                    ) : (
+                        <span className="text-white font-bold text-lg">
+                            {pub.ownerName?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                    )}
                 </div>
 
-                {/* Título */}
-                <h3 className="text-base font-bold leading-tight line-clamp-2" style={{ color: colors.textPrimary }}>
-                    {pub.title || 'Sem título'}
-                </h3>
-
-                {/* Descrição */}
-                {pub.description && (
-                    <p className="text-xs line-clamp-2 flex-1" style={{ color: colors.textSecondary }}>
-                        {pub.description}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                            {pub.ownerName}
+                        </span>
+                        <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                            • {formattedDate || 'Data desconhecida'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase" style={{ background: '#10b98120', color: '#10b981' }}>
+                            Novidade
+                        </span>
+                    </div>
+                    <p className="text-sm font-bold mt-1" style={{ color: colors.textPrimary }}>
+                        {pub.title || 'Sem título'}
                     </p>
-                )}
-
-                {/* Rodapé do card */}
-                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <span className="text-[9px] font-medium flex items-center gap-1" style={{ color: colors.textSecondary }}>
-                        <User className="w-3 h-3" />
-                        {pub.storeName}
-                    </span>
-
-                    <div className="flex items-center gap-3">
-                        <button
-                            className="p-1 rounded-full transition-all hover:scale-110"
-                            style={{ color: colors.textSecondary }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <Heart className="w-4 h-4" />
-                        </button>
-                        <button
-                            className="p-1 rounded-full transition-all hover:scale-110"
-                            style={{ color: colors.textSecondary }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <Share2 className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {pub.description && (
+                        <p className="text-xs mt-1 line-clamp-2" style={{ color: colors.textSecondary }}>
+                            {pub.description}
+                        </p>
+                    )}
                 </div>
             </div>
+
+            {/* Imagem da publicação */}
+            {pub.imageUrl && (
+                <div className="mt-3 rounded-xl overflow-hidden">
+                    <img src={pub.imageUrl} className="w-full max-h-[300px] object-cover" alt={pub.title} />
+                </div>
+            )}
+
+            {/* Ações da publicação */}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t flex-wrap" style={{ borderColor: colors.border }}>
+                <button
+                    onClick={handleLike}
+                    disabled={liking}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105 disabled:opacity-50"
+                    style={{
+                        background: isLiked ? '#ef444420' : 'rgba(255,255,255,0.05)',
+                        color: isLiked ? '#ef4444' : colors.textSecondary,
+                        border: isLiked ? '1px solid #ef444440' : `1px solid ${colors.border}`,
+                    }}
+                >
+                    <Heart size={12} fill={isLiked ? '#ef4444' : 'none'} />
+                    <span>{likeCount}</span>
+                </button>
+
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        handleClick()
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                    style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        color: colors.textSecondary,
+                        border: `1px solid ${colors.border}`,
+                    }}
+                >
+                    <MessageCircle size={12} />
+                    <span>{pub.comment_count || 0}</span>
+                </button>
+
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        handleShareLink({
+                            title: pub.title || 'Publicação',
+                            text: pub.description || `Confira esta publicação no iUser!`,
+                            url: `${window.location.origin}/publicacoes/${pub.slug || pub.id}`
+                        })
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                    style={{
+                        background: GRADIENT,
+                        color: '#ffffff',
+                        boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
+                        border: 'none',
+                    }}
+                >
+                    <Share2 size={12} />
+                    Compartilhar
+                </button>
+            </div>
+
+            {/* Comentário mais curtido (embaixo das ações) */}
+            {pub.top_comment && (
+                <div
+                    className="mt-3 p-3 rounded-xl border-l-4 transition-all hover:opacity-90"
+                    style={{
+                        background: `${colors.surface}50`,
+                        borderColor: '#f97316',
+                        borderLeftWidth: '4px',
+                    }}
+                >
+                    <div className="flex items-start gap-2">
+                        <div
+                            className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                            style={{ background: GRADIENT }}
+                        >
+                            {pub.top_comment.profiles?.avatar_url ? (
+                                <img
+                                    src={getAvatarUrl(supabase, pub.top_comment.profiles.avatar_url) || ''}
+                                    className="w-full h-full object-cover"
+                                    alt={pub.top_comment.profiles?.name || 'Usuário'}
+                                />
+                            ) : (
+                                <span className="text-white font-bold text-[10px]">
+                                    {pub.top_comment.profiles?.name?.charAt(0).toUpperCase() || '?'}
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                                    {pub.top_comment.profiles?.name || 'Usuário'}
+                                </span>
+                                <span className="text-[9px]" style={{ color: colors.textSecondary }}>
+                                    • Comentário mais curtido
+                                </span>
+                            </div>
+                            <p className="text-xs mt-0.5 line-clamp-2" style={{ color: colors.textSecondary }}>
+                                "{pub.top_comment.content}"
+                            </p>
+                            <div className="flex items-center gap-1 mt-1">
+                                <Heart size={10} fill="#ef4444" color="#ef4444" />
+                                <span className="text-[9px] font-semibold" style={{ color: colors.textSecondary }}>
+                                    {pub.top_comment.like_count} {pub.top_comment.like_count === 1 ? 'curtida' : 'curtidas'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
 
 // ========== SKELETON CARD ==========
 function PublicationCardSkeleton({ colors }: { colors: any }) {
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
     return (
-        <div className="rounded-2xl overflow-hidden border flex flex-col"
+        <div
+            className="rounded-2xl p-5 flex flex-col gap-1"
             style={{
-                borderColor: colors.border,
-                background: colors.surface,
+                background: cardBg,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: `1px solid ${colors.border}`,
+                boxShadow: colors.shadow,
             }}
         >
-            <div className="relative w-full aspect-[4/3] overflow-hidden flex-shrink-0"
-                style={{ background: `${colors.border}50` }} />
-            <div className="p-4 space-y-3 flex-1 flex flex-col">
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full" style={{ background: `${colors.border}30` }} />
-                    <div className="h-3 rounded w-24" style={{ background: `${colors.border}30` }} />
-                </div>
-                <div className="h-5 rounded w-3/4" style={{ background: `${colors.border}40` }} />
-                <div className="h-3 rounded w-full" style={{ background: `${colors.border}25` }} />
-                <div className="h-3 rounded w-2/3" style={{ background: `${colors.border}25` }} />
-                <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: colors.border }}>
-                    <div className="h-3 rounded w-20" style={{ background: `${colors.border}25` }} />
-                    <div className="flex gap-3">
-                        <div className="w-4 h-4 rounded-full" style={{ background: `${colors.border}25` }} />
-                        <div className="w-4 h-4 rounded-full" style={{ background: `${colors.border}25` }} />
+            <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 animate-pulse" style={{ background: `${colors.border}30` }} />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="h-4 rounded w-24 animate-pulse" style={{ background: `${colors.border}30` }} />
+                        <div className="h-3 rounded w-16 animate-pulse" style={{ background: `${colors.border}20` }} />
                     </div>
+                    <div className="h-5 rounded w-3/4 mt-1 animate-pulse" style={{ background: `${colors.border}30` }} />
+                    <div className="h-3 rounded w-full mt-1 animate-pulse" style={{ background: `${colors.border}20` }} />
+                    <div className="h-3 rounded w-2/3 mt-0.5 animate-pulse" style={{ background: `${colors.border}20` }} />
                 </div>
+            </div>
+            <div className="mt-3 h-48 rounded-xl animate-pulse" style={{ background: `${colors.border}20` }} />
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t" style={{ borderColor: colors.border }}>
+                <div className="h-8 w-16 rounded-full animate-pulse" style={{ background: `${colors.border}20` }} />
+                <div className="h-8 w-16 rounded-full animate-pulse" style={{ background: `${colors.border}20` }} />
+                <div className="h-8 w-20 rounded-full animate-pulse" style={{ background: `${colors.border}20` }} />
             </div>
         </div>
     )
@@ -228,11 +385,20 @@ export default function AllPublicationsPage() {
     const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [hasMore, setHasMore] = useState(true)
     const [page, setPage] = useState(0)
 
-    const ITEMS_PER_LOAD = 12
+    const ITEMS_PER_LOAD = 10
+
+    // ===== CARREGAR USUÁRIO =====
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            setCurrentUserId(user?.id || null)
+        }
+        getUser()
+    }, [])
 
     // ===== CARREGAR PUBLICAÇÕES =====
     const loadPublications = useCallback(async () => {
@@ -240,31 +406,24 @@ export default function AllPublicationsPage() {
         setError(null)
 
         try {
-            const { data: storesList, error: storesErr } = await supabase
-                .from('stores')
-                .select('id, name, storeSlug, logo_url')
-
-            if (storesErr) throw new Error('Erro ao buscar lojas: ' + storesErr.message)
-
-            const storeMap = new Map(storesList?.map(s => [s.id, s]) || [])
-
             const { data: publicationsList, error: pubErr } = await supabase
                 .from('products')
                 .select(`
                     id,
+                    slug,
                     name,
-                    image_url,
-                    store_id,
                     description,
+                    image_url,
                     view_count,
                     created_at,
-                    price,
+                    store_id,
+                    owner_id,
                     listing_type
                 `)
                 .eq('listing_type', 'publication')
                 .eq('is_active', true)
-                .order('view_count', { ascending: false })
-                .limit(200)
+                .order('created_at', { ascending: false })
+                .limit(100)
 
             if (pubErr) throw new Error('Erro ao buscar publicações: ' + pubErr.message)
 
@@ -276,29 +435,191 @@ export default function AllPublicationsPage() {
                 return
             }
 
-            const cards: PublicationCard[] = publicationsList.map(pub => {
-                const store = storeMap.get(pub.store_id)
-                const logoUrl = store?.logo_url
-                    ? supabase.storage.from('store-logos').getPublicUrl(store.logo_url).data.publicUrl
-                    : null
+            const withStore = publicationsList.filter(p => p.store_id)
+            const withProfile = publicationsList.filter(p => p.owner_id && !p.store_id)
+
+            const storeIds = [...new Set(withStore.map(p => p.store_id).filter(Boolean))] as string[]
+            let storeMap = new Map()
+            if (storeIds.length > 0) {
+                const { data: storesList } = await supabase
+                    .from('stores')
+                    .select('id, name, storeSlug, logo_url, owner_id')
+                    .in('id', storeIds)
+
+                if (storesList) {
+                    storeMap = new Map(storesList.map(s => [s.id, s]))
+                }
+            }
+
+            const profileIds = [...new Set([
+                ...withProfile.map(p => p.owner_id).filter(Boolean),
+                ...withStore.map(p => {
+                    const store = storeMap.get(p.store_id)
+                    return store?.owner_id
+                }).filter(Boolean)
+            ])] as string[]
+
+            let profileMap = new Map()
+            if (profileIds.length > 0) {
+                const { data: profilesList } = await supabase
+                    .from('profiles')
+                    .select('id, name, avatar_url, profileSlug')
+                    .in('id', profileIds)
+
+                if (profilesList) {
+                    profileMap = new Map(profilesList.map(p => [p.id, p]))
+                }
+            }
+
+            const cards = await Promise.all(publicationsList.map(async (pub: any) => {
+                let ownerType: 'profile' | 'store' = 'profile'
+                let ownerName = 'Usuário'
+                let ownerSlug = '#'
+                let ownerImageUrl: string | null = null
+                let isProfileAvatar = true
+                let ownerId = pub.owner_id || ''
+
+                if (pub.store_id) {
+                    const store = storeMap.get(pub.store_id)
+                    if (store) {
+                        ownerType = 'store'
+                        ownerName = store.name || 'Loja'
+                        ownerSlug = store.storeSlug || '#'
+                        ownerImageUrl = store.logo_url || null
+                        isProfileAvatar = false
+                        ownerId = store.owner_id || pub.owner_id || ''
+                    } else if (pub.owner_id) {
+                        const profile = profileMap.get(pub.owner_id)
+                        if (profile) {
+                            ownerType = 'profile'
+                            ownerName = profile.name || 'Usuário'
+                            ownerSlug = profile.profileSlug || '#'
+                            ownerImageUrl = profile.avatar_url || null
+                            isProfileAvatar = true
+                            ownerId = profile.id
+                        }
+                    }
+                } else if (pub.owner_id) {
+                    const profile = profileMap.get(pub.owner_id)
+                    if (profile) {
+                        ownerType = 'profile'
+                        ownerName = profile.name || 'Usuário'
+                        ownerSlug = profile.profileSlug || '#'
+                        ownerImageUrl = profile.avatar_url || null
+                        isProfileAvatar = true
+                        ownerId = profile.id
+                    }
+                }
+
+                let finalOwnerImage: string | null = null
+                if (ownerImageUrl) {
+                    if (isProfileAvatar) {
+                        finalOwnerImage = getAvatarUrl(supabase, ownerImageUrl) || null
+                    } else {
+                        try {
+                            const { data } = supabase.storage.from('store-logos').getPublicUrl(ownerImageUrl)
+                            finalOwnerImage = data?.publicUrl || null
+                        } catch {
+                            finalOwnerImage = null
+                        }
+                    }
+                }
+
                 const imageUrl = pub.image_url
                     ? supabase.storage.from('product-images').getPublicUrl(pub.image_url).data.publicUrl
                     : null
 
+                const { count: likeCount } = await supabase
+                    .from('likes')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('publication_id', pub.id)
+
+                const { count: commentCount } = await supabase
+                    .from('comments')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('publication_id', pub.id)
+                    .is('parent_comment_id', null)
+
+                // Buscar comentário mais curtido
+                let topComment: TopComment | null = null
+                const commentCountValue = commentCount || 0
+                if (commentCountValue > 0) {
+                    const { data: commentsData } = await supabase
+                        .from('comments')
+                        .select(`
+                            id,
+                            content,
+                            profile_id,
+                            created_at
+                        `)
+                        .eq('publication_id', pub.id)
+                        .is('parent_comment_id', null)
+                        .limit(10)
+
+                    if (commentsData && commentsData.length > 0) {
+                        const commentsWithLikes = await Promise.all(
+                            commentsData.map(async (comment: any) => {
+                                const { count: cLikeCount } = await supabase
+                                    .from('comment_likes')
+                                    .select('*', { count: 'exact', head: true })
+                                    .eq('comment_id', comment.id)
+
+                                let profileData = profileMap.get(comment.profile_id)
+                                if (!profileData) {
+                                    const { data: fetchedProfile } = await supabase
+                                        .from('profiles')
+                                        .select('id, name, avatar_url, profileSlug')
+                                        .eq('id', comment.profile_id)
+                                        .maybeSingle()
+                                    profileData = fetchedProfile
+                                }
+
+                                return {
+                                    id: comment.id,
+                                    content: comment.content,
+                                    profile_id: comment.profile_id,
+                                    like_count: cLikeCount || 0,
+                                    profiles: profileData || undefined,
+                                }
+                            })
+                        )
+
+                        commentsWithLikes.sort((a, b) => (b.like_count || 0) - (a.like_count || 0))
+                        topComment = commentsWithLikes[0]
+                    }
+                }
+
+                let isLiked = false
+                if (currentUserId) {
+                    const { data: likeData } = await supabase
+                        .from('likes')
+                        .select('id')
+                        .eq('publication_id', pub.id)
+                        .eq('profile_id', currentUserId)
+                        .maybeSingle()
+                    isLiked = !!likeData
+                }
+
                 return {
                     id: pub.id,
+                    slug: pub.slug || pub.id,
                     imageUrl,
-                    storeName: store?.name ?? 'Loja desconhecida',
-                    storeSlug: store?.storeSlug ?? '#',
-                    storeLogoUrl: logoUrl,
+                    ownerName,
+                    ownerSlug,
+                    ownerImageUrl: finalOwnerImage,
+                    ownerType,
+                    ownerId,
+                    isProfileAvatar,
                     title: pub.name || 'Sem título',
                     description: pub.description,
                     view_count: pub.view_count || 0,
                     created_at: pub.created_at,
-                    price: pub.price,
-                    listing_type: pub.listing_type,
+                    like_count: likeCount || 0,
+                    comment_count: commentCount || 0,
+                    is_liked: isLiked,
+                    top_comment: topComment,
                 }
-            })
+            }))
 
             setPublications(cards)
             setDisplayedPublications(cards.slice(0, ITEMS_PER_LOAD))
@@ -311,7 +632,7 @@ export default function AllPublicationsPage() {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [currentUserId])
 
     useEffect(() => {
         loadPublications()
@@ -326,7 +647,7 @@ export default function AllPublicationsPage() {
             filtered = filtered.filter(
                 p =>
                     p.title.toLowerCase().includes(q) ||
-                    p.storeName.toLowerCase().includes(q) ||
+                    p.ownerName.toLowerCase().includes(q) ||
                     (p.description && p.description.toLowerCase().includes(q))
             )
         }
@@ -390,32 +711,22 @@ export default function AllPublicationsPage() {
         }
     }, [loading, hasMore, loadingMore, loadMore])
 
-    // ===== HANDLE PUBLICATION CLICK =====
-    // ===== HANDLE PUBLICATION CLICK - VAI PARA /publicacoes/{slug} =====
-    const handlePublicationClick = (pub: PublicationCard) => {
-        // Busca o slug da publicação
-        const publicationSlug = pub.id // fallback: usa o ID se não tiver slug
-
-        // Tenta buscar o slug real da publicação
-        const fetchSlug = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('products')
-                    .select('slug')
-                    .eq('id', pub.id)
-                    .single()
-
-                if (!error && data?.slug) {
-                    router.push(`/publicacoes/${data.slug}`)
-                } else {
-                    router.push(`/publicacoes/${pub.id}`)
-                }
-            } catch {
-                router.push(`/publicacoes/${pub.id}`)
-            }
-        }
-
-        fetchSlug()
+    // ===== ATUALIZAR CURTIDA =====
+    const handleLikeUpdate = (pubId: string) => {
+        setPublications(prev =>
+            prev.map(p =>
+                p.id === pubId
+                    ? { ...p, is_liked: !p.is_liked, like_count: p.is_liked ? (p.like_count || 0) - 1 : (p.like_count || 0) + 1 }
+                    : p
+            )
+        )
+        setDisplayedPublications(prev =>
+            prev.map(p =>
+                p.id === pubId
+                    ? { ...p, is_liked: !p.is_liked, like_count: p.is_liked ? (p.like_count || 0) - 1 : (p.like_count || 0) + 1 }
+                    : p
+            )
+        )
     }
 
     // ===== RENDER =====
@@ -438,39 +749,18 @@ export default function AllPublicationsPage() {
                     onSearch={setSearchQuery}
                 />
 
-                <section className="px-4 md:px-6 mt-2 pb-24 max-w-7xl mx-auto">
-                    {/* CONTROLES DE VISUALIZAÇÃO */}
-                    <div className="flex items-center justify-end gap-2 mb-6">
-                        <span className="text-xs font-medium mr-auto" style={{ color: colors.textSecondary }}>
+                <section className="px-4 md:px-6 mt-2 pb-24 max-w-4xl mx-auto">
+                    {/* CONTADOR */}
+                    <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
                             {filteredPublications.length} publicações
                         </span>
-
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            className="p-2 rounded-lg transition-all hover:scale-105"
-                            style={{
-                                background: viewMode === 'grid' ? (colors.accent || '#f97316') : 'transparent',
-                                color: viewMode === 'grid' ? '#ffffff' : colors.textSecondary,
-                            }}
-                        >
-                            <Grid size={18} />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className="p-2 rounded-lg transition-all hover:scale-105"
-                            style={{
-                                background: viewMode === 'list' ? (colors.accent || '#f97316') : 'transparent',
-                                color: viewMode === 'list' ? '#ffffff' : colors.textSecondary,
-                            }}
-                        >
-                            <List size={18} />
-                        </button>
                     </div>
 
                     {/* LOADING */}
                     {loading && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {Array.from({ length: 8 }).map((_, i) => (
+                        <div className="space-y-4">
+                            {Array.from({ length: 5 }).map((_, i) => (
                                 <PublicationCardSkeleton key={`skeleton-${i}`} colors={colors} />
                             ))}
                         </div>
@@ -518,104 +808,22 @@ export default function AllPublicationsPage() {
                                         border: `1px solid ${colors.border}`,
                                     }}
                                 >
-                                    <Store className="w-12 h-12 opacity-30" style={{ color: colors.textSecondary }} />
+                                    <Megaphone className="w-12 h-12 opacity-30" style={{ color: colors.textSecondary }} />
                                     <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                                         {searchQuery ? 'Nenhuma publicação encontrada para esta busca.' : 'Nenhuma publicação disponível no momento.'}
                                     </p>
                                 </div>
                             ) : (
                                 <>
-                                    <div className={`grid ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-1'} gap-6`}>
+                                    <div className="space-y-4">
                                         {displayedPublications.map((pub, index) => (
                                             <div key={`${pub.id}-${index}`} className="animate-fadeIn">
-                                                {viewMode === 'grid' ? (
-                                                    <PublicationCardComponent
-                                                        pub={pub}
-                                                        colors={colors}
-                                                        onClick={() => handlePublicationClick(pub)}
-                                                    />
-                                                ) : (
-                                                    // ===== VISUALIZAÇÃO LISTA (estilo blog) =====
-                                                    <div
-                                                        onClick={() => handlePublicationClick(pub)}
-                                                        className="group rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
-                                                        style={{
-                                                            background: colors.surface,
-                                                            borderColor: colors.border,
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col sm:flex-row gap-4 p-4">
-                                                            {/* Imagem */}
-                                                            <div className="w-full sm:w-48 h-48 sm:h-32 rounded-xl overflow-hidden flex-shrink-0"
-                                                                style={{ background: colors.border }}>
-                                                                {pub.imageUrl ? (
-                                                                    <img
-                                                                        src={pub.imageUrl}
-                                                                        alt={pub.title}
-                                                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                                                    />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center"
-                                                                        style={{ background: GRADIENT, opacity: 0.3 }}>
-                                                                        <Store size={32} style={{ color: colors.textSecondary }} />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Info */}
-                                                            <div className="flex-1 min-w-0 flex flex-col">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 border"
-                                                                        style={{ borderColor: colors.border }}>
-                                                                        {pub.storeLogoUrl ? (
-                                                                            <img src={pub.storeLogoUrl} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            <div className="w-full h-full flex items-center justify-center"
-                                                                                style={{ background: colors.border }}>
-                                                                                <Store size={12} style={{ color: colors.textSecondary }} />
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <span className="text-xs font-medium truncate" style={{ color: colors.textSecondary }}>
-                                                                        {pub.storeName}
-                                                                    </span>
-                                                                    {pub.created_at && (
-                                                                        <span className="text-[10px] flex items-center gap-1 ml-auto"
-                                                                            style={{ color: colors.textSecondary }}>
-                                                                            <Calendar className="w-3 h-3" />
-                                                                            {new Date(pub.created_at).toLocaleDateString('pt-BR')}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-
-                                                                <h3 className="text-base font-bold mt-1 truncate" style={{ color: colors.textPrimary }}>
-                                                                    {pub.title}
-                                                                </h3>
-
-                                                                {pub.description && (
-                                                                    <p className="text-sm line-clamp-2 flex-1" style={{ color: colors.textSecondary }}>
-                                                                        {pub.description}
-                                                                    </p>
-                                                                )}
-
-                                                                <div className="flex items-center gap-4 mt-2">
-                                                                    {pub.view_count && pub.view_count > 0 && (
-                                                                        <span className="text-[10px] flex items-center gap-1"
-                                                                            style={{ color: colors.textSecondary }}>
-                                                                            <Eye className="w-3 h-3" />
-                                                                            {pub.view_count}
-                                                                        </span>
-                                                                    )}
-                                                                    <span className="text-[10px] flex items-center gap-1"
-                                                                        style={{ color: colors.textSecondary }}>
-                                                                        <User className="w-3 h-3" />
-                                                                        {pub.storeName}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                <PublicationCardComponent
+                                                    pub={pub}
+                                                    colors={colors}
+                                                    currentUserId={currentUserId}
+                                                    onLike={handleLikeUpdate}
+                                                />
                                             </div>
                                         ))}
                                     </div>
