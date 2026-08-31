@@ -1,4 +1,4 @@
-//app/(main)/[ownerSlug]/[slug]/SlugClientPage.tsx
+// app/(main)/[ownerSlug]/[slug]/SlugClientPage.tsx
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { ProductClientPage } from './ProductClientPage'
 import { PublicationClientPage } from './PublicationClientePage'
 
@@ -129,31 +130,53 @@ export default function SlugClientPage() {
     // Renderiza o componente correto baseado no tipo
     if (itemType === 'publication') {
         return (
-            <PublicationClientPage
-                ownerSlug={ownerSlug}
-                slug={slug}
-                colors={colors}
-                bgMode={bgMode}
-                customBgUrl={customBgUrl}
-                profileSlug={profileSlug}
-                avatarUrl={avatarUrl}
-                profileLoading={profileLoading}
-            />
+            <div className="relative min-h-dvh" style={{ background: colors.background }}>
+                {/* Background animado - igual ao OwnerClientPage */}
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+
+                {/* Conteúdo com z-index */}
+                <div className="relative z-10 min-h-dvh">
+                    <PublicationClientPage
+                        ownerSlug={ownerSlug}
+                        slug={slug}
+                        colors={colors}
+                        bgMode={bgMode}
+                        customBgUrl={customBgUrl}
+                        profileSlug={profileSlug}
+                        avatarUrl={avatarUrl}
+                        profileLoading={profileLoading}
+                    />
+                </div>
+            </div>
         )
     }
 
     if (itemType === 'product') {
         return (
-            <ProductClientPage
-                ownerSlug={ownerSlug}
-                slug={slug}
-                colors={colors}
-                bgMode={bgMode}
-                customBgUrl={customBgUrl}
-                profileSlug={profileSlug}
-                avatarUrl={avatarUrl}
-                profileLoading={profileLoading}
-            />
+            <div className="relative min-h-dvh" style={{ background: colors.background }}>
+
+                {/* Background animado */}
+                <div className="fixed inset-0 z-0">
+                    <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
+                </div>
+
+
+                {/* Conteúdo com z-index */}
+                <div className="relative z-10 min-h-dvh">
+                    <ProductClientPage
+                        ownerSlug={ownerSlug}
+                        slug={slug}
+                        colors={colors}
+                        bgMode={bgMode}
+                        customBgUrl={customBgUrl}
+                        profileSlug={profileSlug}
+                        avatarUrl={avatarUrl}
+                        profileLoading={profileLoading}
+                    />
+                </div>
+            </div>
         )
     }
 

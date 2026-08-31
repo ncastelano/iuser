@@ -344,11 +344,7 @@ export function ProductClientPage({
         : 'Preço sob consulta'
 
     return (
-        <div className="relative min-h-dvh" style={{ background: colors.background }}>
-            <div className="fixed inset-0 z-0">
-                <AnimatedBackgroundiUser customBgUrl={customBgUrl} />
-            </div>
-
+        <div className="relative min-h-dvh">
             <main className="relative z-10 min-h-dvh">
                 <Header
                     title="Produto"

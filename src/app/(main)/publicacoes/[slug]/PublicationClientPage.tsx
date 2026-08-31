@@ -1,3 +1,5 @@
+//app/(main)/publicacoes/[slug]/PublicationClientPage.tsx
+
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -21,8 +23,8 @@ import {
     Trash2,
     UserCircle
 } from 'lucide-react'
-import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
+import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/app/Header'
 import { handleShareLink } from '@/lib/share'
 import { getAvatarUrl } from '@/lib/avatar'

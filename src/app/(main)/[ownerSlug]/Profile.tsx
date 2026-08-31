@@ -1647,13 +1647,40 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {publications.map((pub) => (
+                                {publications.map((pub, idx) => (
                                     <div
                                         key={pub.id}
-                                        className="rounded-xl border p-4 transition-all hover:shadow-lg"
+                                        className="rounded-xl border p-4 transition-all hover:shadow-lg cursor-pointer"
                                         style={{
                                             background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
                                             borderColor: colors.border,
+                                        }}
+                                        onClick={() => {
+                                            if (!owner) return
+                                            const feed = publications.map(p => ({
+                                                id: p.id,
+                                                name: p.name,
+                                                slug: p.slug,
+                                                description: p.description,
+                                                image_url: p.image_url,
+                                                listing_type: p.listing_type || 'publication',
+                                                owner_id: owner.id,
+                                                created_at: p.created_at,
+                                                owner: {
+                                                    id: owner.id,
+                                                    name: owner.name,
+                                                    slug: owner.slug,
+                                                    avatar_url: imageUrl,
+                                                },
+                                                profiles: {
+                                                    name: owner.name,
+                                                    profileSlug: owner.slug,
+                                                    avatar_url: imageUrl,
+                                                }
+                                            }))
+                                            usePublicationsStore.getState().setPublicationFeed(feed, idx, ownerSlug)
+                                            const pubSlug = pub.slug || pub.id
+                                            router.push(`/${ownerSlug}/${pubSlug}`)
                                         }}
                                     >
                                         <div className="flex items-start gap-3">
