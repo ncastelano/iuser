@@ -39,6 +39,7 @@ import StorePaymentMethods from './StorePaymentMethods'
 import { isStoreOpenNow, getStoreStatusWithLunch, getNextOpeningInfo } from '@/lib/storeHours'
 import StoreSchedule from './StoreSchedule'
 import { StoreDescription } from './StoreDesciption'
+import { checkSlugAvailability } from '@/lib/slugUtils'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -135,7 +136,7 @@ export default function StoreDashboard({
         router.push(`/${storeSlug}/editar-loja`)
     }
 
-    // ===== VERIFICAÇÃO DE SLUG ÚNICO =====
+    // ===== VERIFICAÇÃO DE SLUG ÚNICO GLOBAL =====
     useEffect(() => {
         if (!storeSlugState || storeSlugState === storeSlug) {
             setSlugStatus('idle')
@@ -143,8 +144,8 @@ export default function StoreDashboard({
         }
         const check = async () => {
             setSlugStatus('checking')
-            const { data } = await supabase.from('stores').select('id').eq('storeSlug', storeSlugState).neq('id', store?.id).limit(1).maybeSingle()
-            setSlugStatus(data ? 'taken' : 'available')
+            const result = await checkSlugAvailability(storeSlugState, { excludeStoreId: store?.id })
+            setSlugStatus(result.available ? 'available' : 'taken')
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)
@@ -357,7 +358,7 @@ export default function StoreDashboard({
     if (!store) return null
 
     return (
-        <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
+        <div className="w-full px-4 md:px-6 pb-28">
             {/* ===== MODAL DE HORÁRIOS ===== */}
             {showScheduleModal && store && (
                 <div

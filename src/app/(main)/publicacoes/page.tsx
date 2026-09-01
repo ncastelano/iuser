@@ -749,7 +749,7 @@ export default function AllPublicationsPage() {
                     onSearch={setSearchQuery}
                 />
 
-                <section className="px-4 md:px-6 mt-2 pb-24 max-w-4xl mx-auto">
+                <section className="w-full px-4 md:px-6 mt-2 pb-24">
                     {/* CONTADOR */}
                     <div className="flex items-center justify-between mb-4">
                         <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>

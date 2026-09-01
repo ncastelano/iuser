@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/app/Header'
+import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 
 interface EditProductClientProps {
     product: any
@@ -97,25 +98,8 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
 
             // Gerar slug se o nome mudou
             let slug = product.slug
-            if (name !== product.name) {
-                slug = name
-                    .toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/(^-|-$)+/g, '')
-
-                // Verificar se o slug já existe
-                const { data: existing } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('slug', slug)
-                    .neq('id', product.id)
-                    .maybeSingle()
-
-                if (existing) {
-                    slug = `${slug}-${Math.floor(Math.random() * 9999)}`
-                }
+            if (name.trim() !== product.name) {
+                slug = await generateUniqueGlobalSlug(name, { excludeProductId: product.id })
             }
 
             const updateData = {
@@ -219,7 +203,7 @@ export function EditProductClient({ product, ownerSlug }: EditProductClientProps
                     loading={profileLoading}
                 />
 
-                <div className="max-w-4xl mx-auto px-4 py-6">
+                <div className="w-full px-4 md:px-6 py-6">
                     <div className="rounded-2xl p-6" style={{
                         background: `rgba(255, 255, 255, 0.05)`,
                         backdropFilter: 'blur(12px)',

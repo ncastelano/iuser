@@ -211,7 +211,7 @@ export default function ConfiguracoesContent({
     }
 
     return (
-        <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 pb-24">
+        <div className="relative z-10 w-full px-4 md:px-6 py-6 pb-24">
             <div className="space-y-6">
                 {/* Card Tema do iUser - mesmo estilo do ButtonSettingsHome */}
                 <div

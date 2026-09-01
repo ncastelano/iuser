@@ -1304,7 +1304,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
     }
 
     return (
-        <div className="px-4 py-4 flex flex-col gap-4 max-w-4xl mx-auto">
+        <div className="w-full px-4 md:px-6 py-4 flex flex-col gap-4">
             <style jsx global>{`
                 @keyframes pulse-glow {
                     0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }

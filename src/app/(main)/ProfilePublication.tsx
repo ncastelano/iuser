@@ -18,6 +18,7 @@ import {
     Eye,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 
 interface Publication {
     id: string
@@ -145,30 +146,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 imagePath = uploadData?.path ?? null
             }
 
-            let slug = name
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/(^-|-$)+/g, '')
-
-            let isUnique = false
-            let attempts = 0
-            while (!isUnique && attempts < 10) {
-                const { data: existing } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('slug', slug)
-                    .eq('owner_id', profileId)
-                    .eq('listing_type', 'publication')
-                    .maybeSingle()
-                if (existing) {
-                    slug = slug + '-' + Math.floor(Math.random() * 9999)
-                    attempts++
-                } else {
-                    isUnique = true
-                }
-            }
+            // Gerar slug único globalmente (não colide com perfis, lojas, produtos ou publicações)
+            const slug = await generateUniqueGlobalSlug(name)
 
             // Usando owner_id (que é o profile_id) e store_id = null
             const { error: insertError } = await supabase.from('products').insert({

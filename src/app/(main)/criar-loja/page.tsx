@@ -33,6 +33,7 @@ import { createSquareImage } from "@/lib/image";
 import { useProfile } from "@/app/contexts/ProfileContext";
 import Header from "@/app/Header";
 import { categorias } from "@/lib/categorias";
+import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from "@/lib/slugUtils";
 
 // Filtra as categorias para remover "Social"
 const CATEGORIAS_LOJAS = categorias.filter(cat => cat.slug !== 'social');
@@ -138,9 +139,7 @@ function extractStreetDisplay(fullAddress: string): string {
 
 // Função para validar número de WhatsApp
 function validateWhatsApp(number: string): boolean {
-  // Remove tudo que não é número
   const clean = number.replace(/\D/g, '');
-  // Deve ter entre 10 e 13 dígitos (DDD + número)
   return clean.length >= 10 && clean.length <= 13;
 }
 
@@ -181,7 +180,6 @@ export default function CriarLoja() {
   const [whatsapp, setWhatsapp] = useState("");
   const [whatsappError, setWhatsappError] = useState("");
 
-  // Estados de localização
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({
     lat: -15.7801,
     lng: -47.9292
@@ -198,11 +196,9 @@ export default function CriarLoja() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
-  // Dados do usuário para o Header
   const [currentUserSlug, setCurrentUserSlug] = useState<string | null>(null);
   const [currentUserAvatar, setCurrentUserAvatar] = useState<string | null>(null);
 
-  // Carrega perfil para o Header
   useEffect(() => {
     const loadUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -230,22 +226,14 @@ export default function CriarLoja() {
     }
   }, [contextAvatarUrl, currentUserAvatar]);
 
-  // SLUG AUTOMÁTICO
   useEffect(() => {
     if (!name) {
       setStoreSlug("");
       return;
     }
-    const slug = name
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)+/g, "");
-    setStoreSlug(slug);
+    setStoreSlug(sanitizeSlug(name));
   }, [name]);
 
-  // CHECAR DISPONIBILIDADE DO SLUG
   useEffect(() => {
     if (!storeSlug) {
       setSlugStatus("idle");
@@ -255,16 +243,10 @@ export default function CriarLoja() {
 
     const check = async () => {
       setSlugStatus("checking");
-      const { data } = await supabase
-        .from("stores")
-        .select("id")
-        .eq("storeSlug", storeSlug)
-        .limit(1)
-        .maybeSingle();
-      if (data) {
+      const result = await checkSlugAvailability(storeSlug);
+      if (!result.available) {
         setSlugStatus("taken");
-        const base = storeSlug.replace(/-?\d+$/, "");
-        const sugs = [1, 2, 3].map(n => `${base}-${n}`);
+        const sugs = await getSlugSuggestions(storeSlug, 3);
         setStoreSlugSuggestions(sugs);
       } else {
         setSlugStatus("available");
@@ -276,7 +258,6 @@ export default function CriarLoja() {
     return () => clearTimeout(timer);
   }, [storeSlug]);
 
-  // IMAGE PREVIEW
   useEffect(() => {
     if (!imageFile) return;
     const url = URL.createObjectURL(imageFile);
@@ -284,7 +265,6 @@ export default function CriarLoja() {
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
 
-  // Inicializar mapa
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current || initializedRef.current) return;
 
@@ -489,9 +469,7 @@ export default function CriarLoja() {
     setLoadingLocation(false);
   };
 
-  // Validação do WhatsApp
   const handleWhatsAppChange = (value: string) => {
-    // Permite apenas números, +, espaços, parênteses e hífens
     const cleaned = value.replace(/[^0-9+\s()-]/g, '');
     setWhatsapp(cleaned);
 
@@ -530,7 +508,6 @@ export default function CriarLoja() {
       return;
     }
 
-    // Validação do WhatsApp
     const whatsappClean = whatsapp.replace(/\D/g, '');
     if (!whatsappClean || whatsappClean.length < 10) {
       toast.error("Digite um número de WhatsApp válido com DDD");
@@ -542,7 +519,6 @@ export default function CriarLoja() {
       return;
     }
 
-    // Busca o nome da categoria pelo slug
     const categoriaSelecionada = CATEGORIAS_LOJAS.find(c => c.slug === selectedCategorySlug);
     const categoryName = categoriaSelecionada?.nome || selectedCategorySlug;
 
@@ -568,7 +544,6 @@ export default function CriarLoja() {
       if (data) logoPath = data.path;
     }
 
-    // Construir endereço completo com número
     let fullAddress = address;
     if (addressNumber && !address.includes(addressNumber)) {
       const firstCommaIndex = fullAddress.indexOf(',');
@@ -577,6 +552,13 @@ export default function CriarLoja() {
           `, ${addressNumber}` +
           fullAddress.slice(firstCommaIndex);
       }
+    }
+
+    const slugCheck = await checkSlugAvailability(storeSlug);
+    if (!slugCheck.available) {
+      toast.error(slugCheck.message || "Este link já está em uso.");
+      setLoading(false);
+      return;
     }
 
     const { error } = await supabase.from("stores").insert({
@@ -592,7 +574,7 @@ export default function CriarLoja() {
       address_number: addressNumber,
       address_complement: addressComplement || null,
       category: categoryName,
-      whatsapp: whatsappClean, // Salva apenas os números
+      whatsapp: whatsappClean,
     });
 
     if (error) {
@@ -601,15 +583,10 @@ export default function CriarLoja() {
       return;
     }
 
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("profileSlug")
-      .eq("id", userData.user.id)
-      .single();
-
-    const profileSlug = profileData?.profileSlug || "perfil";
     setLoading(false);
-    window.location.href = `/${profileSlug}/${storeSlug}`;
+
+    // ✅ REDIRECIONA PARA A NOVA ESTRUTURA /[storeSlug]
+    window.location.href = `/${storeSlug}`;
   };
 
   const handleImageChange = async (file: File) => {
@@ -621,7 +598,6 @@ export default function CriarLoja() {
     }
   };
 
-  // Aba única para o Header
   const tabs = [
     {
       id: "criando",
@@ -651,7 +627,7 @@ export default function CriarLoja() {
           onHomeClick={() => router.push("/")}
         />
 
-        <div className="max-w-2xl mx-auto px-4 py-6 w-full">
+        <div className="w-full px-4 md:px-6 py-6">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-orange-200/50 p-6 space-y-6 shadow-sm">
             {/* LOGO */}
             <div className="space-y-3">
@@ -751,7 +727,7 @@ export default function CriarLoja() {
               )}
             </div>
 
-            {/* WHATSAPP - NOVO CAMPO OBRIGATÓRIO */}
+            {/* WHATSAPP */}
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                 <MessageCircle className="w-3 h-3 text-green-500" />
@@ -857,7 +833,6 @@ export default function CriarLoja() {
                 Localização da Loja *
               </label>
 
-              {/* Busca + GPS */}
               <div className="flex gap-2">
                 <div className="flex-1 flex items-center pl-0 pr-2 py-0.5 rounded-full text-xs font-semibold"
                   style={{
@@ -906,7 +881,6 @@ export default function CriarLoja() {
                 </button>
               </div>
 
-              {/* Mapa */}
               <div className="relative w-full h-48 sm:h-56 rounded-xl overflow-hidden"
                 style={{
                   border: `2px solid #fbd5a4`,
@@ -922,7 +896,6 @@ export default function CriarLoja() {
                 )}
               </div>
 
-              {/* Endereço encontrado */}
               <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl"
                 style={{
                   background: `rgba(255,255,255,0.4)`,
@@ -950,7 +923,6 @@ export default function CriarLoja() {
                 </div>
               </div>
 
-              {/* Número e Complemento */}
               {!resolvingAddress && address && (
                 <div className="space-y-2">
                   <div className="px-3 py-2 rounded-xl"
@@ -1019,7 +991,6 @@ export default function CriarLoja() {
               )}
             </button>
 
-            {/* Resumo dos campos obrigatórios */}
             <div className="flex flex-wrap gap-3 justify-center text-[9px] text-gray-400">
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-green-500" />
@@ -1057,7 +1028,6 @@ export default function CriarLoja() {
           </div>
         </div>
 
-        {/* Botões flutuantes */}
         <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
           <button
             onClick={() => router.back()}

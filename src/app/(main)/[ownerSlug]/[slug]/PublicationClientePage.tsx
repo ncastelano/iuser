@@ -700,7 +700,7 @@ export function PublicationClientPage({
                     loading={profileLoading}
                 />
 
-                <div className="max-w-4xl mx-auto px-4 py-8">
+                <div className="w-full px-4 md:px-6 py-6">
                     <div className="rounded-2xl overflow-hidden border" style={{
                         background: colors.surface,
                         borderColor: colors.border,

@@ -134,7 +134,7 @@ export default function PedidosPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-green-500 selection:text-white pb-32">
-            <div className="max-w-3xl mx-auto px-4 py-6">
+            <div className="w-full px-4 md:px-6 py-6">
                 {/* Header */}
                 <header className="flex items-center gap-3 mb-6 border-b border-border pb-4">
                     <button

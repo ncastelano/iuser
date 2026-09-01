@@ -392,7 +392,7 @@ export function StoreList({
     onStoreClick,
     maxItems = 8,
     className = '',
-    title = 'Lojas em Destaque',
+    title = 'As Lojas Mais Visitadas',
     dragHandle,
 }: StoreListProps) {
     const router = useRouter()
@@ -419,16 +419,14 @@ export function StoreList({
         )
     }, [filteredStores])
 
-    // ===== FUNÇÃO PARA CONVERTER business_hours - CORRIGIDA =====
+    // ===== FUNÇÃO PARA CONVERTER business_hours =====
     const convertBusinessHours = (data: any): BusinessHours | null => {
         if (!data) return null
 
-        // Se já tem a estrutura com 'weekly', retorna como está
         if (data.weekly) {
             return data as BusinessHours
         }
 
-        // Caso contrário, converte o objeto para o formato BusinessHours
         const weekly: any = {}
         const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
         DAY_KEYS.forEach(day => {
@@ -437,7 +435,6 @@ export function StoreList({
             }
         })
 
-        // Retorna apenas o que o tipo BusinessHours espera
         return {
             weekly
         }
@@ -460,6 +457,7 @@ export function StoreList({
                 setTimeout(() => reject(new Error('Timeout na requisição')), 15000)
             })
 
+            // ✅ CORRIGIDO: Removeu nullsLast
             const storesPromise = supabase
                 .from('stores')
                 .select(`
@@ -475,7 +473,7 @@ export function StoreList({
                     business_hours,
                     view_count
                 `)
-                .order('created_at', { ascending: false })
+                .order('view_count', { ascending: false })  // ✅ Ordena por mais visitados
                 .limit(50)
 
             const { data: storesData, error: storesError } = await Promise.race([
@@ -601,18 +599,22 @@ export function StoreList({
         }
     }, [loadStores])
 
-    // ===== FILTRAR E ORDENAR =====
+    // ===== FILTRAR E ORDENAR - MANTÉM A ORDEM POR VISUALIZAÇÕES =====
     useEffect(() => {
+        // Mantém a ordem original (já ordenada por view_count no banco)
+        // Mas ainda aplica o filtro de lojas abertas primeiro como prioridade secundária
         const sorted = [...stores].sort((a, b) => {
+            // Primeiro critério: lojas abertas primeiro
             const aOpen = isStoreOpenNow(a.business_hours)
             const bOpen = isStoreOpenNow(b.business_hours)
 
             if (aOpen && !bOpen) return -1
             if (!aOpen && bOpen) return 1
 
-            const aRating = a.ratings_avg || 0
-            const bRating = b.ratings_avg || 0
-            return bRating - aRating
+            // Segundo critério: view_count (mais visitados primeiro)
+            const aViews = a.view_count || 0
+            const bViews = b.view_count || 0
+            return bViews - aViews
         })
 
         if (maxItems && sorted.length > maxItems) {

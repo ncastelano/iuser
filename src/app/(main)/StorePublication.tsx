@@ -17,6 +17,7 @@ import {
     Megaphone,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 
 interface Publication {
     id: string
@@ -140,26 +141,8 @@ export default function StorePublication({ storeId }: PublicationProps) {
                 imagePath = uploadData?.path ?? null
             }
 
-            let slug = name
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/(^-|-$)+/g, '')
-            let isUnique = false
-            while (!isUnique) {
-                const { data: existing } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('slug', slug)
-                    .eq('store_id', storeId)
-                    .maybeSingle()
-                if (existing) {
-                    slug = slug + '-' + Math.floor(Math.random() * 9999)
-                } else {
-                    isUnique = true
-                }
-            }
+            // Gerar slug único globalmente
+            const slug = await generateUniqueGlobalSlug(name)
 
             const { error: insertError } = await supabase.from('products').insert({
                 name,

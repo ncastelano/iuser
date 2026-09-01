@@ -19,6 +19,7 @@ import {
     ChevronLeft,
     ChevronRight as ChevronRightIcon,
     Megaphone,
+    PlusCircle,
 } from 'lucide-react'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Link from 'next/link'
@@ -227,6 +228,76 @@ function StoreCard({ store, onClick, colors }: { store: StoreCardData; onClick: 
     )
 }
 
+// ===== COMPONENTE CARD PARA CRIAR LOJA =====
+function CreateStoreCard({ colors, category }: { colors: any; category: string }) {
+    const router = useRouter()
+
+    const surfaceRgb = hexToRgb(colors.surface)
+    const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
+    const handleCreateStore = () => {
+        // Verifica se o usuário está logado
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                router.push('/criar-loja')
+            } else {
+                router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(category)}`)
+            }
+        }
+        checkUser()
+    }
+
+    return (
+        <div
+            onClick={handleCreateStore}
+            className="group w-full h-[420px] rounded-2xl overflow-hidden border-2 border-dashed transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center p-8 text-center"
+            style={{
+                background: cardBg,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                borderColor: colors.border,
+                boxShadow: colors.shadow,
+            }}
+        >
+            <div
+                className="w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
+                style={{
+                    background: GRADIENT,
+                    color: '#ffffff',
+                    boxShadow: `0 4px 20px #f9731640`,
+                }}
+            >
+                <PlusCircle size={32} />
+            </div>
+
+            <h3 className="text-lg font-bold mb-2" style={{ color: colors.textPrimary }}>
+                Cadastrar Loja
+            </h3>
+
+            <p className="text-sm mb-4 max-w-xs" style={{ color: colors.textSecondary }}>
+                Seja o primeiro a cadastrar uma loja nesta categoria e comece a vender seus produtos!
+            </p>
+
+            <div
+                className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg"
+                style={{
+                    background: GRADIENT,
+                    color: '#ffffff',
+                    boxShadow: `0 4px 14px #f9731660`,
+                }}
+            >
+                <Store size={16} />
+                Criar Loja Agora
+            </div>
+
+            <p className="text-[10px] mt-3 opacity-50" style={{ color: colors.textSecondary }}>
+                Demora apenas alguns minutos 🚀
+            </p>
+        </div>
+    )
+}
+
 // ===== FUNÇÃO PARA CONVERTER business_hours =====
 const convertBusinessHours = (data: any): BusinessHours | null => {
     if (!data) return null
@@ -237,6 +308,17 @@ const convertBusinessHours = (data: any): BusinessHours | null => {
         if (data[day]) weekly[day] = data[day]
     })
     return { weekly }
+}
+
+// ===== FUNÇÃO HEX TO RGB =====
+function hexToRgb(hex: string) {
+    const clean = hex.replace('#', '')
+    const bigint = parseInt(clean, 16)
+    return {
+        r: (bigint >> 16) & 255,
+        g: (bigint >> 8) & 255,
+        b: bigint & 255,
+    }
 }
 
 // ===== COMPONENTE PRINCIPAL =====
@@ -405,9 +487,8 @@ export default function ListaCategoriaPage() {
     const goToPrev = () => setCurrentPage(prev => Math.max(0, prev - 1))
     const goToNext = () => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))
 
-    // ===== HANDLE STORE CLICK - SIMPLIFICADO =====
+    // ===== HANDLE STORE CLICK =====
     const handleStoreClick = useCallback((store: StoreCardData) => {
-        // Agora navega diretamente com o storeSlug
         router.push(`/${store.storeSlug}`)
     }, [router])
 
@@ -429,11 +510,6 @@ export default function ListaCategoriaPage() {
         )
     }
 
-    const hexToRgb = (hex: string) => {
-        const clean = hex.replace('#', '')
-        const bigint = parseInt(clean, 16)
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
-    }
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
@@ -482,13 +558,73 @@ export default function ListaCategoriaPage() {
                     {!loadingData && !error && (
                         <>
                             {filteredStores.length === 0 ? (
-                                <div className="rounded-2xl p-6 flex flex-col items-center gap-3 mt-4"
-                                    style={{ background: cardBg, backdropFilter: 'blur(12px)', border: `1px solid ${colors.border}` }}
-                                >
-                                    <Store className="w-8 h-8 opacity-40" style={{ color: colors.textSecondary }} />
-                                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
-                                        {searchQuery ? 'Nenhuma loja encontrada para esta busca.' : 'Nenhuma loja disponível nesta categoria.'}
-                                    </p>
+                                <div className="mt-4">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                                            Lojas em {info.nome}
+                                        </h2>
+                                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                            0 loja(s)
+                                        </span>
+                                    </div>
+
+                                    {/* Mensagem de nenhuma loja + Botão Criar Loja */}
+                                    <div
+                                        className="rounded-2xl p-12 flex flex-col items-center gap-6 mt-2"
+                                        style={{
+                                            background: cardBg,
+                                            backdropFilter: 'blur(12px)',
+                                            WebkitBackdropFilter: 'blur(12px)',
+                                            border: `2px dashed ${colors.border}`,
+                                        }}
+                                    >
+                                        <div
+                                            className="w-20 h-20 rounded-full flex items-center justify-center"
+                                            style={{
+                                                background: GRADIENT,
+                                                color: '#ffffff',
+                                                boxShadow: `0 4px 20px #f9731640`,
+                                            }}
+                                        >
+                                            <Store size={32} />
+                                        </div>
+
+                                        <div className="text-center">
+                                            <h3 className="text-xl font-bold mb-2" style={{ color: colors.textPrimary }}>
+                                                Nenhuma loja nesta categoria
+                                            </h3>
+                                            <p className="text-sm max-w-md" style={{ color: colors.textSecondary }}>
+                                                Seja o primeiro a cadastrar uma loja em <strong style={{ color: colors.textPrimary }}>{info.nome}</strong> e comece a vender seus produtos!
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            onClick={() => {
+                                                const checkUser = async () => {
+                                                    const { data: { user } } = await supabase.auth.getUser()
+                                                    if (user) {
+                                                        router.push('/criar-loja')
+                                                    } else {
+                                                        router.push(`/login?redirect=/criar-loja&category=${encodeURIComponent(categoria)}`)
+                                                    }
+                                                }
+                                                checkUser()
+                                            }}
+                                            className="px-8 py-4 rounded-full font-bold text-sm flex items-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-xl"
+                                            style={{
+                                                background: GRADIENT,
+                                                color: '#ffffff',
+                                                boxShadow: `0 4px 20px #f9731660`,
+                                            }}
+                                        >
+                                            <PlusCircle size={20} />
+                                            Cadastrar Loja Agora
+                                        </button>
+
+                                        <p className="text-[10px] opacity-50 flex items-center gap-1" style={{ color: colors.textSecondary }}>
+                                            <span>🚀 Demora apenas alguns minutos</span>
+                                        </p>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="mt-4">
@@ -510,6 +646,11 @@ export default function ListaCategoriaPage() {
                                                 onClick={() => handleStoreClick(store)}
                                             />
                                         ))}
+
+                                        {/* Card "Cadastrar Loja" no final - apenas se tiver menos que 4 itens na página */}
+                                        {currentItems.length < 4 && (
+                                            <CreateStoreCard colors={colors} category={categoria} />
+                                        )}
                                     </div>
 
                                     {totalPages > 1 && (

@@ -38,6 +38,7 @@ import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 import StoreSchedule from '../StoreSchedule'
+import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
 import { handleShareLink } from '@/lib/share'
 
 interface StoreProps {
@@ -389,26 +390,8 @@ export function Store({
                 imagePath = uploadData?.path ?? null
             }
 
-            let slug = pubName
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/(^-|-$)+/g, '')
-            let isUnique = false
-            while (!isUnique) {
-                const { data: existing } = await supabase
-                    .from('products')
-                    .select('id')
-                    .eq('slug', slug)
-                    .eq('store_id', owner.id)
-                    .maybeSingle()
-                if (existing) {
-                    slug = slug + '-' + Math.floor(Math.random() * 9999)
-                } else {
-                    isUnique = true
-                }
-            }
+            // Gerar slug único globalmente
+            const slug = await generateUniqueGlobalSlug(pubName)
 
             const { error: insertError } = await supabase.from('products').insert({
                 name: pubName,
@@ -728,7 +711,7 @@ export function Store({
     }
 
     return (
-        <div className="px-4 py-4 flex flex-col gap-5 max-w-5xl mx-auto">
+        <div className="w-full px-4 md:px-6 py-4 flex flex-col gap-5">
             <style jsx global>{`
                 @keyframes float {
                     0%, 100% { transform: translateY(0px) rotate(0deg); }

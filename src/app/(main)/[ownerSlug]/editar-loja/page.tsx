@@ -10,6 +10,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StoreDescription } from '../../StoreDesciption'
+import { checkSlugAvailability } from '@/lib/slugUtils'
 
 const DAYS_OF_WEEK = [
     { key: 'mon', label: 'Segunda' },
@@ -323,7 +324,7 @@ export default function EditarLoja() {
         fetchStoreData()
     }, [storeSlugParam, router])
 
-    // ----- VERIFICAÇÃO DE SLUG ÚNICO -----
+    // ----- VERIFICAÇÃO DE SLUG ÚNICO GLOBAL -----
     useEffect(() => {
         if (!storeSlug || storeSlug === storeSlugParam) {
             setSlugStatus('idle')
@@ -331,8 +332,8 @@ export default function EditarLoja() {
         }
         const check = async () => {
             setSlugStatus('checking')
-            const { data } = await supabase.from('stores').select('id').eq('storeSlug', storeSlug).neq('id', storeId).limit(1).maybeSingle()
-            setSlugStatus(data ? 'taken' : 'available')
+            const result = await checkSlugAvailability(storeSlug, { excludeStoreId: storeId })
+            setSlugStatus(result.available ? 'available' : 'taken')
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)

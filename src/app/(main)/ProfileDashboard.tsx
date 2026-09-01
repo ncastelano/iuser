@@ -743,7 +743,7 @@ export default function ProfileDashboard({
     if (!profile) return null
 
     return (
-        <div className="px-4 pb-28 max-w-2xl mx-auto w-full">
+        <div className="w-full px-4 md:px-6 pb-28">
             {/* Header - Avatar e Nome clicáveis */}
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3 cursor-pointer" onClick={goToPublicProfile}>

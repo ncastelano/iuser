@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
+import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 
 type Step = 'store' | 'account' | 'success'
 
@@ -64,19 +65,13 @@ export default function CriarLojaComCadastro() {
     const [accountError, setAccountError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
 
-    // Slug auto-generation for store
+    // Generate store slug from name
     useEffect(() => {
         if (!storeName) {
             setStoreSlug('')
             return
         }
-        const slug = storeName
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, '')
-        setStoreSlug(slug)
+        setStoreSlug(sanitizeSlug(storeName))
     }, [storeName])
 
     // Check store slug availability
@@ -87,22 +82,16 @@ export default function CriarLojaComCadastro() {
         }
         const check = async () => {
             setSlugStatus('checking')
-            const { data } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('storeSlug', storeSlug)
-                .limit(1)
-                .maybeSingle()
-            if (data) {
+            const result = await checkSlugAvailability(storeSlug)
+            if (!result.available) {
                 setSlugStatus('taken')
-                setStoreSlug(`${storeSlug}-${Math.floor(Math.random() * 9999)}`)
             } else {
                 setSlugStatus('available')
             }
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)
-    }, [storeSlug, step, supabase])
+    }, [storeSlug, step])
 
     // Image preview
     useEffect(() => {
@@ -198,15 +187,25 @@ export default function CriarLojaComCadastro() {
             return
         }
 
+        if (profileSlug === storeSlug) {
+            setAccountError('O link do seu perfil não pode ser igual ao link da sua loja')
+            setLoading(false)
+            return
+        }
+
         try {
-            // 1. Verificar disponibilidade do profileSlug
-            const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('profileSlug', profileSlug)
-                .single()
-            if (existingProfile) {
-                setAccountError('Este link de perfil já está em uso')
+            // 1. Verificar disponibilidade global do profileSlug
+            const profileCheck = await checkSlugAvailability(profileSlug)
+            if (!profileCheck.available) {
+                setAccountError(profileCheck.message || 'Este link de perfil já está em uso')
+                setLoading(false)
+                return
+            }
+
+            // 1.1 Verificar disponibilidade global do storeSlug
+            const storeCheck = await checkSlugAvailability(storeSlug)
+            if (!storeCheck.available) {
+                setAccountError(storeCheck.message || 'Este link de loja já está em uso')
                 setLoading(false)
                 return
             }
@@ -286,7 +285,7 @@ export default function CriarLojaComCadastro() {
         <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-yellow-50 pb-32">
             <AnimatedBackground />
 
-            <div className="relative z-10 max-w-2xl mx-auto px-4 py-6 w-full">
+            <div className="relative z-10 w-full px-4 md:px-6 py-6">
                 {/* Header with step indicator */}
                 <header className="flex items-center justify-between mb-6 pb-4 border-b border-orange-200/50">
                     <button

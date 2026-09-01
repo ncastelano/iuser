@@ -363,8 +363,45 @@ JOIN public.profiles prof ON s.owner_id = prof.id;
 -- 8. DATABASE FUNCTIONS & PROCEDURES
 -- ==========================================
 
--- Generate a clean profileSlug
-CREATE OR REPLACE FUNCTION public.generate_clean_slug(name_text text, user_id uuid) 
+-- Check if slug is taken across any table
+CREATE OR REPLACE FUNCTION public.is_slug_taken_globally(
+    slug_text text,
+    exclude_profile_id uuid DEFAULT NULL,
+    exclude_store_id uuid DEFAULT NULL,
+    exclude_product_id uuid DEFAULT NULL
+)
+RETURNS boolean AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE "profileSlug" = slug_text 
+        AND (exclude_profile_id IS NULL OR id != exclude_profile_id)
+    ) THEN
+        RETURN true;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM public.stores 
+        WHERE "storeSlug" = slug_text 
+        AND (exclude_store_id IS NULL OR id != exclude_store_id)
+    ) THEN
+        RETURN true;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM public.products 
+        WHERE slug = slug_text 
+        AND (exclude_product_id IS NULL OR id != exclude_product_id)
+    ) THEN
+        RETURN true;
+    END IF;
+
+    RETURN false;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Generate a clean profileSlug that is unique globally
+CREATE OR REPLACE FUNCTION public.generate_clean_slug(name_text text, user_id uuid DEFAULT NULL) 
 RETURNS text AS $$
 DECLARE
     base_slug text;
@@ -372,13 +409,17 @@ DECLARE
     counter int := 1;
 BEGIN
     -- unaccent + lowercase + letters/digits only
-    base_slug := lower(unaccent(name_text));
+    base_slug := lower(unaccent(coalesce(name_text, 'usuario')));
     base_slug := regexp_replace(base_slug, '[^a-z0-9]+', '', 'g');
     
+    IF base_slug = '' THEN
+        base_slug := 'usuario';
+    END IF;
+
     new_slug := base_slug;
     
-    -- Loop to prevent duplicate slug
-    WHILE EXISTS (SELECT 1 FROM public.profiles WHERE "profileSlug" = new_slug AND id != user_id) LOOP
+    -- Loop to prevent duplicate slug across profiles, stores, products
+    WHILE public.is_slug_taken_globally(new_slug, user_id, NULL, NULL) LOOP
         new_slug := base_slug || counter::text;
         counter := counter + 1;
     END LOOP;

@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner'
 import AnimatedBackground from '@/components/AnimatedBackground'
 import { createSquareImage } from '@/lib/image'
+import { checkSlugAvailability, getSlugSuggestions, sanitizeSlug } from '@/lib/slugUtils'
 
 type Step = 'store' | 'account' | 'success'
 
@@ -78,13 +79,7 @@ export default function CreateStoreAndRegisterProfile({
             setStoreSlug('')
             return
         }
-        const slug = storeName
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, '')
-        setStoreSlug(slug)
+        setStoreSlug(sanitizeSlug(storeName))
     }, [storeName])
 
     // Check store slug availability with suggestions
@@ -96,15 +91,10 @@ export default function CreateStoreAndRegisterProfile({
         }
         const check = async () => {
             setSlugStatus('checking')
-            const { data } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('storeSlug', storeSlug)
-                .maybeSingle()
-            if (data) {
+            const result = await checkSlugAvailability(storeSlug)
+            if (!result.available) {
                 setSlugStatus('taken')
-                const base = storeSlug.replace(/-?\d+$/, '')
-                const sugs = [1, 2, 3].map(n => `${base}-${n}`)
+                const sugs = await getSlugSuggestions(storeSlug, 3)
                 setStoreSlugSuggestions(sugs)
             } else {
                 setSlugStatus('available')
@@ -113,7 +103,7 @@ export default function CreateStoreAndRegisterProfile({
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)
-    }, [storeSlug, step, supabase])
+    }, [storeSlug, step])
 
     // Check profile slug availability with suggestions
     useEffect(() => {
@@ -122,14 +112,9 @@ export default function CreateStoreAndRegisterProfile({
             return
         }
         const check = async () => {
-            const { data } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('profileSlug', profileSlug)
-                .maybeSingle()
-            if (data) {
-                const base = profileSlug.replace(/-?\d+$/, '')
-                const sugs = [1, 2, 3].map(n => `${base}-${n}`)
+            const result = await checkSlugAvailability(profileSlug)
+            if (!result.available) {
+                const sugs = await getSlugSuggestions(profileSlug, 3)
                 setProfileSlugSuggestions(sugs)
             } else {
                 setProfileSlugSuggestions([])
@@ -137,7 +122,7 @@ export default function CreateStoreAndRegisterProfile({
         }
         const timer = setTimeout(check, 600)
         return () => clearTimeout(timer)
-    }, [profileSlug, step, supabase])
+    }, [profileSlug, step])
 
     // Image preview
     useEffect(() => {
@@ -239,15 +224,25 @@ export default function CreateStoreAndRegisterProfile({
             return
         }
 
+        if (profileSlug === storeSlug) {
+            setAccountError('O link do seu perfil não pode ser igual ao link da sua loja')
+            setLoading(false)
+            return
+        }
+
         try {
-            // 1. Verificar disponibilidade do profileSlug
-            const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('profileSlug', profileSlug)
-                .single()
-            if (existingProfile) {
-                setAccountError('Este link de perfil já está em uso')
+            // 1. Verificar disponibilidade global do profileSlug
+            const profileCheck = await checkSlugAvailability(profileSlug)
+            if (!profileCheck.available) {
+                setAccountError(profileCheck.message || 'Este link de perfil já está em uso')
+                setLoading(false)
+                return
+            }
+
+            // 1.1 Verificar disponibilidade global do storeSlug
+            const storeCheck = await checkSlugAvailability(storeSlug)
+            if (!storeCheck.available) {
+                setAccountError(storeCheck.message || 'Este link de loja já está em uso')
                 setLoading(false)
                 return
             }

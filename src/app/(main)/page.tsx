@@ -550,7 +550,7 @@ export default function HomePage() {
             case 'storeList':
                 return (
                     <StoreList
-                        title="Lojas em Destaque"
+                        title="Lojas Mais Visitadas"
                         maxItems={5}
                         onStoreClick={(storeSlug) => {
                             router.push(`/${storeSlug}`)

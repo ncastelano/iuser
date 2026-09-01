@@ -36,6 +36,21 @@ function minutesToTime(minutes: number): string {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+// ===== FUNÇÃO PARA VERIFICAR SE HÁ HORÁRIOS CONFIGURADOS =====
+function hasConfiguredHours(businessHours: BusinessHours | null | undefined): boolean {
+    if (!businessHours) return false
+    if (!businessHours.weekly) return false
+
+    const days = Object.keys(businessHours.weekly)
+    if (days.length === 0) return false
+
+    // Verifica se pelo menos um dia tem horário configurado
+    return days.some(day => {
+        const config = businessHours.weekly[day]
+        return config && config.isOpen === true && config.start && config.end
+    })
+}
+
 /**
  * Retorna os intervalos de funcionamento (em minutos) para um dia específico.
  * Ex: [{start: 480, end: 720}, {start: 780, end: 1080}] para loja com almoço.
@@ -69,19 +84,22 @@ function getOpenIntervals(dayConfig: DayConfig): { start: number; end: number }[
     return intervals
 }
 
-// ---------- funções originais (mantidas) ----------
+// ---------- funções principais ----------
 
 export function isStoreOpenNow(businessHours: BusinessHours | null | undefined): boolean {
-    if (!businessHours?.weekly || Object.keys(businessHours.weekly).length === 0) return true
+    // ✅ CORRIGIDO: Se não tem horários configurados, retorna FALSE (fechado)
+    if (!hasConfiguredHours(businessHours)) {
+        return false
+    }
 
     const now = new Date()
     const todayStr = toLocalDateString(now)
 
-    const blockedDates = businessHours.blocked_dates ?? []
+    const blockedDates = businessHours?.blocked_dates ?? []
     if (blockedDates.includes(todayStr)) return false
 
     const dayKey = String(now.getDay())
-    const dayConfig = businessHours.weekly[dayKey]
+    const dayConfig = businessHours?.weekly?.[dayKey]
 
     if (!dayConfig || !dayConfig.isOpen || !dayConfig.start || !dayConfig.end) return false
 
@@ -92,11 +110,11 @@ export function isStoreOpenNow(businessHours: BusinessHours | null | undefined):
 }
 
 export function getTodayHoursText(businessHours: BusinessHours | null | undefined): string | null {
-    if (!businessHours?.weekly) return null
+    if (!hasConfiguredHours(businessHours)) return null
 
     const now = new Date()
     const dayKey = String(now.getDay())
-    const dayConfig = businessHours.weekly[dayKey]
+    const dayConfig = businessHours?.weekly?.[dayKey]
 
     if (!dayConfig || !dayConfig.start || !dayConfig.end) return null
 
@@ -109,10 +127,10 @@ export function getNextOpeningInfo(
     businessHours: BusinessHours | null | undefined,
     from: Date = new Date()
 ): { dayLabel: string; time: string; distanceMs: number } | null {
-    if (!businessHours?.weekly) return null
+    if (!hasConfiguredHours(businessHours)) return null
 
     const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
-    const blockedDates = businessHours.blocked_dates ?? []
+    const blockedDates = businessHours?.blocked_dates ?? []
     const currentMinutes = from.getHours() * 60 + from.getMinutes()
 
     for (let i = 0; i <= 7; i++) {
@@ -124,7 +142,7 @@ export function getNextOpeningInfo(
         if (blockedDates.includes(dateStr)) continue
 
         const dayKey = String(candidate.getDay())
-        const dayConfig = businessHours.weekly[dayKey]
+        const dayConfig = businessHours?.weekly?.[dayKey]
         if (!dayConfig || !dayConfig.isOpen || !dayConfig.start) continue
 
         const intervals = getOpenIntervals(dayConfig)
@@ -158,7 +176,7 @@ export function formatTimeRemaining(ms: number): string {
 }
 
 // ============================================================
-// NOVA FUNÇÃO: Status com suporte a intervalo (igual ao profileHours)
+// FUNÇÃO: Status com suporte a intervalo
 // ============================================================
 
 export function getStoreStatusWithLunch(businessHours: BusinessHours | null | undefined): {
@@ -166,21 +184,22 @@ export function getStoreStatusWithLunch(businessHours: BusinessHours | null | un
     text: string
     isLunchTime?: boolean
 } {
-    if (!businessHours?.weekly || Object.keys(businessHours.weekly).length === 0) {
-        return { isOpen: true, text: 'Aberto' }
+    // ✅ CORRIGIDO: Se não tem horários configurados, retorna FECHADO
+    if (!hasConfiguredHours(businessHours)) {
+        return { isOpen: false, text: 'Fechado' }
     }
 
     const now = new Date()
     const todayStr = toLocalDateString(now)
 
     // verifica bloqueios
-    const blockedDates = businessHours.blocked_dates ?? []
+    const blockedDates = businessHours?.blocked_dates ?? []
     if (blockedDates.includes(todayStr)) {
         return { isOpen: false, text: 'Fechado hoje' }
     }
 
     const dayKey = String(now.getDay())
-    const dayConfig = businessHours.weekly[dayKey]
+    const dayConfig = businessHours?.weekly?.[dayKey]
 
     if (!dayConfig || !dayConfig.isOpen || !dayConfig.start || !dayConfig.end) {
         return { isOpen: false, text: 'Fechado hoje' }
@@ -260,6 +279,11 @@ export function getStoreStatusWithLunch(businessHours: BusinessHours | null | un
 // ---------- função legada (mantida para compatibilidade) ----------
 
 export function getStoreStatusText(businessHours: BusinessHours | null | undefined): string {
+    // ✅ CORRIGIDO: Se não tem horários configurados, retorna "Fechado"
+    if (!hasConfiguredHours(businessHours)) {
+        return 'Fechado'
+    }
+
     const open = isStoreOpenNow(businessHours)
 
     if (open) {
@@ -274,4 +298,9 @@ export function getStoreStatusText(businessHours: BusinessHours | null | undefin
     }
 
     return 'Fechado'
+}
+
+// ===== FUNÇÃO AUXILIAR PARA VERIFICAR SE HÁ HORÁRIOS =====
+export function hasAnyBusinessHours(businessHours: BusinessHours | null | undefined): boolean {
+    return hasConfiguredHours(businessHours)
 }

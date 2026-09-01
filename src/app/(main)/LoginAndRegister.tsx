@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import RecoverPassword from './RecoverPassword'
+import { checkSlugAvailability } from '@/lib/slugUtils'
 
 function hexToRgb(hex: string) {
     const clean = hex.replace('#', '')
@@ -121,15 +122,10 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
         }
 
         try {
-            // Verificar se o slug já existe
-            const { data: existingProfile } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('profileSlug', profileSlug)
-                .maybeSingle()
-
-            if (existingProfile) {
-                setRegisterError('Este link já está em uso por outro usuário.')
+            // Verificar disponibilidade global do slug (perfis, lojas, produtos, publicações, rotas reservadas)
+            const slugCheck = await checkSlugAvailability(profileSlug)
+            if (!slugCheck.available) {
+                setRegisterError(slugCheck.message || 'Este link já está em uso.')
                 setRegisterLoading(false)
                 return
             }

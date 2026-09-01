@@ -403,6 +403,7 @@ export default function AllStoreList() {
         setError(null)
 
         try {
+            // ✅ CORRIGIDO: Ordena por view_count (mais visitados primeiro)
             const { data: storesData, error: storesError } = await supabase
                 .from('stores')
                 .select(`
@@ -421,7 +422,7 @@ export default function AllStoreList() {
                     whatsapp
                 `)
                 .eq('is_active', true)
-                .order('ratings_avg', { ascending: false })
+                .order('view_count', { ascending: false })  // ✅ Mais visitados primeiro
                 .limit(200)
 
             if (storesError) throw storesError
@@ -515,9 +516,16 @@ export default function AllStoreList() {
                 })
             )
 
-            setAllStores(storesWithDetails)
-            setDisplayedStores(storesWithDetails.slice(0, ITEMS_PER_LOAD))
-            setHasMore(storesWithDetails.length > ITEMS_PER_LOAD)
+            // ✅ GARANTE QUE A ORDENAÇÃO POR VIEW_COUNT SEJA MANTIDA
+            const sortedStores = storesWithDetails.sort((a, b) => {
+                const aViews = a.view_count || 0
+                const bViews = b.view_count || 0
+                return bViews - aViews
+            })
+
+            setAllStores(sortedStores)
+            setDisplayedStores(sortedStores.slice(0, ITEMS_PER_LOAD))
+            setHasMore(sortedStores.length > ITEMS_PER_LOAD)
             setPage(1)
         } catch (err: any) {
             console.error('Erro ao carregar lojas:', err)
@@ -550,12 +558,15 @@ export default function AllStoreList() {
             filtered = filtered.filter(s => s.category === selectedCategory)
         }
 
+        // ✅ ORDENAÇÃO FINAL: Lojas abertas primeiro, depois por view_count (maior para menor)
         filtered.sort((a, b) => {
             const aOpen = isStoreOpenNow(a.business_hours)
             const bOpen = isStoreOpenNow(b.business_hours)
             if (aOpen && !bOpen) return -1
             if (!aOpen && bOpen) return 1
-            return (b.ratings_avg || 0) - (a.ratings_avg || 0)
+            const aViews = a.view_count || 0
+            const bViews = b.view_count || 0
+            return bViews - aViews
         })
 
         return filtered

@@ -513,7 +513,7 @@ export default function OwnerClientPage() {
 
                 {/* ===== RENDERIZAR CONTEÚDO ===== */}
                 {showProfile ? (
-                    <div className="max-w-4xl mx-auto px-4 py-6">
+                    <div className="w-full px-4 md:px-6 py-6">
                         <ProfileDashboard
                             profileSlug={loggedUserSlug || ''}
                             onBack={showMainContent}
@@ -521,7 +521,7 @@ export default function OwnerClientPage() {
                         />
                     </div>
                 ) : showStoreDashboard ? (
-                    <div className="max-w-4xl mx-auto px-4 py-6">
+                    <div className="w-full px-4 md:px-6 py-6">
                         <StoreDashboard
                             profileSlug={loggedUserSlug || ''}
                             storeSlug={showStoreDashboard.slug}
