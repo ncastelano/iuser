@@ -24,7 +24,7 @@ import {
     Loader2,
     Plus,
 } from 'lucide-react'
-import { formatBrazilianPhone, cleanPhoneNumber } from './Profile'
+import { formatBrazilianPhone, cleanPhoneNumber, geocodeAddress, reverseGeocode } from './Profile'
 
 interface OwnerData {
     id: string
@@ -50,106 +50,6 @@ interface EditProfileProps {
     onClose: () => void
     onUpdate: (updatedOwner: OwnerData) => void
 }
-
-// ========== LOCATION PICKER LOGICA ==========
-const geocodeCache: Map<string, { lat: number; lng: number; address: string } | null> = new Map()
-const reverseGeocodeCache: Map<string, string> = new Map()
-
-async function geocodeAddress(query: string): Promise<{ lat: number; lng: number; address: string } | null> {
-    const key = query.toLowerCase().trim()
-    if (geocodeCache.has(key)) return geocodeCache.get(key)!
-
-    try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`,
-            { headers: { 'User-Agent': 'iUserApp/1.0', 'Accept-Language': 'pt-BR' } }
-        )
-        if (!res.ok) throw new Error('Erro')
-        const data = await res.json()
-
-        if (data?.length > 0) {
-            const result = {
-                lat: parseFloat(data[0].lat),
-                lng: parseFloat(data[0].lon),
-                address: data[0].display_name || query
-            }
-            geocodeCache.set(key, result)
-            return result
-        }
-        geocodeCache.set(key, null)
-        return null
-    } catch {
-        return null
-    }
-}
-
-async function reverseGeocode(lat: number, lng: number): Promise<{
-    fullAddress: string;
-    streetDisplay: string;
-    extractedNumber: string;
-}> {
-    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`
-
-    try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`,
-            { headers: { 'User-Agent': 'iUserApp/1.0', 'Accept-Language': 'pt-BR' } }
-        )
-        if (!res.ok) throw new Error('Erro')
-        const data = await res.json()
-
-        let formatted = ''
-        let extractedNumber = ''
-
-        if (data?.address) {
-            const addr = data.address
-            const street = addr.road || addr.street || ''
-            const number = addr.house_number || ''
-            const neighbourhood = addr.neighbourhood || addr.suburb || addr.district || ''
-            const city = addr.city || addr.town || addr.municipality || ''
-            const state = addr.state || ''
-
-            extractedNumber = number
-
-            const parts = []
-            if (street) {
-                parts.push(number ? `${street}, ${number}` : street)
-            }
-            if (neighbourhood) parts.push(neighbourhood)
-            if (city) parts.push(city)
-            if (state) parts.push(state)
-
-            formatted = parts.length > 0 ? parts.join(', ') : data.display_name || ''
-        }
-
-        if (!formatted) {
-            formatted = data?.display_name || ''
-        }
-
-        if (!formatted) {
-            formatted = `Local (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-        }
-
-        reverseGeocodeCache.set(key, formatted)
-
-        return {
-            fullAddress: formatted,
-            streetDisplay: extractStreetDisplay(formatted),
-            extractedNumber
-        }
-    } catch {
-        const fallback = `Local (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-        reverseGeocodeCache.set(key, fallback)
-        return { fullAddress: fallback, streetDisplay: fallback, extractedNumber: '' }
-    }
-}
-
-function extractStreetDisplay(fullAddress: string): string {
-    if (fullAddress.startsWith('Local (')) return fullAddress
-    const parts = fullAddress.split(',')
-    return parts[0].trim()
-}
-// ========== FIM DA LOGICA DO LOCATION PICKER ==========
 
 export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: EditProfileProps) {
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -566,7 +466,6 @@ export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: Edit
                 show_location: !!editLocation,
             }
 
-            // Call onUpdate to refresh parent component
             onUpdate(updatedOwner)
 
             toast.success('Perfil atualizado com sucesso!')

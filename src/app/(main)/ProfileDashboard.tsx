@@ -94,6 +94,7 @@ export default function ProfileDashboard({
     const { itemsByStore } = useCartStore()
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const [initialLoadDone, setInitialLoadDone] = useState(false)
 
     const [orders, setOrders] = useState<any[]>([])
     const [metrics, setMetrics] = useState({
@@ -131,6 +132,8 @@ export default function ProfileDashboard({
     const [activeTab, setActiveTab] = useState<'compras' | 'favoritas' | 'avaliacoes'>('compras')
 
     const intervalRef = useRef<any>(null)
+    const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const isMounted = useRef(true)
 
     // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
     const totalCartItems = React.useMemo(() => {
@@ -170,6 +173,7 @@ export default function ProfileDashboard({
         }
     }, [totalCartItems])
 
+    // ===== CARREGAR STATUS DOS PEDIDOS (SEPARADO) =====
     React.useEffect(() => {
         const fetchOrderStatuses = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -246,7 +250,8 @@ export default function ProfileDashboard({
             setProfile({ ...profile, whatsapp: cleanPhone })
             setShowWhatsAppAlert(false)
             toast.success('WhatsApp adicionado com sucesso! 🎉')
-            loadDashboard()
+            // Recarregar sem mostrar loading
+            loadDashboardData(false)
         } catch (error: any) {
             toast.error('Erro ao salvar WhatsApp: ' + error.message)
         } finally {
@@ -331,350 +336,411 @@ export default function ProfileDashboard({
         return result
     }, [profile?.id, spendingCache])
 
-    const loadDashboard = useCallback(async () => {
-        if (!profileSlug) return
-        setLoading(true)
-
-        const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .ilike('profileSlug', profileSlug)
-            .maybeSingle()
-
-        if (profileError || !profileData) {
-            toast.error('Perfil não encontrado')
+    // ===== FUNÇÃO PRINCIPAL DE CARREGAMENTO =====
+    const loadDashboardData = useCallback(async (showLoading = true) => {
+        if (!profileSlug) {
             setLoading(false)
             return
         }
 
-        const finalAvatarUrl = avatarUrl || (profileData.avatar_url
-            ? supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
-            : null)
-
-        setProfile({ ...profileData, avatar_url: finalAvatarUrl })
-
-        if (profileData.whatsapp) {
-            setShowWhatsAppAlert(false)
-        } else {
-            setShowWhatsAppAlert(true)
+        // Evitar carregamentos duplicados
+        if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current)
         }
 
-        const profileId = profileData.id
+        if (showLoading) {
+            setLoading(true)
+        }
 
-        // Buscar lojas do usuário para saber quais são dele
-        const { data: userStores } = await supabase
-            .from('stores')
-            .select('storeSlug')
-            .eq('owner_id', profileId)
+        try {
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .ilike('profileSlug', profileSlug)
+                .maybeSingle()
 
-        const userStoreSlugs = new Set(userStores?.map(s => s.storeSlug) || [])
+            if (profileError || !profileData) {
+                toast.error('Perfil não encontrado')
+                setLoading(false)
+                return
+            }
 
-        const { data: ordersData } = await supabase
-            .from('orders')
-            .select(`
-                id,
-                checkout_id,
-                store_id,
-                total_amount,
-                delivery_fee,
-                delivery_option,
-                payment_method,
-                delivery_address,
-                status,
-                created_at,
-                stores:store_id (
-                    name,
-                    storeSlug,
-                    logo_url
-                ),
-                order_items (
+            const finalAvatarUrl = avatarUrl || (profileData.avatar_url
+                ? supabase.storage.from('avatars').getPublicUrl(profileData.avatar_url).data.publicUrl
+                : null)
+
+            setProfile({ ...profileData, avatar_url: finalAvatarUrl })
+
+            if (profileData.whatsapp) {
+                setShowWhatsAppAlert(false)
+            } else {
+                setShowWhatsAppAlert(true)
+            }
+
+            const profileId = profileData.id
+
+            // Buscar lojas do usuário
+            const { data: userStores } = await supabase
+                .from('stores')
+                .select('storeSlug')
+                .eq('owner_id', profileId)
+
+            const userStoreSlugs = new Set(userStores?.map(s => s.storeSlug) || [])
+
+            // Buscar pedidos
+            const { data: ordersData } = await supabase
+                .from('orders')
+                .select(`
                     id,
-                    product_id,
-                    product_name,
-                    quantity,
-                    unit_price,
-                    total_price
-                )
-            `)
-            .eq('buyer_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(50)
+                    checkout_id,
+                    store_id,
+                    total_amount,
+                    delivery_fee,
+                    delivery_option,
+                    payment_method,
+                    delivery_address,
+                    status,
+                    created_at,
+                    stores:store_id (
+                        name,
+                        storeSlug,
+                        logo_url
+                    ),
+                    order_items (
+                        id,
+                        product_id,
+                        product_name,
+                        quantity,
+                        unit_price,
+                        total_price
+                    )
+                `)
+                .eq('buyer_id', profileId)
+                .order('created_at', { ascending: false })
+                .limit(50)
 
-        if (ordersData) {
-            const formattedOrders = ordersData.map((order: any) => {
-                const items = order.order_items || []
-                const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
-                const deliveryFee = Number(order.delivery_fee || 0)
+            if (ordersData) {
+                const formattedOrders = ordersData.map((order: any) => {
+                    const items = order.order_items || []
+                    const subtotal = items.reduce((acc: number, i: any) => acc + Number(i.total_price || 0), 0)
+                    const deliveryFee = Number(order.delivery_fee || 0)
 
-                const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
+                    const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
 
-                let storeLogo = null
-                if (storeData?.logo_url) {
-                    storeLogo = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
-                }
-
-                return {
-                    id: order.id,
-                    checkout_id: order.checkout_id,
-                    store_name: storeData?.name || 'Loja',
-                    store_slug: storeData?.storeSlug || '',
-                    store_logo: storeLogo,
-                    created_at: order.created_at,
-                    status: order.status,
-                    delivery_address: order.delivery_address,
-                    items,
-                    subtotal,
-                    deliveryFee,
-                    totalPrice: Number(order.total_amount || subtotal + deliveryFee),
-                }
-            })
-
-            setOrders(formattedOrders)
-
-            const todayStart = startOfDay(new Date()).toISOString()
-            const dailyOrders = formattedOrders.filter((o: any) =>
-                new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
-                o.status === 'paid'
-            )
-            const dailySpent = dailyOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
-
-            const paidOrders = formattedOrders.filter((o: any) => o.status === 'paid')
-            const totalSpent = paidOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
-            const uniqueStores = new Set(paidOrders.map((o: any) => o.store_slug)).size
-
-            setMetrics(prev => ({
-                ...prev,
-                daily: { spent: dailySpent, orders: dailyOrders.length },
-                total: { spent: totalSpent, orders: paidOrders.length, stores: uniqueStores },
-            }))
-
-            const storeCounts = new Map<string, number>()
-            ordersData.forEach((order: any) => {
-                const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
-                if (storeData) {
-                    const key = storeData.storeSlug
-                    storeCounts.set(key, (storeCounts.get(key) || 0) + 1)
-                }
-            })
-
-            if (storeCounts.size > 0) {
-                const sortedStores = Array.from(storeCounts.entries())
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 10)
-
-                const favoriteStoresData = sortedStores.map(([slug, count]) => {
-                    const order = ordersData.find((o: any) => {
-                        const storeData = Array.isArray(o.stores) ? o.stores[0] : o.stores
-                        return storeData?.storeSlug === slug
-                    })
-
-                    const storeData = order ? (Array.isArray(order.stores) ? order.stores[0] : order.stores) : null
-
-                    let logoUrl = null
+                    let storeLogo = null
                     if (storeData?.logo_url) {
-                        logoUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+                        storeLogo = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
                     }
 
-                    const isOwned = userStoreSlugs.has(slug)
-
                     return {
-                        name: storeData?.name || slug,
-                        slug: slug,
-                        logo_url: logoUrl,
-                        orderCount: count,
-                        isOwned,
+                        id: order.id,
+                        checkout_id: order.checkout_id,
+                        store_name: storeData?.name || 'Loja',
+                        store_slug: storeData?.storeSlug || '',
+                        store_logo: storeLogo,
+                        created_at: order.created_at,
+                        status: order.status,
+                        delivery_address: order.delivery_address,
+                        items,
+                        subtotal,
+                        deliveryFee,
+                        totalPrice: Number(order.total_amount || subtotal + deliveryFee),
                     }
                 })
 
-                setFavoriteStores(favoriteStoresData)
-                setFavoriteStoresNotOwned(favoriteStoresData.filter(s => !s.isOwned))
+                setOrders(formattedOrders)
+
+                const todayStart = startOfDay(new Date()).toISOString()
+                const dailyOrders = formattedOrders.filter((o: any) =>
+                    new Date(o.created_at).getTime() >= new Date(todayStart).getTime() &&
+                    o.status === 'paid'
+                )
+                const dailySpent = dailyOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
+
+                const paidOrders = formattedOrders.filter((o: any) => o.status === 'paid')
+                const totalSpent = paidOrders.reduce((acc: number, o: any) => acc + o.totalPrice, 0)
+                const uniqueStores = new Set(paidOrders.map((o: any) => o.store_slug)).size
+
+                setMetrics(prev => ({
+                    ...prev,
+                    daily: { spent: dailySpent, orders: dailyOrders.length },
+                    total: { spent: totalSpent, orders: paidOrders.length, stores: uniqueStores },
+                }))
+
+                const storeCounts = new Map<string, number>()
+                ordersData.forEach((order: any) => {
+                    const storeData = Array.isArray(order.stores) ? order.stores[0] : order.stores
+                    if (storeData) {
+                        const key = storeData.storeSlug
+                        storeCounts.set(key, (storeCounts.get(key) || 0) + 1)
+                    }
+                })
+
+                if (storeCounts.size > 0) {
+                    const sortedStores = Array.from(storeCounts.entries())
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+
+                    const favoriteStoresData = sortedStores.map(([slug, count]) => {
+                        const order = ordersData.find((o: any) => {
+                            const storeData = Array.isArray(o.stores) ? o.stores[0] : o.stores
+                            return storeData?.storeSlug === slug
+                        })
+
+                        const storeData = order ? (Array.isArray(order.stores) ? order.stores[0] : order.stores) : null
+
+                        let logoUrl = null
+                        if (storeData?.logo_url) {
+                            logoUrl = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+                        }
+
+                        const isOwned = userStoreSlugs.has(slug)
+
+                        return {
+                            name: storeData?.name || slug,
+                            slug: slug,
+                            logo_url: logoUrl,
+                            orderCount: count,
+                            isOwned,
+                        }
+                    })
+
+                    setFavoriteStores(favoriteStoresData)
+                    setFavoriteStoresNotOwned(favoriteStoresData.filter(s => !s.isOwned))
+                }
+            }
+
+            // Buscar visualizações
+            const { data: viewsData } = await supabase
+                .from('product_views')
+                .select(`
+                    product_id,
+                    created_at,
+                    products:product_id (
+                        name,
+                        price,
+                        image_url,
+                        slug,
+                        stores:store_id (
+                            name,
+                            storeSlug
+                        )
+                    )
+                `)
+                .eq('profile_id', profileId)
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            if (viewsData) {
+                const recentViewsData = viewsData.map((v: any) => {
+                    const productData = Array.isArray(v.products) ? v.products[0] : v.products
+                    const storeData = productData?.stores
+                    const storeInfo = Array.isArray(storeData) ? storeData[0] : storeData
+
+                    return {
+                        product_name: productData?.name || 'Produto',
+                        product_slug: productData?.slug || '',
+                        price: productData?.price || 0,
+                        image_url: productData?.image_url
+                            ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
+                            : null,
+                        store_name: storeInfo?.name || 'Loja',
+                        store_slug: storeInfo?.storeSlug || '',
+                        viewed_at: v.created_at,
+                    }
+                })
+                setRecentViews(recentViewsData)
+            }
+
+            // Buscar avaliações
+            const { data: reviewsData } = await supabase
+                .from('product_reviews')
+                .select(`
+                    id,
+                    rating,
+                    comment,
+                    created_at,
+                    products:product_id (
+                        name,
+                        slug,
+                        stores:store_id (
+                            name,
+                            storeSlug
+                        )
+                    )
+                `)
+                .eq('profile_id', profileId)
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            if (reviewsData) {
+                const formattedReviews = reviewsData.map((r: any) => {
+                    const productData = Array.isArray(r.products) ? r.products[0] : r.products
+                    const storeData = productData?.stores
+                    const storeInfo = Array.isArray(storeData) ? storeData[0] : storeData
+
+                    return {
+                        id: r.id,
+                        rating: r.rating,
+                        comment: r.comment,
+                        product_name: productData?.name || 'Produto',
+                        product_slug: productData?.slug || '',
+                        store_name: storeInfo?.name || 'Loja',
+                        store_slug: storeInfo?.storeSlug || '',
+                        created_at: r.created_at,
+                    }
+                })
+                setReviews(formattedReviews)
+            }
+
+            // Buscar agendamentos
+            const now = new Date().toISOString()
+            const { data: schedulesData } = await supabase
+                .from('schedules')
+                .select(`
+                    id,
+                    store_id,
+                    schedule_date,
+                    schedule_time,
+                    service_type,
+                    notes,
+                    status,
+                    stores:store_id (
+                        name,
+                        storeSlug,
+                        logo_url
+                    )
+                `)
+                .eq('profile_id', profileId)
+                .gte('schedule_date', now.split('T')[0])
+                .order('schedule_date', { ascending: true })
+                .limit(10)
+
+            if (schedulesData) {
+                const formattedSchedules = schedulesData.map((s: any) => {
+                    const storeData = Array.isArray(s.stores) ? s.stores[0] : s.stores
+
+                    let storeLogo = null
+                    if (storeData?.logo_url) {
+                        storeLogo = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
+                    }
+
+                    return {
+                        id: s.id,
+                        store_name: storeData?.name || 'Loja',
+                        store_slug: storeData?.storeSlug || '',
+                        store_logo: storeLogo,
+                        date: s.schedule_date,
+                        time: s.schedule_time,
+                        service_type: s.service_type,
+                        notes: s.notes,
+                        status: s.status,
+                    }
+                })
+                setUpcomingSchedules(formattedSchedules)
+            }
+
+            // Carregar dados do gráfico
+            setIsLoadingChart(true)
+            const weekData = await fetchSpendingData('week', new Date(), false)
+            const monthData = await fetchSpendingData('month', new Date(), false)
+
+            if (spendingPeriod === 'week' && weekData) {
+                setDailySpendingData(weekData.data)
+                setTotalPeriodSpent(weekData.total)
+                setPeriodLabel(weekData.label)
+            } else if (spendingPeriod === 'month' && monthData) {
+                setDailySpendingData(monthData.data)
+                setTotalPeriodSpent(monthData.total)
+                setPeriodLabel(monthData.label)
+            }
+            setIsLoadingChart(false)
+
+            setInitialLoadDone(true)
+        } catch (error) {
+            console.error('Erro ao carregar dashboard:', error)
+            toast.error('Erro ao carregar dados do perfil')
+        } finally {
+            if (showLoading) {
+                setLoading(false)
             }
         }
-
-        const { data: viewsData } = await supabase
-            .from('product_views')
-            .select(`
-                product_id,
-                created_at,
-                products:product_id (
-                    name,
-                    price,
-                    image_url,
-                    slug,
-                    stores:store_id (
-                        name,
-                        storeSlug
-                    )
-                )
-            `)
-            .eq('profile_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(10)
-
-        if (viewsData) {
-            const recentViewsData = viewsData.map((v: any) => {
-                const productData = Array.isArray(v.products) ? v.products[0] : v.products
-                const storeData = productData?.stores
-                const storeInfo = Array.isArray(storeData) ? storeData[0] : storeData
-
-                return {
-                    product_name: productData?.name || 'Produto',
-                    product_slug: productData?.slug || '',
-                    price: productData?.price || 0,
-                    image_url: productData?.image_url
-                        ? supabase.storage.from('product-images').getPublicUrl(productData.image_url).data.publicUrl
-                        : null,
-                    store_name: storeInfo?.name || 'Loja',
-                    store_slug: storeInfo?.storeSlug || '',
-                    viewed_at: v.created_at,
-                }
-            })
-            setRecentViews(recentViewsData)
-        }
-
-        const { data: reviewsData } = await supabase
-            .from('product_reviews')
-            .select(`
-                id,
-                rating,
-                comment,
-                created_at,
-                products:product_id (
-                    name,
-                    slug,
-                    stores:store_id (
-                        name,
-                        storeSlug
-                    )
-                )
-            `)
-            .eq('profile_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(10)
-
-        if (reviewsData) {
-            const formattedReviews = reviewsData.map((r: any) => {
-                const productData = Array.isArray(r.products) ? r.products[0] : r.products
-                const storeData = productData?.stores
-                const storeInfo = Array.isArray(storeData) ? storeData[0] : storeData
-
-                return {
-                    id: r.id,
-                    rating: r.rating,
-                    comment: r.comment,
-                    product_name: productData?.name || 'Produto',
-                    product_slug: productData?.slug || '',
-                    store_name: storeInfo?.name || 'Loja',
-                    store_slug: storeInfo?.storeSlug || '',
-                    created_at: r.created_at,
-                }
-            })
-            setReviews(formattedReviews)
-        }
-
-        const now = new Date().toISOString()
-        const { data: schedulesData } = await supabase
-            .from('schedules')
-            .select(`
-                id,
-                store_id,
-                schedule_date,
-                schedule_time,
-                service_type,
-                notes,
-                status,
-                stores:store_id (
-                    name,
-                    storeSlug,
-                    logo_url
-                )
-            `)
-            .eq('profile_id', profileId)
-            .gte('schedule_date', now.split('T')[0])
-            .order('schedule_date', { ascending: true })
-            .limit(10)
-
-        if (schedulesData) {
-            const formattedSchedules = schedulesData.map((s: any) => {
-                const storeData = Array.isArray(s.stores) ? s.stores[0] : s.stores
-
-                let storeLogo = null
-                if (storeData?.logo_url) {
-                    storeLogo = supabase.storage.from('store-logos').getPublicUrl(storeData.logo_url).data.publicUrl
-                }
-
-                return {
-                    id: s.id,
-                    store_name: storeData?.name || 'Loja',
-                    store_slug: storeData?.storeSlug || '',
-                    store_logo: storeLogo,
-                    date: s.schedule_date,
-                    time: s.schedule_time,
-                    service_type: s.service_type,
-                    notes: s.notes,
-                    status: s.status,
-                }
-            })
-            setUpcomingSchedules(formattedSchedules)
-        }
-
-        // Pré-carregar dados do gráfico para semana e mês atual
-        setIsLoadingChart(true)
-        const weekData = await fetchSpendingData('week', new Date(), false)
-        const monthData = await fetchSpendingData('month', new Date(), false)
-
-        // Atualizar com o período atual
-        if (spendingPeriod === 'week' && weekData) {
-            setDailySpendingData(weekData.data)
-            setTotalPeriodSpent(weekData.total)
-            setPeriodLabel(weekData.label)
-        } else if (spendingPeriod === 'month' && monthData) {
-            setDailySpendingData(monthData.data)
-            setTotalPeriodSpent(monthData.total)
-            setPeriodLabel(monthData.label)
-        }
-        setIsLoadingChart(false)
-
-        setLoading(false)
     }, [profileSlug, avatarUrl, spendingPeriod, fetchSpendingData])
 
-    // Função para atualizar dados do gráfico sem recarregar tudo
-    const updateChartData = useCallback(async (period: 'week' | 'month', date: Date) => {
-        setIsLoadingChart(true)
-        const data = await fetchSpendingData(period, date, false)
-        if (data) {
-            setDailySpendingData(data.data)
-            setTotalPeriodSpent(data.total)
-            setPeriodLabel(data.label)
-        }
-        setIsLoadingChart(false)
-    }, [fetchSpendingData])
-
+    // ===== CARREGAMENTO INICIAL =====
     useEffect(() => {
-        if (!profile?.id) return
+        if (!profileSlug) return
+
+        // Limpar timeout anterior
+        if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current)
+        }
+
+        loadTimeoutRef.current = setTimeout(() => {
+            loadDashboardData(true)
+        }, 100)
+
+        return () => {
+            if (loadTimeoutRef.current) {
+                clearTimeout(loadTimeoutRef.current)
+            }
+        }
+    }, [profileSlug]) // Apenas quando o profileSlug mudar
+
+    // ===== ATUALIZAR GRÁFICO QUANDO PERÍODO MUDAR =====
+    useEffect(() => {
+        if (!profile?.id || !initialLoadDone) return
+
+        if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current)
+        }
+
+        loadTimeoutRef.current = setTimeout(() => {
+            const updateChartData = async () => {
+                setIsLoadingChart(true)
+                const data = await fetchSpendingData(spendingPeriod, currentDate, false)
+                if (data) {
+                    setDailySpendingData(data.data)
+                    setTotalPeriodSpent(data.total)
+                    setPeriodLabel(data.label)
+                }
+                setIsLoadingChart(false)
+            }
+            updateChartData()
+        }, 200)
+
+        return () => {
+            if (loadTimeoutRef.current) {
+                clearTimeout(loadTimeoutRef.current)
+            }
+        }
+    }, [spendingPeriod, currentDate, profile?.id, initialLoadDone, fetchSpendingData])
+
+    // ===== CANAL DO SUPABASE =====
+    useEffect(() => {
+        if (!profile?.id || !initialLoadDone) return
+
         const ordersChannel = supabase
             .channel(`painel-orders-${profile.id}`)
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'orders', filter: `buyer_id=eq.${profile.id}` },
-                () => loadDashboard()
+                () => {
+                    // Recarregar sem mostrar loading
+                    loadDashboardData(false)
+                }
             )
             .subscribe()
 
         return () => {
             supabase.removeChannel(ordersChannel)
-            clearInterval(intervalRef.current)
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current)
+            }
         }
-    }, [profile?.id, loadDashboard])
+    }, [profile?.id, initialLoadDone, loadDashboardData])
 
-    useEffect(() => {
-        if (!loading && profile?.id) {
-            updateChartData(spendingPeriod, currentDate)
-        }
-    }, [spendingPeriod, currentDate, loading, profile?.id, updateChartData])
-
-    useEffect(() => { loadDashboard() }, [loadDashboard])
-
+    // ===== NAVEGAÇÃO =====
     const goToPublicProfile = () => {
         if (profileSlug) {
             router.push(`/${profileSlug}`)
@@ -708,9 +774,8 @@ export default function ProfileDashboard({
     // Filtrar apenas dias com gastos
     const daysWithSpending = dailySpendingData.filter(d => d.amount > 0)
 
-    // Função para agrupar dados em semanas para o mês (apenas dias com gastos)
+    // Função para agrupar dados em semanas para o mês
     const getWeeklyDataWithSpending = () => {
-        const weeks: { week: string; days: { date: string; amount: number }[] }[] = []
         const allWeeks: { week: string; days: { date: string; amount: number }[] }[] = []
         for (let i = 0; i < dailySpendingData.length; i += 7) {
             const weekData = dailySpendingData.slice(i, i + 7)
@@ -739,7 +804,7 @@ export default function ProfileDashboard({
         setCurrentDate(new Date())
     }
 
-    if (loading) return <LoadingSpinner message="Carregando perfil..." />
+    if (loading && !initialLoadDone) return <LoadingSpinner message="Carregando perfil..." />
     if (!profile) return null
 
     return (

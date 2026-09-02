@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, X } from 'lucide-react'
+import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, X, Radar } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
@@ -32,6 +32,9 @@ import StoreDashboard from './StoreDashboard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
+
+// ===== GRADIENTE PARA O BOTÃO RADAR (LARANJA PARA VERMELHO) =====
+const RADAR_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TODAS AS SEÇÕES DISPONÍVEIS (INCLUINDO AS "EM BREVE") =====
 const DEFAULT_SECTIONS = [
@@ -864,49 +867,75 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== BOTÕES FLUTUANTES - LADO DIREITO ===== */}
-                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                    <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                        {shouldShowSacola && (
-                            <div>
-                                {loadingStatus ? (
-                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
-                                        <ShoppingCart size={24} style={{ color: '#ffffff' }} />
-                                    </div>
-                                ) : (
-                                    <SacolaButton
-                                        totalItems={totalCartItems}
-                                        totalValue={totalCartValue}
-                                        statusCounts={{
-                                            pending: pendingCount,
-                                            preparing: preparingCount,
-                                            ready: readyCount,
-                                            reviews: pendingReviewsCount,
-                                        }}
-                                        animate={cartAnimating}
-                                    />
-                                )}
-                            </div>
-                        )}
+                {/* ===== BOTÕES FLUTUANTES - LADO ESQUERDO E DIREITO ===== */}
+                <div style={{ position: 'fixed', bottom: 32, left: 24, right: 24, zIndex: 998 }}>
+                    <div className="flex justify-between items-end">
+                        {/* LADO ESQUERDO - BOTÃO RADAR */}
+                        <div className="flex items-end">
+                            {shouldShowSacola && (
+                                <button
+                                    onClick={() => router.push('/radar')}
+                                    className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
+                                    style={{
+                                        background: RADAR_GRADIENT,
+                                        color: '#ffffff',
+                                        borderTop: '2px solid #f97316',
+                                        borderRight: '2px solid #f97316',
+                                        borderBottom: '2px solid #dc2626',
+                                        borderLeft: '2px solid #dc2626',
+                                        boxShadow: `0 8px 24px #dc262640`,
+                                    }}
+                                    aria-label="Radar"
+                                >
+                                    <Radar size={22} />
+                                    <span className="font-semibold text-sm">Radar</span>
+                                </button>
+                            )}
+                        </div>
 
-                        {showFab && (
-                            <button
-                                onClick={showHomeSections}
-                                className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    borderTop: '2px solid #f97316',
-                                    borderRight: '2px solid #f97316',
-                                    borderBottom: '2px solid #f97316',
-                                    borderLeft: '2px solid #f97316',
-                                    boxShadow: `0 8px 24px #f9731660`,
-                                }}
-                                aria-label="Voltar ao início"
-                            >
-                                <Home size={24} />
-                            </button>
-                        )}
+                        {/* LADO DIREITO - BOTÃO SACOLA E VOLTAR */}
+                        <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
+                            {shouldShowSacola && (
+                                <div>
+                                    {loadingStatus ? (
+                                        <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
+                                            <ShoppingCart size={24} style={{ color: '#ffffff' }} />
+                                        </div>
+                                    ) : (
+                                        <SacolaButton
+                                            totalItems={totalCartItems}
+                                            totalValue={totalCartValue}
+                                            statusCounts={{
+                                                pending: pendingCount,
+                                                preparing: preparingCount,
+                                                ready: readyCount,
+                                                reviews: pendingReviewsCount,
+                                            }}
+                                            animate={cartAnimating}
+                                        />
+                                    )}
+                                </div>
+                            )}
+
+                            {showFab && (
+                                <button
+                                    onClick={showHomeSections}
+                                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
+                                    style={{
+                                        background: GRADIENT,
+                                        color: '#ffffff',
+                                        borderTop: '2px solid #f97316',
+                                        borderRight: '2px solid #f97316',
+                                        borderBottom: '2px solid #f97316',
+                                        borderLeft: '2px solid #f97316',
+                                        boxShadow: `0 8px 24px #f9731660`,
+                                    }}
+                                    aria-label="Voltar ao início"
+                                >
+                                    <Home size={24} />
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
 

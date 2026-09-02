@@ -648,57 +648,6 @@ export default function AtalhoCompromissosPessoal({
                                 })}
                             </div>
                         )}
-
-                        {/* Rodapé com toggle e contagem - PILL */}
-                        <div
-                            className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t"
-                            style={{ borderColor: borderColor }}
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs font-medium" style={{ color: textSecondary }}>
-                                    Mostrar pendentes
-                                </span>
-                                <label className="relative inline-flex cursor-pointer" style={{ width: 40, height: 22 }}>
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only peer"
-                                        checked={showPending}
-                                        onChange={() => setShowPending(prev => !prev)}
-                                    />
-                                    <span
-                                        className="absolute inset-0 rounded-full transition-colors duration-200"
-                                        style={{ background: showPending ? '#f97316' : borderColor }}
-                                    />
-                                    <span
-                                        className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${showPending ? 'translate-x-[18px]' : 'translate-x-0'}`}
-                                    />
-                                </label>
-                                {!showPending && pendingCount > 0 && (
-                                    <span
-                                        className="text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse"
-                                        style={{ background: '#ef444420', color: '#ef4444' }}
-                                    >
-                                        {pendingCount} oculto{pendingCount > 1 ? 's' : ''}
-                                    </span>
-                                )}
-                            </div>
-
-                            {sorted.length > 0 && (
-                                <Link
-                                    href="/compromissos"
-                                    style={{
-                                        ...pillButtonStyle,
-                                        border: `1px solid ${borderColor}`,
-                                        color: textSecondary,
-                                        background: 'transparent',
-                                    }}
-                                    className="hover:bg-white/5 transition-colors"
-                                >
-                                    <Calendar size={14} />
-                                    Ver agenda
-                                </Link>
-                            )}
-                        </div>
                     </>
                 )}
             </div>

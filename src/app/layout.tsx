@@ -3,6 +3,7 @@
 import type { Viewport, Metadata } from 'next'
 import { Providers } from './providers'
 import './globals.css'
+import { ServiceWorkerRegister } from './(main)/ServiceWorkerRegister'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -37,14 +38,14 @@ export const metadata: Metadata = {
     siteName: 'iuser.com.br',
     images: [
       {
-        url: '/logo-og.png', // Use uma imagem específica para OG
+        url: '/logo-og.png',
         width: 1200,
         height: 630,
         alt: 'iUser',
         type: 'image/png',
       },
       {
-        url: '/logo.png', // Fallback
+        url: '/logo.png',
         width: 400,
         height: 400,
         alt: 'iUser',
@@ -54,10 +55,10 @@ export const metadata: Metadata = {
     locale: 'pt_BR',
   },
   twitter: {
-    card: 'summary_large_image', // Mude para summary_large_image para imagem maior
+    card: 'summary_large_image',
     title: 'iUser | Mostre o que você tem de melhor!',
     description: 'Os melhores produtos e serviços, você encontra aqui!',
-    images: ['/logo-og.png'], // Use a imagem com proporção correta
+    images: ['/logo-og.png'],
   },
   robots: {
     index: true,
@@ -82,6 +83,8 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Providers>
           {children}
+          {/* ✅ Service Worker Register - Registra o SW em toda a aplicação */}
+          <ServiceWorkerRegister />
         </Providers>
       </body>
     </html>

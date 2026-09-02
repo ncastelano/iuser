@@ -1,3 +1,5 @@
+//app/(main)/layout.tsx
+
 import { ReactNode } from 'react'
 
 export default function MainLayout({

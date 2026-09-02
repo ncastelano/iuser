@@ -258,7 +258,6 @@ export default function MapPage() {
     useEffect(() => {
         if (!isLoggedIn || !userId) return
 
-
         console.log('[MapPage] 🔄 Configurando listener Realtime para perfil, userId:', userId)
 
         const channel = supabase
@@ -545,7 +544,6 @@ export default function MapPage() {
     }
 
     // Remover localização do perfil
-    // Remover localização do perfil
     const removeLocation = async () => {
         try {
 
@@ -737,7 +735,6 @@ export default function MapPage() {
     }, [filtered, mode, stores, mapReady])
 
     // PROFILE MARKER
-    // PROFILE MARKER
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
 
@@ -892,7 +889,6 @@ export default function MapPage() {
         }
     }, [mapReady, profileLocation, userAvatar, userName, isLoggedIn, userAddress])
 
-
     const selectedStore = mode === 'produtos' || mode === 'servicos'
         ? stores.find(s => s.id === selectedItem?.store_id)
         : null
@@ -947,6 +943,23 @@ export default function MapPage() {
                 style={{ background: '#111' }}
             />
 
+            {/* BOTÃO HOME - VOLTAR PARA O INÍCIO (CANTO INFERIOR DIREITO) */}
+            <div className="absolute bottom-10 right-10 z-50">
+                <button
+                    onClick={() => router.push('/')}
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                    style={{
+                        background: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)',
+                        color: '#ffffff',
+                        border: `2px solid #f97316`,
+                        boxShadow: `0 8px 24px #f9731660`,
+                    }}
+                    aria-label="Voltar ao início"
+                >
+                    <Home size={24} />
+                </button>
+            </div>
+
             {(!mapReady || loadingLocation) && (
                 <div className="absolute inset-0 z-10">
                     <LoadingSpinner />
@@ -997,7 +1010,6 @@ export default function MapPage() {
                 </div>
             </div>
 
-            {/* Location Banner */}
             {/* Location Banner */}
             {mapReady && (
                 <div className="absolute left-0 z-20" style={{ bottom: '90px', maxWidth: 'calc(100vw - 80px)' }}>
