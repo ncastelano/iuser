@@ -11,13 +11,9 @@ import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
 import { getAvatarUrl } from '@/lib/avatar'
+import { SERVICE_TYPES, ServiceType } from '@/lib/serviceTypes'
 import {
     Wrench,
-    PaintRoller,
-    Leaf,
-    Zap,
-    Sparkles,
-    Hammer,
     Briefcase,
     MapPin,
     MapPinPlus,
@@ -40,7 +36,6 @@ const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 
 type Step = 'type' | 'where' | 'details'
-type ServiceType = 'pintor' | 'encanador' | 'jardineiro' | 'eletricista' | 'diarista' | 'montador' | 'outro'
 type ActiveField = 'location' | null
 
 interface Place {
@@ -64,16 +59,6 @@ interface PastRequest {
 }
 
 const STEPS: Step[] = ['type', 'where', 'details']
-
-const SERVICE_TYPES: { id: ServiceType; label: string; icon: any }[] = [
-    { id: 'pintor', label: 'Pintor', icon: PaintRoller },
-    { id: 'encanador', label: 'Encanador', icon: Wrench },
-    { id: 'jardineiro', label: 'Jardineiro', icon: Leaf },
-    { id: 'eletricista', label: 'Eletricista', icon: Zap },
-    { id: 'diarista', label: 'Diarista', icon: Sparkles },
-    { id: 'montador', label: 'Montador de móveis', icon: Hammer },
-    { id: 'outro', label: 'Outro', icon: Briefcase },
-]
 
 const MAX_PHOTOS = 20
 
