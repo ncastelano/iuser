@@ -10,8 +10,8 @@ import { useTheme, ThemeColors } from '@/app/theme'
 import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
-import { getAvatarUrl } from '@/lib/avatar'
 import { SERVICE_TYPES, ServiceType } from '@/lib/serviceTypes'
+import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 import {
     Wrench,
     Briefcase,
@@ -26,8 +26,6 @@ import {
     Camera,
     History,
     Plus,
-    Users,
-    ClipboardList,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -43,21 +41,6 @@ interface Place {
     coords: [number, number] | null
 }
 
-interface ApplicantInfo {
-    id: string
-    name: string | null
-    profileSlug: string | null
-    avatarUrl: string | undefined
-}
-
-interface PastRequest {
-    id: string
-    serviceLabel: string
-    locationAddress: string
-    createdAt: string
-    applicants: ApplicantInfo[]
-}
-
 const STEPS: Step[] = ['type', 'where', 'details']
 
 const MAX_PHOTOS = 20
@@ -70,17 +53,6 @@ interface PhotoItem {
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
     return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
-}
-
-function relativeTime(iso: string): string {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const minutes = Math.floor(diffMs / 60000)
-    if (minutes < 1) return 'agora'
-    if (minutes < 60) return `${minutes} min atrás`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h atrás`
-    const days = Math.floor(hours / 24)
-    return `${days}d atrás`
 }
 
 function PhotoGrid({ photos, onAdd, onRemove, colors }: { photos: PhotoItem[]; onAdd: (files: File[]) => void; onRemove: (index: number) => void; colors: ThemeColors }) {
@@ -207,8 +179,6 @@ export default function PedirServicoPage() {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
     const [popularCustomServices, setPopularCustomServices] = useState<{ label: string; count: number }[]>([])
-    const [pastRequests, setPastRequests] = useState<PastRequest[]>([])
-    const [loadingPastRequests, setLoadingPastRequests] = useState(false)
 
     const stepIndex = STEPS.indexOf(step)
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
@@ -290,80 +260,6 @@ export default function PedirServicoPage() {
             if (!cancelled) setPopularCustomServices(popular)
         }
         loadPopular()
-        return () => { cancelled = true }
-    }, [])
-
-    // ===== MEUS PEDIDOS DE SERVIÇO E QUEM SE CANDIDATOU =====
-    useEffect(() => {
-        let cancelled = false
-        const loadPastRequests = async () => {
-            setLoadingPastRequests(true)
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                if (!cancelled) setLoadingPastRequests(false)
-                return
-            }
-
-            const { data: requests } = await supabase
-                .from('service_requests')
-                .select('id, service_type, custom_service, location_address, created_at')
-                .eq('requester_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(5)
-
-            if (cancelled) return
-            if (!requests || requests.length === 0) {
-                setPastRequests([])
-                setLoadingPastRequests(false)
-                return
-            }
-
-            const requestIds = requests.map((r) => r.id)
-            const { data: applications } = await supabase
-                .from('service_applications')
-                .select('service_request_id, applicant_id')
-                .in('service_request_id', requestIds)
-
-            const applicantIds = Array.from(new Set((applications || []).map((a) => a.applicant_id)))
-            let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
-            if (applicantIds.length > 0) {
-                const { data: profiles } = await supabase
-                    .from('profiles')
-                    .select('id, name, profileSlug, avatar_url')
-                    .in('id', applicantIds)
-                profilesById = new Map((profiles || []).map((p) => [p.id, p]))
-            }
-
-            const result: PastRequest[] = requests.map((r) => {
-                const serviceLabel = r.service_type === 'outro'
-                    ? (r.custom_service || 'Outro')
-                    : (SERVICE_TYPES.find((t) => t.id === r.service_type)?.label || r.service_type)
-                const applicants: ApplicantInfo[] = (applications || [])
-                    .filter((a) => a.service_request_id === r.id)
-                    .map((a) => {
-                        const p = profilesById.get(a.applicant_id)
-                        return {
-                            id: a.applicant_id,
-                            name: p?.name || null,
-                            profileSlug: p?.profileSlug || null,
-                            avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
-                        }
-                    })
-                return {
-                    id: r.id,
-                    serviceLabel,
-                    locationAddress: r.location_address,
-                    createdAt: r.created_at,
-                    applicants,
-                }
-            })
-
-            if (!cancelled) {
-                setPastRequests(result)
-                setLoadingPastRequests(false)
-            }
-        }
-        loadPastRequests()
         return () => { cancelled = true }
     }, [])
 
@@ -817,48 +713,10 @@ export default function PedirServicoPage() {
                     {/* ===== ETAPA 1: TIPO DE SERVIÇO ===== */}
                     {step === 'type' && (
                         <>
-                            {/* Pedidos de serviços feitos por mim + candidatos */}
-                            {!loadingPastRequests && pastRequests.length > 0 && (
-                                <div className="mb-5">
-                                    <h3 className="text-sm font-black mb-2 flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
-                                        <ClipboardList size={15} />
-                                        Pedidos de serviços feitos...
-                                    </h3>
-                                    <div className="flex flex-col gap-2">
-                                        {pastRequests.map((r) => (
-                                            <div key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{r.serviceLabel}</span>
-                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>{relativeTime(r.createdAt)}</span>
-                                                </div>
-                                                <span className="text-[11px]" style={{ color: colors.textSecondary }}>{shortAddress(r.locationAddress)}</span>
-                                                <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-                                                    {r.applicants.length === 0 ? (
-                                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>Nenhuma candidatura ainda</span>
-                                                    ) : (
-                                                        r.applicants.map((a) => (
-                                                            <span
-                                                                key={a.id}
-                                                                className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[10px] font-bold"
-                                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                                            >
-                                                                {a.avatarUrl ? (
-                                                                    <img src={a.avatarUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
-                                                                ) : (
-                                                                    <span className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: GRADIENT }}>
-                                                                        <Users size={9} color="#fff" />
-                                                                    </span>
-                                                                )}
-                                                                {a.name || (a.profileSlug ? `@${a.profileSlug}` : 'Candidato')}
-                                                            </span>
-                                                        ))
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Meus pedidos de serviço em aberto + candidatos de cada um */}
+                            <div className="mb-5">
+                                <MyOpenServiceRequests limit={5} title="Meus pedidos de serviços em aberto" />
+                            </div>
 
                             <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual serviço você precisa?</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>

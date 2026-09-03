@@ -1,28 +1,14 @@
 // src/app/(main)/inicio/sections/HireAService.tsx
 'use client'
 
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wrench, PaintRoller, Leaf, Zap, Sparkles, Hammer, MapPin } from 'lucide-react'
+import { Wrench } from 'lucide-react'
 import { useTheme } from '@/app/theme'
-import { getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
+import MyOpenServiceRequests from '@/components/MyOpenServiceRequests'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
-
-const SERVICE_SHORTCUTS = [
-    { id: 'pintor', label: 'Pintor', icon: PaintRoller },
-    { id: 'encanador', label: 'Encanador', icon: Wrench },
-    { id: 'jardineiro', label: 'Jardineiro', icon: Leaf },
-    { id: 'eletricista', label: 'Eletricista', icon: Zap },
-    { id: 'diarista', label: 'Diarista', icon: Sparkles },
-    { id: 'montador', label: 'Montador', icon: Hammer },
-]
-
-function shortAddress(address: string): string {
-    const firstPart = address.split(',')[0].trim()
-    return firstPart.length > 24 ? firstPart.substring(0, 22) + '...' : firstPart
-}
 
 /* ─── Helper para converter hex em RGB ─── */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -42,20 +28,6 @@ interface HireAServiceProps {
 export default function HireAService({ dragHandle }: HireAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
-    const [recentLocations, setRecentLocations] = useState<RecentServiceLocation[]>([])
-
-    useEffect(() => {
-        setRecentLocations(getRecentServiceLocations().slice(0, 3))
-    }, [])
-
-    const goToLocation = (location: RecentServiceLocation) => {
-        const params = new URLSearchParams({ local: location.address })
-        if (location.coords) {
-            params.set('lng', String(location.coords[0]))
-            params.set('lat', String(location.coords[1]))
-        }
-        router.push(`/pedir-servico?${params.toString()}`)
-    }
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -125,48 +97,10 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                     </button>
                 </div>
 
-                {/* Atalhos por tipo de serviço */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                    {SERVICE_SHORTCUTS.map((service) => {
-                        const Icon = service.icon
-                        return (
-                            <button
-                                key={service.id}
-                                onClick={() => router.push(`/pedir-servico?tipo=${service.id}`)}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
-                                style={{
-                                    background: `${colors.border}30`,
-                                    border: `1px solid ${colors.border}`,
-                                    color: colors.textPrimary,
-                                }}
-                            >
-                                <Icon size={14} />
-                                {service.label}
-                            </button>
-                        )
-                    })}
+                {/* Meus pedidos de serviço em aberto, com os candidatos de cada um */}
+                <div className="mt-4">
+                    <MyOpenServiceRequests limit={3} />
                 </div>
-
-                {/* Últimos locais usados */}
-                {recentLocations.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                        {recentLocations.map((location) => (
-                            <button
-                                key={location.address}
-                                onClick={() => goToLocation(location)}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
-                                style={{
-                                    background: `${colors.border}30`,
-                                    border: `1px solid ${colors.border}`,
-                                    color: colors.textPrimary,
-                                }}
-                            >
-                                <MapPin size={14} />
-                                {shortAddress(location.address)}
-                            </button>
-                        ))}
-                    </div>
-                )}
             </div>
         </section>
     )
