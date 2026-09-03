@@ -8,6 +8,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
+import { addRecentRideDestination } from '@/lib/recentRideDestinations'
 import {
     Car,
     User,
@@ -162,11 +163,21 @@ export default function PedirCorridaPage() {
         if (mapReady) useMyLocationAsOrigin()
     }, [mapReady, useMyLocationAsOrigin])
 
-    // ===== TIPO DE CORRIDA VINDO DE UM ATALHO (?tipo=) =====
+    // ===== TIPO DE CORRIDA E DESTINO VINDOS DE UM ATALHO (?tipo=, ?destino=, ?lat=, ?lng=) =====
     useEffect(() => {
-        const tipo = new URLSearchParams(window.location.search).get('tipo')
+        const params = new URLSearchParams(window.location.search)
+        const tipo = params.get('tipo')
         if (RIDE_TYPES.some((t) => t.id === tipo)) {
             setRideType(tipo as RideType)
+        }
+
+        const destino = params.get('destino')
+        const lat = params.get('lat')
+        const lng = params.get('lng')
+        if (destino) {
+            const coords: [number, number] | null =
+                lat && lng ? [parseFloat(lng), parseFloat(lat)] : null
+            setDestination({ address: destino, coords })
         }
     }, [])
 
@@ -310,7 +321,10 @@ export default function PedirCorridaPage() {
     const selectSuggestion = (field: 'origin' | 'destination', suggestion: { place_name: string; center: [number, number] }) => {
         const place = { address: suggestion.place_name, coords: suggestion.center }
         if (field === 'origin') setOrigin(place)
-        else setDestination(place)
+        else {
+            setDestination(place)
+            addRecentRideDestination(place)
+        }
         setSuggestions([])
         setActiveField(null)
     }

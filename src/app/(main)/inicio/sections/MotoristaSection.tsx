@@ -1,19 +1,19 @@
 // src/app/(main)/inicio/sections/MotoristaSection.tsx
 'use client'
 
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, User, Package } from 'lucide-react'
+import { Car, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import { getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
-const RIDE_SHORTCUTS = [
-    { id: 'para-mim', label: 'Pra mim', icon: Car },
-    { id: 'buscar-alguem', label: 'Buscar alguém', icon: User },
-    { id: 'entregar-algo', label: 'Entregar algo', icon: Package },
-]
+function shortAddress(address: string): string {
+    const firstPart = address.split(',')[0].trim()
+    return firstPart.length > 24 ? firstPart.substring(0, 22) + '...' : firstPart
+}
 
 /* ─── Helper para converter hex em RGB ─── */
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -34,10 +34,24 @@ interface MotoristaSectionProps {
 export default function MotoristaSection({ dragHandle, onBreveStatusChange }: MotoristaSectionProps) {
     const { colors } = useTheme()
     const router = useRouter()
+    const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
 
     useEffect(() => {
         onBreveStatusChange?.(false)
     }, [onBreveStatusChange])
+
+    useEffect(() => {
+        setRecentDestinations(getRecentRideDestinations().slice(0, 3))
+    }, [])
+
+    const goToDestination = (destination: RecentRideDestination) => {
+        const params = new URLSearchParams({ destino: destination.address })
+        if (destination.coords) {
+            params.set('lng', String(destination.coords[0]))
+            params.set('lat', String(destination.coords[1]))
+        }
+        router.push(`/pedir-corrida?${params.toString()}`)
+    }
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -108,14 +122,13 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     </button>
                 </div>
 
-                {/* Atalhos rápidos de pedido de corrida */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                    {RIDE_SHORTCUTS.map((shortcut) => {
-                        const Icon = shortcut.icon
-                        return (
+                {/* Últimos destinos buscados */}
+                {recentDestinations.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                        {recentDestinations.map((destination) => (
                             <button
-                                key={shortcut.id}
-                                onClick={() => router.push(`/pedir-corrida?tipo=${shortcut.id}`)}
+                                key={destination.address}
+                                onClick={() => goToDestination(destination)}
                                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95"
                                 style={{
                                     background: `${colors.border}30`,
@@ -123,12 +136,12 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                                     color: colors.textPrimary,
                                 }}
                             >
-                                <Icon size={14} />
-                                {shortcut.label}
+                                <MapPin size={14} />
+                                {shortAddress(destination.address)}
                             </button>
-                        )
-                    })}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </section>
     )
