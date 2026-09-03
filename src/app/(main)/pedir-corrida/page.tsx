@@ -157,7 +157,10 @@ export default function PedirCorridaPage() {
                 }
             },
             () => {
-                toast.error('Não conseguimos acessar sua localização')
+                toast.error('Não conseguimos acessar sua localização', {
+                    description: 'Clique no ícone de localização para adicionar sua localização, ou escreva em "Local de partida" para buscar o endereço.',
+                    duration: 6000,
+                })
                 setLocatingOrigin(false)
             },
             { enableHighAccuracy: true, timeout: 10000 }
