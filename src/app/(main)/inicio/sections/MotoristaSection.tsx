@@ -68,6 +68,8 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     WebkitBackdropFilter: 'blur(12px)',
                     border: `1px solid ${colors.border}`,
                     boxShadow: colors.shadow,
+                    transform: 'translateZ(0)',
+                    willChange: 'transform',
                 }}
             >
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">

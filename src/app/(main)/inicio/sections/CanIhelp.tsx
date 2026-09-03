@@ -38,6 +38,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     WebkitBackdropFilter: 'blur(12px)',
                     border: `1px solid ${colors.border}`,
                     boxShadow: colors.shadow,
+                    transform: 'translateZ(0)',
+                    willChange: 'transform',
                 }}
             >
                 {/* Grid de categorias - apenas os cards pequenos coloridos */}

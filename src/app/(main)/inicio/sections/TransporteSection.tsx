@@ -62,6 +62,8 @@ export default function TransporteSection({ dragHandle, onBreveStatusChange }: T
                     WebkitBackdropFilter: 'blur(12px)',
                     border: `1px solid ${colors.border}`,
                     boxShadow: colors.shadow,
+                    transform: 'translateZ(0)',
+                    willChange: 'transform',
                 }}
             >
                 <div className="flex items-center gap-4">
