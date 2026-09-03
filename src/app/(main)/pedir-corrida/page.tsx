@@ -162,6 +162,14 @@ export default function PedirCorridaPage() {
         if (mapReady) useMyLocationAsOrigin()
     }, [mapReady, useMyLocationAsOrigin])
 
+    // ===== TIPO DE CORRIDA VINDO DE UM ATALHO (?tipo=) =====
+    useEffect(() => {
+        const tipo = new URLSearchParams(window.location.search).get('tipo')
+        if (RIDE_TYPES.some((t) => t.id === tipo)) {
+            setRideType(tipo as RideType)
+        }
+    }, [])
+
     // ===== MARCADORES NO MAPA =====
     useEffect(() => {
         if (!mapReady || !mapRef.current) return
