@@ -586,6 +586,22 @@ export default function PedirMotoristaPage() {
         else router.push('/')
     }
 
+    const handleRequestConfirm = () => {
+        if (!origin.address.trim() || !destination.address.trim()) {
+            toast.error('Preencha o endereço de origem e destino')
+            return
+        }
+        if (requestFor === 'objeto' && !objectPhotoFile) {
+            toast.error('Adicione uma foto do objeto para continuar')
+            return
+        }
+        if (requestFor === 'pessoa' && hasExtraObject && !extraObjectPhotoFile) {
+            toast.error('Adicione uma foto do objeto para continuar')
+            return
+        }
+        setShowPlateReminder(true)
+    }
+
     // ===== RESUMO EM TEXTO DO QUE ESTÁ SENDO PEDIDO =====
     const orderSummary = (() => {
         if (!requestFor) return ''
@@ -1234,6 +1250,9 @@ export default function PedirMotoristaPage() {
                                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                             />
                                             <div className="mt-2">
+                                                <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
+                                                    Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
+                                                </span>
                                                 <PhotoPicker
                                                     preview={extraObjectPhotoPreview}
                                                     onPick={(file) => handlePhotoPick(file, setExtraObjectPhotoFile)}
@@ -1317,7 +1336,9 @@ export default function PedirMotoristaPage() {
                                     </div>
 
                                     <div className="mt-3">
-                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Foto do objeto (opcional)</span>
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
+                                            Foto do objeto <span style={{ color: '#ef4444' }}>*</span>
+                                        </span>
                                         <PhotoPicker
                                             preview={objectPhotoPreview}
                                             onPick={(file) => handlePhotoPick(file, setObjectPhotoFile)}
@@ -1404,7 +1425,7 @@ export default function PedirMotoristaPage() {
                             )}
 
                             <button
-                                onClick={() => setShowPlateReminder(true)}
+                                onClick={handleRequestConfirm}
                                 disabled={submitting || !origin.address.trim() || !destination.address.trim()}
                                 className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
                                 style={{ background: GRADIENT, color: '#fff' }}

@@ -2,6 +2,11 @@
 -- buscar-alguem / entregar-algo): agora o pedido é feito por etapas,
 -- começando por "pra que é o motorista".
 ALTER TABLE public.ride_requests DROP CONSTRAINT IF EXISTS ride_requests_ride_type_check;
+
+-- Remapeia pedidos antigos pros 2 novos tipos antes de travar a constraint.
+UPDATE public.ride_requests SET ride_type = 'pessoa' WHERE ride_type IN ('para-mim', 'buscar-alguem');
+UPDATE public.ride_requests SET ride_type = 'objeto' WHERE ride_type = 'entregar-algo';
+
 ALTER TABLE public.ride_requests ADD CONSTRAINT ride_requests_ride_type_check
     CHECK (ride_type IN ('pessoa', 'objeto'));
 
