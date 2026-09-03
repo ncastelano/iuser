@@ -13,13 +13,22 @@ const IGNORED_ROUTES = [
     '/',
     '/sacola',
     '/criar-loja',
+    '/criar-loja-com-cadastro',
     '/login',
     '/registro',
+    '/cadastrar',
+    '/recuperar-senha',
     '/404',
     '/500',
     '/lojas-em-destaque',
     '/compromissos',
     '/compromissos/agendar',
+    '/calculadora-de-corrida',
+    '/convite',
+    '/paginadaloja',
+    '/pedidos',
+    '/radar',
+    '/social',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
