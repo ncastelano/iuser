@@ -62,7 +62,7 @@ export default function SlugClientPage() {
 
                 // Verifica se o item pertence ao ownerSlug correto
                 // Se for produto de loja, verifica se a loja pertence ao ownerSlug
-                if (item.listing_type === 'product' && item.store_id) {
+                if (item.listing_type === 'sale' && item.store_id) {
                     const { data: store, error: storeErr } = await supabase
                         .from('stores')
                         .select('storeSlug')
@@ -86,7 +86,7 @@ export default function SlugClientPage() {
                     }
                 }
 
-                setItemType(item.listing_type as ItemType)
+                setItemType(item.listing_type === 'publication' ? 'publication' : 'product')
                 setItemData(item)
 
             } catch (err: any) {

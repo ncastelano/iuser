@@ -112,7 +112,7 @@ export function ProductClientPage({
                         store_id
                     `)
                     .eq('slug', slug)
-                    .eq('listing_type', 'product')
+                    .eq('listing_type', 'sale')
                     .maybeSingle()
 
                 if (prodErr || !prodData) {
@@ -130,7 +130,7 @@ export function ProductClientPage({
                             store_id
                         `)
                         .eq('id', slug)
-                        .eq('listing_type', 'product')
+                        .eq('listing_type', 'sale')
                         .maybeSingle()
 
                     if (byIdErr || !prodById) {

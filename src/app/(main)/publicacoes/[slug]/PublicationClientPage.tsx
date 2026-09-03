@@ -813,7 +813,7 @@ export default function PublicationClientPage() {
                 <Header
                     title="Publicação"
                     showBack={true}
-                    onBack={() => router.push('/publicacoes')}
+                    onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
