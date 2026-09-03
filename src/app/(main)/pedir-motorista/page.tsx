@@ -1,4 +1,4 @@
-// app/(main)/pedir-corrida/page.tsx
+// app/(main)/pedir-motorista/page.tsx
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
@@ -9,9 +9,11 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import { addRecentRideDestination } from '@/lib/recentRideDestinations'
+import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
 import {
     Car,
     User,
+    Users,
     Package,
     MapPin,
     MapPinPlus,
@@ -21,6 +23,11 @@ import {
     Search,
     X,
     ShieldAlert,
+    Minus,
+    Plus,
+    Building2,
+    Phone,
+    Bus,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -91,7 +98,7 @@ async function fetchRoutes(origin: [number, number], destination: [number, numbe
     }
 }
 
-export default function PedirCorridaPage() {
+export default function PedirMotoristaPage() {
     const router = useRouter()
     const { colors } = useTheme()
     const mapContainerRef = useRef<HTMLDivElement | null>(null)
@@ -118,7 +125,21 @@ export default function PedirCorridaPage() {
     const [submitted, setSubmitted] = useState(false)
     const [showPlateReminder, setShowPlateReminder] = useState(false)
 
+    const [passengerCount, setPassengerCount] = useState(1)
+    const [recipientName, setRecipientName] = useState('')
+    const [recipientPhone, setRecipientPhone] = useState('')
+    const [originNeedsAccess, setOriginNeedsAccess] = useState(false)
+    const [originAccessNotes, setOriginAccessNotes] = useState('')
+    const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
+    const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
+
     const selectedType = RIDE_TYPES.find((t) => t.id === rideType)!
+    const vehicleType = getVehicleTypeForPassengers(passengerCount)
+
+    // ===== ENTREGAR ALGO NÃO USA Nº DE PASSAGEIROS =====
+    useEffect(() => {
+        if (rideType === 'entregar-algo') setPassengerCount(1)
+    }, [rideType])
 
     // ===== INIT MAP =====
     useEffect(() => {
@@ -363,6 +384,14 @@ export default function PedirCorridaPage() {
                 destination_address: destination.address.trim(),
                 for_whom: forWhom.trim() || null,
                 notes: notes.trim() || null,
+                passenger_count: passengerCount,
+                vehicle_type: vehicleType,
+                origin_needs_access: originNeedsAccess,
+                origin_access_notes: originNeedsAccess ? originAccessNotes.trim() || null : null,
+                destination_needs_access: destinationNeedsAccess,
+                destination_access_notes: destinationNeedsAccess ? destinationAccessNotes.trim() || null : null,
+                recipient_name: rideType === 'entregar-algo' ? recipientName.trim() || null : null,
+                recipient_phone: rideType === 'entregar-algo' ? recipientPhone.trim() || null : null,
             })
 
             if (error) throw error
@@ -558,6 +587,79 @@ export default function PedirCorridaPage() {
                         </div>
                     </div>
 
+                    {/* Instruções de acesso — precisa entrar no local? */}
+                    <div className="flex flex-col gap-2 mt-3">
+                        {originAccessNotes || originNeedsAccess ? (
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <Building2 size={13} style={{ color: '#22c55e' }} />
+                                        Acesso na origem
+                                    </span>
+                                    <button
+                                        onClick={() => { setOriginNeedsAccess(false); setOriginAccessNotes('') }}
+                                        className="text-[11px] font-semibold"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        Remover
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={originAccessNotes}
+                                    onChange={(e) => setOriginAccessNotes(e.target.value)}
+                                    rows={2}
+                                    autoFocus
+                                    placeholder="Nome pra portaria, nº do apto, código do portão..."
+                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none resize-none"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setOriginNeedsAccess(true)}
+                                className="text-xs font-bold text-left"
+                                style={{ color: colors.accent }}
+                            >
+                                + Preciso que o motorista entre na origem
+                            </button>
+                        )}
+
+                        {destinationAccessNotes || destinationNeedsAccess ? (
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                        <Building2 size={13} style={{ color: '#ef4444' }} />
+                                        Acesso no destino
+                                    </span>
+                                    <button
+                                        onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
+                                        className="text-[11px] font-semibold"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        Remover
+                                    </button>
+                                </div>
+                                <textarea
+                                    value={destinationAccessNotes}
+                                    onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                    rows={2}
+                                    autoFocus
+                                    placeholder="Nome pra portaria, nº do apto, código do portão..."
+                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none resize-none"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setDestinationNeedsAccess(true)}
+                                className="text-xs font-bold text-left"
+                                style={{ color: colors.accent }}
+                            >
+                                + Preciso que o motorista entre no destino
+                            </button>
+                        )}
+                    </div>
+
                     {/* Opções de rota */}
                     {loadingRoutes && (
                         <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
@@ -618,6 +720,42 @@ export default function PedirCorridaPage() {
                         })}
                     </div>
 
+                    {/* Nº de passageiros — define o tipo de veículo sugerido */}
+                    {rideType !== 'entregar-algo' && (
+                        <div className="flex items-center justify-between gap-3 mt-4 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                            <div className="flex items-center gap-2">
+                                <Users size={16} style={{ color: colors.textSecondary }} />
+                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas?</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setPassengerCount((n) => Math.max(1, n - 1))}
+                                    disabled={passengerCount <= 1}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                >
+                                    <Minus size={14} />
+                                </button>
+                                <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{passengerCount}</span>
+                                <button
+                                    onClick={() => setPassengerCount((n) => Math.min(30, n + 1))}
+                                    disabled={passengerCount >= 30}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                >
+                                    <Plus size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {rideType !== 'entregar-algo' && passengerCount > 4 && (
+                        <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                            <Bus size={14} />
+                            Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
+                        </div>
+                    )}
+
                     {selectedType.forWhomLabel && (
                         <div className="mt-3">
                             <input
@@ -628,6 +766,34 @@ export default function PedirCorridaPage() {
                                 className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
+                        </div>
+                    )}
+
+                    {/* Destinatário — quem vai receber a entrega, se não for quem pediu */}
+                    {rideType === 'entregar-algo' && (
+                        <div className="flex flex-col gap-2 mt-3">
+                            <div className="relative">
+                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="text"
+                                    value={recipientName}
+                                    onChange={(e) => setRecipientName(e.target.value)}
+                                    placeholder="Nome de quem vai receber"
+                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            </div>
+                            <div className="relative">
+                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="tel"
+                                    value={recipientPhone}
+                                    onChange={(e) => setRecipientPhone(e.target.value)}
+                                    placeholder="Telefone de quem vai receber"
+                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                />
+                            </div>
                         </div>
                     )}
 
@@ -658,7 +824,7 @@ export default function PedirCorridaPage() {
                         style={{ background: GRADIENT, color: '#fff' }}
                     >
                         {submitting ? <Loader2 size={18} className="animate-spin" /> : <Car size={18} />}
-                        Pedir corrida
+                        Pedir motorista
                     </button>
                 </div>
             )}

@@ -30,7 +30,7 @@ const IGNORED_ROUTES = [
     '/radar',
     '/social',
     '/comunidade',
-    '/pedir-corrida',
+    '/pedir-motorista',
     '/ser-parceiro-iuser',
 ]
 

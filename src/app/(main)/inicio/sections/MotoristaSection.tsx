@@ -50,7 +50,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
             params.set('lng', String(destination.coords[0]))
             params.set('lat', String(destination.coords[1]))
         }
-        router.push(`/pedir-corrida?${params.toString()}`)
+        router.push(`/pedir-motorista?${params.toString()}`)
     }
 
     const surfaceRgb = hexToRgb(colors.surface)
@@ -113,12 +113,12 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     </div>
 
                     <button
-                        onClick={() => router.push('/pedir-corrida')}
+                        onClick={() => router.push('/pedir-motorista')}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                         style={buttonStyle}
                     >
                         <Car size={16} />
-                        pedir corrida
+                        pedir motorista
                     </button>
                 </div>
 

@@ -38,7 +38,7 @@ export const RESERVED_SLUGS = new Set([
     'agendamentos',
     'social',
     'comunidade',
-    'pedir-corrida',
+    'pedir-motorista',
     'ser-parceiro-iuser',
     'inicio',
     'catalogo',
