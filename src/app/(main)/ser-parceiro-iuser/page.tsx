@@ -32,6 +32,7 @@ function relativeTime(iso: string): string {
 
 interface JobRequest {
     id: string
+    requester_id: string
     service_type: string
     custom_service: string | null
     location_address: string
@@ -46,6 +47,7 @@ export default function SerParceiroPage() {
 
     const [loading, setLoading] = useState(true)
     const [loggedIn, setLoggedIn] = useState(false)
+    const [myUserId, setMyUserId] = useState<string | null>(null)
     const [jobs, setJobs] = useState<JobRequest[]>([])
     const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
     const [applyingId, setApplyingId] = useState<string | null>(null)
@@ -60,12 +62,12 @@ export default function SerParceiroPage() {
                 return
             }
             setLoggedIn(true)
+            setMyUserId(user.id)
 
             const { data: requests } = await supabase
                 .from('service_requests')
-                .select('id, service_type, custom_service, location_address, description, created_at')
+                .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
                 .eq('status', 'pending')
-                .neq('requester_id', user.id)
                 .order('created_at', { ascending: true })
 
             setJobs(requests || [])
@@ -162,6 +164,7 @@ export default function SerParceiroPage() {
                                 const Icon = getServiceIcon(job.service_type)
                                 const label = getServiceLabel(job.service_type, job.custom_service)
                                 const applied = appliedIds.has(job.id)
+                                const isMine = job.requester_id === myUserId
                                 return (
                                     <div
                                         key={job.id}
@@ -189,27 +192,36 @@ export default function SerParceiroPage() {
                                                 )}
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => handleApply(job.id)}
-                                            disabled={applied || applyingId === job.id}
-                                            className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
-                                            style={
-                                                applied
-                                                    ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                                    : { background: GRADIENT, color: '#fff' }
-                                            }
-                                        >
-                                            {applyingId === job.id ? (
-                                                <Loader2 size={14} className="animate-spin" />
-                                            ) : applied ? (
-                                                'Candidatura enviada'
-                                            ) : (
-                                                <>
-                                                    <Briefcase size={14} />
-                                                    Candidatar-se
-                                                </>
-                                            )}
-                                        </button>
+                                        {isMine ? (
+                                            <div
+                                                className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider text-center"
+                                                style={{ background: `${colors.accent}15`, color: colors.accent, border: `1px solid ${colors.border}` }}
+                                            >
+                                                Seu pedido
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleApply(job.id)}
+                                                disabled={applied || applyingId === job.id}
+                                                className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
+                                                style={
+                                                    applied
+                                                        ? { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                        : { background: GRADIENT, color: '#fff' }
+                                                }
+                                            >
+                                                {applyingId === job.id ? (
+                                                    <Loader2 size={14} className="animate-spin" />
+                                                ) : applied ? (
+                                                    'Candidatura enviada'
+                                                ) : (
+                                                    <>
+                                                        <Briefcase size={14} />
+                                                        Candidatar-se
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 )
                             })}
