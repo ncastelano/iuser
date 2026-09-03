@@ -39,6 +39,7 @@ export const RESERVED_SLUGS = new Set([
     'social',
     'comunidade',
     'pedir-motorista',
+    'pedir-servico',
     'ser-parceiro-iuser',
     'inicio',
     'catalogo',

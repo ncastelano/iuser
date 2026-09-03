@@ -8,6 +8,7 @@ import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, 
 import CategoriasSection from './inicio/sections/CanIhelp'
 import TransporteSection from './inicio/sections/TransporteSection'
 import MotoristaSection from './inicio/sections/MotoristaSection'
+import HireAService from './inicio/sections/HireAService'
 import SortableSection from './inicio/sections/SortableSection'
 import ConfiguracoesContent from './Configuration'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -46,6 +47,7 @@ const DEFAULT_SECTIONS = [
     'profileShowcase',
     'transporte',
     'motorista',
+    'servico',
     'settingsSection',
     'orderSection',
 ]
@@ -585,6 +587,8 @@ export default function HomePage() {
                 return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
+            case 'servico':
+                return <HireAService />
             case 'settingsSection':
                 return <ButtonSettingsHome onClick={() => setShowConfig(true)} />
             default:
