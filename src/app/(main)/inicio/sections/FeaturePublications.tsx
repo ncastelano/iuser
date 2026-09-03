@@ -1,4 +1,4 @@
-// components/FeaturedPublications.tsx
+//app/(main)/inicio/sections/FeaturePublications.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
