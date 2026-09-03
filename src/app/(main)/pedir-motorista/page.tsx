@@ -10,9 +10,9 @@ import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import { addRecentRideDestination } from '@/lib/recentRideDestinations'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
+import { createSquareImage } from '@/lib/image'
 import {
     Car,
-    User,
     Users,
     Package,
     MapPin,
@@ -28,6 +28,13 @@ import {
     Building2,
     Phone,
     Bus,
+    ShoppingBag,
+    PackagePlus,
+    Baby,
+    PawPrint,
+    Camera,
+    ScanLine,
+    User,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -37,8 +44,10 @@ const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
 const ROUTE_COLORS = ['#3b82f6', '#a855f7', '#f59e0b']
 const AVERAGE_SPEED_KMH = 40
 
-type RideType = 'para-mim' | 'buscar-alguem' | 'entregar-algo'
+type Step = 'type' | 'where' | 'details'
+type RequestFor = 'pessoa' | 'objeto'
 type ActiveField = 'origin' | 'destination' | null
+type ObjectSize = 'pequeno' | 'medio' | 'grande'
 
 interface Place {
     address: string
@@ -51,11 +60,7 @@ interface RouteOption {
     durationMin: number
 }
 
-const RIDE_TYPES: { id: RideType; label: string; icon: any; forWhomLabel: string }[] = [
-    { id: 'para-mim', label: 'Pra mim', icon: Car, forWhomLabel: '' },
-    { id: 'buscar-alguem', label: 'Buscar alguém', icon: User, forWhomLabel: 'Nome de quem vamos buscar' },
-    { id: 'entregar-algo', label: 'Entregar algo', icon: Package, forWhomLabel: 'O que vamos entregar' },
-]
+const STEPS: Step[] = ['type', 'where', 'details']
 
 async function reverseGeocode(lng: number, lat: number): Promise<string | null> {
     try {
@@ -106,40 +111,71 @@ export default function PedirMotoristaPage() {
     const originMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const destMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const objectPhotoInputRef = useRef<HTMLInputElement>(null)
 
     const [mapReady, setMapReady] = useState(false)
-    const [rideType, setRideType] = useState<RideType>('para-mim')
+    const [step, setStep] = useState<Step>('type')
+    const [requestFor, setRequestFor] = useState<RequestFor | null>(null)
     const [origin, setOrigin] = useState<Place>({ address: '', coords: null })
     const [destination, setDestination] = useState<Place>({ address: '', coords: null })
     const [activeField, setActiveField] = useState<ActiveField>(null)
     const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([])
+    const [highlightedIndex, setHighlightedIndex] = useState(-1)
+    const suggestionRefs = useRef<(HTMLButtonElement | null)[]>([])
     const [searching, setSearching] = useState(false)
     const [locatingOrigin, setLocatingOrigin] = useState(false)
     const [routes, setRoutes] = useState<RouteOption[]>([])
     const [selectedRoute, setSelectedRoute] = useState(0)
     const [loadingRoutes, setLoadingRoutes] = useState(false)
-    const [forWhom, setForWhom] = useState('')
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
     const [showPlateReminder, setShowPlateReminder] = useState(false)
 
+    // ===== ADICIONAIS: PESSOA =====
     const [passengerCount, setPassengerCount] = useState(1)
+    const [hasShopping, setHasShopping] = useState(false)
+    const [hasExtraObject, setHasExtraObject] = useState(false)
+    const [hasChild, setHasChild] = useState(false)
+    const [hasPet, setHasPet] = useState(false)
+
+    // ===== DETALHES: OBJETO =====
+    const [objectDescription, setObjectDescription] = useState('')
+    const [objectIsSensitive, setObjectIsSensitive] = useState(false)
+    const [objectSize, setObjectSize] = useState<ObjectSize | null>(null)
+    const [objectPhotoFile, setObjectPhotoFile] = useState<File | null>(null)
+    const [objectPhotoPreview, setObjectPhotoPreview] = useState<string | null>(null)
+    const [senderName, setSenderName] = useState('')
+    const [senderWhatsapp, setSenderWhatsapp] = useState('')
     const [recipientName, setRecipientName] = useState('')
-    const [recipientPhone, setRecipientPhone] = useState('')
+    const [recipientWhatsapp, setRecipientWhatsapp] = useState('')
+
+    // ===== ACESSO AO LOCAL =====
     const [originNeedsAccess, setOriginNeedsAccess] = useState(false)
     const [originAccessNotes, setOriginAccessNotes] = useState('')
     const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
     const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
 
-    const selectedType = RIDE_TYPES.find((t) => t.id === rideType)!
     const vehicleType = getVehicleTypeForPassengers(passengerCount)
+    const stepIndex = STEPS.indexOf(step)
 
-    // ===== ENTREGAR ALGO NÃO USA Nº DE PASSAGEIROS =====
+    // ===== PREVIEW DA FOTO DO OBJETO =====
     useEffect(() => {
-        if (rideType === 'entregar-algo') setPassengerCount(1)
-    }, [rideType])
+        if (!objectPhotoFile) return
+        const url = URL.createObjectURL(objectPhotoFile)
+        setObjectPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [objectPhotoFile])
+
+    const handleObjectPhotoChange = async (file: File) => {
+        try {
+            const squareFile = await createSquareImage(file, 500)
+            setObjectPhotoFile(squareFile)
+        } catch {
+            toast.error('Erro ao processar imagem')
+        }
+    }
 
     // ===== INIT MAP =====
     useEffect(() => {
@@ -198,12 +234,13 @@ export default function PedirMotoristaPage() {
         if (mapReady) useMyLocationAsOrigin()
     }, [mapReady, useMyLocationAsOrigin])
 
-    // ===== TIPO DE CORRIDA E DESTINO VINDOS DE UM ATALHO (?tipo=, ?destino=, ?lat=, ?lng=) =====
+    // ===== TIPO E DESTINO VINDOS DE UM ATALHO (?tipo=, ?destino=, ?lat=, ?lng=) =====
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
         const tipo = params.get('tipo')
-        if (RIDE_TYPES.some((t) => t.id === tipo)) {
-            setRideType(tipo as RideType)
+        if (tipo === 'pessoa' || tipo === 'objeto') {
+            setRequestFor(tipo)
+            setStep('where')
         }
 
         const destino = params.get('destino')
@@ -364,6 +401,45 @@ export default function PedirMotoristaPage() {
         setActiveField(null)
     }
 
+    // ===== NAVEGAÇÃO DAS SUGESTÕES PELO TECLADO =====
+    useEffect(() => {
+        setHighlightedIndex(-1)
+    }, [suggestions])
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!activeField || suggestions.length === 0) return
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            setHighlightedIndex((i) => {
+                const next = i < suggestions.length - 1 ? i + 1 : 0
+                suggestionRefs.current[next]?.scrollIntoView({ block: 'nearest' })
+                return next
+            })
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            setHighlightedIndex((i) => {
+                const next = i > 0 ? i - 1 : suggestions.length - 1
+                suggestionRefs.current[next]?.scrollIntoView({ block: 'nearest' })
+                return next
+            })
+        } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+            e.preventDefault()
+            selectSuggestion(activeField, suggestions[highlightedIndex])
+        }
+    }
+
+    // ===== NAVEGAÇÃO ENTRE ETAPAS =====
+    const handleSelectType = (type: RequestFor) => {
+        setRequestFor(type)
+        setStep('where')
+    }
+
+    const handleBack = () => {
+        if (step === 'details') setStep('where')
+        else if (step === 'where') setStep('type')
+        else router.push('/')
+    }
+
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -377,21 +453,43 @@ export default function PedirMotoristaPage() {
 
         setSubmitting(true)
         try {
+            let objectPhotoUrl: string | null = null
+            if (requestFor === 'objeto' && objectPhotoFile) {
+                const fileExt = objectPhotoFile.name.split('.').pop()
+                const fileName = `${user.id}/${Date.now()}.${fileExt}`
+                const { data, error: uploadError } = await supabase.storage
+                    .from('ride-object-photos')
+                    .upload(fileName, objectPhotoFile)
+                if (uploadError) throw uploadError
+                if (data) {
+                    objectPhotoUrl = supabase.storage.from('ride-object-photos').getPublicUrl(data.path).data.publicUrl
+                }
+            }
+
             const { error } = await supabase.from('ride_requests').insert({
                 requester_id: user.id,
-                ride_type: rideType,
+                ride_type: requestFor,
                 origin_address: origin.address.trim(),
                 destination_address: destination.address.trim(),
-                for_whom: forWhom.trim() || null,
                 notes: notes.trim() || null,
-                passenger_count: passengerCount,
-                vehicle_type: vehicleType,
                 origin_needs_access: originNeedsAccess,
                 origin_access_notes: originNeedsAccess ? originAccessNotes.trim() || null : null,
                 destination_needs_access: destinationNeedsAccess,
                 destination_access_notes: destinationNeedsAccess ? destinationAccessNotes.trim() || null : null,
-                recipient_name: rideType === 'entregar-algo' ? recipientName.trim() || null : null,
-                recipient_phone: rideType === 'entregar-algo' ? recipientPhone.trim() || null : null,
+                passenger_count: requestFor === 'pessoa' ? passengerCount : 1,
+                vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
+                has_shopping: requestFor === 'pessoa' ? hasShopping : false,
+                has_extra_object: requestFor === 'pessoa' ? hasExtraObject : false,
+                has_child: requestFor === 'pessoa' ? hasChild : false,
+                has_pet: requestFor === 'pessoa' ? hasPet : false,
+                object_description: requestFor === 'objeto' ? objectDescription.trim() || null : null,
+                object_is_sensitive: requestFor === 'objeto' ? objectIsSensitive : false,
+                object_size: requestFor === 'objeto' ? objectSize : null,
+                object_photo_url: objectPhotoUrl,
+                sender_name: requestFor === 'objeto' ? senderName.trim() || null : null,
+                sender_whatsapp: requestFor === 'objeto' ? senderWhatsapp.trim() || null : null,
+                recipient_name: requestFor === 'objeto' ? recipientName.trim() || null : null,
+                recipient_whatsapp: requestFor === 'objeto' ? recipientWhatsapp.trim() || null : null,
             })
 
             if (error) throw error
@@ -411,7 +509,7 @@ export default function PedirMotoristaPage() {
 
             {/* Botão voltar flutuante */}
             <button
-                onClick={() => router.push('/')}
+                onClick={handleBack}
                 className="absolute top-6 left-4 z-30 w-11 h-11 rounded-full flex items-center justify-center shadow-xl"
                 style={{ background: colors.surface, color: colors.textPrimary }}
             >
@@ -436,6 +534,7 @@ export default function PedirMotoristaPage() {
                                 type="text"
                                 value={activeField === 'origin' ? origin.address : destination.address}
                                 onChange={(e) => handleAddressChange(activeField, e.target.value)}
+                                onKeyDown={handleSearchKeyDown}
                                 placeholder={activeField === 'origin' ? 'De onde você vai sair?' : 'Para onde vamos?'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
@@ -472,17 +571,24 @@ export default function PedirMotoristaPage() {
                     )}
 
                     <div className="overflow-y-auto">
-                        {suggestions.map((s, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => selectSuggestion(activeField, s)}
-                                className="w-full flex items-start gap-3 px-4 py-3.5 text-left"
-                                style={{ borderBottom: `1px solid ${colors.border}` }}
-                            >
-                                <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: colors.textSecondary }} />
-                                <span className="text-sm" style={{ color: colors.textPrimary }}>{s.place_name}</span>
-                            </button>
-                        ))}
+                        {suggestions.map((s, idx) => {
+                            const isHighlighted = idx === highlightedIndex
+                            return (
+                                <button
+                                    key={idx}
+                                    ref={(el) => { suggestionRefs.current[idx] = el }}
+                                    onClick={() => selectSuggestion(activeField, s)}
+                                    className="w-full flex items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-black/5"
+                                    style={{
+                                        borderBottom: `1px solid ${colors.border}`,
+                                        background: isHighlighted ? `${colors.accent}15` : undefined,
+                                    }}
+                                >
+                                    <MapPin size={16} className="mt-0.5 flex-shrink-0" style={{ color: isHighlighted ? colors.accent : colors.textSecondary }} />
+                                    <span className="text-sm font-semibold" style={{ color: isHighlighted ? colors.accent : colors.textPrimary }}>{s.place_name}</span>
+                                </button>
+                            )
+                        })}
                     </div>
                 </div>
             )}
@@ -546,7 +652,7 @@ export default function PedirMotoristaPage() {
                 </div>
             )}
 
-            {/* Bottom sheet estilo Uber */}
+            {/* Bottom sheet estilo Uber, por etapas */}
             {!activeField && !submitted && (
                 <div
                     className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl px-5 pt-4 pb-8 max-h-[75vh] overflow-y-auto"
@@ -554,278 +660,452 @@ export default function PedirMotoristaPage() {
                 >
                     <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: colors.border }} />
 
-                    <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde vamos?</h2>
-
-                    {/* Bloco de endereços conectados por uma linha, igual Uber */}
-                    <div className="rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${colors.border}` }}>
-                        <div className="absolute w-0.5" style={{ left: 21, top: 24, bottom: 24, background: colors.border }} />
-                        <div className="flex items-center gap-3 px-4 py-3">
-                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
-                            <input
-                                readOnly
-                                onClick={() => openField('origin')}
-                                value={locatingOrigin ? 'Localizando...' : origin.address}
-                                placeholder="Local de partida"
-                                className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                style={inputStyle}
+                    {/* Indicador de progresso das etapas */}
+                    <div className="flex items-center gap-1.5 justify-center mb-4">
+                        {STEPS.map((s, i) => (
+                            <div
+                                key={s}
+                                className="h-1.5 rounded-full transition-all duration-300"
+                                style={{
+                                    width: i === stepIndex ? 26 : 8,
+                                    background: i <= stepIndex ? GRADIENT : colors.border,
+                                }}
                             />
-                            <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
-                                {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
-                            </button>
-                        </div>
-                        <div style={{ borderTop: `1px solid ${colors.border}` }} />
-                        <div className="flex items-center gap-3 px-4 py-3">
-                            <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
-                            <input
-                                readOnly
-                                onClick={() => openField('destination')}
-                                value={destination.address}
-                                placeholder="Para onde vamos?"
-                                className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
-                                style={inputStyle}
-                            />
-                        </div>
+                        ))}
                     </div>
 
-                    {/* Instruções de acesso — precisa entrar no local? */}
-                    <div className="flex flex-col gap-2 mt-3">
-                        {originAccessNotes || originNeedsAccess ? (
-                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <Building2 size={13} style={{ color: '#22c55e' }} />
-                                        Acesso na origem
-                                    </span>
-                                    <button
-                                        onClick={() => { setOriginNeedsAccess(false); setOriginAccessNotes('') }}
-                                        className="text-[11px] font-semibold"
-                                        style={{ color: colors.textSecondary }}
-                                    >
-                                        Remover
-                                    </button>
-                                </div>
-                                <textarea
-                                    value={originAccessNotes}
-                                    onChange={(e) => setOriginAccessNotes(e.target.value)}
-                                    rows={2}
-                                    autoFocus
-                                    placeholder="Nome pra portaria, nº do apto, código do portão..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none resize-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setOriginNeedsAccess(true)}
-                                className="text-xs font-bold text-left"
-                                style={{ color: colors.accent }}
-                            >
-                                + Preciso que o motorista entre na origem
-                            </button>
-                        )}
+                    {/* ===== ETAPA 1: PESSOA OU OBJETO ===== */}
+                    {step === 'type' && (
+                        <>
+                            <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Para que você quer o motorista?</h2>
+                            <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
-                        {destinationAccessNotes || destinationNeedsAccess ? (
-                            <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                        <Building2 size={13} style={{ color: '#ef4444' }} />
-                                        Acesso no destino
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={() => handleSelectType('pessoa')}
+                                    className="flex flex-col items-center gap-2 py-7 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                >
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Users size={26} />
+                                    </div>
+                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Pessoa</span>
+                                    <span className="text-[11px] text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                        Te levar, buscar alguém, ou os dois
                                     </span>
-                                    <button
-                                        onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
-                                        className="text-[11px] font-semibold"
-                                        style={{ color: colors.textSecondary }}
-                                    >
-                                        Remover
-                                    </button>
-                                </div>
-                                <textarea
-                                    value={destinationAccessNotes}
-                                    onChange={(e) => setDestinationAccessNotes(e.target.value)}
-                                    rows={2}
-                                    autoFocus
-                                    placeholder="Nome pra portaria, nº do apto, código do portão..."
-                                    className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none resize-none"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => setDestinationNeedsAccess(true)}
-                                className="text-xs font-bold text-left"
-                                style={{ color: colors.accent }}
-                            >
-                                + Preciso que o motorista entre no destino
-                            </button>
-                        )}
-                    </div>
+                                </button>
 
-                    {/* Opções de rota */}
-                    {loadingRoutes && (
-                        <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
-                            <Loader2 size={14} className="animate-spin" />
-                            Calculando rotas...
-                        </div>
+                                <button
+                                    onClick={() => handleSelectType('objeto')}
+                                    className="flex flex-col items-center gap-2 py-7 px-2 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}
+                                >
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                                        <Package size={26} />
+                                    </div>
+                                    <span className="text-sm font-black" style={{ color: colors.textPrimary }}>Objeto</span>
+                                    <span className="text-[11px] text-center leading-tight" style={{ color: colors.textSecondary }}>
+                                        Buscar ou entregar algo
+                                    </span>
+                                </button>
+                            </div>
+                        </>
                     )}
 
-                    {!loadingRoutes && routes.length > 0 && (
-                        <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-                            {routes.map((r, i) => {
-                                const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
-                                const active = i === selectedRoute
-                                return (
+                    {/* ===== ETAPA 2: ENDEREÇOS ===== */}
+                    {step === 'where' && (
+                        <>
+                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde vamos?</h2>
+
+                            {/* Bloco de endereços conectados por uma linha, igual Uber */}
+                            <div className="rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${colors.border}` }}>
+                                <div className="absolute w-0.5" style={{ left: 21, top: 24, bottom: 24, background: colors.border }} />
+                                <div className="flex items-center gap-3 px-4 py-3">
+                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} />
+                                    <input
+                                        readOnly
+                                        onClick={() => openField('origin')}
+                                        value={locatingOrigin ? 'Localizando...' : origin.address}
+                                        placeholder="Local de partida"
+                                        className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
+                                        style={inputStyle}
+                                    />
+                                    <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
+                                        {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
+                                    </button>
+                                </div>
+                                <div style={{ borderTop: `1px solid ${colors.border}` }} />
+                                <div className="flex items-center gap-3 px-4 py-3">
+                                    <MapPin size={14} className="flex-shrink-0" style={{ color: '#ef4444' }} />
+                                    <input
+                                        readOnly
+                                        onClick={() => openField('destination')}
+                                        value={destination.address}
+                                        placeholder="Para onde vamos?"
+                                        className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
+                                        style={inputStyle}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
+                            <div className="flex flex-col gap-2 mt-3">
+                                <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                            <Building2 size={13} style={{ color: '#22c55e' }} />
+                                            Local de origem é um condomínio fechado?
+                                        </span>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <button
+                                                onClick={() => setOriginNeedsAccess(true)}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                SIM
+                                            </button>
+                                            <button
+                                                onClick={() => { setOriginNeedsAccess(false); setOriginAccessNotes('') }}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={!originNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                NÃO
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {originNeedsAccess && (
+                                        <input
+                                            type="text"
+                                            value={originAccessNotes}
+                                            onChange={(e) => setOriginAccessNotes(e.target.value)}
+                                            autoFocus
+                                            placeholder="Número da rua, apartamento ou quadra..."
+                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    )}
+                                </div>
+
+                                <div className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                            <Building2 size={13} style={{ color: '#ef4444' }} />
+                                            Local de destino é um condomínio fechado?
+                                        </span>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <button
+                                                onClick={() => setDestinationNeedsAccess(true)}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                SIM
+                                            </button>
+                                            <button
+                                                onClick={() => { setDestinationNeedsAccess(false); setDestinationAccessNotes('') }}
+                                                className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                style={!destinationNeedsAccess ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                            >
+                                                NÃO
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {destinationNeedsAccess && (
+                                        <input
+                                            type="text"
+                                            value={destinationAccessNotes}
+                                            onChange={(e) => setDestinationAccessNotes(e.target.value)}
+                                            autoFocus
+                                            placeholder="Número da rua, apartamento ou quadra..."
+                                            className="w-full mt-2 px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Opções de rota */}
+                            {loadingRoutes && (
+                                <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    Calculando rotas...
+                                </div>
+                            )}
+
+                            {!loadingRoutes && routes.length > 0 && (
+                                <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                                    {routes.map((r, i) => {
+                                        const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
+                                        const active = i === selectedRoute
+                                        return (
+                                            <button
+                                                key={i}
+                                                onClick={() => setSelectedRoute(i)}
+                                                className="flex-shrink-0 flex flex-col items-start gap-1 px-3 py-2 rounded-xl text-left transition-all"
+                                                style={
+                                                    active
+                                                        ? { background: `${color}20`, border: `2px solid ${color}` }
+                                                        : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }
+                                                }
+                                            >
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Rota {i + 1}</span>
+                                                </div>
+                                                <span className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    {r.distanceKm.toFixed(1)} km · {Math.round(r.durationMin)} min
+                                                </span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => setStep('details')}
+                                disabled={!origin.address.trim() || !destination.address.trim()}
+                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                Continuar
+                            </button>
+                        </>
+                    )}
+
+                    {/* ===== ETAPA 3: DETALHES ===== */}
+                    {step === 'details' && requestFor && (
+                        <>
+                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
+                                {requestFor === 'pessoa' ? 'Mais sobre quem vai' : 'Mais sobre o objeto'}
+                            </h2>
+
+                            {requestFor === 'pessoa' ? (
+                                <>
+                                    {/* Nº de passageiros — define o tipo de veículo sugerido */}
+                                    <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                        <div className="flex items-center gap-2">
+                                            <Users size={16} style={{ color: colors.textSecondary }} />
+                                            <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas?</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                onClick={() => setPassengerCount((n) => Math.max(1, n - 1))}
+                                                disabled={passengerCount <= 1}
+                                                className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{passengerCount}</span>
+                                            <button
+                                                onClick={() => setPassengerCount((n) => Math.min(30, n + 1))}
+                                                disabled={passengerCount >= 30}
+                                                className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {passengerCount > 4 && (
+                                        <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
+                                            <Bus size={14} />
+                                            Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
+                                        </div>
+                                    )}
+
+                                    {/* Adicionais combináveis */}
+                                    <div className="grid grid-cols-2 gap-2 mt-3">
+                                        {[
+                                            { active: hasShopping, label: 'Compras', icon: ShoppingBag, toggle: () => setHasShopping((v) => !v) },
+                                            { active: hasExtraObject, label: '+1 objeto', icon: PackagePlus, toggle: () => setHasExtraObject((v) => !v) },
+                                            { active: hasChild, label: 'Vai criança', icon: Baby, toggle: () => setHasChild((v) => !v) },
+                                            { active: hasPet, label: 'Vai pet', icon: PawPrint, toggle: () => setHasPet((v) => !v) },
+                                        ].map((chip) => {
+                                            const Icon = chip.icon
+                                            return (
+                                                <button
+                                                    key={chip.label}
+                                                    onClick={chip.toggle}
+                                                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                                    style={
+                                                        chip.active
+                                                            ? { background: GRADIENT, color: '#fff' }
+                                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                    }
+                                                >
+                                                    <Icon size={15} />
+                                                    {chip.label}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={objectDescription}
+                                        onChange={(e) => setObjectDescription(e.target.value)}
+                                        placeholder="O que é o objeto?"
+                                        className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none"
+                                        style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                    />
+
                                     <button
-                                        key={i}
-                                        onClick={() => setSelectedRoute(i)}
-                                        className="flex-shrink-0 flex flex-col items-start gap-1 px-3 py-2 rounded-xl text-left transition-all"
+                                        onClick={() => setObjectIsSensitive((v) => !v)}
+                                        className="w-full flex items-center justify-between px-4 py-3 rounded-xl mt-3 transition-all"
                                         style={
-                                            active
-                                                ? { background: `${color}20`, border: `2px solid ${color}` }
-                                                : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }
+                                            objectIsSensitive
+                                                ? { background: GRADIENT, color: '#fff' }
+                                                : { background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }
                                         }
                                     >
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Rota {i + 1}</span>
-                                        </div>
-                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>
-                                            {r.distanceKm.toFixed(1)} km · {Math.round(r.durationMin)} min
+                                        <span className="flex items-center gap-2 text-sm font-bold">
+                                            <ScanLine size={16} />
+                                            Objeto sensível / frágil
                                         </span>
+                                        <span className="text-xs font-black">{objectIsSensitive ? 'SIM' : 'NÃO'}</span>
                                     </button>
-                                )
-                            })}
-                        </div>
-                    )}
 
-                    {/* Tipo de corrida */}
-                    <div className="grid grid-cols-3 gap-2 mt-4">
-                        {RIDE_TYPES.map((type) => {
-                            const Icon = type.icon
-                            const active = rideType === type.id
-                            return (
-                                <button
-                                    key={type.id}
-                                    onClick={() => setRideType(type.id)}
-                                    className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-[11px] font-bold transition-all"
-                                    style={
-                                        active
-                                            ? { background: GRADIENT, color: '#fff' }
-                                            : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
-                                    }
-                                >
-                                    <Icon size={18} />
-                                    {type.label}
-                                </button>
-                            )
-                        })}
-                    </div>
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Tamanho</span>
+                                        <div className="flex gap-2">
+                                            {(['pequeno', 'medio', 'grande'] as ObjectSize[]).map((size) => {
+                                                const active = objectSize === size
+                                                const label = size === 'pequeno' ? 'Pequeno' : size === 'medio' ? 'Médio' : 'Grande'
+                                                return (
+                                                    <button
+                                                        key={size}
+                                                        onClick={() => setObjectSize(size)}
+                                                        className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                                                        style={
+                                                            active
+                                                                ? { background: GRADIENT, color: '#fff' }
+                                                                : { background: `${colors.border}30`, color: colors.textSecondary, border: `1px solid ${colors.border}` }
+                                                        }
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
 
-                    {/* Nº de passageiros — define o tipo de veículo sugerido */}
-                    {rideType !== 'entregar-algo' && (
-                        <div className="flex items-center justify-between gap-3 mt-4 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
-                            <div className="flex items-center gap-2">
-                                <Users size={16} style={{ color: colors.textSecondary }} />
-                                <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas?</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => setPassengerCount((n) => Math.max(1, n - 1))}
-                                    disabled={passengerCount <= 1}
-                                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                >
-                                    <Minus size={14} />
-                                </button>
-                                <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{passengerCount}</span>
-                                <button
-                                    onClick={() => setPassengerCount((n) => Math.min(30, n + 1))}
-                                    disabled={passengerCount >= 30}
-                                    className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
-                                    style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                >
-                                    <Plus size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Foto do objeto (opcional)</span>
+                                        <div
+                                            onClick={() => objectPhotoInputRef.current?.click()}
+                                            className="w-24 h-24 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
+                                            style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
+                                        >
+                                            {objectPhotoPreview ? (
+                                                <img src={objectPhotoPreview} className="w-full h-full object-cover" alt="Objeto" />
+                                            ) : (
+                                                <Camera size={22} style={{ color: colors.textSecondary }} />
+                                            )}
+                                        </div>
+                                        <input
+                                            ref={objectPhotoInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0]
+                                                if (file) handleObjectPhotoChange(file)
+                                            }}
+                                        />
+                                    </div>
 
-                    {rideType !== 'entregar-algo' && passengerCount > 4 && (
-                        <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
-                            <Bus size={14} />
-                            Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
-                        </div>
-                    )}
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Quem envia</span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={senderName}
+                                                    onChange={(e) => setSenderName(e.target.value)}
+                                                    placeholder="Nome de quem envia"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="tel"
+                                                    value={senderWhatsapp}
+                                                    onChange={(e) => setSenderWhatsapp(e.target.value)}
+                                                    placeholder="WhatsApp de quem envia"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
-                    {selectedType.forWhomLabel && (
-                        <div className="mt-3">
-                            <input
-                                type="text"
-                                value={forWhom}
-                                onChange={(e) => setForWhom(e.target.value)}
-                                placeholder={selectedType.forWhomLabel}
-                                className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none"
-                                style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                            />
-                        </div>
-                    )}
+                                    <div className="mt-3">
+                                        <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Quem recebe</span>
+                                        <div className="flex flex-col gap-2">
+                                            <div className="relative">
+                                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={recipientName}
+                                                    onChange={(e) => setRecipientName(e.target.value)}
+                                                    placeholder="Nome de quem recebe"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="tel"
+                                                    value={recipientWhatsapp}
+                                                    onChange={(e) => setRecipientWhatsapp(e.target.value)}
+                                                    placeholder="WhatsApp de quem recebe"
+                                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
-                    {/* Destinatário — quem vai receber a entrega, se não for quem pediu */}
-                    {rideType === 'entregar-algo' && (
-                        <div className="flex flex-col gap-2 mt-3">
-                            <div className="relative">
-                                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-                                <input
-                                    type="text"
-                                    value={recipientName}
-                                    onChange={(e) => setRecipientName(e.target.value)}
-                                    placeholder="Nome de quem vai receber"
-                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
+                            {showNotes ? (
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    rows={2}
+                                    autoFocus
+                                    placeholder="Algum detalhe importante?"
+                                    className="w-full mt-3 px-4 py-3 rounded-xl text-sm focus:outline-none resize-none"
                                     style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                 />
-                            </div>
-                            <div className="relative">
-                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-                                <input
-                                    type="tel"
-                                    value={recipientPhone}
-                                    onChange={(e) => setRecipientPhone(e.target.value)}
-                                    placeholder="Telefone de quem vai receber"
-                                    className="w-full pl-9 pr-4 py-3 rounded-xl text-sm focus:outline-none"
-                                    style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                                />
-                            </div>
-                        </div>
-                    )}
+                            ) : (
+                                <button
+                                    onClick={() => setShowNotes(true)}
+                                    className="text-xs font-bold mt-3"
+                                    style={{ color: colors.accent }}
+                                >
+                                    + Adicionar observação
+                                </button>
+                            )}
 
-                    {showNotes ? (
-                        <textarea
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            rows={2}
-                            autoFocus
-                            placeholder="Algum detalhe importante?"
-                            className="w-full mt-3 px-4 py-3 rounded-xl text-sm focus:outline-none resize-none"
-                            style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
-                        />
-                    ) : (
-                        <button
-                            onClick={() => setShowNotes(true)}
-                            className="text-xs font-bold mt-3"
-                            style={{ color: colors.accent }}
-                        >
-                            + Adicionar observação
-                        </button>
+                            <button
+                                onClick={() => setShowPlateReminder(true)}
+                                disabled={submitting || !origin.address.trim() || !destination.address.trim()}
+                                className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                                style={{ background: GRADIENT, color: '#fff' }}
+                            >
+                                {submitting ? <Loader2 size={18} className="animate-spin" /> : <Car size={18} />}
+                                Pedir motorista
+                            </button>
+                        </>
                     )}
-
-                    <button
-                        onClick={() => setShowPlateReminder(true)}
-                        disabled={submitting || !origin.address.trim() || !destination.address.trim()}
-                        className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
-                        style={{ background: GRADIENT, color: '#fff' }}
-                    >
-                        {submitting ? <Loader2 size={18} className="animate-spin" /> : <Car size={18} />}
-                        Pedir motorista
-                    </button>
                 </div>
             )}
         </div>
