@@ -34,11 +34,11 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('ride-object-photos', 'ride-object-photos', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Public Read" ON storage.objects FOR SELECT
+CREATE POLICY "Ride Object Photos Public Read" ON storage.objects FOR SELECT
     USING (bucket_id = 'ride-object-photos');
-CREATE POLICY "Authenticated Upload" ON storage.objects FOR INSERT
+CREATE POLICY "Ride Object Photos Authenticated Upload" ON storage.objects FOR INSERT
     TO authenticated WITH CHECK (bucket_id = 'ride-object-photos');
-CREATE POLICY "Owner Update" ON storage.objects FOR UPDATE
+CREATE POLICY "Ride Object Photos Owner Update" ON storage.objects FOR UPDATE
     TO authenticated USING (bucket_id = 'ride-object-photos' AND (auth.uid())::text = (storage.foldername(name))[1]);
-CREATE POLICY "Owner Delete" ON storage.objects FOR DELETE
+CREATE POLICY "Ride Object Photos Owner Delete" ON storage.objects FOR DELETE
     TO authenticated USING (bucket_id = 'ride-object-photos' AND (auth.uid())::text = (storage.foldername(name))[1]);
