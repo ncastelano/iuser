@@ -158,7 +158,13 @@ export default function PedirCorridaPage() {
             },
             () => {
                 toast.error('Não conseguimos acessar sua localização', {
-                    description: 'Clique no ícone de localização para adicionar sua localização, ou escreva em "Local de partida" para buscar o endereço.',
+                    description: (
+                        <span className="inline-flex items-center gap-1 flex-wrap">
+                            Clique no ícone
+                            <MapPinPlus size={14} className="inline-block flex-shrink-0" />
+                            para adicionar sua localização, ou escreva em "Local de partida" para buscar o endereço.
+                        </span>
+                    ),
                     duration: 6000,
                 })
                 setLocatingOrigin(false)
