@@ -215,56 +215,56 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
     async function handleConfirm() {
         if (!selectedDate || !selectedTime || !target) return
         setSubmitting(true)
-        const { data: session } = await supabase.auth.getSession()
-        const uid = session.session?.user?.id
-        if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
-        const dateStr = selectedDate.toISOString().split('T')[0]
-        const note = appointmentNote.trim() || 'Convite'
-        const { data: myProfile } = await supabase.from('profiles').select('profileSlug, avatar_url').eq('id', uid).single()
-        const slug = myProfile?.profileSlug || ''
-        const myAvatar = myProfile?.avatar_url || ''
-        const myAppointment = {
-            provider_profile_id: uid,
-            date: dateStr,
-            time: selectedTime,
-            duration_minutes: selectedDuration,
-            service_name: note,
-            service_type: 'service',
-            people_count: 1,
-            customer_id: uid,
-            customer_slug: slug,
-            customer_avatar_url: target.avatar_url || '',
-            owner_id: uid,
-            owner_slug: slug,
-            status: 'pending',
-            direction: 'outgoing',
-            is_public: isPublic,
-        }
-        const inviteAppointment = {
-            provider_profile_id: uid,
-            date: dateStr,
-            time: selectedTime,
-            duration_minutes: selectedDuration,
-            service_name: note,
-            service_type: 'service',
-            people_count: 1,
-            customer_id: target.id,
-            customer_slug: target.slug,
-            customer_avatar_url: myAvatar,
-            owner_id: uid,
-            owner_slug: slug,
-            status: 'pending',
-            direction: 'incoming',
-            is_public: isPublic,
-        }
-        const { data: inserted, error } = await supabase
-            .from('appointments')
-            .insert([myAppointment, inviteAppointment])
-            .select('id, direction')
-        if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+        try {
+            const { data: session } = await supabase.auth.getSession()
+            const uid = session.session?.user?.id
+            if (!uid) { alert('Você precisa estar logado.'); setSubmitting(false); return }
+            const dateStr = selectedDate.toISOString().split('T')[0]
+            const note = appointmentNote.trim() || 'Convite'
+            const { data: myProfile } = await supabase.from('profiles').select('profileSlug, avatar_url').eq('id', uid).single()
+            const slug = myProfile?.profileSlug || ''
+            const myAvatar = myProfile?.avatar_url || ''
+            const myId = crypto.randomUUID()
+            const inviteId = crypto.randomUUID()
+            const myAppointment = {
+                id: myId,
+                provider_profile_id: uid,
+                date: dateStr,
+                time: selectedTime,
+                duration_minutes: selectedDuration,
+                service_name: note,
+                service_type: 'service',
+                people_count: 1,
+                customer_id: uid,
+                customer_slug: slug,
+                customer_avatar_url: target.avatar_url || '',
+                owner_id: uid,
+                owner_slug: slug,
+                status: 'pending',
+                direction: 'outgoing',
+                is_public: isPublic,
+            }
+            const inviteAppointment = {
+                id: inviteId,
+                provider_profile_id: uid,
+                date: dateStr,
+                time: selectedTime,
+                duration_minutes: selectedDuration,
+                service_name: note,
+                service_type: 'service',
+                people_count: 1,
+                customer_id: target.id,
+                customer_slug: target.slug,
+                customer_avatar_url: myAvatar,
+                owner_id: uid,
+                owner_slug: slug,
+                status: 'pending',
+                direction: 'incoming',
+                is_public: isPublic,
+            }
+            const { error } = await supabase.from('appointments').insert([myAppointment, inviteAppointment])
+            if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
 
-        const invite = inserted?.find(a => a.direction === 'incoming')
-        if (invite) {
             supabase.auth.getSession().then(({ data: { session } }) => {
                 if (!session) return
                 fetch('/api/push/send-appointment-invite', {
@@ -273,13 +273,16 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${session.access_token}`,
                     },
-                    body: JSON.stringify({ appointmentId: invite.id }),
+                    body: JSON.stringify({ appointmentId: inviteId }),
                 }).catch(() => { })
             })
-        }
 
-        await refetch()
-        onBack()
+            await refetch()
+            onBack()
+        } catch (err: any) {
+            alert(`Erro ao agendar: ${err?.message || err}`)
+            setSubmitting(false)
+        }
     }
 
     // Helper para cores do tema
