@@ -5,6 +5,8 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FontLoader } from '@/components/FontLoader'
 import { OrderNotification } from '@/components/OrderNotification'
+import { PwaCleanup } from '@/components/PwaCleanup'
+import { PushNotificationSetup } from '@/components/PushNotificationSetup'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 
@@ -16,6 +18,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ProfileProvider>
         <FontLoader />
         <OrderNotification />
+        <PwaCleanup />
+        <PushNotificationSetup />
         <Toaster
           position="top-center"
           toastOptions={{

@@ -257,8 +257,27 @@ export default function CriarCompromissoComAlguem({ onBack }: Props) {
             direction: 'incoming',
             is_public: isPublic,
         }
-        const { error } = await supabase.from('appointments').insert([myAppointment, inviteAppointment])
+        const { data: inserted, error } = await supabase
+            .from('appointments')
+            .insert([myAppointment, inviteAppointment])
+            .select('id, direction')
         if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+
+        const invite = inserted?.find(a => a.direction === 'incoming')
+        if (invite) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (!session) return
+                fetch('/api/push/send-appointment-invite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ appointmentId: invite.id }),
+                }).catch(() => { })
+            })
+        }
+
         await refetch()
         onBack()
     }

@@ -3,7 +3,6 @@
 import type { Viewport, Metadata } from 'next'
 import { Providers } from './providers'
 import './globals.css'
-import { ServiceWorkerRegister } from './(main)/ServiceWorkerRegister'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -83,8 +82,6 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Providers>
           {children}
-          {/* ✅ Service Worker Register - Registra o SW em toda a aplicação */}
-          <ServiceWorkerRegister />
         </Providers>
       </body>
     </html>
