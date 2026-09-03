@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
-import { useTheme } from '@/app/theme'
+import { useTheme, ThemeColors } from '@/app/theme'
 import { toast } from 'sonner'
 import { addRecentRideDestination } from '@/lib/recentRideDestinations'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
@@ -86,6 +86,35 @@ async function searchAddress(query: string): Promise<{ place_name: string; cente
     }
 }
 
+function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPick: (file: File) => void; colors: ThemeColors }) {
+    const inputRef = useRef<HTMLInputElement>(null)
+    return (
+        <div>
+            <div
+                onClick={() => inputRef.current?.click()}
+                className="w-24 h-24 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
+                style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
+            >
+                {preview ? (
+                    <img src={preview} className="w-full h-full object-cover" alt="" />
+                ) : (
+                    <Camera size={22} style={{ color: colors.textSecondary }} />
+                )}
+            </div>
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) onPick(file)
+                }}
+            />
+        </div>
+    )
+}
+
 async function fetchRoutes(origin: [number, number], destination: [number, number]): Promise<RouteOption[]> {
     try {
         const res = await fetch(
@@ -103,6 +132,34 @@ async function fetchRoutes(origin: [number, number], destination: [number, numbe
     }
 }
 
+// ===== RASCUNHO DO PEDIDO (sobrevive ao redirect pro login) =====
+const DRAFT_KEY = 'pedir_motorista_draft_v1'
+
+function saveDraft(draft: Record<string, unknown>) {
+    try {
+        sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+    } catch {
+        // Ignora erros de armazenamento
+    }
+}
+
+function loadDraft(): Record<string, any> | null {
+    try {
+        const raw = sessionStorage.getItem(DRAFT_KEY)
+        return raw ? JSON.parse(raw) : null
+    } catch {
+        return null
+    }
+}
+
+function clearDraft() {
+    try {
+        sessionStorage.removeItem(DRAFT_KEY)
+    } catch {
+        // Ignora erros de armazenamento
+    }
+}
+
 export default function PedirMotoristaPage() {
     const router = useRouter()
     const { colors } = useTheme()
@@ -111,7 +168,6 @@ export default function PedirMotoristaPage() {
     const originMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const destMarkerRef = useRef<mapboxgl.Marker | null>(null)
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const objectPhotoInputRef = useRef<HTMLInputElement>(null)
 
     const [mapReady, setMapReady] = useState(false)
     const [step, setStep] = useState<Step>('type')
@@ -133,12 +189,20 @@ export default function PedirMotoristaPage() {
     const [submitted, setSubmitted] = useState(false)
     const [showPlateReminder, setShowPlateReminder] = useState(false)
 
-    // ===== ADICIONAIS: PESSOA =====
-    const [passengerCount, setPassengerCount] = useState(1)
-    const [hasShopping, setHasShopping] = useState(false)
-    const [hasExtraObject, setHasExtraObject] = useState(false)
+    // ===== ADICIONAIS: PESSOA (além de quem pediu) =====
+    const [extraPeopleCount, setExtraPeopleCount] = useState(0)
     const [hasChild, setHasChild] = useState(false)
+    const [hasShopping, setHasShopping] = useState(false)
+    const [isGroceryShopping, setIsGroceryShopping] = useState<boolean | null>(null)
+    const [bagCount, setBagCount] = useState(1)
+    const [hasExtraObject, setHasExtraObject] = useState(false)
+    const [extraObjectDescription, setExtraObjectDescription] = useState('')
+    const [extraObjectPhotoFile, setExtraObjectPhotoFile] = useState<File | null>(null)
+    const [extraObjectPhotoPreview, setExtraObjectPhotoPreview] = useState<string | null>(null)
     const [hasPet, setHasPet] = useState(false)
+    const [petDescription, setPetDescription] = useState('')
+    const [petPhotoFile, setPetPhotoFile] = useState<File | null>(null)
+    const [petPhotoPreview, setPetPhotoPreview] = useState<string | null>(null)
 
     // ===== DETALHES: OBJETO =====
     const [objectDescription, setObjectDescription] = useState('')
@@ -157,10 +221,11 @@ export default function PedirMotoristaPage() {
     const [destinationNeedsAccess, setDestinationNeedsAccess] = useState(false)
     const [destinationAccessNotes, setDestinationAccessNotes] = useState('')
 
-    const vehicleType = getVehicleTypeForPassengers(passengerCount)
+    const totalPeople = 1 + extraPeopleCount + (hasChild ? 1 : 0)
+    const vehicleType = getVehicleTypeForPassengers(totalPeople)
     const stepIndex = STEPS.indexOf(step)
 
-    // ===== PREVIEW DA FOTO DO OBJETO =====
+    // ===== PREVIEW DAS FOTOS =====
     useEffect(() => {
         if (!objectPhotoFile) return
         const url = URL.createObjectURL(objectPhotoFile)
@@ -168,10 +233,24 @@ export default function PedirMotoristaPage() {
         return () => URL.revokeObjectURL(url)
     }, [objectPhotoFile])
 
-    const handleObjectPhotoChange = async (file: File) => {
+    useEffect(() => {
+        if (!extraObjectPhotoFile) return
+        const url = URL.createObjectURL(extraObjectPhotoFile)
+        setExtraObjectPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [extraObjectPhotoFile])
+
+    useEffect(() => {
+        if (!petPhotoFile) return
+        const url = URL.createObjectURL(petPhotoFile)
+        setPetPhotoPreview(url)
+        return () => URL.revokeObjectURL(url)
+    }, [petPhotoFile])
+
+    const handlePhotoPick = async (file: File, setFile: (f: File) => void) => {
         try {
             const squareFile = await createSquareImage(file, 500)
-            setObjectPhotoFile(squareFile)
+            setFile(squareFile)
         } catch {
             toast.error('Erro ao processar imagem')
         }
@@ -231,7 +310,8 @@ export default function PedirMotoristaPage() {
     }, [])
 
     useEffect(() => {
-        if (mapReady) useMyLocationAsOrigin()
+        if (mapReady && !origin.address) useMyLocationAsOrigin()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mapReady, useMyLocationAsOrigin])
 
     // ===== TIPO E DESTINO VINDOS DE UM ATALHO (?tipo=, ?destino=, ?lat=, ?lng=) =====
@@ -251,6 +331,41 @@ export default function PedirMotoristaPage() {
                 lat && lng ? [parseFloat(lng), parseFloat(lat)] : null
             setDestination({ address: destino, coords })
         }
+    }, [])
+
+    // ===== RESTAURA O RASCUNHO SE VOLTOU DE UM LOGIN =====
+    useEffect(() => {
+        const draft = loadDraft()
+        if (!draft) return
+        clearDraft()
+
+        if (draft.step) setStep(draft.step)
+        if (draft.requestFor) setRequestFor(draft.requestFor)
+        if (draft.origin) setOrigin(draft.origin)
+        if (draft.destination) setDestination(draft.destination)
+        if (typeof draft.notes === 'string') setNotes(draft.notes)
+        if (typeof draft.extraPeopleCount === 'number') setExtraPeopleCount(draft.extraPeopleCount)
+        if (typeof draft.hasChild === 'boolean') setHasChild(draft.hasChild)
+        if (typeof draft.hasShopping === 'boolean') setHasShopping(draft.hasShopping)
+        if (draft.isGroceryShopping !== undefined) setIsGroceryShopping(draft.isGroceryShopping)
+        if (typeof draft.bagCount === 'number') setBagCount(draft.bagCount)
+        if (typeof draft.hasExtraObject === 'boolean') setHasExtraObject(draft.hasExtraObject)
+        if (typeof draft.extraObjectDescription === 'string') setExtraObjectDescription(draft.extraObjectDescription)
+        if (typeof draft.hasPet === 'boolean') setHasPet(draft.hasPet)
+        if (typeof draft.petDescription === 'string') setPetDescription(draft.petDescription)
+        if (typeof draft.objectDescription === 'string') setObjectDescription(draft.objectDescription)
+        if (typeof draft.objectIsSensitive === 'boolean') setObjectIsSensitive(draft.objectIsSensitive)
+        if (draft.objectSize !== undefined) setObjectSize(draft.objectSize)
+        if (typeof draft.senderName === 'string') setSenderName(draft.senderName)
+        if (typeof draft.senderWhatsapp === 'string') setSenderWhatsapp(draft.senderWhatsapp)
+        if (typeof draft.recipientName === 'string') setRecipientName(draft.recipientName)
+        if (typeof draft.recipientWhatsapp === 'string') setRecipientWhatsapp(draft.recipientWhatsapp)
+        if (typeof draft.originNeedsAccess === 'boolean') setOriginNeedsAccess(draft.originNeedsAccess)
+        if (typeof draft.originAccessNotes === 'string') setOriginAccessNotes(draft.originAccessNotes)
+        if (typeof draft.destinationNeedsAccess === 'boolean') setDestinationNeedsAccess(draft.destinationNeedsAccess)
+        if (typeof draft.destinationAccessNotes === 'string') setDestinationAccessNotes(draft.destinationAccessNotes)
+
+        toast.info('Continuando de onde você parou.')
     }, [])
 
     // ===== MARCADORES NO MAPA =====
@@ -440,10 +555,28 @@ export default function PedirMotoristaPage() {
         else router.push('/')
     }
 
+    const uploadRidePhoto = async (userId: string, file: File): Promise<string | null> => {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
+        const { data, error: uploadError } = await supabase.storage.from('ride-object-photos').upload(fileName, file)
+        if (uploadError) throw uploadError
+        if (!data) return null
+        return supabase.storage.from('ride-object-photos').getPublicUrl(data.path).data.publicUrl
+    }
+
     const handleSubmit = async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-            router.push('/login')
+            saveDraft({
+                step, requestFor, origin, destination, notes,
+                extraPeopleCount, hasChild, hasShopping, isGroceryShopping, bagCount,
+                hasExtraObject, extraObjectDescription,
+                hasPet, petDescription,
+                objectDescription, objectIsSensitive, objectSize,
+                senderName, senderWhatsapp, recipientName, recipientWhatsapp,
+                originNeedsAccess, originAccessNotes, destinationNeedsAccess, destinationAccessNotes,
+            })
+            router.push(`/login?redirect=${encodeURIComponent('/pedir-motorista')}`)
             return
         }
         if (!origin.address.trim() || !destination.address.trim()) {
@@ -453,18 +586,9 @@ export default function PedirMotoristaPage() {
 
         setSubmitting(true)
         try {
-            let objectPhotoUrl: string | null = null
-            if (requestFor === 'objeto' && objectPhotoFile) {
-                const fileExt = objectPhotoFile.name.split('.').pop()
-                const fileName = `${user.id}/${Date.now()}.${fileExt}`
-                const { data, error: uploadError } = await supabase.storage
-                    .from('ride-object-photos')
-                    .upload(fileName, objectPhotoFile)
-                if (uploadError) throw uploadError
-                if (data) {
-                    objectPhotoUrl = supabase.storage.from('ride-object-photos').getPublicUrl(data.path).data.publicUrl
-                }
-            }
+            const objectPhotoUrl = requestFor === 'objeto' && objectPhotoFile ? await uploadRidePhoto(user.id, objectPhotoFile) : null
+            const extraObjectPhotoUrl = requestFor === 'pessoa' && hasExtraObject && extraObjectPhotoFile ? await uploadRidePhoto(user.id, extraObjectPhotoFile) : null
+            const petPhotoUrl = requestFor === 'pessoa' && hasPet && petPhotoFile ? await uploadRidePhoto(user.id, petPhotoFile) : null
 
             const { error } = await supabase.from('ride_requests').insert({
                 requester_id: user.id,
@@ -476,12 +600,18 @@ export default function PedirMotoristaPage() {
                 origin_access_notes: originNeedsAccess ? originAccessNotes.trim() || null : null,
                 destination_needs_access: destinationNeedsAccess,
                 destination_access_notes: destinationNeedsAccess ? destinationAccessNotes.trim() || null : null,
-                passenger_count: requestFor === 'pessoa' ? passengerCount : 1,
+                passenger_count: requestFor === 'pessoa' ? totalPeople : 1,
                 vehicle_type: requestFor === 'pessoa' ? vehicleType : 'carro',
-                has_shopping: requestFor === 'pessoa' ? hasShopping : false,
-                has_extra_object: requestFor === 'pessoa' ? hasExtraObject : false,
                 has_child: requestFor === 'pessoa' ? hasChild : false,
+                has_shopping: requestFor === 'pessoa' ? hasShopping : false,
+                is_grocery_shopping: requestFor === 'pessoa' && hasShopping ? isGroceryShopping : null,
+                bag_count: requestFor === 'pessoa' && hasShopping && isGroceryShopping ? bagCount : null,
+                has_extra_object: requestFor === 'pessoa' ? hasExtraObject : false,
+                extra_object_description: requestFor === 'pessoa' && hasExtraObject ? extraObjectDescription.trim() || null : null,
+                extra_object_photo_url: extraObjectPhotoUrl,
                 has_pet: requestFor === 'pessoa' ? hasPet : false,
+                pet_description: requestFor === 'pessoa' && hasPet ? petDescription.trim() || null : null,
+                pet_photo_url: petPhotoUrl,
                 object_description: requestFor === 'objeto' ? objectDescription.trim() || null : null,
                 object_is_sensitive: requestFor === 'objeto' ? objectIsSensitive : false,
                 object_size: requestFor === 'objeto' ? objectSize : null,
@@ -535,7 +665,7 @@ export default function PedirMotoristaPage() {
                                 value={activeField === 'origin' ? origin.address : destination.address}
                                 onChange={(e) => handleAddressChange(activeField, e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : 'Para onde vamos?'}
+                                placeholder={activeField === 'origin' ? 'De onde você vai sair?' : 'Local de chegada'}
                                 className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none"
                                 style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                             />
@@ -715,7 +845,7 @@ export default function PedirMotoristaPage() {
                     {/* ===== ETAPA 2: ENDEREÇOS ===== */}
                     {step === 'where' && (
                         <>
-                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde vamos?</h2>
+                            <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde ir</h2>
 
                             {/* Bloco de endereços conectados por uma linha, igual Uber */}
                             <div className="rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${colors.border}` }}>
@@ -741,7 +871,7 @@ export default function PedirMotoristaPage() {
                                         readOnly
                                         onClick={() => openField('destination')}
                                         value={destination.address}
-                                        placeholder="Para onde vamos?"
+                                        placeholder="Local de chegada"
                                         className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                         style={inputStyle}
                                     />
@@ -754,7 +884,7 @@ export default function PedirMotoristaPage() {
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                                             <Building2 size={13} style={{ color: '#22c55e' }} />
-                                            Local de origem é um condomínio fechado?
+                                            Estou esperando dentro do condomínio
                                         </span>
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             <button
@@ -790,7 +920,7 @@ export default function PedirMotoristaPage() {
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                         <span className="flex items-center gap-1.5 text-xs font-bold" style={{ color: colors.textPrimary }}>
                                             <Building2 size={13} style={{ color: '#ef4444' }} />
-                                            Local de destino é um condomínio fechado?
+                                            Me deixa dentro do condomínio
                                         </span>
                                         <div className="flex items-center gap-1.5 flex-shrink-0">
                                             <button
@@ -875,30 +1005,30 @@ export default function PedirMotoristaPage() {
                     {step === 'details' && requestFor && (
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>
-                                {requestFor === 'pessoa' ? 'Mais sobre quem vai' : 'Mais sobre o objeto'}
+                                {requestFor === 'pessoa' ? 'Mais alguém vai?' : 'Mais sobre o objeto'}
                             </h2>
 
                             {requestFor === 'pessoa' ? (
                                 <>
-                                    {/* Nº de passageiros — define o tipo de veículo sugerido */}
+                                    {/* Nº de pessoas a mais, além de quem pediu — define o tipo de veículo sugerido */}
                                     <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
                                         <div className="flex items-center gap-2">
                                             <Users size={16} style={{ color: colors.textSecondary }} />
-                                            <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas?</span>
+                                            <span className="text-sm font-bold" style={{ color: colors.textPrimary }}>Quantas pessoas a mais?</span>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <button
-                                                onClick={() => setPassengerCount((n) => Math.max(1, n - 1))}
-                                                disabled={passengerCount <= 1}
+                                                onClick={() => setExtraPeopleCount((n) => Math.max(0, n - 1))}
+                                                disabled={extraPeopleCount <= 0}
                                                 className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
                                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                             >
                                                 <Minus size={14} />
                                             </button>
-                                            <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{passengerCount}</span>
+                                            <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{extraPeopleCount}</span>
                                             <button
-                                                onClick={() => setPassengerCount((n) => Math.min(30, n + 1))}
-                                                disabled={passengerCount >= 30}
+                                                onClick={() => setExtraPeopleCount((n) => Math.min(29, n + 1))}
+                                                disabled={extraPeopleCount >= 29}
                                                 className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
                                                 style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
                                             >
@@ -907,7 +1037,7 @@ export default function PedirMotoristaPage() {
                                         </div>
                                     </div>
 
-                                    {passengerCount > 4 && (
+                                    {totalPeople > 4 && (
                                         <div className="flex items-center gap-1.5 mt-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: `${colors.accent}15`, color: colors.accent }}>
                                             <Bus size={14} />
                                             Vai precisar de: {VEHICLE_TYPE_LABELS[vehicleType]}
@@ -917,10 +1047,10 @@ export default function PedirMotoristaPage() {
                                     {/* Adicionais combináveis */}
                                     <div className="grid grid-cols-2 gap-2 mt-3">
                                         {[
-                                            { active: hasShopping, label: 'Compras', icon: ShoppingBag, toggle: () => setHasShopping((v) => !v) },
-                                            { active: hasExtraObject, label: '+1 objeto', icon: PackagePlus, toggle: () => setHasExtraObject((v) => !v) },
                                             { active: hasChild, label: 'Vai criança', icon: Baby, toggle: () => setHasChild((v) => !v) },
-                                            { active: hasPet, label: 'Vai pet', icon: PawPrint, toggle: () => setHasPet((v) => !v) },
+                                            { active: hasShopping, label: 'Compras', icon: ShoppingBag, toggle: () => setHasShopping((v) => !v) },
+                                            { active: hasExtraObject, label: 'Objeto', icon: PackagePlus, toggle: () => setHasExtraObject((v) => !v) },
+                                            { active: hasPet, label: 'Pet', icon: PawPrint, toggle: () => setHasPet((v) => !v) },
                                         ].map((chip) => {
                                             const Icon = chip.icon
                                             return (
@@ -940,6 +1070,105 @@ export default function PedirMotoristaPage() {
                                             )
                                         })}
                                     </div>
+
+                                    {hasChild && (
+                                        <p className="text-[11px] mt-2 px-1" style={{ color: colors.textSecondary }}>
+                                            A criança conta como uma pessoa e ocupa lugar de adulto.
+                                        </p>
+                                    )}
+
+                                    {/* Compras — mercado? quantas sacolas? */}
+                                    {hasShopping && (
+                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>É compra de mercado?</span>
+                                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                    <button
+                                                        onClick={() => setIsGroceryShopping(true)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={isGroceryShopping === true ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        SIM
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setIsGroceryShopping(false)}
+                                                        className="px-3 py-1 rounded-full text-[11px] font-black transition-all"
+                                                        style={isGroceryShopping === false ? { background: GRADIENT, color: '#fff' } : { background: colors.surface, color: colors.textSecondary, border: `1px solid ${colors.border}` }}
+                                                    >
+                                                        NÃO
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {isGroceryShopping === true && (
+                                                <div className="flex items-center justify-between gap-3 mt-2">
+                                                    <span className="text-xs font-bold" style={{ color: colors.textSecondary }}>Quantas sacolas?</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={() => setBagCount((n) => Math.max(1, n - 1))}
+                                                            disabled={bagCount <= 1}
+                                                            className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                        >
+                                                            <Minus size={14} />
+                                                        </button>
+                                                        <span className="text-sm font-black w-5 text-center" style={{ color: colors.textPrimary }}>{bagCount}</span>
+                                                        <button
+                                                            onClick={() => setBagCount((n) => Math.min(20, n + 1))}
+                                                            disabled={bagCount >= 20}
+                                                            className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-40"
+                                                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Objeto extra — qual é e foto */}
+                                    {hasExtraObject && (
+                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o objeto?</span>
+                                            <input
+                                                type="text"
+                                                value={extraObjectDescription}
+                                                onChange={(e) => setExtraObjectDescription(e.target.value)}
+                                                placeholder="Ex: mochila, caixa, mala..."
+                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                            <div className="mt-2">
+                                                <PhotoPicker
+                                                    preview={extraObjectPhotoPreview}
+                                                    onPick={(file) => handlePhotoPick(file, setExtraObjectPhotoFile)}
+                                                    colors={colors}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Pet — qual é e foto */}
+                                    {hasPet && (
+                                        <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                            <span className="text-xs font-bold block mb-2" style={{ color: colors.textPrimary }}>Qual é o pet?</span>
+                                            <input
+                                                type="text"
+                                                value={petDescription}
+                                                onChange={(e) => setPetDescription(e.target.value)}
+                                                placeholder="Ex: cachorro pequeno, gato..."
+                                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none"
+                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                            />
+                                            <div className="mt-2">
+                                                <PhotoPicker
+                                                    preview={petPhotoPreview}
+                                                    onPick={(file) => handlePhotoPick(file, setPetPhotoFile)}
+                                                    colors={colors}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <>
@@ -994,26 +1223,10 @@ export default function PedirMotoristaPage() {
 
                                     <div className="mt-3">
                                         <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>Foto do objeto (opcional)</span>
-                                        <div
-                                            onClick={() => objectPhotoInputRef.current?.click()}
-                                            className="w-24 h-24 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
-                                            style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
-                                        >
-                                            {objectPhotoPreview ? (
-                                                <img src={objectPhotoPreview} className="w-full h-full object-cover" alt="Objeto" />
-                                            ) : (
-                                                <Camera size={22} style={{ color: colors.textSecondary }} />
-                                            )}
-                                        </div>
-                                        <input
-                                            ref={objectPhotoInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0]
-                                                if (file) handleObjectPhotoChange(file)
-                                            }}
+                                        <PhotoPicker
+                                            preview={objectPhotoPreview}
+                                            onPick={(file) => handlePhotoPick(file, setObjectPhotoFile)}
+                                            colors={colors}
                                         />
                                     </div>
 

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type ThemeName = 'claro' | 'escuro-laranja' | 'escuro-cinza'
 
-interface ThemeColors {
+export interface ThemeColors {
     name: ThemeName
     background: string
     surface: string
