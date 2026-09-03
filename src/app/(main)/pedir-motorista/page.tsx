@@ -602,31 +602,37 @@ export default function PedirMotoristaPage() {
         setShowPlateReminder(true)
     }
 
-    // ===== RESUMO EM TEXTO DO QUE ESTÁ SENDO PEDIDO =====
-    const orderSummary = (() => {
-        if (!requestFor) return ''
+    // ===== RESUMO EM LINHAS (rótulo: valor) DO QUE ESTÁ SENDO PEDIDO =====
+    const orderSummaryRows: { label: string; value: string }[] = (() => {
+        if (!requestFor) return []
         const from = origin.address ? shortAddress(origin.address) : 'um local'
         const to = destination.address ? shortAddress(destination.address) : 'outro local'
+        const rows: { label: string; value: string }[] = []
 
         if (requestFor === 'pessoa') {
-            const peopleText = totalPeople === 1 ? '1 pessoa' : `${totalPeople} pessoas`
-            const extras: string[] = []
+            const peopleText = totalPeople === 1 ? 'uma pessoa' : `${totalPeople} pessoas`
+            rows.push({ label: 'Pedido', value: `levar ${peopleText}` })
+            rows.push({ label: 'De', value: from })
+            rows.push({ label: 'Para', value: to })
             if (hasShopping) {
-                extras.push(
-                    isGroceryShopping
-                        ? `compras de mercado${bagCount ? ` (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` : ''}`
-                        : 'compras'
-                )
+                rows.push({
+                    label: 'Compras',
+                    value: isGroceryShopping
+                        ? `de mercado${bagCount ? ` (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` : ''}`
+                        : 'sim',
+                })
             }
-            if (hasExtraObject) extras.push(extraObjectDescription ? `o objeto "${extraObjectDescription}"` : 'um objeto')
-            if (hasPet) extras.push(petDescription || 'um pet')
-            const extrasText = extras.length > 0 ? ` Vai levar também: ${extras.join(', ')}.` : ''
-            return `Você está pedindo um motorista para levar ${peopleText} de ${from} para ${to}.${extrasText}`
+            if (hasExtraObject) rows.push({ label: 'Objeto', value: extraObjectDescription || 'não especificado' })
+            if (hasPet) rows.push({ label: 'Pet', value: petDescription || 'não especificado' })
+        } else {
+            rows.push({ label: 'Pedido', value: 'buscar e entregar um objeto' })
+            rows.push({ label: 'Objeto', value: objectDescription || 'não especificado' })
+            rows.push({ label: 'De', value: from })
+            rows.push({ label: 'Para', value: to })
+            if (recipientName) rows.push({ label: 'Entregar a', value: recipientName })
         }
 
-        const objectText = objectDescription ? `"${objectDescription}"` : 'um objeto'
-        const recipientText = recipientName ? ` para entregar a ${recipientName}` : ''
-        return `Você está pedindo um motorista para buscar ${objectText} de ${from} e levar até ${to}${recipientText}.`
+        return rows
     })()
 
     const uploadRidePhoto = async (userId: string, file: File): Promise<string | null> => {
@@ -808,8 +814,12 @@ export default function PedirMotoristaPage() {
                             <ShieldAlert size={32} />
                         </div>
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Antes de confirmar</h2>
-                        <div className="w-full rounded-xl px-4 py-3 text-left" style={{ background: `${colors.border}30` }}>
-                            <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{orderSummary}</p>
+                        <div className="w-full rounded-xl px-4 py-3 text-left flex flex-col gap-1" style={{ background: `${colors.border}30` }}>
+                            {orderSummaryRows.map((row) => (
+                                <p key={row.label} className="text-sm" style={{ color: colors.textPrimary }}>
+                                    <span className="font-black">{row.label}:</span> {row.value}
+                                </p>
+                            ))}
                         </div>
                         <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
