@@ -8,7 +8,8 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme, ThemeColors } from '@/app/theme'
 import { toast } from 'sonner'
-import { addRecentRideDestination } from '@/lib/recentRideDestinations'
+import { addRecentRideDestination, getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
+import { addRecentRideOrigin, getRecentRideOrigins, RecentRideOrigin } from '@/lib/recentRideOrigins'
 import { getVehicleTypeForPassengers, VEHICLE_TYPE_LABELS } from '@/lib/rideVehicle'
 import { createSquareImage } from '@/lib/image'
 import {
@@ -35,6 +36,7 @@ import {
     Camera,
     ScanLine,
     User,
+    History,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -115,6 +117,11 @@ function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPi
     )
 }
 
+function shortAddress(address: string): string {
+    const firstPart = address.split(',')[0].trim()
+    return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
+}
+
 async function fetchRoutes(origin: [number, number], destination: [number, number]): Promise<RouteOption[]> {
     try {
         const res = await fetch(
@@ -174,6 +181,8 @@ export default function PedirMotoristaPage() {
     const [requestFor, setRequestFor] = useState<RequestFor | null>(null)
     const [origin, setOrigin] = useState<Place>({ address: '', coords: null })
     const [destination, setDestination] = useState<Place>({ address: '', coords: null })
+    const [recentOrigins, setRecentOrigins] = useState<RecentRideOrigin[]>([])
+    const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
     const [activeField, setActiveField] = useState<ActiveField>(null)
     const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([])
     const [highlightedIndex, setHighlightedIndex] = useState(-1)
@@ -255,6 +264,12 @@ export default function PedirMotoristaPage() {
             toast.error('Erro ao processar imagem')
         }
     }
+
+    // ===== LOCAIS RECENTES (pra selecionar direto na etapa de endereço) =====
+    useEffect(() => {
+        setRecentOrigins(getRecentRideOrigins())
+        setRecentDestinations(getRecentRideDestinations())
+    }, [])
 
     // ===== INIT MAP =====
     useEffect(() => {
@@ -507,13 +522,29 @@ export default function PedirMotoristaPage() {
 
     const selectSuggestion = (field: 'origin' | 'destination', suggestion: { place_name: string; center: [number, number] }) => {
         const place = { address: suggestion.place_name, coords: suggestion.center }
-        if (field === 'origin') setOrigin(place)
-        else {
+        if (field === 'origin') {
+            setOrigin(place)
+            addRecentRideOrigin(place)
+            setRecentOrigins(getRecentRideOrigins())
+        } else {
             setDestination(place)
             addRecentRideDestination(place)
+            setRecentDestinations(getRecentRideDestinations())
         }
         setSuggestions([])
         setActiveField(null)
+    }
+
+    const selectRecentOrigin = (place: RecentRideOrigin) => {
+        setOrigin({ address: place.address, coords: place.coords })
+        addRecentRideOrigin(place)
+        setRecentOrigins(getRecentRideOrigins())
+    }
+
+    const selectRecentDestination = (place: RecentRideDestination) => {
+        setDestination({ address: place.address, coords: place.coords })
+        addRecentRideDestination(place)
+        setRecentDestinations(getRecentRideDestinations())
     }
 
     // ===== NAVEGAÇÃO DAS SUGESTÕES PELO TECLADO =====
@@ -554,6 +585,33 @@ export default function PedirMotoristaPage() {
         else if (step === 'where') setStep('type')
         else router.push('/')
     }
+
+    // ===== RESUMO EM TEXTO DO QUE ESTÁ SENDO PEDIDO =====
+    const orderSummary = (() => {
+        if (!requestFor) return ''
+        const from = origin.address ? shortAddress(origin.address) : 'um local'
+        const to = destination.address ? shortAddress(destination.address) : 'outro local'
+
+        if (requestFor === 'pessoa') {
+            const peopleText = totalPeople === 1 ? '1 pessoa' : `${totalPeople} pessoas`
+            const extras: string[] = []
+            if (hasShopping) {
+                extras.push(
+                    isGroceryShopping
+                        ? `compras de mercado${bagCount ? ` (${bagCount} ${bagCount === 1 ? 'sacola' : 'sacolas'})` : ''}`
+                        : 'compras'
+                )
+            }
+            if (hasExtraObject) extras.push(extraObjectDescription ? `o objeto "${extraObjectDescription}"` : 'um objeto')
+            if (hasPet) extras.push(petDescription || 'um pet')
+            const extrasText = extras.length > 0 ? ` Vai levar também: ${extras.join(', ')}.` : ''
+            return `Você está pedindo um motorista para levar ${peopleText} de ${from} para ${to}.${extrasText}`
+        }
+
+        const objectText = objectDescription ? `"${objectDescription}"` : 'um objeto'
+        const recipientText = recipientName ? ` para entregar a ${recipientName}` : ''
+        return `Você está pedindo um motorista para buscar ${objectText} de ${from} e levar até ${to}${recipientText}.`
+    })()
 
     const uploadRidePhoto = async (userId: string, file: File): Promise<string | null> => {
         const fileExt = file.name.split('.').pop()
@@ -734,7 +792,10 @@ export default function PedirMotoristaPage() {
                             <ShieldAlert size={32} />
                         </div>
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Antes de confirmar</h2>
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                        <div className="w-full rounded-xl px-4 py-3 text-left" style={{ background: `${colors.border}30` }}>
+                            <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{orderSummary}</p>
+                        </div>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
                             Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
                         </p>
                         <button
@@ -847,6 +908,23 @@ export default function PedirMotoristaPage() {
                         <>
                             <h2 className="text-lg font-black mb-3" style={{ color: colors.textPrimary }}>Para onde ir</h2>
 
+                            {/* Locais de partida já usados */}
+                            {recentOrigins.length > 0 && (
+                                <div className="flex gap-2 overflow-x-auto pb-2 mb-1">
+                                    {recentOrigins.map((place) => (
+                                        <button
+                                            key={place.address}
+                                            onClick={() => selectRecentOrigin(place)}
+                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <History size={12} style={{ color: '#22c55e' }} />
+                                            {shortAddress(place.address)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Bloco de endereços conectados por uma linha, igual Uber */}
                             <div className="rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${colors.border}` }}>
                                 <div className="absolute w-0.5" style={{ left: 21, top: 24, bottom: 24, background: colors.border }} />
@@ -877,6 +955,23 @@ export default function PedirMotoristaPage() {
                                     />
                                 </div>
                             </div>
+
+                            {/* Locais de chegada já usados */}
+                            {recentDestinations.length > 0 && (
+                                <div className="flex gap-2 overflow-x-auto pt-2 pb-1">
+                                    {recentDestinations.map((place) => (
+                                        <button
+                                            key={place.address}
+                                            onClick={() => selectRecentDestination(place)}
+                                            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                                            style={{ background: `${colors.border}30`, color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <History size={12} style={{ color: '#ef4444' }} />
+                                            {shortAddress(place.address)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Condomínio fechado — precisa de nº/apto/quadra pra achar? */}
                             <div className="flex flex-col gap-2 mt-3">
