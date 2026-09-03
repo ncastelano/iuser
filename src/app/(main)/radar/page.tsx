@@ -7,11 +7,11 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react'
+import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Loader2, Users, Calendar, MessageCircle, Eye } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { isStoreOpenNow } from '@/lib/storeHours'
+import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -115,6 +115,8 @@ export default function MapPage() {
     const [userName, setUserName] = useState<string>('')
     const [profileData, setProfileData] = useState<any>(null)
     const [mapInitialized, setMapInitialized] = useState(false)
+    const [storeDetails, setStoreDetails] = useState<any | null>(null)
+    const [loadingStoreDetails, setLoadingStoreDetails] = useState(false)
 
     const router = useRouter()
     const { mode: appMode } = useAppModeStore()
@@ -434,6 +436,81 @@ export default function MapPage() {
         setFiltered(result)
         console.log('[MapPage] 🎯 Filtrados:', { mode, count: result.length, search: q })
     }, [search, mode, stores, products, overrideList])
+
+    // Buscar detalhes extras da loja selecionada (seguidores, whatsapp, produtos mais vistos, comentários)
+    useEffect(() => {
+        if (!selectedItem || mode !== 'lojas') {
+            setStoreDetails(null)
+            return
+        }
+
+        let cancelled = false
+
+        const loadStoreDetails = async () => {
+            setLoadingStoreDetails(true)
+            try {
+                const storeId = selectedItem.id
+
+                let whatsapp = selectedItem.whatsapp || null
+                if (!whatsapp && selectedItem.owner_id) {
+                    const { data: ownerProfile } = await supabase
+                        .from('profiles')
+                        .select('whatsapp')
+                        .eq('id', selectedItem.owner_id)
+                        .single()
+                    whatsapp = ownerProfile?.whatsapp || null
+                }
+
+                const [{ count: followersCount }, { data: topProducts }, { data: reviewsData }] = await Promise.all([
+                    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', storeId),
+                    supabase
+                        .from('products')
+                        .select('id, name, slug, price, image_url, view_count')
+                        .eq('store_id', storeId)
+                        .eq('listing_type', 'sale')
+                        .order('view_count', { ascending: false, nullsFirst: false })
+                        .limit(4),
+                    supabase
+                        .from('product_reviews')
+                        .select('id, rating, comment, is_anonymous, created_at, profiles(name, avatar_url, "profileSlug")')
+                        .eq('store_id', storeId)
+                        .not('comment', 'is', null)
+                        .order('created_at', { ascending: false })
+                        .limit(3),
+                ])
+
+                if (cancelled) return
+
+                const mappedProducts = (topProducts || []).map((p: any) => ({
+                    ...p,
+                    image_url: p.image_url
+                        ? supabase.storage.from('product-images').getPublicUrl(p.image_url).data.publicUrl
+                        : null,
+                }))
+
+                const mappedReviews = (reviewsData || []).map((r: any) => ({
+                    ...r,
+                    profiles: Array.isArray(r.profiles) ? r.profiles[0] : r.profiles,
+                }))
+
+                setStoreDetails({
+                    followersCount: followersCount || 0,
+                    whatsapp,
+                    topProducts: mappedProducts,
+                    reviews: mappedReviews,
+                })
+            } catch (error) {
+                console.error('[MapPage] Erro ao carregar detalhes da loja:', error)
+                if (!cancelled) setStoreDetails(null)
+            } finally {
+                if (!cancelled) setLoadingStoreDetails(false)
+            }
+        }
+
+        loadStoreDetails()
+
+        return () => { cancelled = true }
+    }, [selectedItem, mode])
 
     // Buscar endereço
     const searchAddressHandler = async () => {
@@ -918,6 +995,20 @@ export default function MapPage() {
         setMapStyle(prev => prev === 'streets' ? 'satellite' : 'streets')
     }
 
+    const selectedStoreNextAvailable = mode === 'lojas' && selectedItem?.business_hours
+        ? getNextOpeningInfo(selectedItem.business_hours)
+        : null
+
+    const openStoreInMaps = () => {
+        if (!selectedItem) return
+        const coords = parseCoords(selectedItem.location)
+        if (coords) {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${coords[1]},${coords[0]}`, '_blank')
+        } else if (selectedItem.address) {
+            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedItem.address)}`, '_blank')
+        }
+    }
+
     return (
         <div className="fixed inset-0" style={{ zIndex: 0 }}>
             <style>{`
@@ -1258,7 +1349,7 @@ export default function MapPage() {
             {/* Horizontal List */}
             {filtered.length > 0 && !clusterItems && (
                 <div className="absolute top-[90px] left-1/2 -translate-x-1/2 w-[95%] max-w-2xl z-20">
-                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                    <div className="flex gap-2 overflow-x-auto pt-3 pb-3 scrollbar-hide snap-x">
                         {filtered.map(item => (
                             <button
                                 key={item.id}
@@ -1302,49 +1393,146 @@ export default function MapPage() {
             {/* Selected Item Card */}
             {selectedItem && !clusterItems && (
                 <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[92%] max-w-sm z-30 animate-in slide-in-from-bottom-5 duration-500">
-                    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-orange-200">
+                    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border-2 border-orange-200 flex flex-col max-h-[72vh]">
                         <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-orange-100 hover:bg-orange-500 hover:text-white transition-all z-10 shadow-md">
                             <X className="w-4 h-4" />
                         </button>
-                        <div className="p-4">
-                            <div className="flex gap-4 items-center">
-                                <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-orange-500'}`}>
-                                    {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
-                                        <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-xl" alt="" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-orange-300">?</div>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0 space-y-1">
-                                    <h3 className="text-lg font-black text-gray-900 truncate">{selectedItem.name}</h3>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        {mode === 'lojas' && (
-                                            <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${selectedItem.is_open ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                {selectedItem.is_open ? 'Aberto' : 'Fechado'}
-                                            </span>
-                                        )}
-                                        {distanceFormatted && (
-                                            <span className="text-[10px] font-black uppercase text-gray-500 flex items-center gap-1">
-                                                <MapPin className="w-3 h-3 text-orange-500" />
-                                                {distanceFormatted}
-                                            </span>
-                                        )}
-                                        {mode === 'lojas' && selectedItem.ratings_avg > 0 && (
-                                            <div className="flex items-center gap-1 font-black text-[10px] text-yellow-500">
-                                                <Star size={10} className="fill-yellow-500" />
-                                                {selectedItem.ratings_avg.toFixed(1)}
-                                            </div>
+                        <div className="overflow-y-auto">
+                            <div className="p-4">
+                                <div className="flex gap-4 items-center">
+                                    <div className={`w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 p-0.5 border-2 flex-shrink-0 shadow-lg ${mode === 'lojas' ? (selectedItem.is_open ? 'border-green-500' : 'border-red-500') : 'border-orange-500'}`}>
+                                        {(mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url) ? (
+                                            <img src={mode === 'lojas' ? selectedItem.logo_url : selectedItem.image_url} className="w-full h-full object-cover rounded-xl" alt="" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-2xl font-black italic text-orange-300">?</div>
                                         )}
                                     </div>
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                        <h3 className="text-lg font-black text-gray-900 truncate">{selectedItem.name}</h3>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {mode === 'lojas' && (
+                                                <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-full ${selectedItem.is_open ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                                    {selectedItem.is_open ? 'Aberto' : 'Fechado'}
+                                                </span>
+                                            )}
+                                            {distanceFormatted && (
+                                                <span className="text-[10px] font-black uppercase text-gray-500 flex items-center gap-1">
+                                                    <MapPin className="w-3 h-3 text-orange-500" />
+                                                    {distanceFormatted}
+                                                </span>
+                                            )}
+                                            {mode === 'lojas' && selectedItem.ratings_avg > 0 && (
+                                                <div className="flex items-center gap-1 font-black text-[10px] text-yellow-500">
+                                                    <Star size={10} className="fill-yellow-500" />
+                                                    {selectedItem.ratings_avg.toFixed(1)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
+                                {(mode === 'servicos' || mode === 'produtos') && selectedItem.price && (
+                                    <div className="mt-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl">
+                                        <p className="text-xl font-black text-orange-600">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                )}
+                                {mode === 'lojas' && selectedItem.description && (
+                                    <p className="mt-2 text-xs text-gray-600 line-clamp-2">{selectedItem.description}</p>
+                                )}
+
+                                {/* Pills de destaque (seguidores, agenda, whatsapp, localização) */}
+                                {mode === 'lojas' && (
+                                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">
+                                            <Users className="w-3 h-3 text-orange-500" />
+                                            {loadingStoreDetails ? '···' : storeDetails?.followersCount ?? 0} seguidores
+                                        </span>
+                                        {selectedItem.allow_scheduling && (
+                                            <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-600">
+                                                <Calendar className="w-3 h-3" />
+                                                {selectedStoreNextAvailable
+                                                    ? `Agenda · ${selectedStoreNextAvailable.dayLabel} ${selectedStoreNextAvailable.time}`
+                                                    : 'Agenda disponível'}
+                                            </span>
+                                        )}
+                                        {(selectedItem.address || parseCoords(selectedItem.location)) && (
+                                            <button
+                                                onClick={openStoreInMaps}
+                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                                            >
+                                                <MapPin className="w-3 h-3 text-orange-500" />
+                                                Localização
+                                            </button>
+                                        )}
+                                        {storeDetails?.whatsapp && (
+                                            <a
+                                                href={`https://wa.me/${storeDetails.whatsapp.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-bold text-white"
+                                                style={{ background: '#25D366' }}
+                                            >
+                                                <MessageCircle className="w-3 h-3" />
+                                                WhatsApp
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            {(mode === 'servicos' || mode === 'produtos') && selectedItem.price && (
-                                <div className="mt-3 p-2 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl">
-                                    <p className="text-xl font-black text-orange-600">R$ {selectedItem.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+
+                            {/* Produtos mais vistos */}
+                            {mode === 'lojas' && storeDetails?.topProducts?.length > 0 && (
+                                <div className="px-4 pb-3">
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-1">
+                                        <Eye className="w-3 h-3" /> Mais vistos
+                                    </p>
+                                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                                        {storeDetails.topProducts.map((product: any) => (
+                                            <button
+                                                key={product.id}
+                                                onClick={() => router.push(`/${selectedItem.profileSlug}/${selectedItem.storeSlug}/${product.slug || product.id}`)}
+                                                className="flex-shrink-0 w-24 text-left rounded-xl overflow-hidden border border-gray-200 hover:border-orange-300 transition-colors"
+                                            >
+                                                <div className="w-full h-16 bg-gray-100">
+                                                    {product.image_url ? (
+                                                        <img src={product.image_url} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                                            <ShoppingBag className="w-5 h-5" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="p-1.5">
+                                                    <p className="text-[9px] font-bold text-gray-800 line-clamp-1">{product.name}</p>
+                                                    <p className="text-[9px] font-black text-orange-600">R$ {(product.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                            {mode === 'lojas' && selectedItem.description && (
-                                <p className="mt-2 text-xs text-gray-600 line-clamp-2">{selectedItem.description}</p>
+
+                            {/* Comentários recentes */}
+                            {mode === 'lojas' && storeDetails?.reviews?.length > 0 && (
+                                <div className="px-4 pb-4">
+                                    <p className="text-[9px] font-black uppercase tracking-wider text-gray-400 mb-2">Comentários</p>
+                                    <div className="space-y-2">
+                                        {storeDetails.reviews.map((review: any) => (
+                                            <div key={review.id} className="bg-gray-50 rounded-xl p-2.5">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-[10px] font-bold text-gray-700 truncate">
+                                                        {review.is_anonymous ? 'Anônimo' : review.profiles?.name || 'Usuário'}
+                                                    </span>
+                                                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                                                        <Star size={9} className="fill-yellow-500 text-yellow-500" />
+                                                        <span className="text-[9px] font-black text-yellow-600">{review.rating}</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-[10px] text-gray-600 mt-0.5 line-clamp-2">"{review.comment}"</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
                             )}
                         </div>
                         <button
@@ -1355,7 +1543,7 @@ export default function MapPage() {
                                     if (store) router.push(`/${store.profileSlug}/${store.storeSlug}/${selectedItem.slug || selectedItem.id}`)
                                 }
                             }}
-                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider transition-all hover:shadow-lg active:scale-95 rounded-b-2xl"
+                            className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-black uppercase text-xs tracking-wider transition-all hover:shadow-lg active:scale-95 flex-shrink-0"
                         >
                             Visitar Loja →
                         </button>
