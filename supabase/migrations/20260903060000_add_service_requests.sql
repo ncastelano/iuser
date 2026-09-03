@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.service_requests (
     location_needs_access BOOLEAN NOT NULL DEFAULT false,
     location_access_notes TEXT,
     description TEXT NOT NULL,
-    photo_url TEXT NOT NULL,
+    photo_urls TEXT[] NOT NULL DEFAULT '{}',
     notes TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'completed', 'cancelled')),
     created_at TIMESTAMPTZ DEFAULT now()

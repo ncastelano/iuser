@@ -10,6 +10,7 @@ import { useTheme, ThemeColors } from '@/app/theme'
 import { toast } from 'sonner'
 import { addRecentServiceLocation, getRecentServiceLocations, RecentServiceLocation } from '@/lib/recentServiceLocations'
 import { createSquareImage } from '@/lib/image'
+import { getAvatarUrl } from '@/lib/avatar'
 import {
     Wrench,
     PaintRoller,
@@ -28,6 +29,9 @@ import {
     Building2,
     Camera,
     History,
+    Plus,
+    Users,
+    ClipboardList,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -44,6 +48,21 @@ interface Place {
     coords: [number, number] | null
 }
 
+interface ApplicantInfo {
+    id: string
+    name: string | null
+    profileSlug: string | null
+    avatarUrl: string | undefined
+}
+
+interface PastRequest {
+    id: string
+    serviceLabel: string
+    locationAddress: string
+    createdAt: string
+    applicants: ApplicantInfo[]
+}
+
 const STEPS: Step[] = ['type', 'where', 'details']
 
 const SERVICE_TYPES: { id: ServiceType; label: string; icon: any }[] = [
@@ -56,34 +75,64 @@ const SERVICE_TYPES: { id: ServiceType; label: string; icon: any }[] = [
     { id: 'outro', label: 'Outro', icon: Briefcase },
 ]
 
+const MAX_PHOTOS = 20
+
+interface PhotoItem {
+    file: File
+    preview: string
+}
+
 function shortAddress(address: string): string {
     const firstPart = address.split(',')[0].trim()
     return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
 }
 
-function PhotoPicker({ preview, onPick, colors }: { preview: string | null; onPick: (file: File) => void; colors: ThemeColors }) {
+function relativeTime(iso: string): string {
+    const diffMs = Date.now() - new Date(iso).getTime()
+    const minutes = Math.floor(diffMs / 60000)
+    if (minutes < 1) return 'agora'
+    if (minutes < 60) return `${minutes} min atrás`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h atrás`
+    const days = Math.floor(hours / 24)
+    return `${days}d atrás`
+}
+
+function PhotoGrid({ photos, onAdd, onRemove, colors }: { photos: PhotoItem[]; onAdd: (files: File[]) => void; onRemove: (index: number) => void; colors: ThemeColors }) {
     const inputRef = useRef<HTMLInputElement>(null)
     return (
-        <div>
-            <div
-                onClick={() => inputRef.current?.click()}
-                className="w-24 h-24 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden flex-shrink-0"
-                style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
-            >
-                {preview ? (
-                    <img src={preview} className="w-full h-full object-cover" alt="" />
-                ) : (
-                    <Camera size={22} style={{ color: colors.textSecondary }} />
-                )}
-            </div>
+        <div className="grid grid-cols-4 gap-2">
+            {photos.map((p, i) => (
+                <div key={i} className="relative w-full aspect-square rounded-xl overflow-hidden" style={{ border: `1px solid ${colors.border}` }}>
+                    <img src={p.preview} className="w-full h-full object-cover" alt="" />
+                    <button
+                        onClick={() => onRemove(i)}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+            ))}
+            {photos.length < MAX_PHOTOS && (
+                <button
+                    onClick={() => inputRef.current?.click()}
+                    className="w-full aspect-square rounded-xl flex items-center justify-center"
+                    style={{ background: `${colors.border}30`, border: `1px dashed ${colors.border}` }}
+                >
+                    {photos.length === 0 ? <Camera size={20} style={{ color: colors.textSecondary }} /> : <Plus size={20} style={{ color: colors.textSecondary }} />}
+                </button>
+            )}
             <input
                 ref={inputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) onPick(file)
+                    const files = Array.from(e.target.files || [])
+                    if (files.length) onAdd(files)
+                    e.target.value = ''
                 }}
             />
         </div>
@@ -165,37 +214,172 @@ export default function PedirServicoPage() {
     const [locationNeedsAccess, setLocationNeedsAccess] = useState(false)
     const [locationAccessNotes, setLocationAccessNotes] = useState('')
     const [description, setDescription] = useState('')
-    const [photoFile, setPhotoFile] = useState<File | null>(null)
-    const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+    const [photos, setPhotos] = useState<PhotoItem[]>([])
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
     const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
+    const [popularCustomServices, setPopularCustomServices] = useState<{ label: string; count: number }[]>([])
+    const [pastRequests, setPastRequests] = useState<PastRequest[]>([])
+    const [loadingPastRequests, setLoadingPastRequests] = useState(false)
+
     const stepIndex = STEPS.indexOf(step)
     const selectedType = SERVICE_TYPES.find((t) => t.id === serviceType) || null
 
-    // ===== PREVIEW DA FOTO =====
-    useEffect(() => {
-        if (!photoFile) return
-        const url = URL.createObjectURL(photoFile)
-        setPhotoPreview(url)
-        return () => URL.revokeObjectURL(url)
-    }, [photoFile])
-
-    const handlePhotoPick = async (file: File) => {
+    const handleAddPhotos = async (files: File[]) => {
+        const room = MAX_PHOTOS - photos.length
+        if (room <= 0) {
+            toast.error(`Você já adicionou o máximo de ${MAX_PHOTOS} fotos`)
+            return
+        }
+        const accepted = files.slice(0, room)
+        if (files.length > room) {
+            toast.error(`Só cabem mais ${room} foto${room === 1 ? '' : 's'} (máximo ${MAX_PHOTOS})`)
+        }
         try {
-            const squareFile = await createSquareImage(file, 500)
-            setPhotoFile(squareFile)
+            const squareFiles = await Promise.all(accepted.map((f) => createSquareImage(f, 500)))
+            const items: PhotoItem[] = squareFiles.map((f) => ({ file: f, preview: URL.createObjectURL(f) }))
+            setPhotos((prev) => [...prev, ...items])
         } catch {
             toast.error('Erro ao processar imagem')
         }
     }
 
+    const handleRemovePhoto = (index: number) => {
+        setPhotos((prev) => {
+            const removed = prev[index]
+            if (removed) URL.revokeObjectURL(removed.preview)
+            return prev.filter((_, i) => i !== index)
+        })
+    }
+
+    // ===== LIMPA AS URLS DE PREVIEW AO SAIR DA PÁGINA =====
+    useEffect(() => {
+        return () => {
+            photos.forEach((p) => URL.revokeObjectURL(p.preview))
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     // ===== LOCAIS RECENTES =====
     useEffect(() => {
         setRecentLocations(getRecentServiceLocations())
+    }, [])
+
+    // ===== SERVIÇOS CUSTOMIZADOS POPULARES (pedidos por mais de 2 pessoas) =====
+    useEffect(() => {
+        let cancelled = false
+        const loadPopular = async () => {
+            const { data } = await supabase
+                .from('service_requests')
+                .select('custom_service, requester_id')
+                .eq('service_type', 'outro')
+                .eq('status', 'pending')
+                .not('custom_service', 'is', null)
+            if (cancelled || !data) return
+
+            const groups = new Map<string, { requesters: Set<string>; counts: Map<string, number> }>()
+            for (const row of data as { custom_service: string | null; requester_id: string }[]) {
+                const raw = (row.custom_service || '').trim()
+                if (!raw) continue
+                const key = raw.toLowerCase()
+                if (!groups.has(key)) groups.set(key, { requesters: new Set(), counts: new Map() })
+                const g = groups.get(key)!
+                g.requesters.add(row.requester_id)
+                g.counts.set(raw, (g.counts.get(raw) || 0) + 1)
+            }
+
+            const popular = Array.from(groups.values())
+                .filter((g) => g.requesters.size > 2)
+                .map((g) => {
+                    let bestLabel = ''
+                    let bestCount = 0
+                    g.counts.forEach((count, label) => {
+                        if (count > bestCount) { bestCount = count; bestLabel = label }
+                    })
+                    return { label: bestLabel, count: g.requesters.size }
+                })
+
+            if (!cancelled) setPopularCustomServices(popular)
+        }
+        loadPopular()
+        return () => { cancelled = true }
+    }, [])
+
+    // ===== MEUS PEDIDOS DE SERVIÇO E QUEM SE CANDIDATOU =====
+    useEffect(() => {
+        let cancelled = false
+        const loadPastRequests = async () => {
+            setLoadingPastRequests(true)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                if (!cancelled) setLoadingPastRequests(false)
+                return
+            }
+
+            const { data: requests } = await supabase
+                .from('service_requests')
+                .select('id, service_type, custom_service, location_address, created_at')
+                .eq('requester_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(5)
+
+            if (cancelled) return
+            if (!requests || requests.length === 0) {
+                setPastRequests([])
+                setLoadingPastRequests(false)
+                return
+            }
+
+            const requestIds = requests.map((r) => r.id)
+            const { data: applications } = await supabase
+                .from('service_applications')
+                .select('service_request_id, applicant_id')
+                .in('service_request_id', requestIds)
+
+            const applicantIds = Array.from(new Set((applications || []).map((a) => a.applicant_id)))
+            let profilesById = new Map<string, { name: string | null; profileSlug: string | null; avatar_url: string | null }>()
+            if (applicantIds.length > 0) {
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, name, profileSlug, avatar_url')
+                    .in('id', applicantIds)
+                profilesById = new Map((profiles || []).map((p) => [p.id, p]))
+            }
+
+            const result: PastRequest[] = requests.map((r) => {
+                const serviceLabel = r.service_type === 'outro'
+                    ? (r.custom_service || 'Outro')
+                    : (SERVICE_TYPES.find((t) => t.id === r.service_type)?.label || r.service_type)
+                const applicants: ApplicantInfo[] = (applications || [])
+                    .filter((a) => a.service_request_id === r.id)
+                    .map((a) => {
+                        const p = profilesById.get(a.applicant_id)
+                        return {
+                            id: a.applicant_id,
+                            name: p?.name || null,
+                            profileSlug: p?.profileSlug || null,
+                            avatarUrl: getAvatarUrl(supabase, p?.avatar_url),
+                        }
+                    })
+                return {
+                    id: r.id,
+                    serviceLabel,
+                    locationAddress: r.location_address,
+                    createdAt: r.created_at,
+                    applicants,
+                }
+            })
+
+            if (!cancelled) {
+                setPastRequests(result)
+                setLoadingPastRequests(false)
+            }
+        }
+        loadPastRequests()
+        return () => { cancelled = true }
     }, [])
 
     // ===== INIT MAP =====
@@ -408,8 +592,8 @@ export default function PedirServicoPage() {
             toast.error('Descreva o que você precisa')
             return
         }
-        if (!photoFile) {
-            toast.error('Adicione uma foto do local ou problema para continuar')
+        if (photos.length === 0) {
+            toast.error('Adicione ao menos uma foto do local ou problema para continuar')
             return
         }
         setShowConfirmDialog(true)
@@ -426,20 +610,25 @@ export default function PedirServicoPage() {
             router.push(`/login?redirect=${encodeURIComponent('/pedir-servico')}`)
             return
         }
-        if (!location.address.trim() || !description.trim() || !photoFile) {
+        if (!location.address.trim() || !description.trim() || photos.length === 0) {
             toast.error('Preencha os dados obrigatórios')
             return
         }
 
         setSubmitting(true)
         try {
-            const fileExt = photoFile.name.split('.').pop()
-            const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
-            const { data, error: uploadError } = await supabase.storage
-                .from('service-request-photos')
-                .upload(fileName, photoFile)
-            if (uploadError) throw uploadError
-            const photoUrl = data ? supabase.storage.from('service-request-photos').getPublicUrl(data.path).data.publicUrl : null
+            const photoUrls: string[] = []
+            for (const photo of photos) {
+                const fileExt = photo.file.name.split('.').pop()
+                const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`
+                const { data, error: uploadError } = await supabase.storage
+                    .from('service-request-photos')
+                    .upload(fileName, photo.file)
+                if (uploadError) throw uploadError
+                if (data) {
+                    photoUrls.push(supabase.storage.from('service-request-photos').getPublicUrl(data.path).data.publicUrl)
+                }
+            }
 
             const { error } = await supabase.from('service_requests').insert({
                 requester_id: user.id,
@@ -449,7 +638,7 @@ export default function PedirServicoPage() {
                 location_needs_access: locationNeedsAccess,
                 location_access_notes: locationNeedsAccess ? locationAccessNotes.trim() || null : null,
                 description: description.trim(),
-                photo_url: photoUrl,
+                photo_urls: photoUrls,
                 notes: notes.trim() || null,
             })
 
@@ -643,6 +832,49 @@ export default function PedirServicoPage() {
                     {/* ===== ETAPA 1: TIPO DE SERVIÇO ===== */}
                     {step === 'type' && (
                         <>
+                            {/* Pedidos de serviços feitos por mim + candidatos */}
+                            {!loadingPastRequests && pastRequests.length > 0 && (
+                                <div className="mb-5">
+                                    <h3 className="text-sm font-black mb-2 flex items-center gap-1.5" style={{ color: colors.textPrimary }}>
+                                        <ClipboardList size={15} />
+                                        Pedidos de serviços feitos...
+                                    </h3>
+                                    <div className="flex flex-col gap-2">
+                                        {pastRequests.map((r) => (
+                                            <div key={r.id} className="rounded-xl px-3 py-2.5" style={{ background: `${colors.border}30`, border: `1px solid ${colors.border}` }}>
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>{r.serviceLabel}</span>
+                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>{relativeTime(r.createdAt)}</span>
+                                                </div>
+                                                <span className="text-[11px]" style={{ color: colors.textSecondary }}>{shortAddress(r.locationAddress)}</span>
+                                                <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                                    {r.applicants.length === 0 ? (
+                                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>Nenhuma candidatura ainda</span>
+                                                    ) : (
+                                                        r.applicants.map((a) => (
+                                                            <span
+                                                                key={a.id}
+                                                                className="flex items-center gap-1 pl-1 pr-2 py-0.5 rounded-full text-[10px] font-bold"
+                                                                style={{ background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                                            >
+                                                                {a.avatarUrl ? (
+                                                                    <img src={a.avatarUrl} className="w-4 h-4 rounded-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <span className="w-4 h-4 rounded-full flex items-center justify-center" style={{ background: GRADIENT }}>
+                                                                        <Users size={9} color="#fff" />
+                                                                    </span>
+                                                                )}
+                                                                {a.name || (a.profileSlug ? `@${a.profileSlug}` : 'Candidato')}
+                                                            </span>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             <h2 className="text-lg font-black mb-1" style={{ color: colors.textPrimary }}>Qual serviço você precisa?</h2>
                             <p className="text-xs mb-4" style={{ color: colors.textSecondary }}>Escolha uma opção pra começar</p>
 
@@ -669,6 +901,32 @@ export default function PedirServicoPage() {
                                             </div>
                                             <span className="text-[11px] font-bold text-center leading-tight" style={{ color: active ? '#fff' : colors.textPrimary }}>
                                                 {type.label}
+                                            </span>
+                                        </button>
+                                    )
+                                })}
+
+                                {popularCustomServices.map((service) => {
+                                    const active = serviceType === 'outro' && customService === service.label
+                                    return (
+                                        <button
+                                            key={service.label}
+                                            onClick={() => { setServiceType('outro'); setCustomService(service.label); setStep('where') }}
+                                            className="flex flex-col items-center gap-1.5 py-4 px-1 rounded-2xl transition-all hover:scale-[1.03] active:scale-95"
+                                            style={
+                                                active
+                                                    ? { background: GRADIENT, color: '#fff' }
+                                                    : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }
+                                            }
+                                        >
+                                            <div
+                                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                style={active ? { background: 'rgba(255,255,255,0.25)', color: '#fff' } : { background: GRADIENT, color: '#fff' }}
+                                            >
+                                                <Briefcase size={20} />
+                                            </div>
+                                            <span className="text-[11px] font-bold text-center leading-tight capitalize" style={{ color: active ? '#fff' : colors.textPrimary }}>
+                                                {service.label}
                                             </span>
                                         </button>
                                     )
@@ -802,9 +1060,10 @@ export default function PedirServicoPage() {
 
                             <div className="mt-3">
                                 <span className="text-xs font-bold block mb-1.5" style={{ color: colors.textSecondary }}>
-                                    Foto do local ou problema <span style={{ color: '#ef4444' }}>*</span>
+                                    Fotos do local ou problema <span style={{ color: '#ef4444' }}>*</span>
+                                    <span className="font-normal" style={{ color: colors.textSecondary }}> ({photos.length}/{MAX_PHOTOS})</span>
                                 </span>
-                                <PhotoPicker preview={photoPreview} onPick={handlePhotoPick} colors={colors} />
+                                <PhotoGrid photos={photos} onAdd={handleAddPhotos} onRemove={handleRemovePhoto} colors={colors} />
                             </div>
 
                             {showNotes ? (
