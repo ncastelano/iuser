@@ -14,12 +14,13 @@ import {
     User,
     Package,
     MapPin,
-    Navigation,
+    MapPinPlus,
     Loader2,
     CheckCircle2,
     ArrowLeft,
     Search,
     X,
+    ShieldAlert,
 } from 'lucide-react'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -115,6 +116,7 @@ export default function PedirCorridaPage() {
     const [showNotes, setShowNotes] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    const [showPlateReminder, setShowPlateReminder] = useState(false)
 
     const selectedType = RIDE_TYPES.find((t) => t.id === rideType)!
 
@@ -140,7 +142,7 @@ export default function PedirCorridaPage() {
     }, [])
 
     // ===== LOCALIZAÇÃO INICIAL (usada como origem padrão) =====
-    const useMyLocationAsOrigin = useCallback(() => {
+    const useMyLocationAsOrigin = useCallback((notifyApproximate = false) => {
         if (!navigator.geolocation) return
         setLocatingOrigin(true)
         navigator.geolocation.getCurrentPosition(
@@ -150,6 +152,9 @@ export default function PedirCorridaPage() {
                 setOrigin({ address: address || `${coords[1].toFixed(4)}, ${coords[0].toFixed(4)}`, coords })
                 if (mapRef.current) mapRef.current.flyTo({ center: coords, zoom: 15, duration: 800 })
                 setLocatingOrigin(false)
+                if (notifyApproximate) {
+                    toast.info('Sua localização é aproximada. Sempre confira a placa e a cor do carro para reconhecer o motorista certo.', { duration: 6000 })
+                }
             },
             () => {
                 toast.error('Não conseguimos acessar sua localização')
@@ -411,12 +416,12 @@ export default function PedirCorridaPage() {
 
                     {activeField === 'origin' && (
                         <button
-                            onClick={() => { useMyLocationAsOrigin(); setActiveField(null); setSuggestions([]) }}
+                            onClick={() => { useMyLocationAsOrigin(true); setActiveField(null); setSuggestions([]) }}
                             className="w-full flex items-center gap-3 px-4 py-3.5"
                             style={{ borderBottom: `1px solid ${colors.border}` }}
                         >
                             <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                                {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={16} />}
+                                {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
                             </div>
                             <span className="text-sm font-bold" style={{ color: colors.accent }}>Usar minha localização atual</span>
                         </button>
@@ -440,6 +445,40 @@ export default function PedirCorridaPage() {
                                 <span className="text-sm" style={{ color: colors.textPrimary }}>{s.place_name}</span>
                             </button>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Dialog de segurança: confira placa e cor antes de confirmar */}
+            {showPlateReminder && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                    <div
+                        className="w-full max-w-sm rounded-2xl p-8 flex flex-col items-center gap-3 text-center"
+                        style={{ background: colors.surface, boxShadow: colors.shadow }}
+                    >
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: GRADIENT, color: '#fff' }}>
+                            <ShieldAlert size={32} />
+                        </div>
+                        <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>Antes de confirmar</h2>
+                        <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Sua localização enviada ao motorista é aproximada. Ao encontrar o carro, sempre confira a <strong>placa</strong> e a <strong>cor</strong> do veículo para ter certeza de que é o motorista certo.
+                        </p>
+                        <button
+                            onClick={() => { setShowPlateReminder(false); handleSubmit() }}
+                            disabled={submitting}
+                            className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                            style={{ background: GRADIENT, color: '#fff' }}
+                        >
+                            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Car size={18} />}
+                            Entendi, confirmar pedido
+                        </button>
+                        <button
+                            onClick={() => setShowPlateReminder(false)}
+                            className="w-full py-2.5 rounded-full font-bold text-sm"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            Voltar
+                        </button>
                     </div>
                 </div>
             )}
@@ -492,8 +531,8 @@ export default function PedirCorridaPage() {
                                 className="flex-1 bg-transparent text-sm focus:outline-none cursor-pointer"
                                 style={inputStyle}
                             />
-                            <button onClick={useMyLocationAsOrigin} className="flex-shrink-0" style={{ color: colors.accent }}>
-                                {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <Navigation size={16} />}
+                            <button onClick={() => useMyLocationAsOrigin(true)} className="flex-shrink-0" style={{ color: colors.accent }}>
+                                {locatingOrigin ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
                             </button>
                         </div>
                         <div style={{ borderTop: `1px solid ${colors.border}` }} />
@@ -604,7 +643,7 @@ export default function PedirCorridaPage() {
                     )}
 
                     <button
-                        onClick={handleSubmit}
+                        onClick={() => setShowPlateReminder(true)}
                         disabled={submitting || !origin.address.trim() || !destination.address.trim()}
                         className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
                         style={{ background: GRADIENT, color: '#fff' }}
