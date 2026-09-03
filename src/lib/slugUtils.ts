@@ -38,6 +38,8 @@ export const RESERVED_SLUGS = new Set([
     'agendamentos',
     'social',
     'comunidade',
+    'pedir-corrida',
+    'ser-parceiro-iuser',
     'inicio',
     'catalogo',
     'suporte',

@@ -2,7 +2,8 @@
 'use client'
 
 import { ReactNode, useEffect } from 'react'
-import { Car, Clock } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Car } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -26,11 +27,10 @@ interface MotoristaSectionProps {
 
 export default function MotoristaSection({ dragHandle, onBreveStatusChange }: MotoristaSectionProps) {
     const { colors } = useTheme()
+    const router = useRouter()
 
-    // Notifica o pai que esta seção está "em breve"
     useEffect(() => {
-        onBreveStatusChange?.(true)
-        return () => onBreveStatusChange?.(false)
+        onBreveStatusChange?.(false)
     }, [onBreveStatusChange])
 
     const surfaceRgb = hexToRgb(colors.surface)
@@ -45,11 +45,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
         fontSize: '0.875rem',
         fontWeight: 700,
         transition: 'all 0.2s',
-        background: 'transparent',
-        color: colors.textSecondary,
-        border: `1px solid ${colors.border}`,
-        opacity: 0.6,
-        cursor: 'not-allowed',
+        background: GRADIENT,
+        color: '#ffffff',
+        border: 'none',
+        boxShadow: `0 4px 12px #f9731640`,
+        cursor: 'pointer',
     }
 
     return (
@@ -64,18 +64,6 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Badge "Em breve" com cores laranja */}
-                <span
-                    className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide"
-                    style={{
-                        background: '#f9731620',
-                        color: '#f97316',
-                        border: `1px solid #f9731640`,
-                    }}
-                >
-                    Em breve
-                </span>
-
                 <div className="flex items-center gap-4">
                     {dragHandle && <div>{dragHandle}</div>}
 
@@ -102,12 +90,11 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                 </div>
 
                 <button
-                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap"
+                    onClick={() => router.push('/pedir-corrida')}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                     style={buttonStyle}
-                    disabled
-                    aria-disabled="true"
                 >
-                    <Clock size={16} />
+                    <Car size={16} />
                     pedir corrida
                 </button>
             </div>

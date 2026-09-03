@@ -2,7 +2,8 @@
 'use client'
 
 import { ReactNode, useEffect } from 'react'
-import { CarTaxiFront, Bike, Truck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CarTaxiFront, Truck } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -26,11 +27,10 @@ interface TransporteSectionProps {
 
 export default function TransporteSection({ dragHandle, onBreveStatusChange }: TransporteSectionProps) {
     const { colors } = useTheme()
+    const router = useRouter()
 
-    // Notifica o pai que esta seção está "em breve"
     useEffect(() => {
-        onBreveStatusChange?.(true)
-        return () => onBreveStatusChange?.(false)
+        onBreveStatusChange?.(false)
     }, [onBreveStatusChange])
 
     const surfaceRgb = hexToRgb(colors.surface)
@@ -45,11 +45,11 @@ export default function TransporteSection({ dragHandle, onBreveStatusChange }: T
         fontSize: '0.875rem',
         fontWeight: 700,
         transition: 'all 0.2s',
-        background: 'transparent',
-        color: colors.textSecondary,
-        border: `1px solid ${colors.border}`,
-        opacity: 0.6,
-        cursor: 'not-allowed',
+        background: GRADIENT,
+        color: '#ffffff',
+        border: 'none',
+        boxShadow: `0 4px 12px #f9731640`,
+        cursor: 'pointer',
     }
 
     return (
@@ -64,18 +64,6 @@ export default function TransporteSection({ dragHandle, onBreveStatusChange }: T
                     boxShadow: colors.shadow,
                 }}
             >
-                {/* Badge "Em breve" com cores laranja */}
-                <span
-                    className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide"
-                    style={{
-                        background: '#f9731620',
-                        color: '#f97316',
-                        border: `1px solid #f9731640`,
-                    }}
-                >
-                    Em breve
-                </span>
-
                 <div className="flex items-center gap-4">
                     {dragHandle && <div>{dragHandle}</div>}
 
@@ -93,22 +81,21 @@ export default function TransporteSection({ dragHandle, onBreveStatusChange }: T
 
                     <div>
                         <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                            Ofereça transporte e ganhe dinheiro
+                            Mostre o seu trabalho e ganhe dinheiro
                         </h3>
                         <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                            Use seu carro, moto ou bike para fazer corridas e entregas quando quiser.
+                            Seja motorista, entregador ou preste qualquer serviço — comece a ganhar dinheiro.
                         </p>
                     </div>
                 </div>
 
                 <button
-                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap"
+                    onClick={() => router.push('/ser-parceiro-iuser')}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                     style={buttonStyle}
-                    disabled
-                    aria-disabled="true"
                 >
                     <Truck size={16} />
-                    Seja um parceiro em breve
+                    Seja um parceiro
                 </button>
             </div>
         </section>

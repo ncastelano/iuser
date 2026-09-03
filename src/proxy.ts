@@ -30,6 +30,8 @@ const IGNORED_ROUTES = [
     '/radar',
     '/social',
     '/comunidade',
+    '/pedir-corrida',
+    '/ser-parceiro-iuser',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
