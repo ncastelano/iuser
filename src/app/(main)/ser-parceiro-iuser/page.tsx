@@ -8,6 +8,7 @@ import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
+import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
 import { Briefcase, MapPin, Loader2 } from 'lucide-react'
@@ -47,46 +48,54 @@ export default function SerParceiroPage() {
 
     const [loading, setLoading] = useState(true)
     const [loggedIn, setLoggedIn] = useState(false)
+    const [showLogin, setShowLogin] = useState(false)
     const [myUserId, setMyUserId] = useState<string | null>(null)
     const [jobs, setJobs] = useState<JobRequest[]>([])
     const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
     const [applyingId, setApplyingId] = useState<string | null>(null)
 
-    useEffect(() => {
-        const load = async () => {
-            setLoading(true)
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                setLoggedIn(false)
-                setLoading(false)
-                return
-            }
-            setLoggedIn(true)
-            setMyUserId(user.id)
-
-            const { data: requests } = await supabase
-                .from('service_requests')
-                .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
-                .eq('status', 'pending')
-                .order('created_at', { ascending: true })
-
-            setJobs(requests || [])
-
-            const { data: myApplications } = await supabase
-                .from('service_applications')
-                .select('service_request_id')
-                .eq('applicant_id', user.id)
-
-            setAppliedIds(new Set((myApplications || []).map((a) => a.service_request_id)))
+    const load = async () => {
+        setLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            setLoggedIn(false)
             setLoading(false)
+            return
         }
+        setLoggedIn(true)
+        setMyUserId(user.id)
+
+        const { data: requests } = await supabase
+            .from('service_requests')
+            .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: true })
+
+        setJobs(requests || [])
+
+        const { data: myApplications } = await supabase
+            .from('service_applications')
+            .select('service_request_id')
+            .eq('applicant_id', user.id)
+
+        setAppliedIds(new Set((myApplications || []).map((a) => a.service_request_id)))
+        setLoading(false)
+    }
+
+    useEffect(() => {
         load()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    const handleLoginSuccess = () => {
+        setShowLogin(false)
+        load()
+    }
 
     const handleApply = async (jobId: string) => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
-            router.push('/login')
+            setShowLogin(true)
             return
         }
 
@@ -129,7 +138,7 @@ export default function SerParceiroPage() {
                         </div>
                     )}
 
-                    {!loading && !loggedIn && (
+                    {!loading && !loggedIn && !showLogin && (
                         <div
                             className="rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -138,13 +147,17 @@ export default function SerParceiroPage() {
                                 Entre na sua conta pra ver os pedidos de serviço disponíveis.
                             </p>
                             <button
-                                onClick={() => router.push('/login')}
+                                onClick={() => setShowLogin(true)}
                                 className="px-6 py-3 rounded-full font-bold text-sm"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
                                 Entrar
                             </button>
                         </div>
+                    )}
+
+                    {!loading && !loggedIn && showLogin && (
+                        <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
                     {!loading && loggedIn && jobs.length === 0 && (
