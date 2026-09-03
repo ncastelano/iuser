@@ -25,6 +25,8 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const DEFAULT_CENTER: [number, number] = [-63.9039, -8.7612] // Porto Velho
+const ROUTE_COLORS = ['#3b82f6', '#a855f7', '#f59e0b']
+const AVERAGE_SPEED_KMH = 40
 
 type RideType = 'para-mim' | 'buscar-alguem' | 'entregar-algo'
 type ActiveField = 'origin' | 'destination' | null
@@ -32,6 +34,12 @@ type ActiveField = 'origin' | 'destination' | null
 interface Place {
     address: string
     coords: [number, number] | null
+}
+
+interface RouteOption {
+    coords: [number, number][]
+    distanceKm: number
+    durationMin: number
 }
 
 const RIDE_TYPES: { id: RideType; label: string; icon: any; forWhomLabel: string }[] = [
@@ -64,6 +72,23 @@ async function searchAddress(query: string): Promise<{ place_name: string; cente
     }
 }
 
+async function fetchRoutes(origin: [number, number], destination: [number, number]): Promise<RouteOption[]> {
+    try {
+        const res = await fetch(
+            `https://api.mapbox.com/directions/v5/mapbox/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?alternatives=true&geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
+        )
+        const data = await res.json()
+        const rawRoutes: any[] = data.routes || []
+        return rawRoutes.slice(0, 3).map((r) => {
+            const distanceKm = r.distance / 1000
+            const durationMin = (distanceKm / AVERAGE_SPEED_KMH) * 60
+            return { coords: r.geometry.coordinates as [number, number][], distanceKm, durationMin }
+        })
+    } catch {
+        return []
+    }
+}
+
 export default function PedirCorridaPage() {
     const router = useRouter()
     const { colors } = useTheme()
@@ -81,6 +106,9 @@ export default function PedirCorridaPage() {
     const [suggestions, setSuggestions] = useState<{ place_name: string; center: [number, number] }[]>([])
     const [searching, setSearching] = useState(false)
     const [locatingOrigin, setLocatingOrigin] = useState(false)
+    const [routes, setRoutes] = useState<RouteOption[]>([])
+    const [selectedRoute, setSelectedRoute] = useState(0)
+    const [loadingRoutes, setLoadingRoutes] = useState(false)
     const [forWhom, setForWhom] = useState('')
     const [notes, setNotes] = useState('')
     const [showNotes, setShowNotes] = useState(false)
@@ -142,14 +170,22 @@ export default function PedirCorridaPage() {
         if (originMarkerRef.current) originMarkerRef.current.remove()
         if (origin.coords) {
             const el = document.createElement('div')
-            el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#22c55e;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);'
-            originMarkerRef.current = new mapboxgl.Marker({ element: el }).setLngLat(origin.coords).addTo(map)
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+            el.innerHTML = `
+                <div style="background:#22c55e;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Saída</div>
+                <div style="width:16px;height:16px;border-radius:50%;background:#22c55e;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
+            `
+            originMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(origin.coords).addTo(map)
         }
 
         if (destMarkerRef.current) destMarkerRef.current.remove()
         if (destination.coords) {
             const el = document.createElement('div')
-            el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#ef4444" stroke="white" stroke-width="1.5"><path d="M12 22s8-7.58 8-13a8 8 0 1 0-16 0c0 5.42 8 13 8 13z"/></svg>`
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:center;'
+            el.innerHTML = `
+                <div style="background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9999px;margin-bottom:4px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.35);">Chegada</div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#ef4444" stroke="white" stroke-width="1.5"><path d="M12 22s8-7.58 8-13a8 8 0 1 0-16 0c0 5.42 8 13 8 13z"/></svg>
+            `
             destMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'bottom' }).setLngLat(destination.coords).addTo(map)
         }
 
@@ -159,6 +195,82 @@ export default function PedirCorridaPage() {
             map.fitBounds(bounds, { padding: 100, duration: 800 })
         }
     }, [mapReady, origin.coords, destination.coords])
+
+    // ===== BUSCA DE ROTAS (até 3 caminhos mais rápidos) =====
+    useEffect(() => {
+        if (!origin.coords || !destination.coords) {
+            setRoutes([])
+            return
+        }
+
+        let cancelled = false
+        setLoadingRoutes(true)
+        fetchRoutes(origin.coords, destination.coords).then((result) => {
+            if (cancelled) return
+            setRoutes(result)
+            setSelectedRoute(0)
+            setLoadingRoutes(false)
+        })
+
+        return () => {
+            cancelled = true
+        }
+    }, [origin.coords, destination.coords])
+
+    // ===== DESENHA AS ROTAS NO MAPA =====
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return
+        const map = mapRef.current
+        const clickHandlers: { layerId: string; handler: () => void }[] = []
+
+        for (let i = 0; i < 3; i++) {
+            const layerId = `route-line-${i}`
+            const sourceId = `route-source-${i}`
+            if (map.getLayer(layerId)) map.removeLayer(layerId)
+            if (map.getSource(sourceId)) map.removeSource(sourceId)
+        }
+
+        if (routes.length > 0) {
+            const order = routes.map((_, i) => i).sort((a, b) => (a === selectedRoute ? 1 : b === selectedRoute ? -1 : 0))
+
+            order.forEach((i) => {
+                const route = routes[i]
+                const sourceId = `route-source-${i}`
+                const layerId = `route-line-${i}`
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: route.coords } },
+                })
+                map.addLayer({
+                    id: layerId,
+                    type: 'line',
+                    source: sourceId,
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: {
+                        'line-color': ROUTE_COLORS[i % ROUTE_COLORS.length],
+                        'line-width': i === selectedRoute ? 6 : 4,
+                        'line-opacity': i === selectedRoute ? 1 : 0.45,
+                    },
+                })
+                const handler = () => setSelectedRoute(i)
+                map.on('click', layerId, handler)
+                clickHandlers.push({ layerId, handler })
+            })
+
+            const active = routes[selectedRoute]
+            if (active) {
+                const bounds = active.coords.reduce(
+                    (b, c) => b.extend(c),
+                    new mapboxgl.LngLatBounds(active.coords[0], active.coords[0])
+                )
+                map.fitBounds(bounds, { padding: 80, duration: 500 })
+            }
+        }
+
+        return () => {
+            clickHandlers.forEach(({ layerId, handler }) => map.off('click', layerId, handler))
+        }
+    }, [mapReady, routes, selectedRoute])
 
     // ===== BUSCA DE ENDEREÇO (autocomplete) =====
     const handleAddressChange = (field: 'origin' | 'destination', value: string) => {
@@ -375,6 +487,43 @@ export default function PedirCorridaPage() {
                             />
                         </div>
                     </div>
+
+                    {/* Opções de rota */}
+                    {loadingRoutes && (
+                        <div className="flex items-center gap-2 mt-3 text-xs" style={{ color: colors.textSecondary }}>
+                            <Loader2 size={14} className="animate-spin" />
+                            Calculando rotas...
+                        </div>
+                    )}
+
+                    {!loadingRoutes && routes.length > 0 && (
+                        <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                            {routes.map((r, i) => {
+                                const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
+                                const active = i === selectedRoute
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => setSelectedRoute(i)}
+                                        className="flex-shrink-0 flex flex-col items-start gap-1 px-3 py-2 rounded-xl text-left transition-all"
+                                        style={
+                                            active
+                                                ? { background: `${color}20`, border: `2px solid ${color}` }
+                                                : { background: `${colors.border}30`, border: `1px solid ${colors.border}` }
+                                        }
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                                            <span className="text-xs font-bold" style={{ color: colors.textPrimary }}>Rota {i + 1}</span>
+                                        </div>
+                                        <span className="text-[11px]" style={{ color: colors.textSecondary }}>
+                                            {r.distanceKm.toFixed(1)} km · {Math.round(r.durationMin)} min
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
 
                     {/* Tipo de corrida */}
                     <div className="grid grid-cols-3 gap-2 mt-4">
