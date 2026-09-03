@@ -26,6 +26,7 @@ import SacolaButton from '../ButtonSacola'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
+import FeaturedProfiles from './inicio/sections/FeaturedProfiles'
 import LocationPicker from './LocationPicker'
 import StoreList from './inicio/sections/StoreList'
 import StoreDashboard from './StoreDashboard'
@@ -42,6 +43,7 @@ const DEFAULT_SECTIONS = [
     'storeList',
     'productShowcase',
     'publicationShowcase',
+    'profileShowcase',
     'transporte',
     'motorista',
     'settingsSection',
@@ -577,6 +579,8 @@ export default function HomePage() {
                 return <ProductShowcase />
             case 'publicationShowcase':
                 return <FeaturedPublications />
+            case 'profileShowcase':
+                return <FeaturedProfiles />
             case 'transporte':
                 return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
