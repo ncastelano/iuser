@@ -104,3 +104,23 @@ export function formatDistance(km: number | null): string | null {
         return `${km.toFixed(1)}km`
     }
 }
+
+/**
+ * Resolves just the city name (not the full address) from coordinates,
+ * using Mapbox's geocoding with types=place.
+ */
+export async function getCityFromCoords(lat: number, lng: number): Promise<string | null> {
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+    if (!token) return null
+
+    try {
+        const res = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${token}&language=pt&types=place`
+        )
+        const data = await res.json()
+        return data.features?.[0]?.text || null
+    } catch (error) {
+        console.error('[Geo] Erro ao resolver cidade:', error)
+        return null
+    }
+}

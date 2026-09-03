@@ -10,6 +10,7 @@ import {
     Truck,
     Users,
     Pill,
+    MessageCircle,
 } from 'lucide-react'
 
 export interface Categoria {
@@ -83,6 +84,13 @@ export const categorias: Categoria[] = [
         desc: 'Perfis de pessoas',
         color: '#3b82f6',
         icone: Users
+    },
+    {
+        slug: 'comunidades',
+        nome: 'Comunidades',
+        desc: 'Salas de conversa por cidade',
+        color: '#14b8a6',
+        icone: MessageCircle
     }
 ]
 

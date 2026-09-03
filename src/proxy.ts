@@ -29,6 +29,7 @@ const IGNORED_ROUTES = [
     '/pedidos',
     '/radar',
     '/social',
+    '/comunidade',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
@@ -88,6 +89,7 @@ const PUBLIC_ROUTES = [
 // ===== PREFIXOS DE ROTAS PÚBLICAS =====
 const PUBLIC_ROUTE_PREFIXES = [
     '/publicacoes/',  // Todas as rotas que começam com /publicacoes/
+    '/comunidade/',  // Todas as rotas que começam com /comunidade/
 ]
 
 // ===== CACHE EM MEMÓRIA =====

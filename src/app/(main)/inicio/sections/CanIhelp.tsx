@@ -48,7 +48,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
 
-                        const href = cat.slug === 'social' ? '/social' : `/lojas/${cat.slug}`
+                        const href = cat.slug === 'social' ? '/social' : cat.slug === 'comunidades' ? '/comunidade' : `/lojas/${cat.slug}`
 
                         return (
                             <Link
