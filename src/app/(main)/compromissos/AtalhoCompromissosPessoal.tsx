@@ -92,6 +92,7 @@ interface AtalhoCompromissosPessoalProps {
     profileSlug?: string | null
     userAvatarUrl?: string | null
     onHasItemsChange?: (hasItems: boolean) => void
+    onLatestUpdate?: (iso: string) => void
 }
 
 function parseDateTime(date: string, time: string) {
@@ -109,6 +110,7 @@ export default function AtalhoCompromissosPessoal({
     profileSlug,
     userAvatarUrl,
     onHasItemsChange,
+    onLatestUpdate,
 }: AtalhoCompromissosPessoalProps) {
     const { colors } = useTheme()
     const { appointments, loading, refetch } = useAppointments()
@@ -116,7 +118,7 @@ export default function AtalhoCompromissosPessoal({
 
     const [userId, setUserId] = useState<string | null>(null)
     const [showPending, setShowPending] = useState(true)
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -133,6 +135,15 @@ export default function AtalhoCompromissosPessoal({
     useEffect(() => {
         onHasItemsChange?.(personalAppointments.length > 0)
     }, [personalAppointments, onHasItemsChange])
+
+    useEffect(() => {
+        if (!onLatestUpdate || personalAppointments.length === 0) return
+        const latest = personalAppointments.reduce((max, a) => {
+            const stamp = a.updated_at || a.created_at
+            return stamp > max ? stamp : max
+        }, personalAppointments[0].updated_at || personalAppointments[0].created_at)
+        onLatestUpdate(latest)
+    }, [personalAppointments, onLatestUpdate])
 
     // Filtro por pendentes
     const filtered = useMemo(() => {

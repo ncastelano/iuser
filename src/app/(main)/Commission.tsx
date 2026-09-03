@@ -66,6 +66,7 @@ function hexToRgb(hex: string) {
 interface CommissionProps {
     userId: string
     profileSlug?: string | null
+    onLatestUpdate?: (iso: string) => void
 }
 
 interface CommissionMember {
@@ -114,14 +115,14 @@ const TwitterIcon = ({ size = 24, color = '#fff' }) => (
 // COMPONENTE PRINCIPAL
 // ============================================
 
-export default function Commission({ userId, profileSlug }: CommissionProps) {
+export default function Commission({ userId, profileSlug, onLatestUpdate }: CommissionProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
 
     const [loading, setLoading] = useState(true)
     const [members, setMembers] = useState<CommissionMember[]>([])
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [copied, setCopied] = useState(false)
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareLink, setShareLink] = useState('')
@@ -216,13 +217,14 @@ export default function Commission({ userId, profileSlug }: CommissionProps) {
             }))
 
             setMembers(members)
+            if (members.length > 0) onLatestUpdate?.(members[0].created_at)
 
         } catch (error) {
             console.error('❌ Erro ao carregar dados:', error)
         } finally {
             setLoading(false)
         }
-    }, [userId])
+    }, [userId, onLatestUpdate])
 
     // ============================================
     // USE EFFECT

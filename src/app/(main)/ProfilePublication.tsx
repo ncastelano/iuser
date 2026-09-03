@@ -35,6 +35,7 @@ interface ProfilePublicationProps {
     profileId: string
     profileSlug?: string
     isOwner?: boolean
+    onLatestUpdate?: (iso: string) => void
 }
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -62,13 +63,13 @@ function hexToRgb(hex: string) {
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
-export default function ProfilePublication({ profileId, profileSlug, isOwner = true }: ProfilePublicationProps) {
+export default function ProfilePublication({ profileId, profileSlug, isOwner = true, onLatestUpdate }: ProfilePublicationProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [isCreating, setIsCreating] = useState(false)
     const [publications, setPublications] = useState<Publication[]>([])
     const [loading, setLoading] = useState(false)
@@ -98,6 +99,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
 
                 if (!error && data && isMounted) {
                     setPublications(data as Publication[])
+                    if (data.length > 0) onLatestUpdate?.(data[0].created_at)
                 }
 
                 // Buscar WhatsApp do perfil

@@ -117,6 +117,17 @@ export default function ProfileDashboard({
     const [reviews, setReviews] = useState<any[]>([])
     const [upcomingSchedules, setUpcomingSchedules] = useState<any[]>([])
 
+    // ===== TIMESTAMPS DE ATIVIDADE POR SEÇÃO (pra ordenar do mais novo pro mais antigo) =====
+    const [sectionTimestamps, setSectionTimestamps] = useState<Record<string, string>>({})
+    const markSectionUpdated = useCallback((key: string) => (iso: string) => {
+        setSectionTimestamps(prev => (prev[key] === iso ? prev : { ...prev, [key]: iso }))
+    }, [])
+    const onAgendaUpdate = useMemo(() => markSectionUpdated('agenda'), [markSectionUpdated])
+    const onHorariosUpdate = useMemo(() => markSectionUpdated('horarios'), [markSectionUpdated])
+    const onPublicacoesUpdate = useMemo(() => markSectionUpdated('publicacoes'), [markSectionUpdated])
+    const onIndicacoesUpdate = useMemo(() => markSectionUpdated('indicacoes'), [markSectionUpdated])
+    const onVisitantesUpdate = useMemo(() => markSectionUpdated('visitantes'), [markSectionUpdated])
+
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
     const [readyCount, setReadyCount] = useState(0)
@@ -804,169 +815,18 @@ export default function ProfileDashboard({
         setCurrentDate(new Date())
     }
 
+    // Timestamp de atividade do bloco financeiro (gastos/compras/avaliações) — já vem ordenado por created_at desc
+    const financeiroTimestamp = useMemo(() => {
+        const stamps = [orders[0]?.created_at, reviews[0]?.created_at].filter(Boolean) as string[]
+        return stamps.sort().reverse()[0]
+    }, [orders, reviews])
+
     if (loading && !initialLoadDone) return <LoadingSpinner message="Carregando perfil..." />
     if (!profile) return null
 
-    return (
-        <div className="w-full px-4 md:px-6 pb-28">
-            {/* Header - Avatar e Nome clicáveis */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={goToPublicProfile}>
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
-                        {profile.avatar_url ? (
-                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: colors.textPrimary }}>
-                                {profile.name?.charAt(0) || '@'}
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-black hover:underline transition-all" style={{ color: colors.textPrimary }}>
-                            {profile.name || `@${profileSlug}`}
-                        </h2>
-                        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
-                            <span className={`w-2 h-2 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span className="font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
-                                {isProfileOpen ? 'Aberto' : 'Fechado'}
-                            </span>
-                            <span>•</span>
-                            <span className="font-medium">{profileStatusText}</span>
-                            <span>•</span>
-                            <span>@{profileSlug}</span>
-                            {profile.whatsapp && (
-                                <>
-                                    <span>•</span>
-                                    <Phone size={12} />
-                                    <span>{profile.whatsapp}</span>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* ===== CARD DE AVISO - WHATSAPP ===== */}
-            {showWhatsAppAlert && (
-                <div className="mb-6 mt-4">
-                    <div
-                        className="rounded-2xl p-4 flex flex-col gap-3 relative"
-                        style={{
-                            background: `rgba(255, 165, 0, 0.08)`,
-                            backdropFilter: 'blur(12px)',
-                            border: `2px solid #f97316`,
-                            boxShadow: `0 4px 20px rgba(249, 115, 22, 0.15)`,
-                        }}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: '#ffffff',
-                                }}
-                            >
-                                <AlertCircle size={16} />
-                            </div>
-                            <div className="flex-1">
-                                <h4 className="text-sm font-black" style={{ color: '#f97316' }}>
-                                    Adicione seu WhatsApp
-                                </h4>
-                                <p className="text-xs" style={{ color: colors.textSecondary }}>
-                                    Receba pedidos e notificações diretamente
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <div className="flex-1 relative">
-                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
-                                <input
-                                    type="tel"
-                                    className="w-full pl-8 pr-3 py-2 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
-                                    style={{
-                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
-                                        border: `2px solid ${colors.border}`,
-                                        color: colors.textPrimary,
-                                        '--tw-ring-color': '#f97316',
-                                    } as React.CSSProperties}
-                                    placeholder="(00) 00000-0000"
-                                    value={whatsAppInput}
-                                    onChange={(e) => setWhatsAppInput(e.target.value)}
-                                    disabled={savingWhatsApp}
-                                />
-                            </div>
-                            <button
-                                onClick={handleSaveWhatsApp}
-                                disabled={savingWhatsApp || !whatsAppInput.trim()}
-                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-50"
-                                style={{
-                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
-                                    color: '#ffffff',
-                                    boxShadow: `0 4px 12px #f9731640`,
-                                }}
-                            >
-                                {savingWhatsApp ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={() => setShowWhatsAppAlert(false)}
-                            className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/10 transition-colors"
-                            style={{ color: colors.textSecondary }}
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* ===== Botões do Perfil - PILL ===== */}
-            <div className="mb-6 mt-4">
-                <div className="flex gap-2">
-                    <button
-                        onClick={goToPublicProfile}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <ExternalLink size={18} />
-                        Perfil
-                    </button>
-                    <button
-                        onClick={copyStoreLink}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                            border: `1px solid ${colors.border}`,
-                            color: colors.textPrimary,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Copy size={18} />
-                        Copiar
-                    </button>
-                    <button
-                        onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
-                        style={{
-                            ...pillButtonFullStyle,
-                            background: GRADIENT,
-                            color: '#ffffff',
-                            boxShadow: `0 4px 12px #f9731640`,
-                        }}
-                        className="hover:scale-105 transition-transform"
-                    >
-                        <Pencil size={18} />
-                        Editar
-                    </button>
-                </div>
-            </div>
-
-            {/* ===== CARD PRINCIPAL - GASTOS ===== */}
+    // ===== BLOCOS ORDENÁVEIS (Gastos até Visitantes) =====
+    const financeiroNode = (
+        <>
             <div className="mb-6">
                 <div
                     className="rounded-2xl p-5"
@@ -1139,7 +999,6 @@ export default function ProfileDashboard({
                 </div>
             </div>
 
-            {/* ===== TABS: Compras Recentes | Lojas Favoritas | Avaliações ===== */}
             <div className="mb-6">
                 <div
                     className="rounded-2xl overflow-hidden"
@@ -1384,34 +1243,205 @@ export default function ProfileDashboard({
                     </div>
                 </div>
             </div>
+        </>
+    )
+    const agendaNode = (
+        <AtalhoCompromissosPessoal
+            profileSlug={profileSlug}
+            userAvatarUrl={profile.avatar_url}
+            onLatestUpdate={onAgendaUpdate}
+        />
+    )
+    const horariosNode = <ProfileOperatingDays profileId={profile.id} onLatestUpdate={onHorariosUpdate} />
+    const publicacoesNode = (
+        <PublicationProfile
+            profileId={profile.id}
+            profileSlug={profileSlug || ''}
+            onLatestUpdate={onPublicacoesUpdate}
+        />
+    )
+    const indicacoesNode = (
+        <div className="mb-6">
+            <Commission userId={profile.id} onLatestUpdate={onIndicacoesUpdate} />
+        </div>
+    )
+    const visitantesNode = <ProfileVisitors key={profile.id} profileId={profile.id} onLatestUpdate={onVisitantesUpdate} />
 
-            {/* ===== Informações do Perfil ===== */}
-            <StoreAddress address={profile.address} whatsapp={profile.whatsapp} />
+    const sortableSections = [
+        { key: 'financeiro', node: financeiroNode, ts: financeiroTimestamp },
+        { key: 'agenda', node: agendaNode, ts: sectionTimestamps.agenda },
+        { key: 'horarios', node: horariosNode, ts: sectionTimestamps.horarios },
+        { key: 'publicacoes', node: publicacoesNode, ts: sectionTimestamps.publicacoes },
+        { key: 'indicacoes', node: indicacoesNode, ts: sectionTimestamps.indicacoes },
+        { key: 'visitantes', node: visitantesNode, ts: sectionTimestamps.visitantes },
+    ].sort((a, b) => (b.ts || '1970-01-01').localeCompare(a.ts || '1970-01-01'))
 
-            {/* ===== Agendamentos ===== */}
-            <AtalhoCompromissosPessoal
-                profileSlug={profileSlug}
-                userAvatarUrl={profile.avatar_url}
-            />
+    return (
+        <div className="w-full px-4 md:px-6 pb-28">
+            {/* Header - Avatar e Nome clicáveis */}
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={goToPublicProfile}>
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                        {profile.avatar_url ? (
+                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt={profile.name} />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: colors.textPrimary }}>
+                                {profile.name?.charAt(0) || '@'}
+                            </div>
+                        )}
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black hover:underline transition-all" style={{ color: colors.textPrimary }}>
+                            {profile.name || `@${profileSlug}`}
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
+                            <span className={`w-2 h-2 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span className="font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
+                                {isProfileOpen ? 'Aberto' : 'Fechado'}
+                            </span>
+                            <span>•</span>
+                            <span className="font-medium">{profileStatusText}</span>
+                            <span>•</span>
+                            <span>@{profileSlug}</span>
+                            {profile.whatsapp && (
+                                <>
+                                    <span>•</span>
+                                    <Phone size={12} />
+                                    <span>{profile.whatsapp}</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-            {/* ===== Dias de funcionamento ===== */}
-            <ProfileOperatingDays profileId={profile.id} />
+            {/* ===== CARD DE AVISO - WHATSAPP ===== */}
+            {showWhatsAppAlert && (
+                <div className="mb-6 mt-4">
+                    <div
+                        className="rounded-2xl p-4 flex flex-col gap-3 relative"
+                        style={{
+                            background: `rgba(255, 165, 0, 0.08)`,
+                            backdropFilter: 'blur(12px)',
+                            border: `2px solid #f97316`,
+                            boxShadow: `0 4px 20px rgba(249, 115, 22, 0.15)`,
+                        }}
+                    >
+                        <div className="flex items-start gap-3">
+                            <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                }}
+                            >
+                                <AlertCircle size={16} />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-black" style={{ color: '#f97316' }}>
+                                    Adicione seu WhatsApp
+                                </h4>
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                    Receba pedidos e notificações diretamente
+                                </p>
+                            </div>
+                        </div>
 
-            {/* ===== Publicações ===== */}
-            <PublicationProfile
-                profileId={profile.id}
-                profileSlug={profileSlug || ''}
-            />
+                        <div className="flex gap-2">
+                            <div className="flex-1 relative">
+                                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: colors.textSecondary }} />
+                                <input
+                                    type="tel"
+                                    className="w-full pl-8 pr-3 py-2 rounded-xl text-sm transition-all focus:outline-none focus:ring-2"
+                                    style={{
+                                        background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                        border: `2px solid ${colors.border}`,
+                                        color: colors.textPrimary,
+                                        '--tw-ring-color': '#f97316',
+                                    } as React.CSSProperties}
+                                    placeholder="(00) 00000-0000"
+                                    value={whatsAppInput}
+                                    onChange={(e) => setWhatsAppInput(e.target.value)}
+                                    disabled={savingWhatsApp}
+                                />
+                            </div>
+                            <button
+                                onClick={handleSaveWhatsApp}
+                                disabled={savingWhatsApp || !whatsAppInput.trim()}
+                                className="px-4 py-2 rounded-xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-50"
+                                style={{
+                                    background: 'linear-gradient(135deg, #f97316, #dc2626)',
+                                    color: '#ffffff',
+                                    boxShadow: `0 4px 12px #f9731640`,
+                                }}
+                            >
+                                {savingWhatsApp ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+                            </button>
+                        </div>
 
-            {/* ===== SISTEMA DE COMISSÕES ===== */}
-            {profile && (
-                <div className="mb-6">
-                    <Commission userId={profile.id} />
+                        <button
+                            onClick={() => setShowWhatsAppAlert(false)}
+                            className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/10 transition-colors"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
                 </div>
             )}
 
-            {/* ===== Visitantes ===== */}
-            <ProfileVisitors key={profile.id} profileId={profile.id} />
+            {/* ===== Botões do Perfil - PILL ===== */}
+            <div className="mb-6 mt-4">
+                <div className="flex gap-2">
+                    <button
+                        onClick={goToPublicProfile}
+                        style={{
+                            ...pillButtonFullStyle,
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                        className="hover:scale-105 transition-transform"
+                    >
+                        <ExternalLink size={18} />
+                        Perfil
+                    </button>
+                    <button
+                        onClick={copyStoreLink}
+                        style={{
+                            ...pillButtonFullStyle,
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            border: `1px solid ${colors.border}`,
+                            color: colors.textPrimary,
+                        }}
+                        className="hover:scale-105 transition-transform"
+                    >
+                        <Copy size={18} />
+                        Copiar
+                    </button>
+                    <button
+                        onClick={() => router.push(`/${profileSlug}/editar-perfil`)}
+                        style={{
+                            ...pillButtonFullStyle,
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 4px 12px #f9731640`,
+                        }}
+                        className="hover:scale-105 transition-transform"
+                    >
+                        <Pencil size={18} />
+                        Editar
+                    </button>
+                </div>
+            </div>
+
+            {/* ===== Informações do Perfil (fixo, fora da ordenação) ===== */}
+            <StoreAddress address={profile.address} whatsapp={profile.whatsapp} />
+
+            {/* ===== BLOCOS ORDENADOS PELA ATIVIDADE MAIS RECENTE ===== */}
+            {sortableSections.map((section) => (
+                <div key={section.key}>{section.node}</div>
+            ))}
 
             {/* ===== Produtos Visualizados ===== */}
             {recentViews.length > 0 && (

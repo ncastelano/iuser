@@ -47,11 +47,12 @@ function hexToRgb(hex: string) {
 
 interface ProfileVisitorsProps {
     profileId: string
+    onLatestUpdate?: (iso: string) => void
 }
 
 type Period = 'today' | '7days' | '30days'
 
-export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
+export default function ProfileVisitors({ profileId, onLatestUpdate }: ProfileVisitorsProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const router = useRouter()
@@ -174,13 +175,14 @@ export default function ProfileVisitors({ profileId }: ProfileVisitorsProps) {
                 }))
                 setVisitors(enriched)
                 setTotalCount(count || 0)
+                if (visits.length > 0) onLatestUpdate?.(visits[0].created_at)
             }
         } catch (error) {
             console.warn('[ProfileVisitors] Erro ao buscar dados:', error)
         } finally {
             setLoading(false)
         }
-    }, [profileId, period])
+    }, [profileId, period, onLatestUpdate])
 
     useEffect(() => {
         if (!profileId) return

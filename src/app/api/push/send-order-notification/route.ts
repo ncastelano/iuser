@@ -1,4 +1,4 @@
-// app/api/push/send-appointment-invite/route.ts
+// app/api/push/send-order-notification/route.ts
 import { NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -6,7 +6,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-// VAPID exige um subject https: ou mailto: — em dev o app roda em http://localhost, então caímos no mailto
 const vapidSubject = appUrl.startsWith('https://') ? appUrl : 'mailto:ncastelano@gmail.com'
 
 if (vapidPublicKey && vapidPrivateKey) {
@@ -31,47 +30,44 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
         }
 
-        const { appointmentId } = await req.json()
-        if (!appointmentId) {
-            return NextResponse.json({ error: 'appointmentId é obrigatório' }, { status: 400 })
+        const { orderId } = await req.json()
+        if (!orderId) {
+            return NextResponse.json({ error: 'orderId é obrigatório' }, { status: 400 })
         }
 
-        const { data: appointment, error: apptError } = await supabaseAdmin
-            .from('appointments')
-            .select('id, customer_id, customer_slug, owner_id, owner_slug, service_name, date, time, status, store_name')
-            .eq('id', appointmentId)
+        const { data: order, error: orderError } = await supabaseAdmin
+            .from('orders')
+            .select('id, store_id, buyer_id, buyer_profile_slug, total_amount, status')
+            .eq('id', orderId)
             .single()
 
-        if (apptError || !appointment) {
-            return NextResponse.json({ error: 'Convite não encontrado' }, { status: 404 })
+        if (orderError || !order) {
+            return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
         }
 
-        if (appointment.status !== 'pending') {
+        // Só quem fez o pedido pode disparar a notificação dele
+        if (order.buyer_id !== user.id) {
+            return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+        }
+
+        if (order.status !== 'pending') {
             return NextResponse.json({ success: true, skipped: true })
         }
 
-        // Duas direções possíveis: quem criou o convite (owner) avisa o convidado (customer),
-        // ou o cliente que acabou de agendar numa loja avisa o dono da loja (owner).
-        let targetUserId: string
-        let title: string
-        let body: string
+        const { data: store, error: storeError } = await supabaseAdmin
+            .from('stores')
+            .select('owner_id, name')
+            .eq('id', order.store_id)
+            .single()
 
-        if (appointment.owner_id === user.id) {
-            targetUserId = appointment.customer_id
-            title = `Convite de @${appointment.owner_slug}`
-            body = `${appointment.service_name} · ${appointment.date} às ${appointment.time?.slice(0, 5)}`
-        } else if (appointment.customer_id === user.id) {
-            targetUserId = appointment.owner_id
-            title = appointment.store_name ? `Novo agendamento em ${appointment.store_name}` : 'Novo agendamento'
-            body = `${appointment.customer_slug ? '@' + appointment.customer_slug : 'Alguém'} agendou: ${appointment.service_name} · ${appointment.date} às ${appointment.time?.slice(0, 5)}`
-        } else {
-            return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+        if (storeError || !store) {
+            return NextResponse.json({ error: 'Loja não encontrada' }, { status: 404 })
         }
 
         const { data: subscriptions, error: subsError } = await supabaseAdmin
             .from('push_subscriptions')
             .select('id, endpoint, p256dh, auth')
-            .eq('user_id', targetUserId)
+            .eq('user_id', store.owner_id)
 
         if (subsError) throw subsError
         if (!subscriptions || subscriptions.length === 0) {
@@ -79,10 +75,10 @@ export async function POST(req: Request) {
         }
 
         const payload = JSON.stringify({
-            title,
-            body,
-            url: '/compromissos',
-            tag: `appointment-invite-${appointment.id}`,
+            title: `Novo pedido em ${store.name}`,
+            body: `${order.buyer_profile_slug ? '@' + order.buyer_profile_slug : 'Um cliente'} fez um pedido de R$ ${Number(order.total_amount).toFixed(2)}`,
+            url: '/',
+            tag: `order-${order.id}`,
         })
 
         const results = await Promise.allSettled(
@@ -91,7 +87,6 @@ export async function POST(req: Request) {
                     { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
                     payload
                 ).catch((err) => {
-                    // 404/410 = subscription não existe mais na push service -> limpar
                     if (err?.statusCode === 404 || err?.statusCode === 410) {
                         return supabaseAdmin.from('push_subscriptions').delete().eq('id', sub.id)
                     }
@@ -103,7 +98,7 @@ export async function POST(req: Request) {
         const sent = results.filter((r) => r.status === 'fulfilled').length
         return NextResponse.json({ success: true, sent })
     } catch (error: any) {
-        console.error('Erro ao enviar push de convite:', error)
+        console.error('Erro ao enviar push de pedido:', error)
         return NextResponse.json({ error: 'Erro ao enviar notificação' }, { status: 500 })
     }
 }

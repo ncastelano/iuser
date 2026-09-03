@@ -688,6 +688,43 @@ export default function CompromissosPage() {
                     />
 
                     <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 28 }}>
+                        {/* CONVITES (apenas na aba Pessoal) */}
+                        {activeTab === 'pessoal' && (
+                            <section>
+                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
+                                    <Bell size={22} color={colors.accent} /> Convites
+                                </h2>
+                                {convitesRecebidos.length === 0 ? (
+                                    <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum convite pendente.</div>
+                                ) : (
+                                    convitesRecebidos.map((convite) => {
+                                        const avatarType = getAvatarType(convite)
+                                        const avatarUrl = getAvatarUrl(convite, avatarType)
+                                        return (
+                                            <div key={convite.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
+                                                <div style={{ display: 'flex', gap: 16 }}>
+                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
+                                                    <div style={{ flex: 1 }}>
+                                                        <h3 style={{ fontWeight: 800, color: colors.textPrimary }}>{convite.service_name}</h3>
+                                                        <p style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: colors.textSecondary, marginTop: 4 }}>
+                                                            <Clock3 size={14} />
+                                                            <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
+                                                    <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
+                                                    <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
+                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
+                            </section>
+                        )}
+
                         {/* PRÓXIMOS COMPROMISSOS */}
                         <section>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -918,43 +955,6 @@ export default function CompromissosPage() {
                                 })
                             )}
                         </section>
-
-                        {/* CONVITES (apenas na aba Pessoal) */}
-                        {activeTab === 'pessoal' && (
-                            <section>
-                                <h2 style={{ fontWeight: 800, fontSize: 22, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, color: colors.textPrimary }}>
-                                    <Bell size={22} color={colors.accent} /> Convites
-                                </h2>
-                                {convitesRecebidos.length === 0 ? (
-                                    <div style={{ ...cardStyle, padding: 20, color: colors.textSecondary }}>Nenhum convite pendente.</div>
-                                ) : (
-                                    convitesRecebidos.map((convite) => {
-                                        const avatarType = getAvatarType(convite)
-                                        const avatarUrl = getAvatarUrl(convite, avatarType)
-                                        return (
-                                            <div key={convite.id} style={{ ...cardStyle, padding: 16, marginBottom: 12 }}>
-                                                <div style={{ display: 'flex', gap: 16 }}>
-                                                    <AppointmentAvatar url={avatarUrl} name={avatarType === 'store' ? convite.store_name || 'Loja' : 'Convite'} type={avatarType === 'store' ? 'store' : 'invite'} size={56} colors={colors} />
-                                                    <div style={{ flex: 1 }}>
-                                                        <h3 style={{ fontWeight: 800, color: colors.textPrimary }}>{convite.service_name}</h3>
-                                                        <p style={{ marginTop: 4, fontSize: 14, color: colors.textSecondary }}>de <SenderName ownerSlug={convite.owner_slug} /></p>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: colors.textSecondary, marginTop: 4 }}>
-                                                            <Clock3 size={14} />
-                                                            <span>{convite.date.split('-').reverse().join('/')} • {formatTime(convite.time)}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center' }}>
-                                                    <button onClick={() => aceitarCompromisso(convite.id)} style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Check size={16} /> Aceitar</button>
-                                                    <button onClick={() => recusarCompromisso(convite.id)} style={{ flex: 1, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><X size={16} /> Recusar</button>
-                                                    <button onClick={(e) => { e.stopPropagation(); openDetailModal(convite) }} style={{ background: 'rgba(255,255,255,0.1)', color: colors.textPrimary, border: 'none', borderRadius: 14, padding: '10px 14px', fontWeight: 700, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}><Eye size={16} /> Detalhes</button>
-                                                </div>
-                                            </div>
-                                        )
-                                    })
-                                )}
-                            </section>
-                        )}
 
                         {/* PENDENTES DA LOJA */}
                         {activeTab !== 'pessoal' && (

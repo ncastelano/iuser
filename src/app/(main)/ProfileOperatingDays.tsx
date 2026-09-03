@@ -8,6 +8,7 @@ import { X, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface ProfileOperatingDaysProps {
     profileId: string
+    onLatestUpdate?: (iso: string) => void
 }
 
 const WEEKDAYS = [
@@ -62,11 +63,11 @@ function hexToRgb(hex: string) {
     return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
 }
 
-export default function ProfileOperatingDays({ profileId }: ProfileOperatingDaysProps) {
+export default function ProfileOperatingDays({ profileId, onLatestUpdate }: ProfileOperatingDaysProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
 
-    const [isExpanded, setIsExpanded] = useState(false)
+    const [isExpanded, setIsExpanded] = useState(true)
     const [weekly, setWeekly] = useState<any>(DEFAULT_WEEKLY)
     const [blockedDates, setBlockedDates] = useState<string[]>([])
     const [blockedDateInput, setBlockedDateInput] = useState('')
@@ -77,7 +78,7 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
         if (!profileId) return
         const { data } = await supabase
             .from('profiles')
-            .select('business_hours')
+            .select('business_hours, updated_at')
             .eq('id', profileId)
             .single()
 
@@ -89,8 +90,9 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
             setWeekly(DEFAULT_WEEKLY)
             setBlockedDates([])
         }
+        if (data?.updated_at) onLatestUpdate?.(data.updated_at)
         setLoading(false)
-    }, [profileId])
+    }, [profileId, onLatestUpdate])
 
     useEffect(() => {
         loadConfig()
@@ -123,15 +125,17 @@ export default function ProfileOperatingDays({ profileId }: ProfileOperatingDays
             blocked_dates: blockedDates,
         }
 
+        const nowIso = new Date().toISOString()
         const { error } = await supabase
             .from('profiles')
-            .update({ business_hours: config })
+            .update({ business_hours: config, updated_at: nowIso })
             .eq('id', profileId)
 
         if (error) {
             alert('Erro ao salvar configurações.')
         } else {
             alert('Horários salvos!')
+            onLatestUpdate?.(nowIso)
         }
         setSaving(false)
     }

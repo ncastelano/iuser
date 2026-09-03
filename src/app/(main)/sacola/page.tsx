@@ -906,6 +906,18 @@ export default function SacolaPage() {
                 return
             }
 
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (!session) return
+                fetch('/api/push/send-order-notification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({ orderId: orderData.id }),
+                }).catch(() => { })
+            })
+
             clearStoreCart(slug)
             await loadUserData(currentUserId)
             await syncToSupabase(currentUserId)

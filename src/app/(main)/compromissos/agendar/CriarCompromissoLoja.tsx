@@ -277,6 +277,21 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         else onBack()
     }
 
+    async function notifyAppointment(appointmentId: string) {
+        try {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) return
+            await fetch('/api/push/send-appointment-invite', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ appointmentId }),
+            })
+        } catch { }
+    }
+
     async function handleConfirm() {
         if (!selectedDate || !selectedTime || !target) return
         setSubmitting(true)
@@ -310,7 +325,9 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
                 .single()
             const slug = targetProfile?.profileSlug || ''
             const targetAvatar = targetProfile?.avatar_url || ''
+            const inviteId = crypto.randomUUID()
             const storeAppointment = {
+                id: inviteId,
                 ...payloadBase,
                 store_id: storeId,
                 store_slug: store.storeSlug,
@@ -327,6 +344,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             }
             const { error } = await supabase.from('appointments').insert(storeAppointment)
             if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+            notifyAppointment(inviteId)
             await refetch()
             onBack()
             return
@@ -345,7 +363,9 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
             .single()
         const slug = myProfile?.profileSlug || ''
         const myAvatar = myProfile?.avatar_url || ''
+        const bookingId = crypto.randomUUID()
         const clientAppointment = {
+            id: bookingId,
             ...payloadBase,
             store_id: target.id,
             store_slug: target.slug,
@@ -362,6 +382,7 @@ export default function CriarCompromissoLoja({ onBack, context, storeId, activeF
         }
         const { error } = await supabase.from('appointments').insert(clientAppointment)
         if (error) { alert(`Erro: ${error.message}`); setSubmitting(false); return }
+        notifyAppointment(bookingId)
         await refetch()
         onBack()
     }
