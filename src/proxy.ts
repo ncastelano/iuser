@@ -18,6 +18,8 @@ const IGNORED_ROUTES = [
     '/404',
     '/500',
     '/lojas-em-destaque',
+    '/compromissos',
+    '/compromissos/agendar',
 ]
 
 // ===== PREFIXOS IGNORADOS =====
