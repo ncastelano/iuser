@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
-import { Briefcase, MapPin, Loader2, Plus } from 'lucide-react'
+import { Briefcase, Car, MapPin, Loader2, Plus, LucideIcon } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -31,7 +31,7 @@ function relativeTime(iso: string): string {
     return `${days}d atrás`
 }
 
-interface JobRequest {
+interface ServiceRequestRow {
     id: string
     requester_id: string
     service_type: string
@@ -39,6 +39,61 @@ interface JobRequest {
     location_address: string
     description: string
     created_at: string
+}
+
+interface RideRequestRow {
+    id: string
+    requester_id: string
+    ride_type: 'pessoa' | 'objeto'
+    origin_address: string
+    destination_address: string
+    passenger_count: number
+    notes: string | null
+    object_description: string | null
+    created_at: string
+}
+
+type BoardItem =
+    | ({ kind: 'service' } & ServiceRequestRow)
+    | ({ kind: 'ride' } & RideRequestRow)
+
+function itemKey(item: BoardItem): string {
+    return `${item.kind}:${item.id}`
+}
+
+function getItemIcon(item: BoardItem): LucideIcon {
+    return item.kind === 'ride' ? Car : getServiceIcon(item.service_type)
+}
+
+function getItemLabel(item: BoardItem): string {
+    if (item.kind === 'ride') {
+        return item.ride_type === 'objeto' ? 'Motorista · Entrega de objeto' : 'Motorista particular'
+    }
+    return getServiceLabel(item.service_type, item.custom_service)
+}
+
+function getItemAddress(item: BoardItem): string {
+    if (item.kind === 'ride') {
+        return `${shortAddress(item.origin_address)} → ${shortAddress(item.destination_address)}`
+    }
+    return shortAddress(item.location_address)
+}
+
+function getItemDetail(item: BoardItem): string | null {
+    if (item.kind === 'ride') {
+        if (item.ride_type === 'objeto') return item.object_description || item.notes
+        if (item.notes) return item.notes
+        return item.passenger_count > 1 ? `${item.passenger_count} passageiros` : null
+    }
+    return item.description || null
+}
+
+function getItemSearchHaystack(item: BoardItem): string {
+    const parts =
+        item.kind === 'ride'
+            ? [getItemLabel(item), item.origin_address, item.destination_address, item.notes, item.object_description]
+            : [getItemLabel(item), item.description, item.location_address]
+    return parts.filter(Boolean).join(' ').toLowerCase()
 }
 
 export default function SerParceiroPage() {
@@ -50,9 +105,9 @@ export default function SerParceiroPage() {
     const [loggedIn, setLoggedIn] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [myUserId, setMyUserId] = useState<string | null>(null)
-    const [jobs, setJobs] = useState<JobRequest[]>([])
-    const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
-    const [applyingId, setApplyingId] = useState<string | null>(null)
+    const [jobs, setJobs] = useState<BoardItem[]>([])
+    const [appliedKeys, setAppliedKeys] = useState<Set<string>>(new Set())
+    const [applyingKey, setApplyingKey] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
 
     const load = async () => {
@@ -66,20 +121,34 @@ export default function SerParceiroPage() {
         setLoggedIn(true)
         setMyUserId(user.id)
 
-        const { data: requests } = await supabase
-            .from('service_requests')
-            .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
-            .eq('status', 'pending')
-            .order('created_at', { ascending: true })
+        const [{ data: serviceRequests }, { data: rideRequests }] = await Promise.all([
+            supabase
+                .from('service_requests')
+                .select('id, requester_id, service_type, custom_service, location_address, description, created_at')
+                .eq('status', 'pending'),
+            supabase
+                .from('ride_requests')
+                .select('id, requester_id, ride_type, origin_address, destination_address, passenger_count, notes, object_description, created_at')
+                .eq('status', 'pending'),
+        ])
 
-        setJobs(requests || [])
+        const combined: BoardItem[] = [
+            ...(serviceRequests || []).map((row) => ({ kind: 'service' as const, ...row })),
+            ...(rideRequests || []).map((row) => ({ kind: 'ride' as const, ...row })),
+        ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
 
-        const { data: myApplications } = await supabase
-            .from('service_applications')
-            .select('service_request_id')
-            .eq('applicant_id', user.id)
+        setJobs(combined)
 
-        setAppliedIds(new Set((myApplications || []).map((a) => a.service_request_id)))
+        const [{ data: myServiceApplications }, { data: myRideApplications }] = await Promise.all([
+            supabase.from('service_applications').select('service_request_id').eq('applicant_id', user.id),
+            supabase.from('ride_applications').select('ride_request_id').eq('applicant_id', user.id),
+        ])
+
+        const applied = new Set<string>()
+        for (const a of myServiceApplications || []) applied.add(`service:${a.service_request_id}`)
+        for (const a of myRideApplications || []) applied.add(`ride:${a.ride_request_id}`)
+        setAppliedKeys(applied)
+
         setLoading(false)
     }
 
@@ -93,40 +162,34 @@ export default function SerParceiroPage() {
         load()
     }
 
-    const handleApply = async (jobId: string) => {
+    const handleApply = async (item: BoardItem) => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
             setShowLogin(true)
             return
         }
 
-        setApplyingId(jobId)
+        const key = itemKey(item)
+        setApplyingKey(key)
         try {
-            const { error } = await supabase.from('service_applications').insert({
-                service_request_id: jobId,
-                applicant_id: user.id,
-            })
+            const { error } =
+                item.kind === 'ride'
+                    ? await supabase.from('ride_applications').insert({ ride_request_id: item.id, applicant_id: user.id })
+                    : await supabase.from('service_applications').insert({ service_request_id: item.id, applicant_id: user.id })
             if (error) throw error
-            setAppliedIds((prev) => new Set(prev).add(jobId))
+            setAppliedKeys((prev) => new Set(prev).add(key))
             toast.success('Candidatura enviada!')
         } catch (err: any) {
             toast.error('Erro ao se candidatar: ' + (err.message || 'tente novamente'))
         } finally {
-            setApplyingId(null)
+            setApplyingKey(null)
         }
     }
 
     const filteredJobs = useMemo(() => {
         const query = searchQuery.trim().toLowerCase()
         if (!query) return jobs
-        return jobs.filter((job) => {
-            const label = getServiceLabel(job.service_type, job.custom_service).toLowerCase()
-            const haystack = [label, job.description, job.location_address]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase()
-            return haystack.includes(query)
-        })
+        return jobs.filter((job) => getItemSearchHaystack(job).includes(query))
     }, [jobs, searchQuery])
 
     return (
@@ -144,7 +207,7 @@ export default function SerParceiroPage() {
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
                     showSearch={!loading && loggedIn}
-                    searchPlaceholder="Procurar serviço, pintor, encanador..."
+                    searchPlaceholder="Procurar serviço, motorista, pintor..."
                     searchValue={searchQuery}
                     onSearch={setSearchQuery}
                 />
@@ -162,7 +225,7 @@ export default function SerParceiroPage() {
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Entre na sua conta pra ver os pedidos de serviço disponíveis.
+                                Entre na sua conta pra ver os pedidos disponíveis.
                             </p>
                             <button
                                 onClick={() => setShowLogin(true)}
@@ -184,7 +247,7 @@ export default function SerParceiroPage() {
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum pedido de serviço aberto no momento.
+                                Nenhum pedido aberto no momento.
                             </p>
                         </div>
                     )}
@@ -195,7 +258,7 @@ export default function SerParceiroPage() {
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                         >
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Nenhum serviço encontrado para "{searchQuery}".
+                                Nenhum pedido encontrado para "{searchQuery}".
                             </p>
                         </div>
                     )}
@@ -203,13 +266,15 @@ export default function SerParceiroPage() {
                     {!loading && loggedIn && filteredJobs.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {filteredJobs.map((job) => {
-                                const Icon = getServiceIcon(job.service_type)
-                                const label = getServiceLabel(job.service_type, job.custom_service)
-                                const applied = appliedIds.has(job.id)
+                                const Icon = getItemIcon(job)
+                                const label = getItemLabel(job)
+                                const detail = getItemDetail(job)
+                                const key = itemKey(job)
+                                const applied = appliedKeys.has(key)
                                 const isMine = job.requester_id === myUserId
                                 return (
                                     <div
-                                        key={job.id}
+                                        key={key}
                                         className="rounded-2xl p-4"
                                         style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
                                     >
@@ -227,10 +292,10 @@ export default function SerParceiroPage() {
                                                 </div>
                                                 <span className="flex items-center gap-1 text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                                                     <MapPin size={11} className="flex-shrink-0" />
-                                                    {shortAddress(job.location_address)}
+                                                    {getItemAddress(job)}
                                                 </span>
-                                                {job.description && (
-                                                    <p className="text-xs mt-1.5" style={{ color: colors.textSecondary }}>{job.description}</p>
+                                                {detail && (
+                                                    <p className="text-xs mt-1.5" style={{ color: colors.textSecondary }}>{detail}</p>
                                                 )}
                                             </div>
                                         </div>
@@ -243,8 +308,8 @@ export default function SerParceiroPage() {
                                             </div>
                                         ) : (
                                             <button
-                                                onClick={() => handleApply(job.id)}
-                                                disabled={applied || applyingId === job.id}
+                                                onClick={() => handleApply(job)}
+                                                disabled={applied || applyingKey === key}
                                                 className="w-full mt-3 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all disabled:opacity-70 flex items-center justify-center gap-2"
                                                 style={
                                                     applied
@@ -252,7 +317,7 @@ export default function SerParceiroPage() {
                                                         : { background: GRADIENT, color: '#fff' }
                                                 }
                                             >
-                                                {applyingId === job.id ? (
+                                                {applyingKey === key ? (
                                                     <Loader2 size={14} className="animate-spin" />
                                                 ) : applied ? (
                                                     'Candidatura enviada'
