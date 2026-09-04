@@ -12,11 +12,13 @@ export interface HomeBagItem {
     quantity: number
     storeSlug: string
     storeName: string
+    storeLogoUrl?: string | null
 }
 
 interface StoreGroup {
     storeSlug: string
     storeName: string
+    storeLogoUrl?: string | null
     items: HomeBagItem[]
 }
 
@@ -66,7 +68,7 @@ export default function HomeBag({
     for (const item of items) {
         let group = storeGroups.find((g) => g.storeSlug === item.storeSlug)
         if (!group) {
-            group = { storeSlug: item.storeSlug, storeName: item.storeName, items: [] }
+            group = { storeSlug: item.storeSlug, storeName: item.storeName, storeLogoUrl: item.storeLogoUrl, items: [] }
             storeGroups.push(group)
         }
         group.items.push(item)
@@ -144,7 +146,7 @@ export default function HomeBag({
 
                         <div className="ml-auto flex items-center">
                             <svg
-                                className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                                className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? '' : 'rotate-180'}`}
                                 style={{ color: colors.textSecondary }}
                                 fill="none"
                                 stroke="currentColor"
@@ -155,17 +157,24 @@ export default function HomeBag({
                         </div>
                     </div>
 
-                    {/* Card mais detalhado: nomes das lojas presentes na sacola */}
+                    {/* Card mais detalhado: logo de cada loja presente na sacola, em lista horizontal */}
                     {!isExpanded && storeGroups.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pl-12">
+                        <div className="flex gap-1.5 overflow-x-auto pl-12 pr-1 scrollbar-hide">
                             {storeGroups.map((group) => (
-                                <span
+                                <div
                                     key={group.storeSlug}
-                                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[140px]"
-                                    style={{ background: `${colors.border}40`, color: colors.textSecondary }}
+                                    title={group.storeName}
+                                    className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                    style={{ background: `${colors.border}60` }}
                                 >
-                                    {group.storeName}
-                                </span>
+                                    {group.storeLogoUrl ? (
+                                        <img src={group.storeLogoUrl} alt={group.storeName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                            {group.storeSlug.charAt(0).toUpperCase()}
+                                        </span>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     )}

@@ -2,9 +2,9 @@
 'use client'
 
 import Link from 'next/link'
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useTheme } from '@/app/theme'
-import { categorias } from '@/lib/categorias'
+import { categorias, type Categoria } from '@/lib/categorias'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -23,10 +23,45 @@ function hexToRgb(hex: string) {
     }
 }
 
+// ===== Contagem de cliques por categoria, salva no navegador =====
+const CLICKS_STORAGE_KEY = 'iuser-category-clicks'
+
+function getClickCounts(): Record<string, number> {
+    if (typeof window === 'undefined') return {}
+    try {
+        return JSON.parse(localStorage.getItem(CLICKS_STORAGE_KEY) || '{}')
+    } catch {
+        return {}
+    }
+}
+
+function bumpClickCount(slug: string) {
+    if (typeof window === 'undefined') return
+    try {
+        const counts = getClickCounts()
+        counts[slug] = (counts[slug] || 0) + 1
+        localStorage.setItem(CLICKS_STORAGE_KEY, JSON.stringify(counts))
+    } catch {
+        // localStorage indisponível (modo privado, etc.) - ignora
+    }
+}
+
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
+
+    // Ordem inicial = ordem padrão (evita divergência de hidratação); depois
+    // do mount, reordena da categoria mais clicada pra menos clicada.
+    const [orderedCategorias, setOrderedCategorias] = useState<Categoria[]>(categorias)
+
+    useEffect(() => {
+        const counts = getClickCounts()
+        const sorted = [...categorias].sort(
+            (a, b) => (counts[b.slug] || 0) - (counts[a.slug] || 0)
+        )
+        setOrderedCategorias(sorted)
+    }, [])
 
     return (
         <section>
@@ -42,11 +77,9 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     willChange: 'transform',
                 }}
             >
-                {/* Grid de categorias - apenas os cards pequenos coloridos */}
-                <div
-                    className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4"
-                >
-                    {categorias.map((cat) => {
+                {/* Lista de categorias em scroll horizontal - a mais clicada fica à esquerda */}
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                    {orderedCategorias.map((cat) => {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
 
@@ -56,7 +89,8 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                             <Link
                                 key={cat.slug}
                                 href={href}
-                                className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group"
+                                onClick={() => bumpClickCount(cat.slug)}
+                                className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
                                 style={{
                                     background: 'transparent',
                                     border: 'none',

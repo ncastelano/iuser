@@ -268,3 +268,12 @@ svg,
 .animate-spin-fast {
   transition-property: none;
 }
+
+/* Esconde a barra de rolagem em listas horizontais (carrosséis, chips) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

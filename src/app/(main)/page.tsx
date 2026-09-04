@@ -186,6 +186,7 @@ export default function HomePage() {
                 quantity: item.quantity,
                 storeSlug,
                 storeName: storeDetails[storeSlug]?.name || storeSlug,
+                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
             }))
         )
     }, [itemsByStore, storeDetails])
