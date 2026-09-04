@@ -9,11 +9,12 @@ import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useCartStore } from '@/store/useCartStore'
-import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, ShoppingBag, Minus, Trash2, MessageCircle, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, Store, QrCode, CreditCard, Banknote, Navigation, Home, CheckCircle2, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
 import ButtonSearch from '@/app/ButtonSearch'
+import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 
 interface Product {
     id: string
@@ -37,12 +38,6 @@ interface StoreInfo {
     logo_url: string | null
     banner_url: string | null
     business_hours?: BusinessHours | null
-}
-
-interface CartItemWithComment {
-    product: any
-    quantity: number
-    comment?: string
 }
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -870,188 +865,6 @@ export default function CatalogoPage() {
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
 
-    // ===== COMPONENTE BUTTON SHOPPING BAG EMBUTIDO =====
-    const ButtonShoppingBag = () => {
-        const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
-        const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
-
-        const openCheckout = () => {
-            if (totalItems === 0) {
-                toast.info('Sua sacola está vazia')
-                return
-            }
-            setCheckoutStep(currentUserId ? 'delivery' : 'auth')
-            setShowCheckoutModal(true)
-            setIsBagExpanded(false)
-        }
-
-        return (
-            <div className="relative">
-                <div
-                    className="rounded-2xl shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden"
-                    style={{
-                        background: cardBackground,
-                        border: `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
-                        boxShadow: totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`,
-                        minWidth: isBagExpanded ? 280 : 'auto',
-                        maxWidth: isBagExpanded ? 360 : 'auto',
-                    }}
-                >
-                    <div
-                        className="flex items-center gap-2 p-2"
-                        onClick={() => setIsBagExpanded(!isBagExpanded)}
-                    >
-                        <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
-                        >
-                            <ShoppingBag size={18} />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {totalItems > 0 ? (
-                                <>
-                                    <span className="font-bold text-sm" style={{ color: textColor }}>
-                                        {totalItems}
-                                    </span>
-                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        {totalItems === 1 ? 'item' : 'itens'}
-                                    </span>
-                                    <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
-                                        {formatPrice(totalValue)}
-                                    </span>
-                                </>
-                            ) : (
-                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                    Vazio
-                                </span>
-                            )}
-                        </div>
-
-                        <div className="ml-auto flex items-center">
-                            <svg
-                                className={`w-4 h-4 transition-transform duration-300 ${isBagExpanded ? 'rotate-180' : ''}`}
-                                style={{ color: colors.textSecondary }}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    {isBagExpanded && (
-                        <div className="border-t px-2 py-2 max-h-64 overflow-y-auto" style={{ borderColor: colors.border }}>
-                            {bagItems.length === 0 ? (
-                                <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
-                                    Nenhum item na sacola
-                                </p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {bagItems.map((item) => (
-                                        <div
-                                            key={item.product.id}
-                                            className="flex items-center gap-2 p-1.5 rounded-lg"
-                                            style={{ background: `${colors.surface}66` }}
-                                        >
-                                            <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                                {item.product.image_url ? (
-                                                    <img
-                                                        src={item.product.image_url}
-                                                        alt={item.product.name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-xs font-medium truncate" style={{ color: textColor }}>
-                                                    {item.product.name}
-                                                </p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold" style={{ color: '#f97316' }}>
-                                                        {formatPrice(item.product.price)}
-                                                    </span>
-                                                    <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                        x{item.quantity}
-                                                    </span>
-                                                </div>
-                                                {item.comment && (
-                                                    <div className="flex items-center gap-1 mt-0.5">
-                                                        <MessageCircle size={10} style={{ color: colors.textSecondary }} />
-                                                        <span className="text-[9px] italic truncate" style={{ color: colors.textSecondary }}>
-                                                            {item.comment}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        if (item.quantity <= 1) {
-                                                            removeAllOfProduct(item.product.id)
-                                                        } else {
-                                                            decreaseQuantity(item.product.id)
-                                                        }
-                                                    }}
-                                                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
-                                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                                >
-                                                    <Minus size={10} />
-                                                </button>
-                                                <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
-                                                    {item.quantity}
-                                                </span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        increaseQuantity(item.product)
-                                                    }}
-                                                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
-                                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                                >
-                                                    <Plus size={10} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        removeAllOfProduct(item.product.id)
-                                                    }}
-                                                    className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                                    style={{ background: '#ef4444', color: '#ffffff' }}
-                                                >
-                                                    <Trash2 size={10} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: colors.border }}>
-                                        <span className="text-xs font-bold" style={{ color: textColor }}>
-                                            Total: {formatPrice(totalValue)}
-                                        </span>
-                                        <button
-                                            onClick={openCheckout}
-                                            className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
-                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                        >
-                                            Finalizar
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        )
-    }
-
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -1422,7 +1235,20 @@ export default function CatalogoPage() {
                 </div>
 
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
-                    <ButtonShoppingBag />
+                    <CatalogBag
+                        bagItems={bagItems}
+                        isExpanded={isBagExpanded}
+                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                        onIncrease={increaseQuantity}
+                        onDecrease={decreaseQuantity}
+                        onRemove={removeAllOfProduct}
+                        onCheckout={() => {
+                            setCheckoutStep(currentUserId ? 'delivery' : 'auth')
+                            setShowCheckoutModal(true)
+                            setIsBagExpanded(false)
+                        }}
+                        colors={colors}
+                    />
                 </div>
 
                 {/* ===== MODAL DE COMENTÁRIO ===== */}
