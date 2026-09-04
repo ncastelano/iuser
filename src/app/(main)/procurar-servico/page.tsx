@@ -1,7 +1,7 @@
 // app/(main)/procurar-servico/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -53,6 +53,7 @@ export default function SerParceiroPage() {
     const [jobs, setJobs] = useState<JobRequest[]>([])
     const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
     const [applyingId, setApplyingId] = useState<string | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
 
     const load = async () => {
         setLoading(true)
@@ -115,6 +116,19 @@ export default function SerParceiroPage() {
         }
     }
 
+    const filteredJobs = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase()
+        if (!query) return jobs
+        return jobs.filter((job) => {
+            const label = getServiceLabel(job.service_type, job.custom_service).toLowerCase()
+            const haystack = [label, job.description, job.location_address]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+            return haystack.includes(query)
+        })
+    }, [jobs, searchQuery])
+
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>
             <div className="fixed inset-0 z-0">
@@ -129,6 +143,10 @@ export default function SerParceiroPage() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
+                    showSearch={!loading && loggedIn}
+                    searchPlaceholder="Procurar serviço, pintor, encanador..."
+                    searchValue={searchQuery}
+                    onSearch={setSearchQuery}
                 />
 
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
@@ -171,9 +189,20 @@ export default function SerParceiroPage() {
                         </div>
                     )}
 
-                    {!loading && loggedIn && jobs.length > 0 && (
+                    {!loading && loggedIn && jobs.length > 0 && filteredJobs.length === 0 && (
+                        <div
+                            className="rounded-2xl p-6 text-center"
+                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
+                        >
+                            <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                Nenhum serviço encontrado para "{searchQuery}".
+                            </p>
+                        </div>
+                    )}
+
+                    {!loading && loggedIn && filteredJobs.length > 0 && (
                         <div className="flex flex-col gap-3">
-                            {jobs.map((job) => {
+                            {filteredJobs.map((job) => {
                                 const Icon = getServiceIcon(job.service_type)
                                 const label = getServiceLabel(job.service_type, job.custom_service)
                                 const applied = appliedIds.has(job.id)
