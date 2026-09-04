@@ -2,7 +2,6 @@
 'use client'
 
 import { ShoppingBag, Minus, Plus, Trash2, Clock, ChefHat, CheckCircle2, Star } from 'lucide-react'
-import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -13,6 +12,12 @@ export interface HomeBagItem {
     quantity: number
     storeSlug: string
     storeName: string
+}
+
+interface StoreGroup {
+    storeSlug: string
+    storeName: string
+    items: HomeBagItem[]
 }
 
 interface StatusCounts {
@@ -29,14 +34,14 @@ interface HomeBagProps {
     onIncrease: (item: HomeBagItem) => void
     onDecrease: (item: HomeBagItem) => void
     onRemove: (item: HomeBagItem) => void
-    onCheckout: () => void
+    onCheckout: (storeSlug: string) => void
     statusCounts?: StatusCounts
     animate?: boolean
     colors: any
 }
 
 // ===== Sacola flutuante da home: mesmo desenho do CatalogBag, mas juntando
-// os itens de todas as lojas em uma lista só =====
+// os itens de todas as lojas em uma lista só, separados por loja =====
 export default function HomeBag({
     items,
     isExpanded,
@@ -55,6 +60,18 @@ export default function HomeBag({
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
 
+    // Agrupa os itens por loja pra mostrar cada uma separada, com seu
+    // próprio subtotal e botão de finalizar.
+    const storeGroups: StoreGroup[] = []
+    for (const item of items) {
+        let group = storeGroups.find((g) => g.storeSlug === item.storeSlug)
+        if (!group) {
+            group = { storeSlug: item.storeSlug, storeName: item.storeName, items: [] }
+            storeGroups.push(group)
+        }
+        group.items.push(item)
+    }
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
@@ -62,12 +79,8 @@ export default function HomeBag({
         }).format(price)
     }
 
-    const handleCheckout = () => {
-        if (totalItems === 0) {
-            toast.info('Sua sacola está vazia')
-            return
-        }
-        onCheckout()
+    const handleCheckout = (storeSlug: string) => {
+        onCheckout(storeSlug)
     }
 
     const showStatus =
@@ -90,154 +103,194 @@ export default function HomeBag({
                 }}
             >
                 <div
-                    className="flex items-center gap-2 p-2"
+                    className="flex flex-col gap-1 p-2"
                     onClick={onToggleExpanded}
                 >
-                    <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
-                    >
-                        <ShoppingBag size={18} />
-                    </div>
-
                     <div className="flex items-center gap-2">
-                        {totalItems > 0 ? (
-                            <>
-                                <span
-                                    className="font-bold text-sm"
-                                    style={{
-                                        color: textColor,
-                                        display: 'inline-block',
-                                        transform: animate ? 'scale(1.3)' : 'scale(1)',
-                                        transition: 'transform 0.2s ease',
-                                    }}
-                                >
-                                    {totalItems}
-                                </span>
+                        <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
+                        >
+                            <ShoppingBag size={18} />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {totalItems > 0 ? (
+                                <>
+                                    <span
+                                        className="font-bold text-sm"
+                                        style={{
+                                            color: textColor,
+                                            display: 'inline-block',
+                                            transform: animate ? 'scale(1.3)' : 'scale(1)',
+                                            transition: 'transform 0.2s ease',
+                                        }}
+                                    >
+                                        {totalItems}
+                                    </span>
+                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                        {totalItems === 1 ? 'item' : 'itens'}
+                                    </span>
+                                    <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
+                                        {formatPrice(totalValue)}
+                                    </span>
+                                </>
+                            ) : (
                                 <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                    {totalItems === 1 ? 'item' : 'itens'}
+                                    Vazio
                                 </span>
-                                <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
-                                    {formatPrice(totalValue)}
-                                </span>
-                            </>
-                        ) : (
-                            <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                Vazio
-                            </span>
-                        )}
+                            )}
+                        </div>
+
+                        <div className="ml-auto flex items-center">
+                            <svg
+                                className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                                style={{ color: colors.textSecondary }}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
 
-                    <div className="ml-auto flex items-center">
-                        <svg
-                            className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                            style={{ color: colors.textSecondary }}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    {/* Card mais detalhado: nomes das lojas presentes na sacola */}
+                    {!isExpanded && storeGroups.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pl-12">
+                            {storeGroups.map((group) => (
+                                <span
+                                    key={group.storeSlug}
+                                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full truncate max-w-[140px]"
+                                    style={{ background: `${colors.border}40`, color: colors.textSecondary }}
+                                >
+                                    {group.storeName}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {isExpanded && (
-                    <div className="border-t px-2 py-2 max-h-64 overflow-y-auto" style={{ borderColor: colors.border }}>
+                    <div className="border-t px-2 py-2 max-h-80 overflow-y-auto" style={{ borderColor: colors.border }}>
                         {items.length === 0 ? (
                             <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
                                 Nenhum item na sacola
                             </p>
                         ) : (
-                            <div className="space-y-2">
-                                {items.map((item) => (
-                                    <div
-                                        key={`${item.storeSlug}:${item.product.id}`}
-                                        className="flex items-center gap-2 p-1.5 rounded-lg"
-                                        style={{ background: `${colors.surface}66` }}
-                                    >
-                                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
-                                            {item.product.image_url ? (
-                                                <img
-                                                    src={item.product.image_url}
-                                                    alt={item.product.name}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
-                                            )}
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium truncate" style={{ color: textColor }}>
-                                                {item.product.name}
+                            <div className="space-y-3">
+                                {storeGroups.map((group) => {
+                                    const groupTotal = group.items.reduce(
+                                        (sum, item) => sum + item.product.price * item.quantity,
+                                        0
+                                    )
+                                    return (
+                                        <div
+                                            key={group.storeSlug}
+                                            className="rounded-xl p-2"
+                                            style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
+                                        >
+                                            <p
+                                                className="text-[10px] font-black uppercase tracking-wide mb-1.5 px-0.5"
+                                                style={{ color: colors.accent }}
+                                            >
+                                                {group.storeName}
                                             </p>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold" style={{ color: '#f97316' }}>
-                                                    {formatPrice(item.product.price)}
-                                                </span>
-                                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                    x{item.quantity}
-                                                </span>
+
+                                            <div className="space-y-2">
+                                                {group.items.map((item) => (
+                                                    <div
+                                                        key={`${item.storeSlug}:${item.product.id}`}
+                                                        className="flex items-center gap-2 p-1.5 rounded-lg"
+                                                        style={{ background: `${colors.surface}66` }}
+                                                    >
+                                                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                                                            {item.product.image_url ? (
+                                                                <img
+                                                                    src={item.product.image_url}
+                                                                    alt={item.product.name}
+                                                                    className="w-full h-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-lg">📦</div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-medium truncate" style={{ color: textColor }}>
+                                                                {item.product.name}
+                                                            </p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-bold" style={{ color: '#f97316' }}>
+                                                                    {formatPrice(item.product.price)}
+                                                                </span>
+                                                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                    x{item.quantity}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    if (item.quantity <= 1) {
+                                                                        onRemove(item)
+                                                                    } else {
+                                                                        onDecrease(item)
+                                                                    }
+                                                                }}
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
+                                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                                            >
+                                                                <Minus size={10} />
+                                                            </button>
+                                                            <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
+                                                                {item.quantity}
+                                                            </span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    onIncrease(item)
+                                                                }}
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
+                                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                                            >
+                                                                <Plus size={10} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    onRemove(item)
+                                                                }}
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                                                style={{ background: '#ef4444', color: '#ffffff' }}
+                                                            >
+                                                                <Trash2 size={10} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <p className="text-[9px] truncate" style={{ color: colors.textSecondary }}>
-                                                {item.storeName}
-                                            </p>
-                                        </div>
 
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    if (item.quantity <= 1) {
-                                                        onRemove(item)
-                                                    } else {
-                                                        onDecrease(item)
-                                                    }
-                                                }}
-                                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
-                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                            >
-                                                <Minus size={10} />
-                                            </button>
-                                            <span className="text-xs font-bold min-w-[16px] text-center" style={{ color: '#f97316' }}>
-                                                {item.quantity}
-                                            </span>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    onIncrease(item)
-                                                }}
-                                                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
-                                                style={{ background: GRADIENT, color: '#ffffff' }}
-                                            >
-                                                <Plus size={10} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    onRemove(item)
-                                                }}
-                                                className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                                style={{ background: '#ef4444', color: '#ffffff' }}
-                                            >
-                                                <Trash2 size={10} />
-                                            </button>
+                                            <div className="pt-2 mt-2 border-t flex items-center justify-between" style={{ borderColor: colors.border }}>
+                                                <span className="text-xs font-bold" style={{ color: textColor }}>
+                                                    Total: {formatPrice(groupTotal)}
+                                                </span>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleCheckout(group.storeSlug)
+                                                    }}
+                                                    className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
+                                                    style={{ background: GRADIENT, color: '#ffffff' }}
+                                                >
+                                                    Finalizar
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-
-                                <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: colors.border }}>
-                                    <span className="text-xs font-bold" style={{ color: textColor }}>
-                                        Total: {formatPrice(totalValue)}
-                                    </span>
-                                    <button
-                                        onClick={handleCheckout}
-                                        className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
-                                        style={{ background: GRADIENT, color: '#ffffff' }}
-                                    >
-                                        Finalizar
-                                    </button>
-                                </div>
+                                    )
+                                })}
                             </div>
                         )}
                     </div>

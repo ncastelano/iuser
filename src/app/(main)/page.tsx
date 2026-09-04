@@ -931,9 +931,9 @@ export default function HomePage() {
                                             onIncrease={handleBagIncrease}
                                             onDecrease={handleBagDecrease}
                                             onRemove={handleBagRemove}
-                                            onCheckout={() => {
+                                            onCheckout={(storeSlug) => {
                                                 setIsBagExpanded(false)
-                                                router.push('/sacola')
+                                                router.push(`/${storeSlug}/catalogo`)
                                             }}
                                             statusCounts={{
                                                 pending: pendingCount,
