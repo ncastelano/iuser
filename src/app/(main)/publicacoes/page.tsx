@@ -11,7 +11,6 @@ import {
     List,
     ChevronLeft,
     ChevronRight,
-    Loader2,
     AlertCircle,
     Eye,
     Clock,
@@ -26,6 +25,7 @@ import {
     Megaphone,
     MessageSquare,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { toast } from 'sonner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
@@ -835,7 +835,7 @@ export default function AllPublicationsPage() {
                                             className="flex justify-center py-8 mt-6"
                                         >
                                             {loadingMore ? (
-                                                <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                                                <Spinner size={32} color={colors.accent} />
                                             ) : (
                                                 <div className="h-8" />
                                             )}

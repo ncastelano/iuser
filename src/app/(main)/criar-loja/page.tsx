@@ -22,11 +22,11 @@ import {
   MoveVertical,
   Hash,
   FileText,
-  Loader2,
   MessageCircle,
   Shield,
   Info,
 } from "lucide-react";
+import { Spinner } from '@/components/Spinner'
 import { toast } from "sonner";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import { createSquareImage } from "@/lib/image";
@@ -876,7 +876,7 @@ export default function CriarLoja() {
                   }}
                   title="Usar GPS"
                 >
-                  {usingGPS ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  {usingGPS ? <Spinner size={14} /> : <Navigation size={14} />}
                   <span className="hidden sm:inline">GPS</span>
                 </button>
               </div>
@@ -891,7 +891,7 @@ export default function CriarLoja() {
 
                 {!mapReady && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-                    <Loader2 size={24} className="animate-spin" style={{ color: '#f97316' }} />
+                    <Spinner size={24} color='#f97316' />
                   </div>
                 )}
               </div>

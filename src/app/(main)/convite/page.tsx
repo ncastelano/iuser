@@ -12,7 +12,6 @@ import {
     ArrowRight,
     CheckCircle2,
     Crown,
-    Loader2,
     AlertTriangle,
     Home,
     Send,
@@ -28,6 +27,7 @@ import {
     Rocket,
     TrendingUp,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 
 function hexToRgb(hex: string) {
@@ -275,10 +275,7 @@ function ConviteContent() {
             >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4">
                     <div className="text-center">
-                        <Loader2
-                            className="w-12 h-12 animate-spin mx-auto mb-4"
-                            style={{ color: accentColor }}
-                        />
+                        <Spinner size={48} color={accentColor} className="mx-auto mb-4" />
                         <p className="text-sm" style={{ color: textSecondary }}>
                             Carregando convite...
                         </p>
@@ -632,7 +629,7 @@ function ConviteContent() {
                             >
                                 {actionLoading ? (
                                     <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <Spinner size={16} />
                                         Processando...
                                     </>
                                 ) : (
@@ -729,7 +726,7 @@ function ConviteContent() {
                                     >
                                         {actionLoading ? (
                                             <>
-                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <Spinner size={16} />
                                                 Conectando...
                                             </>
                                         ) : (
@@ -806,10 +803,7 @@ export default function ConvitePage() {
             >
                 <div className="relative z-10 flex-1 flex items-center justify-center px-4">
                     <div className="text-center">
-                        <Loader2
-                            className="w-12 h-12 animate-spin mx-auto mb-4"
-                            style={{ color: colors.accent }}
-                        />
+                        <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
                         <p className="text-sm" style={{ color: colors.textSecondary }}>
                             Carregando convite...
                         </p>

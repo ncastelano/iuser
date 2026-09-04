@@ -14,13 +14,13 @@ import {
     Eye,
     ShoppingBag,
     Coffee,
-    Loader2,
     AlertCircle,
     ChevronLeft,
     ChevronRight as ChevronRightIcon,
     Megaphone,
     PlusCircle,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Link from 'next/link'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -536,7 +536,7 @@ export default function ListaCategoriaPage() {
                 <section className="px-4 md:px-6 mt-2 pb-24">
                     {loadingData && (
                         <div className="flex justify-center py-20">
-                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                            <Spinner size={32} color={colors.accent} />
                         </div>
                     )}
 

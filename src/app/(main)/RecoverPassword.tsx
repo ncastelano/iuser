@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { Mail, ArrowLeft, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 
 function hexToRgb(hex: string) {
@@ -271,7 +272,7 @@ export default function RecoverPassword({ onBack, onSuccess }: RecoverPasswordPr
                             >
                                 {loading ? (
                                     <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <Spinner size={20} />
                                         Enviando...
                                     </>
                                 ) : (

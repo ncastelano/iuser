@@ -7,6 +7,7 @@ import { FontLoader } from '@/components/FontLoader'
 import { OrderNotification } from '@/components/OrderNotification'
 import { PwaCleanup } from '@/components/PwaCleanup'
 import { PushNotificationSetup } from '@/components/PushNotificationSetup'
+import { NavigationProgressBar } from '@/components/NavigationProgressBar'
 import { Toaster } from 'sonner'
 import { ProfileProvider } from './contexts/ProfileContext'
 
@@ -16,6 +17,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ProfileProvider>
+        <NavigationProgressBar />
         <FontLoader />
         <OrderNotification />
         <PwaCleanup />

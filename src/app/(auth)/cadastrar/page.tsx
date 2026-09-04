@@ -18,7 +18,6 @@ import {
   Sparkles,
   Eye,
   EyeOff,
-  Loader2,
   ShoppingBag,
   Briefcase,
   BookOpen,
@@ -30,6 +29,7 @@ import {
   Percent,
   Home,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 
@@ -608,7 +608,7 @@ function RegisterContent() {
               }}
             >
               {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Spinner size={20} />
               ) : (
                 <>
                   Criar minha conta

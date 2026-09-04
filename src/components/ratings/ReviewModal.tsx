@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Star, X, Loader2, User, UserCheck } from 'lucide-react'
+import { Star, X, User, UserCheck } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -128,7 +129,7 @@ export function ReviewModal({ isOpen, onClose, orderId, productId, productName, 
                         disabled={loading}
                         className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-2xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                        {loading ? <Loader2 className="animate-spin" size={18} /> : 'Enviar Avaliação'}
+                        {loading ? <Spinner size={18} /> : 'Enviar Avaliação'}
                     </button>
                 </div>
             </div>

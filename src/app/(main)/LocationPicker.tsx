@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/app/theme'
-import { MapPin, X, Check, Navigation, Loader2, Search, Home, MoveVertical, Hash, FileText, AlertCircle } from 'lucide-react'
+import { MapPin, X, Check, Navigation, Search, Home, MoveVertical, Hash, FileText, AlertCircle } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 
@@ -557,7 +558,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         color: colors.textPrimary,
                     }}
                 >
-                    <Loader2 size={32} className="animate-spin" style={{ color: colors.accent }} />
+                    <Spinner size={32} color={colors.accent} />
                     <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
                         Verificando autenticação...
                     </p>
@@ -640,7 +641,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                             }}
                             title="Usar GPS"
                         >
-                            {usingGPS ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                            {usingGPS ? <Spinner size={14} color="#f97316" /> : <Navigation size={14} />}
                             <span className="hidden sm:inline">GPS</span>
                         </button>
                     </div>
@@ -659,7 +660,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         <div ref={mapContainerRef} className="w-full h-full" />
                         {!mapReady && (
                             <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                <Loader2 size={24} className="animate-spin" style={{ color: '#f97316' }} />
+                                <Spinner size={24} color="#f97316" />
                             </div>
                         )}
                     </div>

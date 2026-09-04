@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { Spinner } from '@/components/Spinner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import {
     AlertTriangle,
@@ -684,7 +685,7 @@ export function Store({
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: colors.accent }}></div>
+                <Spinner size={48} color={colors.accent} />
             </div>
         )
     }
@@ -1491,7 +1492,7 @@ export function Store({
 
                         {pubLoading ? (
                             <div className="flex justify-center py-8">
-                                <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                                <Spinner size={24} color="#f97316" />
                             </div>
                         ) : publications.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{
@@ -1700,7 +1701,7 @@ export function Store({
                                         }}
                                     >
                                         {pubSaving ? (
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            <Spinner size={16} color="#ffffff" />
                                         ) : (
                                             <>
                                                 <Send size={14} />

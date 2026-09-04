@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase/client'
-import { X, Calendar, Clock, CheckCircle2, Loader2 } from 'lucide-react'
+import { X, Calendar, Clock, CheckCircle2 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 
 interface ScheduleModalProps {
     isOpen: boolean
@@ -229,7 +230,7 @@ export function ScheduleModal({ isOpen, onClose, onSuccess, store }: ScheduleMod
                                     : 'bg-primary text-primary-foreground hover:scale-[1.02] shadow-primary/20'
                                     }`}
                             >
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Clock className="w-5 h-5" />}
+                                {loading ? <Spinner size={20} /> : <Clock className="w-5 h-5" />}
                                 {loading ? 'Enviando...' : 'Confirmar Agendamento'}
                             </button>
                         </div>

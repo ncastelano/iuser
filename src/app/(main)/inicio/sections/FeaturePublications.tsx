@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 're
 import { ChevronLeft, ChevronRight, Store, ArrowRight, UserCircle } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 
@@ -229,6 +230,7 @@ export default function FeaturedPublications({
     onPublicationClick,
 }: FeaturedPublicationsProps) {
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -317,6 +319,7 @@ export default function FeaturedPublications({
             onPublicationClick(pub.id, pub.slug)
             return
         }
+        startNavProgress()
         if (pub.slug) {
             router.push(`/publicacoes/${pub.slug}`)
         } else {
@@ -326,6 +329,7 @@ export default function FeaturedPublications({
 
     // ===== HANDLE "VER TODOS" =====
     const handleViewAll = () => {
+        startNavProgress()
         router.push('/publicacoes')
     }
 

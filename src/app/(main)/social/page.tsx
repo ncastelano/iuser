@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 import {
     ChevronRight,
-    Loader2,
     AlertCircle,
     User,
     MapPin,
@@ -18,6 +17,7 @@ import {
     X,
     Search,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import Link from 'next/link'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
@@ -371,7 +371,7 @@ export default function SocialList() {
                     {/* Results */}
                     {loadingData && (
                         <div className="flex justify-center py-20">
-                            <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                            <Spinner size={32} color={colors.accent} />
                         </div>
                     )}
 

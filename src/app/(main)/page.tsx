@@ -24,6 +24,7 @@ import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import HomeBag, { type HomeBagItem } from './HomeBag'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
@@ -120,6 +121,7 @@ export interface StoreInfo {
 
 export default function HomePage() {
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const {
         profileSlug,
         avatarUrl,
@@ -575,6 +577,7 @@ export default function HomePage() {
                         title="Lojas Mais Visitadas"
                         maxItems={5}
                         onStoreClick={(storeSlug) => {
+                            startNavProgress()
                             router.push(`/${storeSlug}`)
                         }}
                     />
@@ -691,7 +694,7 @@ export default function HomePage() {
                 icon: Store,
                 imageUrl: null,
                 onClick: isLoggedIn
-                    ? () => router.push('/criar-loja')
+                    ? () => { startNavProgress(); router.push('/criar-loja') }
                     : () => setShowCreateStore(true),
                 isActive: !isLoggedIn && showCreateStore,
             })
@@ -837,6 +840,7 @@ export default function HomePage() {
                                                 if (item.url) {
                                                     setSearchFocused(false)
                                                     setSearchQuery('')
+                                                    startNavProgress()
                                                     setTimeout(() => {
                                                         router.push(item.url)
                                                     }, 50)
@@ -897,7 +901,7 @@ export default function HomePage() {
                         <div className="flex items-end">
                             {shouldShowSacola && (
                                 <button
-                                    onClick={() => router.push('/radar')}
+                                    onClick={() => { startNavProgress(); router.push('/radar') }}
                                     className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
                                     style={{
                                         background: RADAR_GRADIENT,
@@ -934,6 +938,7 @@ export default function HomePage() {
                                             onRemove={handleBagRemove}
                                             onCheckout={(storeSlug) => {
                                                 setIsBagExpanded(false)
+                                                startNavProgress()
                                                 router.push(`/${storeSlug}/catalogo`)
                                             }}
                                             statusCounts={{

@@ -2,7 +2,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, X, Loader2, MapPin, Users } from 'lucide-react'
+import { Check, X, MapPin, Users } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -202,7 +203,7 @@ export default function MyOpenServiceRequests({ limit = 5, title }: MyOpenServic
 
                                             {c.status === 'pending' ? (
                                                 decidingId === c.applicationId ? (
-                                                    <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: colors.textSecondary }} />
+                                                    <Spinner size={12} color={colors.textSecondary} className="flex-shrink-0" />
                                                 ) : (
                                                     <div className="flex items-center gap-1 flex-shrink-0">
                                                         <button

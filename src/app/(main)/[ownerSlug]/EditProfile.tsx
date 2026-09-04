@@ -21,9 +21,9 @@ import {
     Hash,
     FileText,
     Home,
-    Loader2,
     Plus,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { formatBrazilianPhone, cleanPhoneNumber, geocodeAddress, reverseGeocode } from './Profile'
 
 interface OwnerData {
@@ -787,7 +787,7 @@ export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: Edit
                                 }}
                                 title="Usar GPS"
                             >
-                                {pickerUsingGPS ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                                {pickerUsingGPS ? <Spinner size={14} /> : <Navigation size={14} />}
                                 <span className="hidden sm:inline">GPS</span>
                             </button>
                         </div>
@@ -805,7 +805,7 @@ export function EditProfile({ owner, imageUrl, colors, onClose, onUpdate }: Edit
                             <div ref={mapContainerRef} className="w-full h-full" />
                             {!mapReady && (
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                    <Loader2 size={24} className="animate-spin" style={{ color: '#f97316' }} />
+                                    <Spinner size={24} color='#f97316' />
                                 </div>
                             )}
                         </div>

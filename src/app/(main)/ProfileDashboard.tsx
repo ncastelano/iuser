@@ -29,12 +29,12 @@ import {
     ExternalLink,
     AlertCircle,
     Check,
-    Loader2,
     BarChart3,
     ChevronLeft,
     ChevronRight,
     TrendingUp,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
@@ -1451,7 +1451,7 @@ export default function ProfileDashboard({
                                     boxShadow: `0 4px 12px #f9731640`,
                                 }}
                             >
-                                {savingWhatsApp ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+                                {savingWhatsApp ? <Spinner size={16} /> : 'Salvar'}
                             </button>
                         </div>
 

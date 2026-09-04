@@ -4,7 +4,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { X, Users, UserCheck, UserPlus, Search, Loader2, User, ArrowLeft } from 'lucide-react'
+import { X, Users, UserCheck, UserPlus, Search, User, ArrowLeft } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { toast } from 'sonner'
 
@@ -333,7 +334,7 @@ export function Follows({
                 >
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
-                            <Loader2 size={32} className="animate-spin" style={{ color: '#f97316' }} />
+                            <Spinner size={32} color='#f97316' />
                             <p className="text-sm" style={{ color: colors.textSecondary }}>
                                 Carregando {type === 'followers' ? 'seguidores' : 'seguindo'}...
                             </p>
@@ -451,7 +452,7 @@ export function Follows({
                             {/* Loading more */}
                             {loadingMore && (
                                 <div className="flex justify-center py-4">
-                                    <Loader2 size={24} className="animate-spin" style={{ color: '#f97316' }} />
+                                    <Spinner size={24} color='#f97316' />
                                 </div>
                             )}
 

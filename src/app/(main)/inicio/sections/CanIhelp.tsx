@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ReactNode, useEffect, useState } from 'react'
 import { useTheme } from '@/app/theme'
 import { categorias, type Categoria } from '@/lib/categorias'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -48,6 +49,7 @@ function bumpClickCount(slug: string) {
 
 export default function CanIhelp({ dragHandle }: CanIhelpProps) {
     const { colors } = useTheme()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const surfaceRgb = hexToRgb(colors.surface)
     const cardBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`
 
@@ -89,7 +91,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                             <Link
                                 key={cat.slug}
                                 href={href}
-                                onClick={() => bumpClickCount(cat.slug)}
+                                onClick={() => { bumpClickCount(cat.slug); startNavProgress() }}
                                 className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
                                 style={{
                                     background: 'transparent',

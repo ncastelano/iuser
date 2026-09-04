@@ -4,7 +4,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { MapPin, Pencil, Trash2, ArrowLeft, Loader2, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText, ChevronDown, ChevronUp, CreditCard, Wallet, Phone, Truck, LocateFixed } from 'lucide-react'
+import { MapPin, Pencil, Trash2, ArrowLeft, CheckCircle2, Store, Sparkles, Zap, Clock, Search, Navigation, X, Home, MoveVertical, Hash, FileText, ChevronDown, ChevronUp, CreditCard, Wallet, Phone, Truck, LocateFixed } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
@@ -1199,7 +1200,7 @@ export default function EditarLoja() {
                         {/* Botões */}
                         <div className="pt-4 space-y-3">
                             <button onClick={handleUpdate} disabled={loading || slugStatus === 'taken'} className="group relative w-full bg-gradient-to-r from-orange-500 to-red-500 text-white py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                                {loading ? <Spinner size={20} /> : <CheckCircle2 className="w-5 h-5" />}
                                 {loading ? 'Salvando...' : 'Salvar Alterações'}
                             </button>
                             <button onClick={handleDelete} disabled={loading} className="w-full bg-red-50 hover:bg-red-500 text-red-500 hover:text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-wider border-2 border-red-200 hover:border-red-500 transition-all flex items-center justify-center gap-2">
@@ -1235,7 +1236,7 @@ export default function EditarLoja() {
 
                         <div className="relative w-full h-52 sm:h-60 rounded-xl overflow-hidden mb-3 border-2 border-orange-200 bg-gray-100">
                             <div ref={mapContainerRef} className="w-full h-full" />
-                            {!mapReady && <div className="absolute inset-0 flex items-center justify-center bg-gray-100"><Loader2 size={24} className="animate-spin text-orange-500" /></div>}
+                            {!mapReady && <div className="absolute inset-0 flex items-center justify-center bg-gray-100"><Spinner size={24} color='#f97316' /></div>}
                         </div>
 
                         <div className="space-y-2 mb-3">

@@ -29,11 +29,11 @@ import {
     Camera,
 
     User,
-    Loader2,
 
     Send,
     LogIn,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import { getAvatarUrl } from '@/lib/avatar'
 import { usePublicationsStore } from '@/store/usePublicationStore'
@@ -1219,7 +1219,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     }}
                                 >
                                     {(type === 'profile' ? submittingComment : submittingPubComment) ? (
-                                        <Loader2 size={16} className="animate-spin" />
+                                        <Spinner size={16} />
                                     ) : (
                                         <Send size={16} />
                                     )}
@@ -1858,7 +1858,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
                                     }}
                                 >
                                     {submittingComment ? (
-                                        <Loader2 size={16} className="animate-spin" />
+                                        <Spinner size={16} />
                                     ) : (
                                         <Send size={16} />
                                     )}
@@ -1885,7 +1885,7 @@ export function Profile({ ownerSlug, colors, bgMode, customBgUrl, loggedUserSlug
 
                         {loadingComments ? (
                             <div className="flex justify-center py-8">
-                                <Loader2 className="animate-spin" size={24} style={{ color: colors.textSecondary }} />
+                                <Spinner size={24} color={colors.textSecondary} />
                             </div>
                         ) : profileComments.length === 0 ? (
                             <div className="py-10 text-center rounded-xl" style={{

@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { Star, Clock, Search, Loader2, Package, ChevronRight } from 'lucide-react'
+import { Star, Clock, Search, Package, ChevronRight } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { addRecentClick } from '@/components/LastSearched'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -327,7 +328,7 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
             {loading && (
                 <div className="flex justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: colors.accent }} />
+                    <Spinner size={24} color={colors.accent} />
                 </div>
             )}
 

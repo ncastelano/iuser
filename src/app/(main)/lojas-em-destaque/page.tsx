@@ -14,11 +14,11 @@ import {
     Eye,
     ShoppingBag,
     Coffee,
-    Loader2,
     AlertCircle,
     Megaphone,
     Search,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import {
@@ -774,7 +774,7 @@ export default function AllStoreList() {
                                             className="flex justify-center py-8 mt-4"
                                         >
                                             {loadingMore ? (
-                                                <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                                                <Spinner size={32} color={colors.accent} />
                                             ) : (
                                                 <div className="h-8" />
                                             )}

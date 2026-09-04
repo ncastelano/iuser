@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 're
 import { ChevronLeft, ChevronRight, UserCircle, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 import { getAvatarUrl } from '@/lib/avatar'
 
@@ -118,6 +119,7 @@ export default function FeaturedProfiles({
     onProfileClick,
 }: FeaturedProfilesProps) {
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -206,11 +208,13 @@ export default function FeaturedProfiles({
             onProfileClick(profile.id, profile.slug)
             return
         }
+        startNavProgress()
         router.push(`/${profile.slug}`)
     }
 
     // ===== HANDLE "VER TODOS" =====
     const handleViewAll = () => {
+        startNavProgress()
         router.push('/social')
     }
 

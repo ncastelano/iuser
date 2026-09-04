@@ -3,6 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Briefcase, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import {
@@ -37,6 +38,7 @@ interface LookForAServiceProps {
 export default function LookForAService({ dragHandle, onBreveStatusChange }: LookForAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const [openItems, setOpenItems] = useState<BoardItem[]>([])
 
     useEffect(() => {
@@ -106,7 +108,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                     </div>
 
                     <button
-                        onClick={() => router.push('/procurar-servico')}
+                        onClick={() => { startNavProgress(); router.push('/procurar-servico') }}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                         style={buttonStyle}
                     >
@@ -122,7 +124,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                             return (
                                 <button
                                     key={itemKey(item)}
-                                    onClick={() => router.push('/procurar-servico')}
+                                    onClick={() => { startNavProgress(); router.push('/procurar-servico') }}
                                     className="text-left rounded-2xl p-3 flex-shrink-0 w-48 transition-transform hover:scale-[1.02]"
                                     style={{
                                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.35)`,

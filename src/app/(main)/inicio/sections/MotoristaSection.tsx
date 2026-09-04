@@ -3,6 +3,7 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { Car, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { getRecentRideDestinations, RecentRideDestination } from '@/lib/recentRideDestinations'
@@ -34,6 +35,7 @@ interface MotoristaSectionProps {
 export default function MotoristaSection({ dragHandle, onBreveStatusChange }: MotoristaSectionProps) {
     const { colors } = useTheme()
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const [recentDestinations, setRecentDestinations] = useState<RecentRideDestination[]>([])
 
     useEffect(() => {
@@ -50,6 +52,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
             params.set('lng', String(destination.coords[0]))
             params.set('lat', String(destination.coords[1]))
         }
+        startNavProgress()
         router.push(`/pedir-motorista?${params.toString()}`)
     }
 
@@ -113,7 +116,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                     </div>
 
                     <button
-                        onClick={() => router.push('/pedir-motorista')}
+                        onClick={() => { startNavProgress(); router.push('/pedir-motorista') }}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                         style={buttonStyle}
                     >

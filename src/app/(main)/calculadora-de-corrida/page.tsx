@@ -12,7 +12,6 @@ import {
     MapPin,
     Navigation,
     X,
-    Loader2,
     Target,
     ChevronDown,
     ChevronUp,
@@ -31,6 +30,7 @@ import {
     Sparkles,
     Info,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import type { Map as LeafletMap, Marker } from 'leaflet'
 
@@ -1043,7 +1043,7 @@ export default function CalculoDeCorridaPage() {
                     <AnimatedBackgroundiUser bgMode={bgMode} customBgUrl={customBgUrl} />
                 </div>
                 <div className="relative z-10 flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.accent }} />
+                    <Spinner size={32} color={colors.accent} />
                     <p className="text-sm" style={{ color: textSecondary }}>
                         Carregando calculadora...
                     </p>
@@ -1094,7 +1094,7 @@ export default function CalculoDeCorridaPage() {
 
                     {reverseGeocodingState && (
                         <div className="mb-2 p-2 px-3 rounded-xl flex items-center gap-2 text-xs bg-orange-500/10 text-orange-600 border border-orange-500/20 animate-pulse">
-                            <Loader2 size={14} className="animate-spin" />
+                            <Spinner size={14} />
                             <span>Atualizando endereço da <b>{reverseGeocodingState}</b>...</span>
                         </div>
                     )}
@@ -1110,7 +1110,7 @@ export default function CalculoDeCorridaPage() {
                             <div ref={mapContainerRef} className="w-full h-full" />
                             {isMapLoading && (
                                 <div className="absolute inset-0 flex items-center justify-center" style={{ background: colors.surface }}>
-                                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: colors.accent }} />
+                                    <Spinner size={24} color={colors.accent} />
                                 </div>
                             )}
                         </div>
@@ -1583,7 +1583,7 @@ export default function CalculoDeCorridaPage() {
                                     className="hover:scale-[1.01] transition-all active:scale-98 disabled:cursor-not-allowed mt-2 shadow-lg"
                                 >
                                     {calculating ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <Spinner size={20} />
                                     ) : (
                                         <>
                                             <Calculator size={18} />

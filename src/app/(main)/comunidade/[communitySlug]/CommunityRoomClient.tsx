@@ -22,8 +22,8 @@ import {
     UserCheck,
     LogIn,
     MessageCircle,
-    Loader2,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -273,7 +273,7 @@ export default function CommunityRoomClient() {
                             }
                         >
                             {joining ? (
-                                <Loader2 size={14} className="animate-spin" />
+                                <Spinner size={14} />
                             ) : isMember ? (
                                 <UserCheck size={14} />
                             ) : (
@@ -374,7 +374,7 @@ export default function CommunityRoomClient() {
                                 className="px-4 py-2.5 rounded-xl transition-all hover:scale-105 disabled:opacity-50 flex items-center justify-center"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
-                                {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                {sending ? <Spinner size={18} /> : <Send size={18} />}
                             </button>
                         </div>
                     )}

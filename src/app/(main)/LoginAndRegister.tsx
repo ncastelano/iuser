@@ -17,9 +17,9 @@ import {
     Sparkles,
     Eye,
     EyeOff,
-    Loader2,
     LogIn,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import RecoverPassword from './RecoverPassword'
 import { checkSlugAvailability } from '@/lib/slugUtils'
@@ -475,7 +475,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                                     }}
                                 >
                                     {loginLoading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <Spinner size={20} />
                                     ) : (
                                         <>
                                             Entrar
@@ -676,7 +676,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                                     }}
                                 >
                                     {registerLoading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <Spinner size={20} />
                                     ) : (
                                         <>
                                             Criar meu perfil

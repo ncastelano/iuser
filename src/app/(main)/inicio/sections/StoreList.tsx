@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, ReactNode, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import {
     Store,
     MapPin,
@@ -13,7 +14,6 @@ import {
     Eye,
     ShoppingBag,
     Coffee,
-    Loader2,
     AlertCircle,
     ChevronLeft,
     ChevronRight as ChevronRightIcon,
@@ -396,6 +396,7 @@ export function StoreList({
     dragHandle,
 }: StoreListProps) {
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
     const isMountedRef = useRef(true)
     const abortControllerRef = useRef<AbortController | null>(null)
@@ -682,6 +683,7 @@ export function StoreList({
         if (onStoreClick) {
             onStoreClick(storeSlug)
         } else {
+            startNavProgress()
             router.push(`/${storeSlug}`)
         }
     }
@@ -774,7 +776,7 @@ export function StoreList({
                 {/* Botão "Ver todos" estilo PILLS - aparece APENAS se houver produtos */}
                 {hasAnyProduct && (
                     <button
-                        onClick={() => router.push('/lojas-em-destaque')}
+                        onClick={() => { startNavProgress(); router.push('/lojas-em-destaque') }}
                         className="flex items-center gap-2 px-5 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 hover:shadow-lg whitespace-nowrap"
                         style={{
                             background: GRADIENT,

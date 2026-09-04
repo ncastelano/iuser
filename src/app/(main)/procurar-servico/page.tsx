@@ -10,7 +10,8 @@ import Header from '@/app/Header'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
-import { Briefcase, MapPin, Loader2, Plus } from 'lucide-react'
+import { Briefcase, MapPin, Plus } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import {
     BoardItem,
     fetchOpenBoardItems,
@@ -128,7 +129,7 @@ export default function SerParceiroPage() {
                 <section className="px-4 md:px-6 mt-4 pb-24 max-w-lg mx-auto">
                     {loading && (
                         <div className="flex justify-center py-10">
-                            <Loader2 className="animate-spin" size={24} style={{ color: colors.textSecondary }} />
+                            <Spinner size={24} color={colors.textSecondary} />
                         </div>
                     )}
 
@@ -231,7 +232,7 @@ export default function SerParceiroPage() {
                                                 }
                                             >
                                                 {applyingKey === key ? (
-                                                    <Loader2 size={14} className="animate-spin" />
+                                                    <Spinner size={14} />
                                                 ) : applied ? (
                                                     'Candidatura enviada'
                                                 ) : (

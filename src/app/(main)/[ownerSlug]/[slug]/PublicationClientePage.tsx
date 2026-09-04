@@ -19,10 +19,10 @@ import {
     Send,
     LogIn,
     X,
-    Loader2,
     Trash2,
     UserCircle
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
@@ -580,7 +580,7 @@ export function PublicationClientPage({
                                     }}
                                 >
                                     {submittingComment ? (
-                                        <Loader2 size={16} className="animate-spin" />
+                                        <Spinner size={16} />
                                     ) : (
                                         <Send size={16} />
                                     )}
@@ -889,7 +889,7 @@ export function PublicationClientPage({
                                     }}
                                 >
                                     {submittingComment ? (
-                                        <Loader2 size={16} className="animate-spin" />
+                                        <Spinner size={16} />
                                     ) : (
                                         <Send size={16} />
                                     )}
@@ -917,7 +917,7 @@ export function PublicationClientPage({
                         {/* Lista de comentários */}
                         {loadingComments ? (
                             <div className="flex justify-center py-8">
-                                <Loader2 className="animate-spin" size={24} style={{ color: colors.textSecondary }} />
+                                <Spinner size={24} color={colors.textSecondary} />
                             </div>
                         ) : comments.length === 0 ? (
                             <div className="py-8 text-center rounded-xl" style={{

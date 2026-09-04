@@ -17,7 +17,6 @@ import {
     Briefcase,
     MapPin,
     MapPinPlus,
-    Loader2,
     CheckCircle2,
     ArrowLeft,
     Search,
@@ -27,6 +26,7 @@ import {
     History,
     Plus,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -588,14 +588,14 @@ export default function PedirServicoPage() {
                         style={{ borderBottom: `1px solid ${colors.border}` }}
                     >
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                            {locating ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
+                            {locating ? <Spinner size={16} /> : <MapPinPlus size={16} />}
                         </div>
                         <span className="text-sm font-bold" style={{ color: colors.accent }}>Usar minha localização atual</span>
                     </button>
 
                     {searching && (
                         <div className="flex justify-center py-6">
-                            <Loader2 className="animate-spin" size={20} style={{ color: colors.textSecondary }} />
+                            <Spinner size={20} color={colors.textSecondary} />
                         </div>
                     )}
 
@@ -649,7 +649,7 @@ export default function PedirServicoPage() {
                             className="mt-2 w-full py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                             style={{ background: GRADIENT, color: '#fff' }}
                         >
-                            {submitting ? <Loader2 size={18} className="animate-spin" /> : <Wrench size={18} />}
+                            {submitting ? <Spinner size={18} /> : <Wrench size={18} />}
                             Entendi, confirmar pedido
                         </button>
                         <button
@@ -834,7 +834,7 @@ export default function PedirServicoPage() {
                                         style={inputStyle}
                                     />
                                     <button onClick={useMyLocation} className="flex-shrink-0" style={{ color: colors.accent }}>
-                                        {locating ? <Loader2 size={16} className="animate-spin" /> : <MapPinPlus size={16} />}
+                                        {locating ? <Spinner size={16} /> : <MapPinPlus size={16} />}
                                     </button>
                                 </div>
                             </div>
@@ -935,7 +935,7 @@ export default function PedirServicoPage() {
                                 className="w-full mt-4 py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
-                                {submitting ? <Loader2 size={18} className="animate-spin" /> : <Wrench size={18} />}
+                                {submitting ? <Spinner size={18} /> : <Wrench size={18} />}
                                 Pedir serviço
                             </button>
                         </>

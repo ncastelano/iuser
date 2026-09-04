@@ -15,12 +15,12 @@ import {
     MessageCircle,
     MapPin,
     Users,
-    Loader2,
     AlertCircle,
     ChevronRight,
     Plus,
     Compass,
 } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -199,7 +199,7 @@ export default function ComunidadePage() {
                     {/* Loading */}
                     {loadingData && (
                         <div className="flex justify-center py-12">
-                            <Loader2 className="animate-spin" size={28} style={{ color: colors.accent }} />
+                            <Spinner size={28} color={colors.accent} />
                         </div>
                     )}
 

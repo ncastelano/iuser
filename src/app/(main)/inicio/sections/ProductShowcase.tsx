@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
+import { useNavProgressStore } from '@/store/useNavProgressStore'
 import { supabase } from '@/lib/supabase/client'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
@@ -365,6 +366,7 @@ function getProductUrl(product: ProductCard) {
 
 export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const router = useRouter()
+    const startNavProgress = useNavProgressStore((s) => s.start)
     const { colors } = useTheme()
     const autoPlayRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -463,7 +465,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                         return (
                             <div
                                 key={`${product.id}-${idx}`}
-                                onClick={() => router.push(getProductUrl(product))}
+                                onClick={() => { startNavProgress(); router.push(getProductUrl(product)) }}
                                 className="group relative h-28 rounded-xl overflow-hidden border transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1 shadow-md flex flex-row items-stretch cursor-pointer"
                                 style={{
                                     borderColor: colors.border,

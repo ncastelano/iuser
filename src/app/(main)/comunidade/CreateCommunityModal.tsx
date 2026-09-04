@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { sanitizeSlug } from '@/lib/slugUtils'
 import { toast } from 'sonner'
-import { X, MessageCircle, Loader2 } from 'lucide-react'
+import { X, MessageCircle } from 'lucide-react'
+import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 const MAX_COMMUNITIES_PER_USER = 3
@@ -166,7 +167,7 @@ export default function CreateCommunityModal({ userId, defaultCity, onClose, onC
                         className="w-full py-3.5 rounded-xl font-black uppercase text-sm tracking-wider transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60 flex items-center justify-center gap-2"
                         style={{ background: GRADIENT, color: '#ffffff' }}
                     >
-                        {saving ? <Loader2 size={18} className="animate-spin" /> : 'Criar'}
+                        {saving ? <Spinner size={18} /> : 'Criar'}
                     </button>
                 </div>
             </div>
