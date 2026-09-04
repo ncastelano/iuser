@@ -23,7 +23,7 @@ import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
-import SacolaButton from '../ButtonSacola'
+import HomeBag, { type HomeBagItem } from './HomeBag'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
 import FeaturedPublications from './inicio/sections/FeaturePublications'
@@ -131,7 +131,7 @@ export default function HomePage() {
     } = useProfile()
 
     const { colors } = useTheme()
-    const { itemsByStore } = useCartStore()
+    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
 
     const [sections, setSections] = useState<string[]>(DEFAULT_SECTIONS)
     const [showConfig, setShowConfig] = useState(false)
@@ -140,6 +140,7 @@ export default function HomePage() {
     const [searchFocused, setSearchFocused] = useState(false)
     const [hasInteractedWithSearch, setHasInteractedWithSearch] = useState(false)
     const [cartAnimating, setCartAnimating] = useState(false)
+    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [stores, setStores] = useState<StoreInfo[]>([])
     const [showCreateStore, setShowCreateStore] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
@@ -177,17 +178,30 @@ export default function HomePage() {
     }, [itemsByStore])
 
     // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
-    const totalCartValue = useMemo(() => {
-        let total = 0
-        Object.values(itemsByStore).forEach(items => {
-            items.forEach(item => {
-                const price = item.product?.price || 0
-                const quantity = item.quantity || 1
-                total += Number(price) * quantity
-            })
-        })
-        return total
-    }, [itemsByStore])
+    // ===== SACOLA DA HOME: fusão dos itens de todas as lojas =====
+    const homeBagItems: HomeBagItem[] = useMemo(() => {
+        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
+            items.map((item) => ({
+                product: item.product,
+                quantity: item.quantity,
+                storeSlug,
+                storeName: storeDetails[storeSlug]?.name || storeSlug,
+            }))
+        )
+    }, [itemsByStore, storeDetails])
+
+    const handleBagIncrease = (item: HomeBagItem) => {
+        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
+        addItem(item.storeSlug, store, item.product)
+    }
+
+    const handleBagDecrease = (item: HomeBagItem) => {
+        updateQuantity(item.storeSlug, item.product.id, -1)
+    }
+
+    const handleBagRemove = (item: HomeBagItem) => {
+        removeItem(item.storeSlug, item.product.id)
+    }
 
     const [pendingCount, setPendingCount] = useState(0)
     const [preparingCount, setPreparingCount] = useState(0)
@@ -910,9 +924,17 @@ export default function HomePage() {
                                             <ShoppingCart size={24} style={{ color: '#ffffff' }} />
                                         </div>
                                     ) : (
-                                        <SacolaButton
-                                            totalItems={totalCartItems}
-                                            totalValue={totalCartValue}
+                                        <HomeBag
+                                            items={homeBagItems}
+                                            isExpanded={isBagExpanded}
+                                            onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                                            onIncrease={handleBagIncrease}
+                                            onDecrease={handleBagDecrease}
+                                            onRemove={handleBagRemove}
+                                            onCheckout={() => {
+                                                setIsBagExpanded(false)
+                                                router.push('/sacola')
+                                            }}
                                             statusCounts={{
                                                 pending: pendingCount,
                                                 preparing: preparingCount,
@@ -920,6 +942,7 @@ export default function HomePage() {
                                                 reviews: pendingReviewsCount,
                                             }}
                                             animate={cartAnimating}
+                                            colors={colors}
                                         />
                                     )}
                                 </div>
