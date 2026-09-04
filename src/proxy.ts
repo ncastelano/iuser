@@ -185,51 +185,38 @@ export async function proxy(request: NextRequest) {
         const secondSegment = segments[1]
         const restPath = segments.length > 2 ? `/${segments.slice(2).join('/')}` : ''
 
-        // Verifica se o primeiro segmento é um profileSlug
-        let cached = getFromCache(firstSegment)
+        // Slugs sao globalmente unicos (profile/loja/produto nunca colidem), entao
+        // qualquer tipo ja em cache resolve a rota sem tocar no banco de novo.
+        const cached = getFromCache(firstSegment)
         let isProfile = cached?.type === 'profile'
+        let isStore = cached?.type === 'store'
 
-        if (!isProfile) {
-            try {
-                const { data: profile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('profileSlug')
-                    .eq('profileSlug', firstSegment)
-                    .maybeSingle()
+        if (!cached) {
+            // Roda as duas checagens em paralelo em vez de uma depois da outra.
+            const [profileResult, storeResult] = await Promise.all([
+                supabaseAdmin.from('profiles').select('profileSlug').eq('profileSlug', firstSegment).maybeSingle(),
+                supabaseAdmin.from('stores').select('storeSlug').eq('storeSlug', firstSegment).maybeSingle(),
+            ])
 
-                if (profile) {
-                    setCache(firstSegment, 'profile')
-                    isProfile = true
-                }
-            } catch (error) {
-                console.error(`[Proxy] Erro ao verificar perfil ${firstSegment}:`, error)
+            if (profileResult.error) {
+                console.error(`[Proxy] Erro ao verificar perfil ${firstSegment}:`, profileResult.error)
+            }
+            if (storeResult.error) {
+                console.error(`[Proxy] Erro ao verificar loja ${firstSegment}:`, storeResult.error)
+            }
+
+            if (profileResult.data) {
+                setCache(firstSegment, 'profile')
+                isProfile = true
+            } else if (storeResult.data) {
+                setCache(firstSegment, 'store')
+                isStore = true
             }
         }
 
         if (isProfile) {
             console.log(`[Proxy] Perfil ${firstSegment} encontrado, permitindo rota: ${pathname} ✅`)
             return NextResponse.next()
-        }
-
-        // Verifica se o primeiro segmento é um storeSlug (rota direta de loja)
-        let cachedStore = getFromCache(firstSegment)
-        let isStore = cachedStore?.type === 'store'
-
-        if (!isStore) {
-            try {
-                const { data: store } = await supabaseAdmin
-                    .from('stores')
-                    .select('storeSlug')
-                    .eq('storeSlug', firstSegment)
-                    .maybeSingle()
-
-                if (store) {
-                    setCache(firstSegment, 'store')
-                    isStore = true
-                }
-            } catch (error) {
-                console.error(`[Proxy] Erro ao verificar loja ${firstSegment}:`, error)
-            }
         }
 
         if (isStore) {
@@ -263,38 +250,29 @@ export async function proxy(request: NextRequest) {
             return NextResponse.next()
         }
 
-        // Verifica se é um profileSlug
-        try {
-            const { data: profile } = await supabaseAdmin
-                .from('profiles')
-                .select('profileSlug')
-                .eq('profileSlug', slug)
-                .maybeSingle()
+        // Verifica perfil e loja em paralelo (slugs sao globalmente unicos).
+        const [profileResult, storeResult] = await Promise.all([
+            supabaseAdmin.from('profiles').select('profileSlug').eq('profileSlug', slug).maybeSingle(),
+            supabaseAdmin.from('stores').select('storeSlug').eq('storeSlug', slug).maybeSingle(),
+        ])
 
-            if (profile) {
-                setCache(slug, 'profile')
-                console.log(`[Proxy] ${slug} é um perfil ✅`)
-                return NextResponse.next()
-            }
-        } catch (error) {
-            console.error(`[Proxy] Erro ao verificar perfil ${slug}:`, error)
+        if (profileResult.error) {
+            console.error(`[Proxy] Erro ao verificar perfil ${slug}:`, profileResult.error)
+        }
+        if (storeResult.error) {
+            console.error(`[Proxy] Erro ao verificar loja ${slug}:`, storeResult.error)
         }
 
-        // Verifica se é um storeSlug
-        try {
-            const { data: store } = await supabaseAdmin
-                .from('stores')
-                .select('storeSlug')
-                .eq('storeSlug', slug)
-                .maybeSingle()
+        if (profileResult.data) {
+            setCache(slug, 'profile')
+            console.log(`[Proxy] ${slug} é um perfil ✅`)
+            return NextResponse.next()
+        }
 
-            if (store) {
-                setCache(slug, 'store')
-                console.log(`[Proxy] ${slug} é uma loja ✅`)
-                return NextResponse.next()
-            }
-        } catch (error) {
-            console.error(`[Proxy] Erro ao verificar loja ${slug}:`, error)
+        if (storeResult.data) {
+            setCache(slug, 'store')
+            console.log(`[Proxy] ${slug} é uma loja ✅`)
+            return NextResponse.next()
         }
 
         // Verifica se é uma categoria

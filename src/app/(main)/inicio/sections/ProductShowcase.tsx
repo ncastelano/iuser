@@ -349,6 +349,20 @@ function ProductSkeleton({ colors }: { colors: any }) {
 }
 
 // ---------- Componente ----------
+// ===== URL do produto =====
+function getProductUrl(product: ProductCard) {
+    // Se tem storeSlug e product slug, vai para /storeSlug/productSlug
+    if (product.storeSlug && product.storeSlug !== '#' && product.slug) {
+        return `/${product.storeSlug}/${product.slug}`
+    }
+    // Fallback: se não tem storeSlug, usa o profileSlug
+    if (product.profileSlug) {
+        return `/${product.profileSlug}/${product.slug || product.id}`
+    }
+    // Fallback final
+    return `/${product.storeSlug}/${product.slug || product.id}`
+}
+
 export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     const router = useRouter()
     const { colors } = useTheme()
@@ -399,6 +413,13 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
         return items
     }, [products, currentPage, itemsPerPage, total])
 
+    // Pre-carrega a rota dos produtos visiveis, pra abrir na hora ao clicar.
+    useEffect(() => {
+        currentItems.forEach((product) => {
+            router.prefetch(getProductUrl(product))
+        })
+    }, [currentItems, router])
+
     const gridCols = itemsPerPage >= 9 ? 'grid-cols-3' : itemsPerPage >= 6 ? 'grid-cols-2' : 'grid-cols-1'
 
     if (loading) {
@@ -418,20 +439,6 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
     }
 
     if (!products.length) return null
-
-    // ===== CORRIGIDO: URL do produto =====
-    const getProductUrl = (product: ProductCard) => {
-        // Se tem storeSlug e product slug, vai para /storeSlug/productSlug
-        if (product.storeSlug && product.storeSlug !== '#' && product.slug) {
-            return `/${product.storeSlug}/${product.slug}`
-        }
-        // Fallback: se não tem storeSlug, usa o profileSlug
-        if (product.profileSlug) {
-            return `/${product.profileSlug}/${product.slug || product.id}`
-        }
-        // Fallback final
-        return `/${product.storeSlug}/${product.slug || product.id}`
-    }
 
     return (
         <div

@@ -820,10 +820,17 @@ export default function ProfileDashboard({
         return stamps.sort().reverse()[0]
     }, [orders, reviews])
 
+    // Pedidos ainda nao finalizados (nao chegaram em 'paid' nem foram cancelados)
+    const activeOrders = useMemo(
+        () => orders.filter((o: any) => o.status !== 'paid' && o.status !== 'cancelled'),
+        [orders]
+    )
+
     if (loading && !initialLoadDone) return <LoadingSpinner message="Carregando perfil..." />
     if (!profile) return null
 
     // ===== BLOCOS ORDENÁVEIS (Gastos até Visitantes) =====
+
     const financeiroNode = (
         <>
             <div className="mb-6">
@@ -997,6 +1004,78 @@ export default function ProfileDashboard({
                     </div>
                 </div>
             </div>
+
+            {activeOrders.length > 0 && (
+                <div className="mb-6">
+                    <div
+                        className="rounded-2xl p-5"
+                        style={{
+                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                            backdropFilter: 'blur(12px)',
+                            border: `1px solid ${colors.border}`,
+                            boxShadow: colors.shadow,
+                        }}
+                    >
+                        <div className="flex items-center gap-2 mb-3">
+                            <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={{ background: GRADIENT, color: '#ffffff' }}
+                            >
+                                <Package size={16} />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-black" style={{ color: colors.textPrimary }}>
+                                    Pedidos
+                                </h3>
+                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                    Em andamento
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                            {activeOrders.map((order: any) => {
+                                const status = formatStatus(order.status)
+                                return (
+                                    <div
+                                        key={order.checkout_id}
+                                        onClick={() => router.push(`/${profileSlug}/${order.store_slug}`)}
+                                        className="text-left rounded-2xl p-3 flex-shrink-0 w-44 cursor-pointer hover:scale-[1.02] transition-transform"
+                                        style={{
+                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.35)`,
+                                            border: `1px solid ${colors.border}`,
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                                                {order.store_logo ? (
+                                                    <img src={order.store_logo} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-bold">
+                                                        {order.store_name?.charAt(0)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-xs font-black truncate flex-1" style={{ color: colors.textPrimary }}>
+                                                {order.store_name}
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] mt-1.5" style={{ color: colors.textSecondary }}>
+                                            {order.items?.length || 0} itens · R$ {order.totalPrice.toFixed(2)}
+                                        </p>
+                                        <span
+                                            className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[8px] font-bold"
+                                            style={{ background: `${status.color}20`, color: status.color }}
+                                        >
+                                            {status.label}
+                                        </span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="mb-6">
                 <div

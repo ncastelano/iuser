@@ -151,10 +151,11 @@ export async function generateProductOrPublicationMetadata(
     }
 
     try {
-        // Buscar o produto/publicação
+        // Busca o produto/publicacao ja com a loja ou o perfil dono embutidos,
+        // numa unica query em vez de uma segunda consulta sequencial.
         const { data: product } = await supabase
             .from('products')
-            .select('*')
+            .select('*, store:store_id(name, logo_url), owner:owner_id(name, avatar_url)')
             .eq('slug', slug)
             .maybeSingle()
 
@@ -162,27 +163,15 @@ export async function generateProductOrPublicationMetadata(
             let ownerName = ownerSlug
             let ownerImage: string | null = null
 
-            // Tenta buscar informações do dono (Perfil ou Loja) para complementar
-            if (product.store_id) {
-                const { data: store } = await supabase
-                    .from('stores')
-                    .select('name, logo_url')
-                    .eq('id', product.store_id)
-                    .maybeSingle()
-                if (store) {
-                    if (store.name) ownerName = store.name
-                    if (store.logo_url) ownerImage = getPublicStorageUrl('store-logos', store.logo_url)
-                }
-            } else if (product.owner_id) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('name, avatar_url')
-                    .eq('id', product.owner_id)
-                    .maybeSingle()
-                if (profile) {
-                    if (profile.name) ownerName = profile.name
-                    if (profile.avatar_url) ownerImage = getPublicStorageUrl('avatars', profile.avatar_url)
-                }
+            const store = (product as any).store
+            const owner = (product as any).owner
+
+            if (store) {
+                if (store.name) ownerName = store.name
+                if (store.logo_url) ownerImage = getPublicStorageUrl('store-logos', store.logo_url)
+            } else if (owner) {
+                if (owner.name) ownerName = owner.name
+                if (owner.avatar_url) ownerImage = getPublicStorageUrl('avatars', owner.avatar_url)
             }
 
             const isSale = product.listing_type === 'sale'

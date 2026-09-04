@@ -3,7 +3,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -25,6 +25,9 @@ import Header from '@/app/Header'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'
+import SacolaButton from '@/app/ButtonSacola'
+
+const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
 // ===== TIPOS =====
 interface ProductWithStore {
@@ -113,6 +116,28 @@ export function ProductClientPage({
     const [quantity, setQuantity] = useState(1)
     const [addingToCart, setAddingToCart] = useState(false)
     const [addedToCart, setAddedToCart] = useState(false)
+    const [otherProducts, setOtherProducts] = useState<{
+        id: string
+        name: string
+        slug: string
+        image_url: string | null
+        price: number | null
+    }[]>([])
+
+    // ===== CARRINHO (badge flutuante, igual ao catálogo/home) =====
+    const totalCartItems = useMemo(() => {
+        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
+    }, [itemsByStore])
+
+    const totalCartValue = useMemo(() => {
+        let total = 0
+        Object.values(itemsByStore).forEach(items => {
+            items.forEach(item => {
+                total += Number(item.product?.price || 0) * (item.quantity || 1)
+            })
+        })
+        return total
+    }, [itemsByStore])
 
     // ========== CARREGAR PRODUTO ==========
     // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
@@ -171,6 +196,32 @@ export function ProductClientPage({
 
         fetchProduct()
     }, [initialProduct, initialStore])
+
+    // ===== OUTROS PRODUTOS DA MESMA LOJA =====
+    useEffect(() => {
+        const storeId = product?.store_id
+        const currentProductId = product?.id
+        if (!storeId || !currentProductId) {
+            setOtherProducts([])
+            return
+        }
+
+        let isMounted = true
+
+        supabase
+            .from('products')
+            .select('id, name, slug, image_url, price')
+            .eq('store_id', storeId)
+            .eq('listing_type', 'sale')
+            .neq('id', currentProductId)
+            .order('created_at', { ascending: false })
+            .limit(12)
+            .then(({ data }) => {
+                if (isMounted) setOtherProducts(data || [])
+            })
+
+        return () => { isMounted = false }
+    }, [product?.store_id, product?.id])
 
     // ===== FUNÇÃO PARA IR PARA A LOJA =====
     const goToStore = () => {
@@ -328,27 +379,47 @@ export function ProductClientPage({
                     loading={profileLoading}
                 />
 
-                <div className="w-full px-4 md:px-6 py-6">
+                <div className="w-full px-4 md:px-6 pt-6 pb-28">
                     <div className="rounded-2xl overflow-hidden border" style={{
                         background: colors.surface,
                         borderColor: colors.border,
                     }}>
                         {/* Imagem: se o produto não tem foto, usa a imagem da loja */}
-                        {(imageUrl || finalStoreImage) ? (
-                            <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
-                                <img
-                                    src={imageUrl || finalStoreImage || ''}
-                                    alt={product.name || 'Produto'}
-                                    className={`w-full h-full ${imageUrl ? 'object-cover' : 'object-contain p-8'}`}
-                                />
-                            </div>
-                        ) : (
-                            <div className="w-full flex items-center justify-center py-16" style={{
-                                background: `${colors.border}50`
-                            }}>
-                                <Store size={64} style={{ color: colors.textSecondary }} />
-                            </div>
-                        )}
+                        <div className="relative">
+                            {(imageUrl || finalStoreImage) ? (
+                                <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
+                                    <img
+                                        src={imageUrl || finalStoreImage || ''}
+                                        alt={product.name || 'Produto'}
+                                        className={`w-full h-full ${imageUrl ? 'object-cover' : 'object-contain p-8'}`}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="w-full flex items-center justify-center py-16" style={{
+                                    background: `${colors.border}50`
+                                }}>
+                                    <Store size={64} style={{ color: colors.textSecondary }} />
+                                </div>
+                            )}
+
+                            {/* Compartilhar - pill laranja/vermelho no canto superior direito da imagem */}
+                            <button
+                                onClick={() => handleShareLink({
+                                    title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
+                                    text: product.description || 'Confira no iUser!'
+                                })}
+                                className="absolute top-3 right-3 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)',
+                                    border: 'none',
+                                }}
+                            >
+                                <Share2 size={14} />
+                                Compartilhar
+                            </button>
+                        </div>
 
                         {/* Conteúdo */}
                         <div className="p-6 space-y-4">
@@ -511,25 +582,68 @@ export function ProductClientPage({
                                     <Store size={18} />
                                     Visitar Loja
                                 </button>
-
-                                <button
-                                    onClick={() => handleShareLink({
-                                        title: `${product.name || 'Produto'} | ${storeDisplay.name}`,
-                                        text: product.description || 'Confira no iUser!'
-                                    })}
-                                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition hover:scale-105"
-                                    style={{
-                                        background: colors.surface,
-                                        border: `1px solid ${colors.border}`,
-                                        color: colors.textPrimary,
-                                    }}
-                                >
-                                    <Share2 size={18} />
-                                    Compartilhar
-                                </button>
                             </div>
+
+                            {/* Outros produtos da loja */}
+                            {otherProducts.length > 0 && (
+                                <div className="pt-4 border-t" style={{ borderColor: colors.border }}>
+                                    <h3 className="text-sm font-bold mb-3" style={{ color: colors.textPrimary }}>
+                                        Outros produtos da loja
+                                    </h3>
+                                    <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                                        {otherProducts.map((other) => {
+                                            const otherImageUrl = other.image_url
+                                                ? supabase.storage.from('product-images').getPublicUrl(other.image_url).data.publicUrl
+                                                : finalStoreImage
+
+                                            const otherPrice = other.price !== null && other.price !== undefined
+                                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(other.price)
+                                                : 'Sob consulta'
+
+                                            return (
+                                                <button
+                                                    key={other.id}
+                                                    onClick={() => router.push(`/${ownerSlug}/${other.slug}`)}
+                                                    className="text-left rounded-xl overflow-hidden flex-shrink-0 w-32 transition-transform hover:scale-[1.02]"
+                                                    style={{
+                                                        background: colors.surface,
+                                                        border: `1px solid ${colors.border}`,
+                                                    }}
+                                                >
+                                                    <div className="w-full aspect-square bg-gray-100">
+                                                        {otherImageUrl ? (
+                                                            <img
+                                                                src={otherImageUrl}
+                                                                alt={other.name}
+                                                                className={`w-full h-full ${other.image_url ? 'object-cover' : 'object-contain p-3'}`}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center">
+                                                                <Store size={24} style={{ color: colors.textSecondary }} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="p-2">
+                                                        <p className="text-xs font-bold truncate" style={{ color: colors.textPrimary }}>
+                                                            {other.name}
+                                                        </p>
+                                                        <p className="text-xs font-black mt-0.5" style={{ color: colors.accent }}>
+                                                            {otherPrice}
+                                                        </p>
+                                                    </div>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
+                </div>
+
+                {/* Sacola flutuante - igual ao catálogo/home */}
+                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
+                    <SacolaButton totalItems={totalCartItems} totalValue={totalCartValue} />
                 </div>
             </main>
         </div>
