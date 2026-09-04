@@ -82,20 +82,20 @@ export function isProfileOpenNow(businessHours: BusinessHours | null | undefined
 }
 
 export function getProfileStatusText(businessHours: BusinessHours | null | undefined): string {
-    if (!businessHours?.weekly) return 'Horário não definido'
+    if (!businessHours?.weekly) return 'Agenda não configurada'
 
     const now = new Date()
     const todayStr = toLocalDateString(now)
 
     // verifica bloqueios
     const blockedDates = businessHours.blocked_dates ?? []
-    if (blockedDates.includes(todayStr)) return 'Fechado hoje'
+    if (blockedDates.includes(todayStr)) return 'Agenda fechada hoje'
 
     const dayKey = String(now.getDay())
     const dayConfig = businessHours.weekly[dayKey]
 
     if (!dayConfig || !dayConfig.isOpen) {
-        return 'Fechado hoje'
+        return 'Agenda fechada hoje'
     }
 
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -111,28 +111,27 @@ export function getProfileStatusText(businessHours: BusinessHours | null | undef
             const lunchEndMin = timeToMinutes(dayConfig.lunchEnd)
             if (lunchStartMin !== -1 && lunchEndMin !== -1 &&
                 currentMinutes >= lunchStartMin && currentMinutes < lunchEndMin) {
-                return `Em almoço (volta às ${dayConfig.lunchEnd.slice(0, 5)})`
+                return `Agenda em intervalo · volta às ${dayConfig.lunchEnd.slice(0, 5)}`
             }
         }
 
         // Verifica se está perto do fechamento
         const endMinutes = timeToMinutes(dayConfig.end)
         if (endMinutes !== -1 && endMinutes - currentMinutes <= 60) {
-            return `Aberto até ${dayConfig.end.slice(0, 5)}`
+            return `Agenda aberta até ${dayConfig.end.slice(0, 5)}`
         }
 
-        const startTime = dayConfig.start.slice(0, 5)
         const endTime = dayConfig.end.slice(0, 5)
-        return `Aberto (${startTime} - ${endTime})`
+        return `Agenda aberta até ${endTime}`
     }
 
     // Se não está aberto, verifica se é antes do horário de abertura
     const startMinutes = timeToMinutes(dayConfig.start)
     if (startMinutes !== -1 && currentMinutes < startMinutes) {
-        return `Abre às ${dayConfig.start.slice(0, 5)}`
+        return `Agenda abre às ${dayConfig.start.slice(0, 5)}`
     }
 
-    return 'Fechado hoje'
+    return 'Agenda fechada hoje'
 }
 
 // ---------- NOVA FUNÇÃO: Status com suporte a almoço e intervalo ----------
@@ -143,7 +142,7 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
     isLunchTime?: boolean
 } {
     if (!businessHours?.weekly) {
-        return { isOpen: false, text: 'Horário não definido' }
+        return { isOpen: false, text: 'Agenda não configurada' }
     }
 
     const now = new Date()
@@ -152,14 +151,14 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
     // verifica bloqueios
     const blockedDates = businessHours.blocked_dates ?? []
     if (blockedDates.includes(todayStr)) {
-        return { isOpen: false, text: 'Fechado hoje' }
+        return { isOpen: false, text: 'Agenda fechada hoje' }
     }
 
     const dayKey = String(now.getDay())
     const dayConfig = businessHours.weekly[dayKey]
 
     if (!dayConfig || !dayConfig.isOpen || !dayConfig.start || !dayConfig.end) {
-        return { isOpen: false, text: 'Fechado hoje' }
+        return { isOpen: false, text: 'Agenda fechada hoje' }
     }
 
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -173,7 +172,7 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
             currentMinutes >= lunchStartMin && currentMinutes < lunchEndMin) {
             return {
                 isOpen: true,
-                text: `Em intervalo (volta às ${dayConfig.lunchEnd.slice(0, 5)})`,
+                text: `Agenda em intervalo · volta às ${dayConfig.lunchEnd.slice(0, 5)}`,
                 isLunchTime: true
             }
         }
@@ -188,11 +187,10 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
         if (endMinutes !== -1 && endMinutes - currentMinutes <= 60) {
             return {
                 isOpen: true,
-                text: `Aberto até ${dayConfig.end.slice(0, 5)}`
+                text: `Agenda aberta até ${dayConfig.end.slice(0, 5)}`
             }
         }
 
-        const startTime = dayConfig.start.slice(0, 5)
         const endTime = dayConfig.end.slice(0, 5)
 
         // Se tem almoço, mostra o formato completo
@@ -201,13 +199,13 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
             const lunchEnd = dayConfig.lunchEnd.slice(0, 5)
             return {
                 isOpen: true,
-                text: `Aberto: ${startTime} - ${lunchStart} / ${lunchEnd} - ${endTime}`
+                text: `Agenda aberta até ${endTime} · intervalo ${lunchStart}-${lunchEnd}`
             }
         }
 
         return {
             isOpen: true,
-            text: `Aberto: ${startTime} - ${endTime}`
+            text: `Agenda aberta até ${endTime}`
         }
     }
 
@@ -216,7 +214,7 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
     if (startMinutes !== -1 && currentMinutes < startMinutes) {
         return {
             isOpen: false,
-            text: `Abre às ${dayConfig.start.slice(0, 5)}`
+            text: `Agenda abre às ${dayConfig.start.slice(0, 5)}`
         }
     }
 
@@ -226,11 +224,11 @@ export function getProfileStatusWithLunch(businessHours: BusinessHours | null | 
         const remaining = formatTimeRemaining(next.distanceMs)
         return {
             isOpen: false,
-            text: `Fechado · Abrirá em ${remaining} (${next.dayLabel} às ${next.time})`
+            text: `Agenda fechada · abre em ${remaining} (${next.dayLabel} às ${next.time})`
         }
     }
 
-    return { isOpen: false, text: 'Fechado hoje' }
+    return { isOpen: false, text: 'Agenda fechada hoje' }
 }
 
 // Para compatibilidade com o store (caso precise)

@@ -35,7 +35,6 @@ import {
     ChevronRight,
     TrendingUp,
 } from 'lucide-react'
-import StoreAddress from './StoreAddress'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
@@ -1297,10 +1296,8 @@ export default function ProfileDashboard({
                         <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: colors.textSecondary }}>
                             <span className={`w-2 h-2 rounded-full ${isProfileOpen ? 'bg-green-500' : 'bg-red-500'}`} />
                             <span className="font-bold" style={{ color: isProfileOpen ? '#10b981' : '#ef4444' }}>
-                                {isProfileOpen ? 'Aberto' : 'Fechado'}
+                                {profileStatusText}
                             </span>
-                            <span>•</span>
-                            <span className="font-medium">{profileStatusText}</span>
                             <span>•</span>
                             <span>@{profileSlug}</span>
                             {profile.whatsapp && (
@@ -1434,9 +1431,6 @@ export default function ProfileDashboard({
                     </button>
                 </div>
             </div>
-
-            {/* ===== Informações do Perfil (fixo, fora da ordenação) ===== */}
-            <StoreAddress address={profile.address} whatsapp={profile.whatsapp} />
 
             {/* ===== BLOCOS ORDENADOS PELA ATIVIDADE MAIS RECENTE ===== */}
             {sortableSections.map((section) => (

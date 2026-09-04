@@ -12,13 +12,17 @@ import {
     ImageIcon,
     Send,
     Trash2,
-    ExternalLink,
+    Pencil,
+    Heart,
+    Share2,
     MessageCircle,
     Megaphone,
     Eye,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { generateUniqueGlobalSlug } from '@/lib/slugUtils'
+import { getAvatarUrl } from '@/lib/avatar'
+import { handleShareLink } from '@/lib/share'
 
 interface Publication {
     id: string
@@ -29,6 +33,9 @@ interface Publication {
     owner_id: string
     created_at: string
     view_count?: number
+    like_count?: number
+    comment_count?: number
+    is_liked?: boolean
 }
 
 interface ProfilePublicationProps {
@@ -81,6 +88,43 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const [saving, setSaving] = useState(false)
 
     const [profileWhatsapp, setProfileWhatsapp] = useState<string | null>(null)
+    const [ownerName, setOwnerName] = useState<string>('')
+    const [ownerAvatar, setOwnerAvatar] = useState<string | null>(null)
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+    // ===== Carrega curtidas e comentarios das publicacoes em duas queries =====
+    const attachEngagement = async (pubs: Publication[]): Promise<Publication[]> => {
+        if (pubs.length === 0) return pubs
+        const ids = pubs.map(p => p.id)
+
+        const { data: { user } } = await supabase.auth.getUser()
+        const userId = user?.id ?? null
+        setCurrentUserId(userId)
+
+        const [{ data: likeRows }, { data: commentRows }] = await Promise.all([
+            supabase.from('likes').select('publication_id, profile_id').in('publication_id', ids),
+            supabase.from('comments').select('publication_id').in('publication_id', ids).is('parent_comment_id', null),
+        ])
+
+        const likesByPub = new Map<string, number>()
+        const likedByMe = new Set<string>()
+        for (const row of likeRows || []) {
+            likesByPub.set(row.publication_id, (likesByPub.get(row.publication_id) || 0) + 1)
+            if (userId && row.profile_id === userId) likedByMe.add(row.publication_id)
+        }
+
+        const commentsByPub = new Map<string, number>()
+        for (const row of commentRows || []) {
+            commentsByPub.set(row.publication_id, (commentsByPub.get(row.publication_id) || 0) + 1)
+        }
+
+        return pubs.map(p => ({
+            ...p,
+            like_count: likesByPub.get(p.id) || 0,
+            comment_count: commentsByPub.get(p.id) || 0,
+            is_liked: likedByMe.has(p.id),
+        }))
+    }
 
     useEffect(() => {
         if (!isExpanded || !profileId) return
@@ -98,19 +142,23 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     .order('created_at', { ascending: false })
 
                 if (!error && data && isMounted) {
-                    setPublications(data as Publication[])
+                    const withCounts = await attachEngagement(data as Publication[])
+                    if (!isMounted) return
+                    setPublications(withCounts)
                     if (data.length > 0) onLatestUpdate?.(data[0].created_at)
                 }
 
-                // Buscar WhatsApp do perfil
+                // Buscar dados do perfil (WhatsApp, nome e avatar para o cabecalho do card)
                 const { data: profileData } = await supabase
                     .from('profiles')
-                    .select('whatsapp')
+                    .select('whatsapp, name, avatar_url')
                     .eq('id', profileId)
                     .single()
 
                 if (profileData && isMounted) {
                     setProfileWhatsapp(profileData.whatsapp || null)
+                    setOwnerName(profileData.name || '')
+                    setOwnerAvatar(getAvatarUrl(supabase, profileData.avatar_url) || null)
                 }
             } catch (err) {
                 console.error('[ProfilePublication] Erro ao carregar:', err)
@@ -181,13 +229,51 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 .eq('owner_id', profileId)
                 .eq('listing_type', 'publication')
                 .order('created_at', { ascending: false })
-            if (freshData) setPublications(freshData as Publication[])
+            if (freshData) setPublications(await attachEngagement(freshData as Publication[]))
         } catch (err: any) {
             console.error('Erro ao criar publicação:', err)
             toast.error('Erro ao criar: ' + (err.message || 'Tente novamente'))
         } finally {
             setSaving(false)
         }
+    }
+
+    const handleToggleLike = async (pub: Publication) => {
+        if (!currentUserId) {
+            toast.error('Faça login para curtir')
+            return
+        }
+
+        const liked = !!pub.is_liked
+        // atualiza otimista
+        setPublications(prev => prev.map(p => p.id === pub.id
+            ? { ...p, is_liked: !liked, like_count: Math.max(0, (p.like_count || 0) + (liked ? -1 : 1)) }
+            : p))
+
+        const { error } = liked
+            ? await supabase.from('likes').delete().eq('publication_id', pub.id).eq('profile_id', currentUserId)
+            : await supabase.from('likes').insert({ publication_id: pub.id, profile_id: currentUserId })
+
+        if (error) {
+            // desfaz em caso de falha
+            setPublications(prev => prev.map(p => p.id === pub.id
+                ? { ...p, is_liked: liked, like_count: Math.max(0, (p.like_count || 0) + (liked ? 1 : -1)) }
+                : p))
+            toast.error('Erro ao curtir')
+        }
+    }
+
+    const handleShare = (pub: Publication) => {
+        handleShareLink({
+            title: pub.name || 'Publicação',
+            text: pub.description || 'Confira esta publicação no iUser!',
+            url: `${window.location.origin}/publicacoes/${pub.slug}`,
+        })
+    }
+
+    const formatDate = (iso: string) => {
+        if (!iso) return ''
+        return new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
     }
 
     const handleDelete = async (id: string) => {
@@ -209,6 +295,151 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
 
     const textPrimary = colors.textPrimary
     const textSecondary = colors.textSecondary
+
+    // ===== Card de publicacao (mesmo desenho do feed em /publicacoes) =====
+    const renderPublicationCard = (pub: Publication, showOwnerActions: boolean) => {
+        const imgUrl = getImageUrl(pub.image_url)
+        const openPublication = () => router.push(`/publicacoes/${pub.slug}`)
+
+        return (
+            <div
+                key={pub.id}
+                onClick={openPublication}
+                className="rounded-2xl p-5 flex flex-col gap-1 cursor-pointer transition-transform hover:scale-[1.01]"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                {/* Cabecalho: autor, data e titulo */}
+                <div className="flex items-start gap-3">
+                    <div
+                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                        style={{ background: GRADIENT }}
+                    >
+                        {ownerAvatar ? (
+                            <img src={ownerAvatar} className="w-full h-full object-cover" alt={ownerName || 'Perfil'} />
+                        ) : (
+                            <span className="text-white font-bold text-lg">
+                                {ownerName?.charAt(0).toUpperCase() || '?'}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold" style={{ color: textPrimary }}>
+                                {ownerName || (profileSlug ? `@${profileSlug}` : 'Voce')}
+                            </span>
+                            <span className="text-[10px]" style={{ color: textSecondary }}>
+                                • {formatDate(pub.created_at)}
+                            </span>
+                            <span
+                                className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase"
+                                style={{ background: '#10b98120', color: '#10b981' }}
+                            >
+                                Novidade
+                            </span>
+                        </div>
+                        <p className="text-sm font-bold mt-1" style={{ color: textPrimary }}>
+                            {pub.name || 'Sem titulo'}
+                        </p>
+                        {pub.description && (
+                            <p className="text-xs mt-1 line-clamp-2" style={{ color: textSecondary }}>
+                                {pub.description}
+                            </p>
+                        )}
+                    </div>
+
+                    {showOwnerActions && (
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                            {profileSlug && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${pub.slug}/editar`) }}
+                                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                                    title="Editar"
+                                >
+                                    <Pencil size={14} style={{ color: textSecondary }} />
+                                </button>
+                            )}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(pub.id) }}
+                                className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
+                                title="Excluir"
+                            >
+                                <Trash2 size={14} style={{ color: '#ef4444' }} />
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Imagem da publicacao */}
+                {imgUrl && (
+                    <div className="mt-3 rounded-xl overflow-hidden">
+                        <img src={imgUrl} className="w-full max-h-[300px] object-cover" alt={pub.name} />
+                    </div>
+                )}
+
+                {/* Acoes: curtidas, comentarios, visualizacoes e compartilhar */}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t flex-wrap" style={{ borderColor: colors.border }}>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleLike(pub) }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        style={{
+                            background: pub.is_liked ? '#ef444420' : 'rgba(255,255,255,0.05)',
+                            color: pub.is_liked ? '#ef4444' : textSecondary,
+                            border: pub.is_liked ? '1px solid #ef444440' : `1px solid ${colors.border}`,
+                        }}
+                    >
+                        <Heart size={12} fill={pub.is_liked ? '#ef4444' : 'none'} />
+                        <span>{pub.like_count || 0}</span>
+                    </button>
+
+                    <button
+                        onClick={(e) => { e.stopPropagation(); openPublication() }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            color: textSecondary,
+                            border: `1px solid ${colors.border}`,
+                        }}
+                    >
+                        <MessageCircle size={12} />
+                        <span>{pub.comment_count || 0}</span>
+                    </button>
+
+                    <span
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold"
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            color: textSecondary,
+                            border: `1px solid ${colors.border}`,
+                        }}
+                    >
+                        <Eye size={12} />
+                        {pub.view_count || 0}
+                    </span>
+
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleShare(pub) }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: '0 2px 8px rgba(249, 115, 22, 0.3)',
+                            border: 'none',
+                        }}
+                    >
+                        <Share2 size={12} />
+                        Compartilhar
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     // Se não for o dono, mostra apenas as publicações
     if (!isOwner) {
@@ -272,38 +503,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {publications.map(pub => {
-                                const imgUrl = getImageUrl(pub.image_url)
-                                return (
-                                    <div
-                                        key={pub.id}
-                                        className="rounded-2xl border p-3 flex flex-col gap-2 relative group cursor-pointer"
-                                        style={{
-                                            background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                            borderColor: colors.border,
-                                        }}
-                                        onClick={() => router.push(`/p/${pub.slug}`)}
-                                    >
-                                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100">
-                                            {imgUrl ? (
-                                                <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-4xl" style={{ color: textSecondary }}>
-                                                    <MessageCircle size={32} />
-                                                </div>
-                                            )}
-                                        </div>
-                                        <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
-                                            {pub.name}
-                                        </p>
-                                        <div className="flex items-center gap-1 text-[10px]" style={{ color: textSecondary }}>
-                                            <Eye size={12} />
-                                            <span>{pub.view_count || 0}</span>
-                                        </div>
-                                    </div>
-                                )
-                            })}
+                        <div className="flex flex-col gap-4">
+                            {publications.map(pub => renderPublicationCard(pub, false))}
                         </div>
                     )}
                 </div>
@@ -415,58 +616,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                             </div>
                         ) : (
                             <>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    {publications.map(pub => {
-                                        const imgUrl = getImageUrl(pub.image_url)
-                                        return (
-                                            <div
-                                                key={pub.id}
-                                                className="rounded-2xl border p-3 flex flex-col gap-2 relative group"
-                                                style={{
-                                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
-                                                    borderColor: colors.border,
-                                                }}
-                                            >
-                                                <div
-                                                    className="w-full aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-pointer"
-                                                    onClick={() => router.push(`/p/${pub.slug}`)}
-                                                >
-                                                    {imgUrl ? (
-                                                        <img src={imgUrl} className="w-full h-full object-cover" alt={pub.name} />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-4xl" style={{ color: textSecondary }}>
-                                                            <MessageCircle size={32} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs font-bold truncate" style={{ color: textPrimary }}>
-                                                    {pub.name}
-                                                </p>
-                                                <div className="flex items-center justify-between mt-auto">
-                                                    <div className="flex items-center gap-1 text-[10px]" style={{ color: textSecondary }}>
-                                                        <Eye size={12} />
-                                                        <span>{pub.view_count || 0}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={() => router.push(`/p/${pub.slug}/editar`)}
-                                                            className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
-                                                            title="Editar"
-                                                        >
-                                                            <ExternalLink size={14} style={{ color: textSecondary }} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(pub.id)}
-                                                            className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
-                                                            title="Excluir"
-                                                        >
-                                                            <Trash2 size={14} style={{ color: '#ef4444' }} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                <div className="flex flex-col gap-4">
+                                    {publications.map(pub => renderPublicationCard(pub, true))}
                                 </div>
 
                                 {!isCreating && (

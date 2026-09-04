@@ -217,7 +217,7 @@ export default function ProfileOperatingDays({ profileId, onLatestUpdate }: Prof
                                 Horários de Atendimento
                             </h3>
                             <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: textSecondary }}>
-                                <span>{openDaysCount} dia{openDaysCount !== 1 ? 's' : ''} disponível{openDaysCount !== 1 ? 'is' : ''}</span>
+                                <span>{openDaysCount} dia{openDaysCount !== 1 ? 's' : ''} com agenda aberta</span>
                                 {blockedDates.length > 0 && (
                                     <>
                                         <span>•</span>
@@ -240,7 +240,7 @@ export default function ProfileOperatingDays({ profileId, onLatestUpdate }: Prof
                     <>
                         {/* Subtítulo expandido */}
                         <p className="text-xs" style={{ color: textSecondary }}>
-                            Defina os horários em que você está disponível para atendimento
+                            Defina os horários em que as pessoas podem agendar compromissos com você
                         </p>
 
                         {/* Dias da semana */}

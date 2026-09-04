@@ -751,7 +751,7 @@ export default function HomePage() {
                     }}
                     profileSlug={profileSlug}
                     locationElement={
-                        shouldShowSearch && (
+                        !isLoginScreen && (
                             <button
                                 onClick={() => setShowLocationDialog(true)}
                                 disabled={isSavingLocation}
@@ -948,7 +948,7 @@ export default function HomePage() {
                 </div>
 
                 {/* ===== LOCATION PICKER - APENAS QUANDO NÃO ESTÁ EM TELA DE LOGIN/REGISTRO ===== */}
-                {!isLoginScreen && !isDashboardScreen && showLocationDialog && (
+                {!isLoginScreen && showLocationDialog && (
                     <LocationPicker
                         initialLocation={savedLocation ? {
                             lat: savedLocation.lat,
