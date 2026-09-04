@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, UserCircle, ArrowRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import { useRouter } from 'next/navigation'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -310,8 +310,10 @@ export default function FeaturedProfiles({
                                 </>
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center"
-                                    style={{ background: GRADIENT, opacity: 0.3 }}>
-                                    <UserCircle className="w-12 h-12 opacity-30" style={{ color: colors.textPrimary }} />
+                                    style={{ background: GRADIENT }}>
+                                    <span className="text-5xl font-black" style={{ color: '#ffffff' }}>
+                                        {profile.slug?.charAt(0).toUpperCase() || '?'}
+                                    </span>
                                 </div>
                             )}
 

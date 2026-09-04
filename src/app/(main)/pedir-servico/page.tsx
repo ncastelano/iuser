@@ -936,7 +936,7 @@ export default function PedirServicoPage() {
                                 style={{ background: GRADIENT, color: '#fff' }}
                             >
                                 {submitting ? <Spinner size={18} /> : <Wrench size={18} />}
-                                Pedir serviço
+                                Solicitar serviço
                             </button>
                         </>
                     )}

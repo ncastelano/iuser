@@ -199,12 +199,23 @@ export default function HomeBag({
                                             className="rounded-xl p-2"
                                             style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
                                         >
-                                            <p
-                                                className="text-[10px] font-black uppercase tracking-wide mb-1.5 px-0.5"
-                                                style={{ color: colors.accent }}
-                                            >
-                                                {group.storeName}
-                                            </p>
+                                            <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
+                                                <div className="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center" style={{ background: `${colors.border}60` }}>
+                                                    {group.storeLogoUrl ? (
+                                                        <img src={group.storeLogoUrl} alt={group.storeName} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-[7px] font-bold" style={{ color: colors.textSecondary }}>
+                                                            {group.storeSlug.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p
+                                                    className="text-[10px] font-black uppercase tracking-wide"
+                                                    style={{ color: colors.accent }}
+                                                >
+                                                    {group.storeName}
+                                                </p>
+                                            </div>
 
                                             <div className="space-y-2">
                                                 {group.items.map((item) => (
@@ -219,6 +230,12 @@ export default function HomeBag({
                                                                     src={item.product.image_url}
                                                                     alt={item.product.name}
                                                                     className="w-full h-full object-cover"
+                                                                />
+                                                            ) : item.storeLogoUrl ? (
+                                                                <img
+                                                                    src={item.storeLogoUrl}
+                                                                    alt={item.storeName}
+                                                                    className="w-full h-full object-contain p-1"
                                                                 />
                                                             ) : (
                                                                 <div className="w-full h-full flex items-center justify-center text-lg">📦</div>

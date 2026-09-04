@@ -250,7 +250,7 @@ export default function SerParceiroPage() {
                     )}
                 </section>
 
-                {/* ===== BOTAO FLUTUANTE - PEDIR SERVICO ===== */}
+                {/* ===== BOTAO FLUTUANTE - SOLICITAR SERVICO ===== */}
                 <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
                     <button
                         onClick={() => router.push('/pedir-servico')}
@@ -260,10 +260,10 @@ export default function SerParceiroPage() {
                             color: '#ffffff',
                             boxShadow: `0 8px 24px #f9731660`,
                         }}
-                        aria-label="Pedir serviço"
+                        aria-label="Solicitar serviço"
                     >
                         <Plus size={22} />
-                        <span className="font-semibold text-sm">Pedir serviço</span>
+                        <span className="font-semibold text-sm">Solicitar serviço</span>
                     </button>
                 </div>
             </main>
