@@ -52,6 +52,27 @@ interface ProductWithStore {
     } | null
 }
 
+// Dados já buscados pelo SlugClientPage - evita refazer as mesmas queries aqui.
+interface InitialProductRow {
+    id: string
+    name: string
+    slug: string
+    description: string | null
+    image_url: string | null
+    price: number | null
+    view_count: number | null
+    created_at: string
+    store_id: string
+}
+
+interface InitialStoreRow {
+    id: string
+    name: string
+    storeSlug: string
+    logo_url: string | null
+    owner_id: string | null
+}
+
 interface ProductClientPageProps {
     ownerSlug: string
     slug: string
@@ -61,6 +82,8 @@ interface ProductClientPageProps {
     profileSlug?: string | null
     avatarUrl?: string | null
     profileLoading?: boolean
+    initialProduct: InitialProductRow
+    initialStore: InitialStoreRow | null
 }
 
 export function ProductClientPage({
@@ -71,7 +94,9 @@ export function ProductClientPage({
     customBgUrl,
     profileSlug,
     avatarUrl,
-    profileLoading = false
+    profileLoading = false,
+    initialProduct,
+    initialStore,
 }: ProductClientPageProps) {
     const router = useRouter()
 
@@ -90,103 +115,51 @@ export function ProductClientPage({
     const [addedToCart, setAddedToCart] = useState(false)
 
     // ========== CARREGAR PRODUTO ==========
+    // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
+    // detectar o tipo do item), então aqui só falta o perfil do dono da loja.
     useEffect(() => {
         const fetchProduct = async () => {
-            if (!slug) return
-
             setLoading(true)
             setError(null)
 
             try {
-                let { data: prodData, error: prodErr } = await supabase
-                    .from('products')
-                    .select(`
-                        id,
-                        name,
-                        slug,
-                        description,
-                        image_url,
-                        price,
-                        view_count,
-                        created_at,
-                        store_id
-                    `)
-                    .eq('slug', slug)
-                    .eq('listing_type', 'sale')
-                    .maybeSingle()
+                let productWithStore: ProductWithStore = {
+                    ...initialProduct,
+                    store: null,
+                }
 
-                if (prodErr || !prodData) {
-                    const { data: prodById, error: byIdErr } = await supabase
-                        .from('products')
-                        .select(`
-                            id,
-                            name,
-                            slug,
-                            description,
-                            image_url,
-                            price,
-                            view_count,
-                            created_at,
-                            store_id
-                        `)
-                        .eq('id', slug)
-                        .eq('listing_type', 'sale')
-                        .maybeSingle()
-
-                    if (byIdErr || !prodById) {
-                        throw new Error('Produto não encontrado')
+                if (initialStore) {
+                    let profileData = null
+                    if (initialStore.owner_id) {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('id, name, avatar_url, profileSlug')
+                            .eq('id', initialStore.owner_id)
+                            .maybeSingle()
+                        profileData = profile
                     }
 
-                    prodData = prodById
-                }
-
-                let productWithStore: ProductWithStore = {
-                    ...prodData,
-                    store: null
-                }
-
-                if (prodData?.store_id) {
-                    const { data: storeData, error: storeErr } = await supabase
-                        .from('stores')
-                        .select(`
-                            id,
-                            name,
-                            storeSlug,
-                            logo_url,
-                            owner_id
-                        `)
-                        .eq('id', prodData.store_id)
-                        .maybeSingle()
-
-                    if (!storeErr && storeData) {
-                        let profileData = null
-                        if (storeData.owner_id) {
-                            const { data: profile } = await supabase
-                                .from('profiles')
-                                .select('id, name, avatar_url, profileSlug')
-                                .eq('id', storeData.owner_id)
-                                .maybeSingle()
-                            profileData = profile
-                        }
-
-                        productWithStore = {
-                            ...prodData,
-                            store: {
-                                ...storeData,
-                                profile: profileData
-                            }
-                        }
+                    productWithStore = {
+                        ...initialProduct,
+                        store: {
+                            ...initialStore,
+                            owner_id: initialStore.owner_id || '',
+                            profile: profileData,
+                        },
                     }
                 }
 
                 setProduct(productWithStore)
 
-                if (prodData?.id) {
-                    await supabase
-                        .from('products')
-                        .update({ view_count: (prodData.view_count || 0) + 1 })
-                        .eq('id', prodData.id)
-                }
+                // Não bloqueia a renderização: a página já pode aparecer
+                // enquanto essa contagem é atualizada em segundo plano.
+                supabase
+                    .from('products')
+                    .update({ view_count: (initialProduct.view_count || 0) + 1 })
+                    .eq('id', initialProduct.id)
+                    .then(({ error: viewErr }) => {
+                        if (viewErr) console.error('Erro ao atualizar visualizações:', viewErr)
+                    })
 
             } catch (err: any) {
                 console.error('Erro ao carregar produto:', err)
@@ -197,7 +170,7 @@ export function ProductClientPage({
         }
 
         fetchProduct()
-    }, [slug])
+    }, [initialProduct, initialStore])
 
     // ===== FUNÇÃO PARA IR PARA A LOJA =====
     const goToStore = () => {
@@ -349,7 +322,7 @@ export function ProductClientPage({
                 <Header
                     title="Produto"
                     showBack={true}
-                    onBack={() => router.push(`/${ownerSlug}`)}
+                    onBack={() => router.back()}
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl || null}
                     loading={profileLoading}
@@ -360,13 +333,13 @@ export function ProductClientPage({
                         background: colors.surface,
                         borderColor: colors.border,
                     }}>
-                        {/* Imagem */}
-                        {imageUrl ? (
+                        {/* Imagem: se o produto não tem foto, usa a imagem da loja */}
+                        {(imageUrl || finalStoreImage) ? (
                             <div className="relative w-full" style={{ aspectRatio: '16/9' }}>
                                 <img
-                                    src={imageUrl}
+                                    src={imageUrl || finalStoreImage || ''}
                                     alt={product.name || 'Produto'}
-                                    className="w-full h-full object-cover"
+                                    className={`w-full h-full ${imageUrl ? 'object-cover' : 'object-contain p-8'}`}
                                 />
                             </div>
                         ) : (

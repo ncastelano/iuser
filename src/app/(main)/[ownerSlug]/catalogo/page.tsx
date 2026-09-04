@@ -1282,11 +1282,11 @@ export default function CatalogoPage() {
                                         }}
                                     >
                                         <div className="w-32 sm:w-40 md:w-48 flex-shrink-0 relative bg-gray-100 overflow-hidden" style={{ minHeight: '140px', height: 'auto' }}>
-                                            {product.image_url ? (
+                                            {product.image_url || storeInfo?.logo_url ? (
                                                 <img
-                                                    src={product.image_url}
+                                                    src={product.image_url || storeInfo?.logo_url || ''}
                                                     alt={product.name}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                                    className={`w-full h-full transition-transform duration-300 ${product.image_url ? 'object-cover group-hover:scale-110' : 'object-contain p-4 group-hover:scale-110'}`}
                                                     style={{ minHeight: '140px' }}
                                                 />
                                             ) : (
@@ -1981,8 +1981,12 @@ export default function CatalogoPage() {
                             <div className="flex flex-col sm:flex-row gap-4">
                                 <div className="sm:w-2/5">
                                     <div className="w-full aspect-square rounded-xl overflow-hidden" style={{ background: colors.accentLight }}>
-                                        {selectedProduct.image_url ? (
-                                            <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                                        {selectedProduct.image_url || storeInfo?.logo_url ? (
+                                            <img
+                                                src={selectedProduct.image_url || storeInfo?.logo_url || ''}
+                                                alt={selectedProduct.name}
+                                                className={selectedProduct.image_url ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-8'}
+                                            />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-sm font-medium" style={{ color: textColor }}>
                                                 Sem imagem

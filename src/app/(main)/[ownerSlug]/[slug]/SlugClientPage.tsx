@@ -26,6 +26,7 @@ export default function SlugClientPage() {
     const [error, setError] = useState<string | null>(null)
     const [itemType, setItemType] = useState<ItemType>(null)
     const [itemData, setItemData] = useState<any>(null)
+    const [storeData, setStoreData] = useState<any>(null)
 
     useEffect(() => {
         const detectItemType = async () => {
@@ -39,10 +40,14 @@ export default function SlugClientPage() {
             setError(null)
 
             try {
+                // Busca já com todos os campos que o ProductClientPage precisa,
+                // pra não ter que refazer essa mesma query lá.
+                const columns = 'id, name, slug, description, image_url, price, view_count, created_at, store_id, owner_id, listing_type'
+
                 // Primeiro, tenta buscar pelo slug
                 let { data: item, error: itemError } = await supabase
                     .from('products')
-                    .select('id, listing_type, store_id, owner_id')
+                    .select(columns)
                     .eq('slug', slug)
                     .maybeSingle()
 
@@ -50,7 +55,7 @@ export default function SlugClientPage() {
                 if (itemError || !item) {
                     const { data: itemById, error: byIdErr } = await supabase
                         .from('products')
-                        .select('id, listing_type, store_id, owner_id')
+                        .select(columns)
                         .eq('id', slug)
                         .maybeSingle()
 
@@ -60,18 +65,21 @@ export default function SlugClientPage() {
                     item = itemById
                 }
 
+                let store: any = null
+
                 // Verifica se o item pertence ao ownerSlug correto
                 // Se for produto de loja, verifica se a loja pertence ao ownerSlug
                 if (item.listing_type === 'sale' && item.store_id) {
-                    const { data: store, error: storeErr } = await supabase
+                    const { data: storeRow, error: storeErr } = await supabase
                         .from('stores')
-                        .select('storeSlug')
+                        .select('id, name, storeSlug, logo_url, owner_id')
                         .eq('id', item.store_id)
                         .maybeSingle()
 
-                    if (storeErr || !store || store.storeSlug !== ownerSlug) {
+                    if (storeErr || !storeRow || storeRow.storeSlug !== ownerSlug) {
                         throw new Error('Produto não pertence a esta loja')
                     }
+                    store = storeRow
                 }
                 // Se for publicação, verifica se o perfil pertence ao ownerSlug
                 else if (item.listing_type === 'publication' && item.owner_id) {
@@ -88,6 +96,7 @@ export default function SlugClientPage() {
 
                 setItemType(item.listing_type === 'publication' ? 'publication' : 'product')
                 setItemData(item)
+                setStoreData(store)
 
             } catch (err: any) {
                 console.error('Erro ao detectar tipo do item:', err)
@@ -174,6 +183,8 @@ export default function SlugClientPage() {
                         profileSlug={profileSlug}
                         avatarUrl={avatarUrl}
                         profileLoading={profileLoading}
+                        initialProduct={itemData}
+                        initialStore={storeData}
                     />
                 </div>
             </div>
