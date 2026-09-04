@@ -64,6 +64,18 @@ export default function CriarLojaComCadastro() {
     const [showPassword, setShowPassword] = useState(false)
     const [accountError, setAccountError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
+    const [accountAvatarFile, setAccountAvatarFile] = useState<File | null>(null)
+    const [accountAvatarPreview, setAccountAvatarPreview] = useState<string | null>(null)
+    const accountAvatarInputRef = useRef<HTMLInputElement | null>(null)
+
+    const handleAccountAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setAccountAvatarFile(file)
+        const reader = new FileReader()
+        reader.onloadend = () => setAccountAvatarPreview(reader.result as string)
+        reader.readAsDataURL(file)
+    }
 
     // Generate store slug from name
     useEffect(() => {
@@ -181,6 +193,12 @@ export default function CriarLojaComCadastro() {
             return
         }
 
+        if (!accountAvatarFile) {
+            setAccountError('Adicione uma foto de perfil para continuar')
+            setLoading(false)
+            return
+        }
+
         if (!profileSlug || !/^[a-z0-9-]+$/.test(profileSlug)) {
             setAccountError('Seu link de perfil deve conter apenas letras minúsculas, números e hifens (-)')
             setLoading(false)
@@ -225,6 +243,20 @@ export default function CriarLojaComCadastro() {
 
             const userId = authData.user.id
 
+            // 2.1 Upload da foto de perfil (obrigatória)
+            let accountAvatarUrl: string | null = null
+            if (accountAvatarFile) {
+                const avatarExt = accountAvatarFile.name.split('.').pop()
+                const avatarFileName = `${userId}-${Date.now()}.${avatarExt}`
+                const { error: avatarUploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(avatarFileName, accountAvatarFile, { upsert: true })
+                if (avatarUploadError) {
+                    throw new Error(`Erro ao enviar foto de perfil: ${avatarUploadError.message}`)
+                }
+                accountAvatarUrl = supabase.storage.from('avatars').getPublicUrl(avatarFileName).data.publicUrl
+            }
+
             // 3. Criar perfil
             const { error: profileError } = await supabase
                 .from('profiles')
@@ -232,6 +264,7 @@ export default function CriarLojaComCadastro() {
                     id: userId,
                     name: name,
                     profileSlug: profileSlug,
+                    avatar_url: accountAvatarUrl,
                 })
             if (profileError) {
                 console.error('Erro ao criar perfil:', profileError)
@@ -540,6 +573,37 @@ export default function CriarLojaComCadastro() {
                             </div>
                         )}
 
+                        {/* Foto de perfil (obrigatória) */}
+                        <div className="flex flex-col items-center gap-1.5">
+                            <div className="relative">
+                                <div className="w-20 h-20 rounded-full p-[2px] bg-gradient-to-r from-orange-500 to-red-500">
+                                    <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                        {accountAvatarPreview ? (
+                                            <img src={accountAvatarPreview} alt="Foto de perfil" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-8 h-8 text-orange-300" />
+                                        )}
+                                    </div>
+                                </div>
+                                <input
+                                    type="file"
+                                    ref={accountAvatarInputRef}
+                                    onChange={handleAccountAvatarChange}
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => accountAvatarInputRef.current?.click()}
+                                    disabled={loading}
+                                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white transition-all hover:scale-110"
+                                >
+                                    <Camera className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                            <span className="text-[10px] font-bold text-gray-500">Foto de perfil (obrigatória)</span>
+                        </div>
+
                         {/* Nome do usuário */}
                         <div className="space-y-2">
                             <label className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2 ml-1">
@@ -647,7 +711,7 @@ export default function CriarLojaComCadastro() {
 
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !accountAvatarFile}
                             className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {loading ? (

@@ -22,6 +22,8 @@ import {
     AlertCircle,
     Eye,
     EyeOff,
+    User,
+    Camera,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
@@ -151,6 +153,18 @@ export default function StoreSchedule({
     const [currentUserName, setCurrentUserName] = useState<string | null>(null)
     const [authLoading, setAuthLoading] = useState(false)
     const [authError, setAuthError] = useState<string | null>(null)
+    const [authAvatarFile, setAuthAvatarFile] = useState<File | null>(null)
+    const [authAvatarPreview, setAuthAvatarPreview] = useState<string | null>(null)
+    const authAvatarInputRef = useRef<HTMLInputElement>(null)
+
+    const handleAuthAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setAuthAvatarFile(file)
+        const reader = new FileReader()
+        reader.onloadend = () => setAuthAvatarPreview(reader.result as string)
+        reader.readAsDataURL(file)
+    }
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
     const [authEmail, setAuthEmail] = useState('')
     const [authPassword, setAuthPassword] = useState('')
@@ -257,6 +271,11 @@ export default function StoreSchedule({
             setAuthLoading(false)
             return
         }
+        if (!authAvatarFile) {
+            setAuthError('Adicione uma foto de perfil para continuar')
+            setAuthLoading(false)
+            return
+        }
         if (!authProfileSlug || !/^[a-z0-9-]+$/.test(authProfileSlug)) {
             setAuthError('O link do perfil deve conter apenas letras, números e hifens')
             setAuthLoading(false)
@@ -283,10 +302,26 @@ export default function StoreSchedule({
             return
         }
         if (data.user) {
+            let avatarUrl: string | null = null
+            if (authAvatarFile) {
+                const fileExt = authAvatarFile.name.split('.').pop()
+                const fileName = `${data.user.id}-${Date.now()}.${fileExt}`
+                const { error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(fileName, authAvatarFile, { upsert: true })
+                if (uploadError) {
+                    setAuthError(`Erro ao enviar foto de perfil: ${uploadError.message}`)
+                    setAuthLoading(false)
+                    return
+                }
+                avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
+            }
+
             await supabase.from('profiles').upsert({
                 id: data.user.id,
                 name: authName,
                 profileSlug: authProfileSlug,
+                avatar_url: avatarUrl,
             })
             setCurrentUserId(data.user.id)
             setIsAuthenticated(true)
@@ -1870,6 +1905,24 @@ export default function StoreSchedule({
                                     </form>
                                 ) : (
                                     <form onSubmit={handleRegister} className="space-y-3">
+                                        <div className="flex flex-col items-center gap-1.5 pb-1">
+                                            <div className="relative">
+                                                <div className="w-16 h-16 rounded-full p-[2px]" style={{ background: GRADIENT }}>
+                                                    <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                        {authAvatarPreview ? (
+                                                            <img src={authAvatarPreview} alt="Foto de perfil" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <User className="w-6 h-6" style={{ color: '#f97316', opacity: 0.4 }} />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <input type="file" ref={authAvatarInputRef} onChange={handleAuthAvatarChange} accept="image/*" style={{ display: 'none' }} />
+                                                <button type="button" onClick={() => authAvatarInputRef.current?.click()} disabled={authLoading} className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110" style={{ background: GRADIENT, color: '#fff' }}>
+                                                    <Camera size={12} />
+                                                </button>
+                                            </div>
+                                            <span className="text-[9px] font-bold" style={{ color: textSecondary }}>Foto de perfil (obrigatória)</span>
+                                        </div>
                                         <input
                                             type="text"
                                             placeholder="Nome Completo"
@@ -1930,7 +1983,7 @@ export default function StoreSchedule({
                                         />
                                         <button
                                             type="submit"
-                                            disabled={authLoading || isSlugAvailable === false}
+                                            disabled={authLoading || isSlugAvailable === false || !authAvatarFile}
                                             className="w-full py-2.5 rounded-full font-black uppercase text-xs tracking-wider transition-all disabled:opacity-50"
                                             style={{ background: GRADIENT, color: '#ffffff' }}
                                         >

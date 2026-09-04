@@ -18,6 +18,7 @@ import {
     Eye,
     EyeOff,
     LogIn,
+    Camera,
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
@@ -57,6 +58,18 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
     const [registerLoading, setRegisterLoading] = useState(false)
     const [registered, setRegistered] = useState(false)
     const [showRegisterPassword, setShowRegisterPassword] = useState(false)
+    const [avatarFile, setAvatarFile] = useState<File | null>(null)
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+    const avatarInputRef = useRef<HTMLInputElement>(null)
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setAvatarFile(file)
+        const reader = new FileReader()
+        reader.onloadend = () => setAvatarPreview(reader.result as string)
+        reader.readAsDataURL(file)
+    }
     const profileSlugRef = useRef<string>('')
 
     // Estado para controlar qual tela mostrar
@@ -111,6 +124,12 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
 
         if (registerPassword.length < 6) {
             setRegisterError('A senha deve ter pelo menos 6 caracteres')
+            setRegisterLoading(false)
+            return
+        }
+
+        if (!avatarFile) {
+            setRegisterError('Adicione uma foto de perfil para continuar')
             setRegisterLoading(false)
             return
         }
@@ -174,6 +193,18 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
             // Salvar slug no ref
             profileSlugRef.current = profileSlug
 
+            // Upload da foto de perfil (obrigatória)
+            let avatarUrl: string | null = null
+            if (avatarFile) {
+                const fileExt = avatarFile.name.split('.').pop()
+                const fileName = `${authData.user.id}-${Date.now()}.${fileExt}`
+                const { error: uploadError } = await supabase.storage
+                    .from('avatars')
+                    .upload(fileName, avatarFile, { upsert: true })
+                if (uploadError) throw new Error(`Erro ao enviar foto de perfil: ${uploadError.message}`)
+                avatarUrl = supabase.storage.from('avatars').getPublicUrl(fileName).data.publicUrl
+            }
+
             // Criar perfil
             const profileData = {
                 id: authData.user.id,
@@ -181,6 +212,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                 profileSlug: profileSlug,
                 upline_id: uplineId,
                 email: registerEmail,
+                avatar_url: avatarUrl,
                 is_active: true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -530,6 +562,39 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
                                     </div>
                                 )}
 
+                                <div className="flex flex-col items-center gap-1.5">
+                                    <div className="relative">
+                                        <div className="w-20 h-20 rounded-full p-[2px]" style={{ background: accentColor }}>
+                                            <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
+                                                {avatarPreview ? (
+                                                    <img src={avatarPreview} alt="Foto de perfil" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <User className="w-8 h-8" style={{ color: accentColor, opacity: 0.4 }} />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={avatarInputRef}
+                                            onChange={handleAvatarChange}
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => avatarInputRef.current?.click()}
+                                            disabled={registerLoading}
+                                            className="absolute -bottom-1 -right-1 p-1.5 rounded-full transition-all hover:scale-110"
+                                            style={{ background: accentColor, color: '#fff' }}
+                                        >
+                                            <Camera size={14} />
+                                        </button>
+                                    </div>
+                                    <span className="text-[10px] font-bold" style={{ color: textSecondary }}>
+                                        Foto de perfil (obrigatória)
+                                    </span>
+                                </div>
+
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase tracking-wider flex items-center gap-2" style={{ color: textSecondary }}>
                                         <User className="w-3.5 h-3.5" style={{ color: accentColor }} />
@@ -667,7 +732,7 @@ function LoginAndRegisterContent({ onLoginSuccess }: LoginAndRegisterProps) {
 
                                 <button
                                     type="submit"
-                                    disabled={registerLoading}
+                                    disabled={registerLoading || !avatarFile}
                                     className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50"
                                     style={{
                                         background: 'linear-gradient(135deg, #f97316, #dc2626)',
