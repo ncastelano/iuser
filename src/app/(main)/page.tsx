@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { User, Store, Home, MapPin, LayoutDashboard, ShoppingBag, ShoppingCart, X, Radar } from 'lucide-react'
 
 import CategoriasSection from './inicio/sections/CanIhelp'
-import TransporteSection from './inicio/sections/TransporteSection'
+import LookForAService from './inicio/sections/LookForAService'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import HireAService from './inicio/sections/HireAService'
 import SortableSection from './inicio/sections/SortableSection'
@@ -584,7 +584,7 @@ export default function HomePage() {
             case 'profileShowcase':
                 return <FeaturedProfiles />
             case 'transporte':
-                return <TransporteSection onBreveStatusChange={breveCallbacks.transporte} />
+                return <LookForAService onBreveStatusChange={breveCallbacks.transporte} />
             case 'motorista':
                 return <MotoristaSection onBreveStatusChange={breveCallbacks.motorista} />
             case 'servico':

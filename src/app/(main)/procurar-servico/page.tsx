@@ -1,4 +1,4 @@
-// app/(main)/ser-parceiro-iuser/page.tsx
+// app/(main)/procurar-servico/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'

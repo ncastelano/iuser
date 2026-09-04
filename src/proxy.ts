@@ -32,7 +32,7 @@ const IGNORED_ROUTES = [
     '/comunidade',
     '/pedir-motorista',
     '/pedir-servico',
-    '/ser-parceiro-iuser',
+    '/procurar-servico',
 ]
 
 // ===== PREFIXOS IGNORADOS =====

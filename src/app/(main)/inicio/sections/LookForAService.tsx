@@ -1,4 +1,4 @@
-// src/app/(main)/inicio/sections/TransporteSection.tsx
+// src/app/(main)/inicio/sections/LookForAService.tsx
 'use client'
 
 import { ReactNode, useEffect } from 'react'
@@ -20,12 +20,12 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     }
 }
 
-interface TransporteSectionProps {
+interface LookForAServiceProps {
     dragHandle?: ReactNode
     onBreveStatusChange?: (isBreve: boolean) => void
 }
 
-export default function TransporteSection({ dragHandle, onBreveStatusChange }: TransporteSectionProps) {
+export default function LookForAService({ dragHandle, onBreveStatusChange }: LookForAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
 
@@ -91,7 +91,7 @@ export default function TransporteSection({ dragHandle, onBreveStatusChange }: T
                 </div>
 
                 <button
-                    onClick={() => router.push('/ser-parceiro-iuser')}
+                    onClick={() => router.push('/procurar-servico')}
                     className="flex items-center justify-center gap-2 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg whitespace-nowrap hover:scale-105 active:scale-95"
                     style={buttonStyle}
                 >
