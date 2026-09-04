@@ -160,6 +160,7 @@ export default function CriarLoja() {
   const { bgMode, customBgUrl, loading: profileLoading, avatarUrl: contextAvatarUrl } = useProfile();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const movableMarkerRef = useRef<any>(null);
@@ -192,6 +193,9 @@ export default function CriarLoja() {
   const [locationError, setLocationError] = useState("");
   const [mapReady, setMapReady] = useState(false);
   const [usingGPS, setUsingGPS] = useState(false);
+  const [showLocationConfirm, setShowLocationConfirm] = useState(false);
+  const [pendingAddress, setPendingAddress] = useState("");
+  const [pendingNumber, setPendingNumber] = useState("");
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -363,20 +367,6 @@ export default function CriarLoja() {
         }, 500);
       });
 
-      setResolvingAddress(true);
-      try {
-        const result = await reverseGeocode(selectedPosition.lat, selectedPosition.lng);
-        setAddress(result.fullAddress);
-        if (result.extractedNumber) {
-          setAddressNumber(result.extractedNumber);
-        }
-      } catch (err) {
-        const fallback = `Local (${selectedPosition.lat.toFixed(4)}, ${selectedPosition.lng.toFixed(4)})`;
-        setAddress(fallback);
-      } finally {
-        setResolvingAddress(false);
-      }
-
       setMapReady(true);
     };
 
@@ -421,13 +411,13 @@ export default function CriarLoja() {
         setResolvingAddress(true);
         try {
           const result = await reverseGeocode(newPos.lat, newPos.lng);
-          setAddress(result.fullAddress);
-          if (result.extractedNumber) {
-            setAddressNumber(result.extractedNumber);
-          }
+          setPendingAddress(result.fullAddress);
+          setPendingNumber(result.extractedNumber);
+          setShowLocationConfirm(true);
         } catch (err) {
-          const fallback = `Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`;
-          setAddress(fallback);
+          setPendingAddress(`Local (${newPos.lat.toFixed(4)}, ${newPos.lng.toFixed(4)})`);
+          setPendingNumber('');
+          setShowLocationConfirm(true);
         } finally {
           setResolvingAddress(false);
           setLoadingLocation(false);
@@ -459,14 +449,44 @@ export default function CriarLoja() {
 
     if (result) {
       setSelectedPosition({ lat: result.lat, lng: result.lng });
-      setAddress(result.address);
       flyTo(result.lat, result.lng);
-      setSearchQuery('');
+      setPendingAddress(result.address);
+      setPendingNumber('');
+      setShowLocationConfirm(true);
     } else {
       setLocationError('Endereço não encontrado.');
     }
 
     setLoadingLocation(false);
+  };
+
+  // Busca automaticamente assim que o usuário para de digitar
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 4) return;
+    const timer = setTimeout(() => {
+      handleSearchAddress();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleConfirmLocation = () => {
+    setAddress(pendingAddress);
+    if (pendingNumber) {
+      setAddressNumber(prev => prev || pendingNumber);
+    }
+    setShowLocationConfirm(false);
+    setPendingAddress('');
+    setPendingNumber('');
+    setSearchQuery('');
+  };
+
+  const handleRejectLocation = () => {
+    setShowLocationConfirm(false);
+    setPendingAddress('');
+    setPendingNumber('');
+    setSearchQuery('');
+    toast.info('Digite o endereço correto no campo de busca');
+    setTimeout(() => searchInputRef.current?.focus(), 150);
   };
 
   const handleWhatsAppChange = (value: string) => {
@@ -846,6 +866,7 @@ export default function CriarLoja() {
                     <Search size={14} color="#f97316" />
                   </div>
                   <input
+                    ref={searchInputRef}
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -974,6 +995,37 @@ export default function CriarLoja() {
                 💡 Arraste o marcador laranja ou o mapa para ajustar a localização
               </p>
             </div>
+
+            {showLocationConfirm && (
+              <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+                <div className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-xl">
+                  <div className="flex items-center gap-2">
+                    <MapPinned className="w-5 h-5 text-orange-500" />
+                    <h3 className="font-black text-sm uppercase tracking-wider text-gray-800">Confirmar localização</h3>
+                  </div>
+                  <p className="text-sm text-gray-600">Essa é a localização correta?</p>
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <p className="text-sm font-medium text-gray-800">{pendingAddress}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRejectLocation}
+                      className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+                    >
+                      Não, digitar de novo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmLocation}
+                      className="flex-1 py-3 rounded-xl font-black uppercase text-[10px] tracking-wider bg-gradient-to-r from-orange-500 to-red-500 text-white hover:shadow-lg transition-all"
+                    >
+                      Sim, está correta
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* BOTÃO CRIAR */}
             <button
