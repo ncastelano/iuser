@@ -1,10 +1,19 @@
 // src/app/(main)/inicio/sections/LookForAService.tsx
 'use client'
 
-import { ReactNode, useEffect } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Briefcase } from 'lucide-react'
+import { Briefcase, MapPin } from 'lucide-react'
 import { useTheme } from '@/app/theme'
+import {
+    BoardItem,
+    fetchOpenBoardItems,
+    getItemAddress,
+    getItemIcon,
+    getItemLabel,
+    itemKey,
+    relativeTime,
+} from '@/lib/serviceBoard'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -28,10 +37,15 @@ interface LookForAServiceProps {
 export default function LookForAService({ dragHandle, onBreveStatusChange }: LookForAServiceProps) {
     const { colors } = useTheme()
     const router = useRouter()
+    const [openItems, setOpenItems] = useState<BoardItem[]>([])
 
     useEffect(() => {
         onBreveStatusChange?.(false)
     }, [onBreveStatusChange])
+
+    useEffect(() => {
+        fetchOpenBoardItems(10).then(setOpenItems).catch(() => setOpenItems([]))
+    }, [])
 
     const surfaceRgb = hexToRgb(colors.surface)
 
@@ -99,6 +113,47 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                     ver serviços
                 </button>
             </div>
+
+            {openItems.length > 0 && (
+                <div className="flex gap-3 overflow-x-auto pb-1 pt-3 -mx-1 px-1 scrollbar-hide">
+                    {openItems.map((item) => {
+                        const Icon = getItemIcon(item)
+                        return (
+                            <button
+                                key={itemKey(item)}
+                                onClick={() => router.push('/procurar-servico')}
+                                className="text-left rounded-2xl p-3 flex-shrink-0 w-48 transition-transform hover:scale-[1.02]"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                                    backdropFilter: 'blur(12px)',
+                                    WebkitBackdropFilter: 'blur(12px)',
+                                    border: `1px solid ${colors.border}`,
+                                    boxShadow: colors.shadow,
+                                }}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                    >
+                                        <Icon size={14} />
+                                    </div>
+                                    <span className="text-xs font-black truncate flex-1" style={{ color: colors.textPrimary }}>
+                                        {getItemLabel(item)}
+                                    </span>
+                                </div>
+                                <span className="flex items-center gap-1 text-[10px] mt-1.5" style={{ color: colors.textSecondary }}>
+                                    <MapPin size={10} className="flex-shrink-0" />
+                                    <span className="truncate">{getItemAddress(item)}</span>
+                                </span>
+                                <span className="text-[9px] mt-1 block" style={{ color: colors.textSecondary }}>
+                                    {relativeTime(item.created_at)}
+                                </span>
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
         </section>
     )
 }
