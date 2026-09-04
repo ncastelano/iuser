@@ -11,7 +11,7 @@ import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import LoginAndRegister from '../LoginAndRegister'
 import { toast } from 'sonner'
 import { getServiceIcon, getServiceLabel } from '@/lib/serviceTypes'
-import { Briefcase, MapPin, Loader2 } from 'lucide-react'
+import { Briefcase, MapPin, Loader2, Plus } from 'lucide-react'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -270,6 +270,23 @@ export default function SerParceiroPage() {
                         </div>
                     )}
                 </section>
+
+                {/* ===== BOTAO FLUTUANTE - PEDIR SERVICO ===== */}
+                <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
+                    <button
+                        onClick={() => router.push('/pedir-servico')}
+                        className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label="Pedir serviço"
+                    >
+                        <Plus size={22} />
+                        <span className="font-semibold text-sm">Pedir serviço</span>
+                    </button>
+                </div>
             </main>
         </div>
     )
