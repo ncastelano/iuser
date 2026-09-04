@@ -130,10 +130,22 @@ const useCartStore = create<CartState>()(
                 data.forEach((row: any) => {
                     const slug = row.store_slug
                     if (!itemsByStore[slug]) itemsByStore[slug] = []
-                    itemsByStore[slug].push({
-                        product: row.product_data as CartProduct,
-                        quantity: row.quantity,
-                    })
+
+                    // Uma linha por produto por loja é o esperado, mas se o banco
+                    // tiver duas (ex.: sync concorrente), soma em vez de duplicar
+                    // a entrada — senão a mesma product.id vira chave repetida.
+                    const existing = itemsByStore[slug].find(
+                        (item) => item.product.id === row.product_id
+                    )
+                    if (existing) {
+                        existing.quantity += row.quantity
+                    } else {
+                        itemsByStore[slug].push({
+                            product: row.product_data as CartProduct,
+                            quantity: row.quantity,
+                        })
+                    }
+
                     if (!storeDetails[slug]) {
                         storeDetails[slug] = row.store_data as StoreDetails
                     }
@@ -185,6 +197,31 @@ const useCartStore = create<CartState>()(
         }),
         {
             name: 'iuser-cart-storage',
+            // Corrige, ao reidratar, um carrinho salvo com entradas duplicadas
+            // pro mesmo produto (bug antigo do loadFromSupabase) — sem isso, o
+            // React acusa chaves repetidas em toda lista que usa product.id.
+            merge: (persistedState, currentState) => {
+                const merged = {
+                    ...currentState,
+                    ...(persistedState as Partial<CartState>),
+                }
+
+                const dedupedItemsByStore: Record<string, CartItem[]> = {}
+                for (const [slug, items] of Object.entries(merged.itemsByStore || {})) {
+                    const bySlug: CartItem[] = []
+                    for (const item of items) {
+                        const existing = bySlug.find((i) => i.product.id === item.product.id)
+                        if (existing) {
+                            existing.quantity += item.quantity
+                        } else {
+                            bySlug.push({ ...item })
+                        }
+                    }
+                    dedupedItemsByStore[slug] = bySlug
+                }
+
+                return { ...merged, itemsByStore: dedupedItemsByStore }
+            },
         }
     )
 )
