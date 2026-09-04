@@ -297,7 +297,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
     const textSecondary = colors.textSecondary
 
     // ===== Card de publicacao (mesmo desenho do feed em /publicacoes) =====
-    const renderPublicationCard = (pub: Publication, showOwnerActions: boolean) => {
+    // ===== Card de publicacao (mesmo desenho do feed em /publicacoes) =====
+    const renderPublicationCard = (pub: Publication, showOwnerActions: boolean, compact: boolean = false) => {
         const imgUrl = getImageUrl(pub.image_url)
         const openPublication = () => router.push(`/publicacoes/${pub.slug}`)
 
@@ -305,7 +306,7 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
             <div
                 key={pub.id}
                 onClick={openPublication}
-                className="rounded-2xl p-5 flex flex-col gap-1 cursor-pointer transition-transform hover:scale-[1.01]"
+                className={`rounded-2xl flex flex-col gap-1 cursor-pointer transition-transform hover:scale-[1.01] ${compact ? 'p-2.5 w-44 flex-shrink-0' : 'p-5'}`}
                 style={{
                     background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
                     backdropFilter: 'blur(12px)',
@@ -315,39 +316,41 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 }}
             >
                 {/* Cabecalho: autor, data e titulo */}
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2">
                     <div
-                        className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
+                        className={`rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center ${compact ? 'w-6 h-6' : 'w-10 h-10'}`}
                         style={{ background: GRADIENT }}
                     >
                         {ownerAvatar ? (
                             <img src={ownerAvatar} className="w-full h-full object-cover" alt={ownerName || 'Perfil'} />
                         ) : (
-                            <span className="text-white font-bold text-lg">
+                            <span className={`text-white font-bold ${compact ? 'text-[10px]' : 'text-lg'}`}>
                                 {ownerName?.charAt(0).toUpperCase() || '?'}
                             </span>
                         )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold" style={{ color: textPrimary }}>
-                                {ownerName || (profileSlug ? `@${profileSlug}` : 'Voce')}
-                            </span>
-                            <span className="text-[10px]" style={{ color: textSecondary }}>
-                                • {formatDate(pub.created_at)}
-                            </span>
-                            <span
-                                className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase"
-                                style={{ background: '#10b98120', color: '#10b981' }}
-                            >
-                                Novidade
-                            </span>
-                        </div>
-                        <p className="text-sm font-bold mt-1" style={{ color: textPrimary }}>
+                        {!compact && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold" style={{ color: textPrimary }}>
+                                    {ownerName || (profileSlug ? `@${profileSlug}` : 'Voce')}
+                                </span>
+                                <span className="text-[10px]" style={{ color: textSecondary }}>
+                                    • {formatDate(pub.created_at)}
+                                </span>
+                                <span
+                                    className="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase"
+                                    style={{ background: '#10b98120', color: '#10b981' }}
+                                >
+                                    Novidade
+                                </span>
+                            </div>
+                        )}
+                        <p className={`font-bold ${compact ? 'text-xs' : 'text-sm mt-1'} truncate`} style={{ color: textPrimary }}>
                             {pub.name || 'Sem titulo'}
                         </p>
-                        {pub.description && (
+                        {pub.description && !compact && (
                             <p className="text-xs mt-1 line-clamp-2" style={{ color: textSecondary }}>
                                 {pub.description}
                             </p>
@@ -355,22 +358,24 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                     </div>
 
                     {showOwnerActions && (
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                             {profileSlug && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); router.push(`/${profileSlug}/${pub.slug}/editar`) }}
-                                    className="p-1.5 rounded-full hover:bg-white/10 transition-colors"
+                                    className="rounded-full hover:bg-white/10 transition-colors"
+                                    style={{ padding: compact ? 4 : 6 }}
                                     title="Editar"
                                 >
-                                    <Pencil size={14} style={{ color: textSecondary }} />
+                                    <Pencil size={compact ? 11 : 14} style={{ color: textSecondary }} />
                                 </button>
                             )}
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleDelete(pub.id) }}
-                                className="p-1.5 rounded-full hover:bg-red-50 transition-colors"
+                                className="rounded-full hover:bg-red-50 transition-colors"
+                                style={{ padding: compact ? 4 : 6 }}
                                 title="Excluir"
                             >
-                                <Trash2 size={14} style={{ color: '#ef4444' }} />
+                                <Trash2 size={compact ? 11 : 14} style={{ color: '#ef4444' }} />
                             </button>
                         </div>
                     )}
@@ -378,54 +383,59 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
 
                 {/* Imagem da publicacao */}
                 {imgUrl && (
-                    <div className="mt-3 rounded-xl overflow-hidden">
-                        <img src={imgUrl} className="w-full max-h-[300px] object-cover" alt={pub.name} />
+                    <div className={`rounded-xl overflow-hidden ${compact ? 'mt-1.5' : 'mt-3'}`}>
+                        <img src={imgUrl} className={`w-full object-cover ${compact ? 'max-h-[100px]' : 'max-h-[300px]'}`} alt={pub.name} />
                     </div>
                 )}
 
                 {/* Acoes: curtidas, comentarios, visualizacoes e compartilhar */}
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t flex-wrap" style={{ borderColor: colors.border }}>
+                <div
+                    className={`flex items-center flex-wrap border-t ${compact ? 'gap-1 mt-1.5 pt-1.5' : 'gap-2 mt-3 pt-3'}`}
+                    style={{ borderColor: colors.border }}
+                >
                     <button
                         onClick={(e) => { e.stopPropagation(); handleToggleLike(pub) }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        className={`flex items-center rounded-full font-bold transition-all hover:scale-105 ${compact ? 'gap-1 px-1.5 py-0.5 text-[9px]' : 'gap-1.5 px-3 py-1 text-[10px]'}`}
                         style={{
                             background: pub.is_liked ? '#ef444420' : 'rgba(255,255,255,0.05)',
                             color: pub.is_liked ? '#ef4444' : textSecondary,
                             border: pub.is_liked ? '1px solid #ef444440' : `1px solid ${colors.border}`,
                         }}
                     >
-                        <Heart size={12} fill={pub.is_liked ? '#ef4444' : 'none'} />
+                        <Heart size={compact ? 10 : 12} fill={pub.is_liked ? '#ef4444' : 'none'} />
                         <span>{pub.like_count || 0}</span>
                     </button>
 
                     <button
                         onClick={(e) => { e.stopPropagation(); openPublication() }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        className={`flex items-center rounded-full font-bold transition-all hover:scale-105 ${compact ? 'gap-1 px-1.5 py-0.5 text-[9px]' : 'gap-1.5 px-3 py-1 text-[10px]'}`}
                         style={{
                             background: 'rgba(255,255,255,0.05)',
                             color: textSecondary,
                             border: `1px solid ${colors.border}`,
                         }}
                     >
-                        <MessageCircle size={12} />
+                        <MessageCircle size={compact ? 10 : 12} />
                         <span>{pub.comment_count || 0}</span>
                     </button>
 
-                    <span
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold"
-                        style={{
-                            background: 'rgba(255,255,255,0.05)',
-                            color: textSecondary,
-                            border: `1px solid ${colors.border}`,
-                        }}
-                    >
-                        <Eye size={12} />
-                        {pub.view_count || 0}
-                    </span>
+                    {!compact && (
+                        <span
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold"
+                            style={{
+                                background: 'rgba(255,255,255,0.05)',
+                                color: textSecondary,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <Eye size={12} />
+                            {pub.view_count || 0}
+                        </span>
+                    )}
 
                     <button
                         onClick={(e) => { e.stopPropagation(); handleShare(pub) }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold transition-all hover:scale-105"
+                        className={`flex items-center rounded-full font-bold transition-all hover:scale-105 ${compact ? 'gap-1 px-1.5 py-0.5 text-[9px]' : 'gap-1.5 px-3 py-1 text-[10px]'}`}
                         style={{
                             background: GRADIENT,
                             color: '#ffffff',
@@ -433,8 +443,8 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                             border: 'none',
                         }}
                     >
-                        <Share2 size={12} />
-                        Compartilhar
+                        <Share2 size={compact ? 10 : 12} />
+                        {!compact && 'Compartilhar'}
                     </button>
                 </div>
             </div>
@@ -570,7 +580,25 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                 </button>
 
                 {isExpanded && (
-                    <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4">
+                        {!isCreating && publications.length > 0 && (
+                            <button
+                                onClick={() => setIsCreating(true)}
+                                style={{
+                                    ...pillButtonStyle,
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    background: 'transparent',
+                                    border: `1px dashed ${colors.border}`,
+                                    color: '#f97316',
+                                }}
+                                className="hover:bg-white/5 transition-colors"
+                            >
+                                <Plus size={16} />
+                                Nova publicação
+                            </button>
+                        )}
+
                         {loading ? (
                             <div className="flex justify-center py-8">
                                 <div className="w-6 h-6 border-2 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
@@ -615,29 +643,9 @@ export default function ProfilePublication({ profileId, profileSlug, isOwner = t
                                 )}
                             </div>
                         ) : (
-                            <>
-                                <div className="flex flex-col gap-4">
-                                    {publications.map(pub => renderPublicationCard(pub, true))}
-                                </div>
-
-                                {!isCreating && (
-                                    <button
-                                        onClick={() => setIsCreating(true)}
-                                        style={{
-                                            ...pillButtonStyle,
-                                            width: '100%',
-                                            padding: '0.75rem',
-                                            background: 'transparent',
-                                            border: `1px dashed ${colors.border}`,
-                                            color: '#f97316',
-                                        }}
-                                        className="hover:bg-white/5 transition-colors"
-                                    >
-                                        <Plus size={16} />
-                                        Nova publicação
-                                    </button>
-                                )}
-                            </>
+                            <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                                {publications.map(pub => renderPublicationCard(pub, true, true))}
+                            </div>
                         )}
 
                         {isCreating && (
