@@ -22,6 +22,9 @@ interface CatalogBagProps {
     onCheckout: () => void
     colors: any
     isStoreOpen?: boolean
+    deliveryFeeType?: 'free' | 'fixed' | 'distance' | 'none'
+    deliveryFee?: number
+    deliveryFeeIsEstimate?: boolean
 }
 
 // ===== Sacola flutuante do catálogo: mostra os produtos adicionados ao carrinho =====
@@ -35,9 +38,14 @@ export default function CatalogBag({
     onCheckout,
     colors,
     isStoreOpen = true,
+    deliveryFeeType = 'none',
+    deliveryFee = 0,
+    deliveryFeeIsEstimate = false,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+    const showDelivery = deliveryFeeType !== 'none'
+    const finalTotal = totalValue + (showDelivery ? deliveryFee : 0)
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -203,26 +211,38 @@ export default function CatalogBag({
                                     </div>
                                 ))}
 
-                                <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: colors.border }}>
-                                    <span className="text-xs font-bold" style={{ color: textColor }}>
-                                        Total: {formatPrice(totalValue)}
-                                    </span>
-                                    {!isStoreOpen ? (
-                                        <span
-                                            className="px-4 py-1.5 rounded-full text-xs font-bold"
-                                            style={{ background: '#ef444422', color: '#ef4444' }}
-                                        >
-                                            Loja fechada
-                                        </span>
-                                    ) : (
-                                        <button
-                                            onClick={handleCheckout}
-                                            className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
-                                            style={{ background: GRADIENT, color: '#ffffff' }}
-                                        >
-                                            Finalizar
-                                        </button>
+                                <div className="pt-2 border-t space-y-1" style={{ borderColor: colors.border }}>
+                                    {showDelivery && (
+                                        <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
+                                            <span>Frete{deliveryFeeIsEstimate ? ' (estimado)' : ''}</span>
+                                            <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                {deliveryFee === 0
+                                                    ? 'Grátis'
+                                                    : `${deliveryFeeIsEstimate ? 'a partir de ' : ''}${formatPrice(deliveryFee)}`}
+                                            </span>
+                                        </div>
                                     )}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold" style={{ color: textColor }}>
+                                            Total: {formatPrice(finalTotal)}
+                                        </span>
+                                        {!isStoreOpen ? (
+                                            <span
+                                                className="px-4 py-1.5 rounded-full text-xs font-bold"
+                                                style={{ background: '#ef444422', color: '#ef4444' }}
+                                            >
+                                                Loja fechada
+                                            </span>
+                                        ) : (
+                                            <button
+                                                onClick={handleCheckout}
+                                                className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
+                                                style={{ background: GRADIENT, color: '#ffffff' }}
+                                            >
+                                                Finalizar
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}

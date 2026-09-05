@@ -660,6 +660,47 @@ export default function CatalogoPage() {
         return { itemsTotal, deliveryFee, finalTotal, isCalculating }
     }, [cartItems, calculateDeliveryFee])
 
+    // ===== ESTIMATIVA DE FRETE PARA A SACOLA FLUTUANTE (antes de escolher entrega/retirada no checkout) =====
+    const bagDeliveryEstimate = useMemo((): { type: 'free' | 'fixed' | 'distance' | 'none'; fee: number; isEstimate: boolean } => {
+        if (!storeConfig || !storeConfig.accepts_delivery) {
+            return { type: 'none', fee: 0, isEstimate: false }
+        }
+
+        const dtype = storeConfig.delivery_type
+        if (dtype === 'free') {
+            return { type: 'free', fee: 0, isEstimate: false }
+        }
+        if (dtype === 'fixed') {
+            return { type: 'fixed', fee: Number(storeConfig.delivery_fee) || 0, isEstimate: false }
+        }
+        if (dtype === 'distance') {
+            const feePerKm = Number(storeConfig.delivery_fee_per_km) || 0
+            const baseDist = Number(storeConfig.delivery_base_distance) || 0
+            const baseFee = Number(storeConfig.delivery_base_fee) || 0
+            const storeLat = storeConfig.store_lat
+            const storeLng = storeConfig.store_lng
+
+            // Usa o endereço já escolhido no checkout, senão o endereço salvo do perfil
+            const custLat = deliveryLat ?? userLocation?.lat ?? null
+            const custLng = deliveryLng ?? userLocation?.lng ?? null
+
+            if (storeLat == null || storeLng == null || custLat == null || custLng == null) {
+                // Sem endereço ainda pra calcular a distância real: mostra a partir do valor base
+                return { type: 'distance', fee: baseFee, isEstimate: true }
+            }
+
+            const R = 6371
+            const dLat = (custLat - storeLat) * Math.PI / 180
+            const dLng = (custLng - storeLng) * Math.PI / 180
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(storeLat * Math.PI / 180) * Math.cos(custLat * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+            const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+            const fee = dist <= baseDist ? baseFee : baseFee + (dist - baseDist) * feePerKm
+            return { type: 'distance', fee, isEstimate: false }
+        }
+        return { type: 'none', fee: 0, isEstimate: false }
+    }, [storeConfig, deliveryLat, deliveryLng, userLocation])
+
     const handleFinalizeOrder = async () => {
         if (!currentUserId) {
             setCheckoutStep('auth')
@@ -1281,6 +1322,9 @@ export default function CatalogoPage() {
                         }}
                         colors={colors}
                         isStoreOpen={isStoreOpen}
+                        deliveryFeeType={bagDeliveryEstimate.type}
+                        deliveryFee={bagDeliveryEstimate.fee}
+                        deliveryFeeIsEstimate={bagDeliveryEstimate.isEstimate}
                     />
                 </div>
 
