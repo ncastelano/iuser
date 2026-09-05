@@ -79,8 +79,15 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     willChange: 'transform',
                 }}
             >
+                <span
+                    className="block text-sm font-bold mb-3"
+                    style={{ color: colors.textPrimary }}
+                >
+                    Categorias
+                </span>
+
                 {/* Lista de categorias em scroll horizontal - a mais clicada fica à esquerda */}
-                <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                <div className="flex justify-center gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                     {orderedCategorias.map((cat) => {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
