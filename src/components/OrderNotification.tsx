@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { ShoppingBag, User, DollarSign, CreditCard, Truck, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
-import { useMerchantStore } from '@/store/useMerchantStore'
+import { useMerchantStore, type StoreOrderCounts } from '@/store/useMerchantStore'
 
 const NOTIFICATION_GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -21,13 +21,16 @@ const DELIVERY_LABELS: Record<string, string> = {
     pickup: 'Retirada / Presencial',
 }
 
-function showNewOrderCard(order: {
+interface PendingOrderInfo {
     storeName: string
     buyerLabel: string
     totalAmount: number
     paymentMethod?: string | null
     deliveryOption?: string | null
-}) {
+}
+
+// Card persistente: fica na tela até o pedido sair de "pending" (aceito/recusado/etc.)
+function showOrderCard(orderId: string, order: PendingOrderInfo) {
     const paymentLabel = order.paymentMethod ? (PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod) : null
     const deliveryLabel = order.deliveryOption ? (DELIVERY_LABELS[order.deliveryOption] || order.deliveryOption) : null
 
@@ -37,64 +40,81 @@ function showNewOrderCard(order: {
                 background: NOTIFICATION_GRADIENT,
                 color: '#ffffff',
                 borderRadius: 20,
-                padding: '16px 18px',
+                padding: '14px 16px',
                 boxShadow: '0 12px 32px rgba(220,38,38,0.45)',
                 display: 'flex',
-                gap: 14,
-                alignItems: 'flex-start',
+                gap: 12,
+                alignItems: 'center',
                 width: 340,
                 maxWidth: '92vw',
             }}
         >
             <div
                 style={{
-                    width: 42,
-                    height: 42,
+                    width: 46,
+                    height: 46,
                     borderRadius: 9999,
                     background: 'rgba(255,255,255,0.22)',
+                    border: '1.5px solid rgba(255,255,255,0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                 }}
             >
-                <ShoppingBag size={20} color="#ffffff" />
+                <ShoppingBag size={22} color="#ffffff" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 800, fontSize: 14, color: '#ffffff', margin: 0 }}>
-                    Novo pedido recebido!
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <p style={{ fontWeight: 800, fontSize: 13, color: '#ffffff', margin: 0 }}>
+                        Novo pedido pendente
+                    </p>
+                    <span
+                        style={{
+                            fontSize: 9,
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                            background: 'rgba(255,255,255,0.25)',
+                            color: '#ffffff',
+                            borderRadius: 9999,
+                            padding: '1px 6px',
+                        }}
+                    >
+                        aguardando
+                    </span>
+                </div>
                 <p style={{ fontSize: 12, color: '#ffffff', opacity: 0.95, margin: '2px 0 0', fontWeight: 700 }}>
                     {order.storeName}
                 </p>
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <span style={{ fontSize: 12, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <User size={12} color="#ffffff" /> {order.buyerLabel}
+                <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <span style={{ fontSize: 11.5, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <User size={11} color="#ffffff" /> {order.buyerLabel}
                     </span>
-                    <span style={{ fontSize: 12, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <DollarSign size={12} color="#ffffff" /> R$ {order.totalAmount.toFixed(2)}
+                    <span style={{ fontSize: 11.5, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <DollarSign size={11} color="#ffffff" /> R$ {order.totalAmount.toFixed(2)}
                     </span>
                     {paymentLabel && (
-                        <span style={{ fontSize: 12, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <CreditCard size={12} color="#ffffff" /> {paymentLabel}
+                        <span style={{ fontSize: 11.5, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <CreditCard size={11} color="#ffffff" /> {paymentLabel}
                         </span>
                     )}
                     {deliveryLabel && (
-                        <span style={{ fontSize: 12, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Truck size={12} color="#ffffff" /> {deliveryLabel}
+                        <span style={{ fontSize: 11.5, color: '#ffffff', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Truck size={11} color="#ffffff" /> {deliveryLabel}
                         </span>
                     )}
                 </div>
             </div>
             <button
                 onClick={() => toast.dismiss(id)}
-                style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer', flexShrink: 0, opacity: 0.85, padding: 0 }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 9999, width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', cursor: 'pointer', flexShrink: 0, alignSelf: 'flex-start' }}
                 aria-label="Fechar"
             >
-                <X size={16} />
+                <X size={13} />
             </button>
         </div>
-    ), { duration: 10000 })
+    ), { id: `order-${orderId}`, duration: Infinity })
 }
 
 export function OrderNotification() {
@@ -102,12 +122,14 @@ export function OrderNotification() {
     const setLatestOrderNotification = useMerchantStore(s => s.setLatestOrderNotification)
     const setCustomerOrderStatuses = useMerchantStore(s => s.setCustomerOrderStatuses)
     const setLatestCustomerNotification = useMerchantStore(s => s.setLatestCustomerNotification)
+    const setStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
 
     const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([])
     const pollRef = useRef<NodeJS.Timeout | null>(null)
     const storesListRef = useRef<string[]>([])
     const storeMapRef = useRef<Record<string, { name: string; slug: string }>>({})
     const lastCountRef = useRef<number | null>(null)
+    const pendingOrderIdsRef = useRef<Set<string>>(new Set())
     const isFirstLoadRef = useRef(true)
     const statusMapRef = useRef<Record<string, string>>({})
     const userIdRef = useRef<string | null>(null)
@@ -119,27 +141,64 @@ export function OrderNotification() {
         }
     }, [])
 
-    // Merchant: conta apenas pedidos pendentes da tabela orders
+    const dismissOrderCards = useCallback(() => {
+        pendingOrderIdsRef.current.forEach((id) => toast.dismiss(`order-${id}`))
+        pendingOrderIdsRef.current = new Set()
+    }, [])
+
+    // Merchant: contagens (gerais e por loja) + cards persistentes de pedidos pendentes
     const reloadMerchant = useCallback(async () => {
         const ids = storesListRef.current
         if (!ids.length) return
         try {
             const { data: orders } = await supabase
                 .from('orders')
-                .select('checkout_id')
+                .select('id, store_id, status, checkout_id, buyer_name, buyer_profile_slug, total_amount, payment_method, delivery_option')
                 .in('store_id', ids)
-                .eq('status', 'pending')
+                .in('status', ['pending', 'preparing', 'ready'])
 
-            const checkouts = new Set(orders?.map((o: any) => o.checkout_id) || [])
+            const allOrders = orders || []
+            const pendingOrders = allOrders.filter((o: any) => o.status === 'pending')
+
+            // Contagem agregada (dedupe por checkout) — usada em badges/indicadores gerais
+            const checkouts = new Set(pendingOrders.map((o: any) => o.checkout_id))
             const count = checkouts.size
             if (lastCountRef.current !== count) {
                 lastCountRef.current = count
                 setPendingOrdersCount(count)
             }
+
+            // Contagem por loja — alimenta o indicador da aba de cada loja em tempo real
+            const perStore: Record<string, StoreOrderCounts> = {}
+            ids.forEach((id) => { perStore[id] = { pending: 0, preparing: 0, ready: 0 } })
+            allOrders.forEach((o: any) => {
+                if (perStore[o.store_id]) {
+                    perStore[o.store_id][o.status as 'pending' | 'preparing' | 'ready']++
+                }
+            })
+            setStoreOrderCounts(perStore)
+
+            // Cards de notificação: um por pedido pendente, até ele deixar de estar pendente
+            const currentIds = new Set<string>(pendingOrders.map((o: any) => o.id))
+            pendingOrders.forEach((o: any) => {
+                const store = storeMapRef.current[o.store_id]
+                if (!store) return
+                showOrderCard(o.id, {
+                    storeName: store.name,
+                    buyerLabel: o.buyer_profile_slug ? `@${o.buyer_profile_slug}` : (o.buyer_name || 'Cliente presencial'),
+                    totalAmount: Number(o.total_amount || 0),
+                    paymentMethod: o.payment_method,
+                    deliveryOption: o.delivery_option,
+                })
+            })
+            pendingOrderIdsRef.current.forEach((id) => {
+                if (!currentIds.has(id)) toast.dismiss(`order-${id}`)
+            })
+            pendingOrderIdsRef.current = currentIds
         } catch (e) {
             console.error('[OrderNotification] reload merchant error', e)
         }
-    }, [setPendingOrdersCount])
+    }, [setPendingOrdersCount, setStoreOrderCounts])
 
     // Customer: busca apenas orders do comprador
     const reloadCustomer = useCallback(async (userId: string) => {
@@ -186,11 +245,12 @@ export function OrderNotification() {
             clearInterval(pollRef.current)
             pollRef.current = null
         }
+        dismissOrderCards()
         storesListRef.current = []
         storeMapRef.current = {}
         lastCountRef.current = null
         isSettingUpRef.current = false
-    }, [])
+    }, [dismissOrderCards])
 
     const setup = useCallback(async (userId: string) => {
         if (isSettingUpRef.current) return
@@ -219,23 +279,14 @@ export function OrderNotification() {
                 merchantChannel
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
                         if (storeMap[payload.new.store_id]) {
-                            reloadMerchant()
                             if (payload.new.status === 'pending') {
                                 const buyer = payload.new.buyer_profile_slug || 'cliente'
                                 const store = storeMap[payload.new.store_id].slug
                                 const msg = `Novo pedido de /${buyer} na /${store}`
                                 setLatestOrderNotification(msg)
                                 notify('Novo Pedido!', msg)
-                                showNewOrderCard({
-                                    storeName: storeMap[payload.new.store_id].name,
-                                    buyerLabel: payload.new.buyer_profile_slug
-                                        ? `@${payload.new.buyer_profile_slug}`
-                                        : (payload.new.buyer_name || 'Cliente presencial'),
-                                    totalAmount: Number(payload.new.total_amount || 0),
-                                    paymentMethod: payload.new.payment_method,
-                                    deliveryOption: payload.new.delivery_option,
-                                })
                             }
+                            reloadMerchant()
                         }
                     })
                     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
@@ -247,6 +298,7 @@ export function OrderNotification() {
                 channelsRef.current.push(merchantChannel)
             } else {
                 setPendingOrdersCount(0)
+                setStoreOrderCounts({})
             }
 
             // --- Customer ---
@@ -268,7 +320,7 @@ export function OrderNotification() {
         } finally {
             isSettingUpRef.current = false
         }
-    }, [cleanup, reloadMerchant, reloadCustomer, setPendingOrdersCount, setLatestOrderNotification, notify])
+    }, [cleanup, reloadMerchant, reloadCustomer, setPendingOrdersCount, setStoreOrderCounts, setLatestOrderNotification, notify])
 
     useEffect(() => {
         if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
@@ -281,6 +333,7 @@ export function OrderNotification() {
             } else if (event === 'SIGNED_OUT') {
                 cleanup()
                 setPendingOrdersCount(0)
+                setStoreOrderCounts({})
                 setCustomerOrderStatuses([])
             }
         })

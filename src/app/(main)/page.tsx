@@ -22,6 +22,7 @@ import CreateStoreAndRegisterProfile from './CreateStoreAndRegisterProfile'
 import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
+import { useMerchantStore } from '@/store/useMerchantStore'
 import HomeBag, { type HomeBagItem } from './HomeBag'
 import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
 import { isProfileOpenNow } from '@/lib/profileHours'
@@ -130,9 +131,8 @@ export default function HomePage() {
 
     const [breveMap, setBreveMap] = useState<Record<string, boolean>>({})
 
-    const [storeOrderCounts, setStoreOrderCounts] = useState<
-        Record<string, { pending: number; preparing: number; ready: number }>
-    >({})
+    const storeOrderCounts = useMerchantStore(s => s.storeOrderCounts)
+    const setMerchantStoreOrderCounts = useMerchantStore(s => s.setStoreOrderCounts)
 
     const breveCallbacks = useMemo(() => ({
         transporte: (isBreve: boolean) => {
@@ -473,73 +473,15 @@ export default function HomePage() {
         loadStores()
     }, [profileSlug])
 
-    // ---------- CONTAGENS DE PEDIDOS DAS LOJAS (dono) ----------
-    const fetchStoreOrderCounts = async () => {
-        if (!stores || stores.length === 0) return
-        const storeIds = stores.map(s => s.id)
-        const { data, error } = await supabase
-            .from('orders')
-            .select('store_id, status')
-            .in('store_id', storeIds)
-            .in('status', ['pending', 'preparing', 'ready'])
-
-        if (error) {
-            console.error('Erro ao buscar contagens de pedidos:', error)
-            return
-        }
-
-        const counts: Record<string, { pending: number; preparing: number; ready: number }> = {}
-        storeIds.forEach(id => {
-            counts[id] = { pending: 0, preparing: 0, ready: 0 }
-        })
-        data?.forEach(order => {
-            if (counts[order.store_id]) {
-                counts[order.store_id][order.status as 'pending' | 'preparing' | 'ready']++
-            }
-        })
-        setStoreOrderCounts(counts)
-    }
-
-    useEffect(() => {
-        if (stores.length > 0) {
-            fetchStoreOrderCounts()
-        }
-    }, [stores])
-
-    useEffect(() => {
-        if (!stores || stores.length === 0) return
-        const storeIds = new Set(stores.map(s => s.id))
-        const channel = supabase
-            .channel('homepage-store-orders')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'orders' },
-                (payload) => {
-                    const row: any = payload.new || payload.old
-                    if (row && storeIds.has(row.store_id)) fetchStoreOrderCounts()
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
-    }, [stores])
-
     // ===== FUNÇÃO PARA ATUALIZAR OS BADGES EM TEMPO REAL =====
+    // As contagens em si vêm do OrderNotification (montado globalmente em providers.tsx),
+    // que já mantém uma assinatura realtime confiável em useMerchantStore. Aqui só mesclamos
+    // a atualização mais imediata que vem do StoreDashboard enquanto ele está aberto.
     const handleOrderCountsChange = (counts: { pending: number; preparing: number; ready: number }) => {
-        setStoreOrderCounts(prev => {
-            if (showStoreDashboard) {
-                const store = stores.find(s => s.slug === showStoreDashboard.slug)
-                if (store) {
-                    return {
-                        ...prev,
-                        [store.id]: counts
-                    }
-                }
-            }
-            return prev
-        })
+        if (!showStoreDashboard) return
+        const store = stores.find(s => s.slug === showStoreDashboard.slug)
+        if (!store) return
+        setMerchantStoreOrderCounts({ ...storeOrderCounts, [store.id]: counts })
     }
 
     // ---------- SEÇÕES EXIBIDAS (categorias sempre em primeiro) ----------

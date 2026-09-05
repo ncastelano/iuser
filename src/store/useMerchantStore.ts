@@ -1,6 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface StoreOrderCounts {
+  pending: number
+  preparing: number
+  ready: number
+}
+
 interface MerchantStore {
   pendingOrdersCount: number
   setPendingOrdersCount: (count: number) => void
@@ -14,6 +20,9 @@ interface MerchantStore {
   setCustomerOrderStatuses: (statuses: string[]) => void
   pendingReviewsCount: number
   setPendingReviewsCount: (count: number) => void
+  /** Contagem pending/preparing/ready por loja, mantida em tempo real por OrderNotification. */
+  storeOrderCounts: Record<string, StoreOrderCounts>
+  setStoreOrderCounts: (counts: Record<string, StoreOrderCounts>) => void
 }
 
 export const useMerchantStore = create<MerchantStore>()(
@@ -31,6 +40,8 @@ export const useMerchantStore = create<MerchantStore>()(
       setCustomerOrderStatuses: (statuses) => set({ customerOrderStatuses: statuses }),
       pendingReviewsCount: 0,
       setPendingReviewsCount: (count) => set({ pendingReviewsCount: count }),
+      storeOrderCounts: {},
+      setStoreOrderCounts: (counts) => set({ storeOrderCounts: counts }),
     }),
     {
       name: 'iuser-merchant-storage',
