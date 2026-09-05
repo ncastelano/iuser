@@ -655,9 +655,12 @@ export default function CatalogoPage() {
         distanceKm: number | null
         originAddress: string | null
         destinationAddress: string | null
+        baseDistanceKm: number | null
+        baseFee: number | null
+        feePerKm: number | null
     } => {
         if (!storeConfig || !storeConfig.accepts_delivery) {
-            return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null }
+            return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null, baseDistanceKm: null, baseFee: null, feePerKm: null }
         }
 
         // Endereço de destino: o já escolhido no checkout, senão o salvo no perfil
@@ -677,10 +680,10 @@ export default function CatalogoPage() {
 
         const dtype = storeConfig.delivery_type
         if (dtype === 'free') {
-            return { type: 'free', fee: 0, isEstimate: false, distanceKm, originAddress, destinationAddress }
+            return { type: 'free', fee: 0, isEstimate: false, distanceKm, originAddress, destinationAddress, baseDistanceKm: null, baseFee: null, feePerKm: null }
         }
         if (dtype === 'fixed') {
-            return { type: 'fixed', fee: Number(storeConfig.delivery_fee) || 0, isEstimate: false, distanceKm, originAddress, destinationAddress }
+            return { type: 'fixed', fee: Number(storeConfig.delivery_fee) || 0, isEstimate: false, distanceKm, originAddress, destinationAddress, baseDistanceKm: null, baseFee: null, feePerKm: null }
         }
         if (dtype === 'distance') {
             const feePerKm = Number(storeConfig.delivery_fee_per_km) || 0
@@ -689,13 +692,13 @@ export default function CatalogoPage() {
 
             if (distanceKm == null) {
                 // Sem endereço ainda pra calcular a distância real: mostra a partir do valor base
-                return { type: 'distance', fee: baseFee, isEstimate: true, distanceKm: null, originAddress, destinationAddress: null }
+                return { type: 'distance', fee: baseFee, isEstimate: true, distanceKm: null, originAddress, destinationAddress: null, baseDistanceKm: baseDist, baseFee, feePerKm }
             }
 
             const fee = distanceKm <= baseDist ? baseFee : baseFee + (distanceKm - baseDist) * feePerKm
-            return { type: 'distance', fee, isEstimate: false, distanceKm, originAddress, destinationAddress }
+            return { type: 'distance', fee, isEstimate: false, distanceKm, originAddress, destinationAddress, baseDistanceKm: baseDist, baseFee, feePerKm }
         }
-        return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null }
+        return { type: 'none', fee: 0, isEstimate: false, distanceKm: null, originAddress: null, destinationAddress: null, baseDistanceKm: null, baseFee: null, feePerKm: null }
     }, [storeConfig, deliveryLat, deliveryLng, userLocation, deliveryAddress, userAddress])
 
     const handleFinalizeOrder = async () => {
@@ -1325,6 +1328,9 @@ export default function CatalogoPage() {
                         deliveryDistanceKm={bagDeliveryEstimate.distanceKm}
                         deliveryOrigin={bagDeliveryEstimate.originAddress}
                         deliveryDestination={bagDeliveryEstimate.destinationAddress}
+                        deliveryBaseDistanceKm={bagDeliveryEstimate.baseDistanceKm}
+                        deliveryBaseFee={bagDeliveryEstimate.baseFee}
+                        deliveryFeePerKm={bagDeliveryEstimate.feePerKm}
                     />
                 </div>
 

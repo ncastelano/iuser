@@ -28,6 +28,9 @@ interface CatalogBagProps {
     deliveryDistanceKm?: number | null
     deliveryOrigin?: string | null
     deliveryDestination?: string | null
+    deliveryBaseDistanceKm?: number | null
+    deliveryBaseFee?: number | null
+    deliveryFeePerKm?: number | null
 }
 
 function shortAddress(address: string): string {
@@ -52,6 +55,9 @@ export default function CatalogBag({
     deliveryDistanceKm = null,
     deliveryOrigin = null,
     deliveryDestination = null,
+    deliveryBaseDistanceKm = null,
+    deliveryBaseFee = null,
+    deliveryFeePerKm = null,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
@@ -71,6 +77,21 @@ export default function CatalogBag({
             currency: 'BRL'
         }).format(price)
     }
+
+    // Explica como cada loja calculou o frete, pra pessoa entender e poder
+    // comparar o valor real cobrado por serviço em serviço.
+    const deliveryBreakdown = (() => {
+        if (deliveryFeeType === 'fixed') return 'valor fixo da loja'
+        if (deliveryFeeType !== 'distance' || needsLocation || deliveryDistanceKm == null || deliveryBaseDistanceKm == null || deliveryBaseFee == null || deliveryFeePerKm == null) {
+            return null
+        }
+        const distTxt = `${deliveryDistanceKm.toFixed(1)} km`
+        if (deliveryDistanceKm <= deliveryBaseDistanceKm) {
+            return `${distTxt}, dentro dos ${deliveryBaseDistanceKm}km por ${formatPrice(deliveryBaseFee)}`
+        }
+        const extraKm = deliveryDistanceKm - deliveryBaseDistanceKm
+        return `${distTxt}: ${formatPrice(deliveryBaseFee)} (até ${deliveryBaseDistanceKm}km) + ${extraKm.toFixed(1)}km × ${formatPrice(deliveryFeePerKm)}/km`
+    })()
 
     const handleCheckout = () => {
         if (totalItems === 0) {
@@ -242,11 +263,18 @@ export default function CatalogBag({
                                                 Adicionar localização para calcular o frete
                                             </button>
                                         ) : (
-                                            <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
-                                                <span>Frete</span>
-                                                <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
-                                                    {deliveryFee === 0 ? 'Grátis' : formatPrice(deliveryFee)}
-                                                </span>
+                                            <div>
+                                                <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
+                                                    <span>Frete</span>
+                                                    <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                        {deliveryFee === 0 ? 'Grátis' : formatPrice(deliveryFee)}
+                                                    </span>
+                                                </div>
+                                                {deliveryBreakdown && (
+                                                    <p className="text-[9px] leading-tight mt-0.5" style={{ color: colors.textSecondary, opacity: 0.75 }}>
+                                                        {deliveryBreakdown}
+                                                    </p>
+                                                )}
                                             </div>
                                         )
                                     )}
