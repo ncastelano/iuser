@@ -101,7 +101,7 @@ export default function HomeBag({
                     border: `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
                     boxShadow: totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`,
                     minWidth: isExpanded ? 280 : 'auto',
-                    maxWidth: isExpanded ? 360 : 'auto',
+                    maxWidth: isExpanded ? 'min(360px, calc(100vw - 48px))' : 'auto',
                 }}
             >
                 <div

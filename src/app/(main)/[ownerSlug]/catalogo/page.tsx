@@ -13,7 +13,7 @@ import { Plus, X, Info, Search, Clock, Tag, Package, Calendar, MapPin, Truck, St
 import Image from 'next/image'
 import { isStoreOpenNow, getNextOpeningInfo, type BusinessHours } from '@/lib/storeHours'
 import { toast } from 'sonner'
-import ButtonSearch from '@/app/ButtonSearch'
+import HeaderSearchInput from '@/app/HeaderSearchInput'
 import CatalogBag, { type CartItemWithComment } from './CatalogBag'
 
 interface Product {
@@ -1041,6 +1041,15 @@ export default function CatalogoPage() {
                                 })}
                             </div>
                         )}
+
+                        <div className="mt-2">
+                            <HeaderSearchInput
+                                placeholder="Buscar produtos..."
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                                inputRef={searchInputRef}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -1256,17 +1265,7 @@ export default function CatalogoPage() {
                     )}
                 </div>
 
-                {/* ===== BOTÕES FLUTUANTES ===== */}
-                <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
-                    <ButtonSearch
-                        placeholder="Buscar produtos..."
-                        onSearch={(value) => setSearchQuery(value)}
-                        initialValue={searchQuery}
-                        inputRef={searchInputRef}
-                        maxWidth={320}
-                    />
-                </div>
-
+                {/* ===== BOTÃO FLUTUANTE - SACOLA (busca agora vive no header, igual à home) ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <CatalogBag
                         bagItems={bagItems}

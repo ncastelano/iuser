@@ -894,85 +894,82 @@ export default function HomePage() {
                     </div>
                 )}
 
-                {/* ===== BOTÕES FLUTUANTES - LADO ESQUERDO E DIREITO ===== */}
-                <div style={{ position: 'fixed', bottom: 32, left: 24, right: 24, zIndex: 998 }}>
-                    <div className="flex justify-between items-end">
-                        {/* LADO ESQUERDO - BOTÃO RADAR */}
-                        <div className="flex items-end">
-                            {shouldShowSacola && (
-                                <button
-                                    onClick={() => { startNavProgress(); router.push('/radar') }}
-                                    className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
-                                    style={{
-                                        background: RADAR_GRADIENT,
-                                        color: '#ffffff',
-                                        borderTop: '2px solid #f97316',
-                                        borderRight: '2px solid #f97316',
-                                        borderBottom: '2px solid #dc2626',
-                                        borderLeft: '2px solid #dc2626',
-                                        boxShadow: `0 8px 24px #dc262640`,
-                                    }}
-                                    aria-label="Radar"
-                                >
-                                    <Radar size={22} />
-                                    <span className="font-semibold text-sm">Radar</span>
-                                </button>
-                            )}
-                        </div>
+                {/* ===== BOTÃO FLUTUANTE - RADAR (independente, não disputa espaço com a sacola) ===== */}
+                {shouldShowSacola && (
+                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
+                        <button
+                            onClick={() => { startNavProgress(); router.push('/radar') }}
+                            className="flex items-center gap-2 px-5 h-14 rounded-full shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
+                            style={{
+                                background: RADAR_GRADIENT,
+                                color: '#ffffff',
+                                borderTop: '2px solid #f97316',
+                                borderRight: '2px solid #f97316',
+                                borderBottom: '2px solid #dc2626',
+                                borderLeft: '2px solid #dc2626',
+                                boxShadow: `0 8px 24px #dc262640`,
+                            }}
+                            aria-label="Radar"
+                        >
+                            <Radar size={22} />
+                            <span className="font-semibold text-sm">Radar</span>
+                        </button>
+                    </div>
+                )}
 
-                        {/* LADO DIREITO - BOTÃO SACOLA E VOLTAR */}
-                        <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                            {shouldShowSacola && (
-                                <div>
-                                    {loadingStatus ? (
-                                        <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
-                                            <ShoppingCart size={24} style={{ color: '#ffffff' }} />
-                                        </div>
-                                    ) : (
-                                        <HomeBag
-                                            items={homeBagItems}
-                                            isExpanded={isBagExpanded}
-                                            onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                                            onIncrease={handleBagIncrease}
-                                            onDecrease={handleBagDecrease}
-                                            onRemove={handleBagRemove}
-                                            onCheckout={(storeSlug) => {
-                                                setIsBagExpanded(false)
-                                                startNavProgress()
-                                                router.push(`/${storeSlug}/catalogo`)
-                                            }}
-                                            statusCounts={{
-                                                pending: pendingCount,
-                                                preparing: preparingCount,
-                                                ready: readyCount,
-                                                reviews: pendingReviewsCount,
-                                            }}
-                                            animate={cartAnimating}
-                                            colors={colors}
-                                        />
-                                    )}
-                                </div>
-                            )}
+                {/* ===== BOTÕES FLUTUANTES - SACOLA E VOLTAR (container próprio, ancorado só na direita, sem cortar na tela) ===== */}
+                <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                    <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
+                        {shouldShowSacola && (
+                            <div>
+                                {loadingStatus ? (
+                                    <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">
+                                        <ShoppingCart size={24} style={{ color: '#ffffff' }} />
+                                    </div>
+                                ) : (
+                                    <HomeBag
+                                        items={homeBagItems}
+                                        isExpanded={isBagExpanded}
+                                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                                        onIncrease={handleBagIncrease}
+                                        onDecrease={handleBagDecrease}
+                                        onRemove={handleBagRemove}
+                                        onCheckout={(storeSlug) => {
+                                            setIsBagExpanded(false)
+                                            startNavProgress()
+                                            router.push(`/${storeSlug}/catalogo`)
+                                        }}
+                                        statusCounts={{
+                                            pending: pendingCount,
+                                            preparing: preparingCount,
+                                            ready: readyCount,
+                                            reviews: pendingReviewsCount,
+                                        }}
+                                        animate={cartAnimating}
+                                        colors={colors}
+                                    />
+                                )}
+                            </div>
+                        )}
 
-                            {showFab && (
-                                <button
-                                    onClick={showHomeSections}
-                                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
-                                    style={{
-                                        background: GRADIENT,
-                                        color: '#ffffff',
-                                        borderTop: '2px solid #f97316',
-                                        borderRight: '2px solid #f97316',
-                                        borderBottom: '2px solid #f97316',
-                                        borderLeft: '2px solid #f97316',
-                                        boxShadow: `0 8px 24px #f9731660`,
-                                    }}
-                                    aria-label="Voltar ao início"
-                                >
-                                    <Home size={24} />
-                                </button>
-                            )}
-                        </div>
+                        {showFab && (
+                            <button
+                                onClick={showHomeSections}
+                                className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95 flex-shrink-0"
+                                style={{
+                                    background: GRADIENT,
+                                    color: '#ffffff',
+                                    borderTop: '2px solid #f97316',
+                                    borderRight: '2px solid #f97316',
+                                    borderBottom: '2px solid #f97316',
+                                    borderLeft: '2px solid #f97316',
+                                    boxShadow: `0 8px 24px #f9731660`,
+                                }}
+                                aria-label="Voltar ao início"
+                            >
+                                <Home size={24} />
+                            </button>
+                        )}
                     </div>
                 </div>
 
