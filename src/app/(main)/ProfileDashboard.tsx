@@ -34,7 +34,6 @@ import {
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
-import ProfileOperatingDays from './ProfileOperatingDays'
 import Commission from './Commission'
 import { format, subDays, startOfDay, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { ptBR as ptBRLocale } from 'date-fns/locale'
@@ -115,7 +114,6 @@ export default function ProfileDashboard({
         setSectionTimestamps(prev => (prev[key] === iso ? prev : { ...prev, [key]: iso }))
     }, [])
     const onAgendaUpdate = useMemo(() => markSectionUpdated('agenda'), [markSectionUpdated])
-    const onHorariosUpdate = useMemo(() => markSectionUpdated('horarios'), [markSectionUpdated])
     const onPublicacoesUpdate = useMemo(() => markSectionUpdated('publicacoes'), [markSectionUpdated])
     const onIndicacoesUpdate = useMemo(() => markSectionUpdated('indicacoes'), [markSectionUpdated])
     const onVisitantesUpdate = useMemo(() => markSectionUpdated('visitantes'), [markSectionUpdated])
@@ -1240,11 +1238,11 @@ export default function ProfileDashboard({
     const agendaNode = (
         <AtalhoCompromissosPessoal
             profileSlug={profileSlug}
+            profileId={profile.id}
             userAvatarUrl={profile.avatar_url}
             onLatestUpdate={onAgendaUpdate}
         />
     )
-    const horariosNode = <ProfileOperatingDays profileId={profile.id} onLatestUpdate={onHorariosUpdate} />
     const publicacoesNode = (
         <PublicationProfile
             profileId={profile.id}
@@ -1262,7 +1260,6 @@ export default function ProfileDashboard({
     const sortableSections = [
         { key: 'financeiro', node: financeiroNode, ts: financeiroTimestamp },
         { key: 'agenda', node: agendaNode, ts: sectionTimestamps.agenda },
-        { key: 'horarios', node: horariosNode, ts: sectionTimestamps.horarios },
         { key: 'publicacoes', node: publicacoesNode, ts: sectionTimestamps.publicacoes },
         { key: 'indicacoes', node: indicacoesNode, ts: sectionTimestamps.indicacoes },
         { key: 'visitantes', node: visitantesNode, ts: sectionTimestamps.visitantes },
