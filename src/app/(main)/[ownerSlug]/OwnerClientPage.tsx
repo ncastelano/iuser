@@ -539,7 +539,6 @@ export default function OwnerClientPage() {
                     <div className="w-full px-4 md:px-6 py-6">
                         <ProfileDashboard
                             profileSlug={loggedUserSlug || ''}
-                            onBack={showMainContent}
                             avatarUrl={loggedUserAvatarUrl || undefined}
                         />
                     </div>

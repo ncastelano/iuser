@@ -834,7 +834,6 @@ export default function HomePage() {
                 ) : showProfile ? (
                     <ProfileDashboard
                         profileSlug={profileSlug}
-                        onBack={() => setShowProfile(false)}
                         avatarUrl={avatarUrl}
                     />
                 ) : showStoreDashboard ? (

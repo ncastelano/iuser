@@ -24,7 +24,6 @@ import {
     Store,
     Heart,
     Star,
-    Home,
     Copy,
     ExternalLink,
     AlertCircle,
@@ -79,11 +78,9 @@ function hexToRgb(hex: string) {
 
 export default function ProfileDashboard({
     profileSlug,
-    onBack,
     avatarUrl,
 }: {
     profileSlug: string | null
-    onBack?: () => void
     avatarUrl?: string | null
 }) {
     const router = useRouter()
@@ -1678,7 +1675,7 @@ export default function ProfileDashboard({
                 </button>
             </div>
 
-            {/* ===== SACOLA + HOME ===== */}
+            {/* ===== SACOLA ===== */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
                 <HomeBag
                     items={homeBagItems}
@@ -1700,19 +1697,6 @@ export default function ProfileDashboard({
                     animate={cartAnimating}
                     colors={colors}
                 />
-                <button
-                    onClick={onBack}
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                    style={{
-                        background: GRADIENT,
-                        color: '#ffffff',
-                        border: `2px solid #f97316`,
-                        boxShadow: `0 8px 24px #f9731660`,
-                    }}
-                    aria-label="Voltar ao início"
-                >
-                    <Home size={24} />
-                </button>
             </div>
         </div>
     )
