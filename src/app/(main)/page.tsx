@@ -734,6 +734,7 @@ export default function HomePage() {
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
+    const shouldShowBag = !showStoreDashboard && !showLogin
 
     // ===== VERIFICAR SE ESTÁ EM TELA DE LOGIN =====
     const isLoginScreen = showLogin || showCreateStore
@@ -948,7 +949,7 @@ export default function HomePage() {
                 {/* ===== BOTÕES FLUTUANTES - SACOLA E VOLTAR (container próprio, ancorado só na direita, sem cortar na tela) ===== */}
                 <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
                     <div className="flex flex-col-reverse sm:flex-row items-end gap-3">
-                        {shouldShowSacola && (
+                        {shouldShowBag && (
                             <div>
                                 {loadingStatus ? (
                                     <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl bg-gray-300 animate-pulse">

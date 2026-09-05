@@ -7,8 +7,6 @@ import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
-import { useCartStore } from '@/store/useCartStore'
-import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
 import { toast } from 'sonner'
 import {
     Eye,
@@ -86,8 +84,6 @@ export default function ProfileDashboard({
     const router = useRouter()
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
-    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
@@ -124,12 +120,6 @@ export default function ProfileDashboard({
     const onIndicacoesUpdate = useMemo(() => markSectionUpdated('indicacoes'), [markSectionUpdated])
     const onVisitantesUpdate = useMemo(() => markSectionUpdated('visitantes'), [markSectionUpdated])
 
-    const [pendingCount, setPendingCount] = useState(0)
-    const [preparingCount, setPreparingCount] = useState(0)
-    const [readyCount, setReadyCount] = useState(0)
-    const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
-    const [cartAnimating, setCartAnimating] = useState(false)
-
     // Estado para o aviso de WhatsApp
     const [showWhatsAppAlert, setShowWhatsAppAlert] = useState(true)
     const [whatsAppInput, setWhatsAppInput] = useState('')
@@ -142,38 +132,6 @@ export default function ProfileDashboard({
     const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const isMounted = useRef(true)
 
-    // ===== CALCULAR TOTAL DE ITENS DO CARRINHO =====
-    const totalCartItems = React.useMemo(() => {
-        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
-    }, [itemsByStore])
-
-    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
-    const homeBagItems: HomeBagItem[] = useMemo(() => {
-        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
-            items.map((item) => ({
-                product: item.product,
-                quantity: item.quantity,
-                storeSlug,
-                storeName: storeDetails[storeSlug]?.name || storeSlug,
-                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
-                comment: item.comment,
-            }))
-        )
-    }, [itemsByStore, storeDetails])
-
-    const handleBagIncrease = (item: HomeBagItem) => {
-        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
-        addItem(item.storeSlug, store, item.product, item.comment)
-    }
-
-    const handleBagDecrease = (item: HomeBagItem) => {
-        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
-    }
-
-    const handleBagRemove = (item: HomeBagItem) => {
-        removeItem(item.storeSlug, item.product.id, item.comment)
-    }
-
     // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
     const isProfileOpen = useMemo(() => {
         if (!profile) return false
@@ -185,68 +143,6 @@ export default function ProfileDashboard({
         const status = getProfileStatusWithLunch(profile.business_hours)
         return status.text
     }, [profile])
-
-    React.useEffect(() => {
-        if (totalCartItems > 0) {
-            setCartAnimating(true)
-            const timer = setTimeout(() => setCartAnimating(false), 3000)
-            return () => clearTimeout(timer)
-        }
-    }, [totalCartItems])
-
-    // ===== CARREGAR STATUS DOS PEDIDOS (SEPARADO) =====
-    React.useEffect(() => {
-        const fetchOrderStatuses = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            const { data: ordersData } = await supabase
-                .from('orders')
-                .select('status')
-                .eq('buyer_id', user.id)
-
-            if (ordersData) {
-                setPendingCount(ordersData.filter(o => o.status === 'pending').length)
-                setPreparingCount(ordersData.filter(o => o.status === 'preparing').length)
-                setReadyCount(ordersData.filter(o => o.status === 'ready').length)
-            }
-
-            const { data: paidOrders } = await supabase
-                .from('orders')
-                .select('id')
-                .eq('buyer_id', user.id)
-                .eq('status', 'paid')
-
-            if (paidOrders && paidOrders.length > 0) {
-                const orderIds = paidOrders.map(o => o.id)
-
-                const { data: orderItems } = await supabase
-                    .from('order_items')
-                    .select('product_id')
-                    .in('order_id', orderIds)
-
-                if (orderItems && orderItems.length > 0) {
-                    const productIds = orderItems.map(item => item.product_id)
-
-                    const { data: reviewsData } = await supabase
-                        .from('product_reviews')
-                        .select('product_id')
-                        .eq('profile_id', user.id)
-                        .in('product_id', productIds)
-
-                    const reviewedIds = new Set(reviewsData?.map(r => r.product_id) || [])
-                    const pending = productIds.filter(pid => !reviewedIds.has(pid)).length
-                    setPendingReviewsCount(pending)
-                } else {
-                    setPendingReviewsCount(0)
-                }
-            } else {
-                setPendingReviewsCount(0)
-            }
-        }
-
-        fetchOrderStatuses()
-    }, [])
 
     // Função para salvar WhatsApp
     const handleSaveWhatsApp = async () => {
@@ -1673,30 +1569,6 @@ export default function ProfileDashboard({
                 >
                     <Settings size={16} /> Config
                 </button>
-            </div>
-
-            {/* ===== SACOLA ===== */}
-            <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                <HomeBag
-                    items={homeBagItems}
-                    isExpanded={isBagExpanded}
-                    onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                    onIncrease={handleBagIncrease}
-                    onDecrease={handleBagDecrease}
-                    onRemove={handleBagRemove}
-                    onCheckout={(storeSlug) => {
-                        setIsBagExpanded(false)
-                        router.push(`/${storeSlug}/catalogo`)
-                    }}
-                    statusCounts={{
-                        pending: pendingCount,
-                        preparing: preparingCount,
-                        ready: readyCount,
-                        reviews: pendingReviewsCount,
-                    }}
-                    animate={cartAnimating}
-                    colors={colors}
-                />
             </div>
         </div>
     )

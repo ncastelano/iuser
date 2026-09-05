@@ -595,90 +595,64 @@ export default function OwnerClientPage() {
                 )}
 
                 {/* ===== BOTÕES FLUTUANTES ===== */}
-                {!showProfile && !showStoreDashboard && !showPublications && (
-                    <>
-                        {/* Botão "Compra Simples" - lado esquerdo */}
-                        {ownerType === 'store' && (
-                            <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
-                                <button
-                                    onClick={handleOpenCatalogo}
-                                    className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] active:scale-95"
-                                    style={{
-                                        background: PURPLE_GRADIENT,
-                                        boxShadow: '0 8px 24px rgba(76, 29, 149, 0.5)',
-                                        border: '2px solid rgba(124, 58, 237, 0.3)',
-                                    }}
-                                    aria-label="Compra Simples"
-                                >
-                                    <span className="text-sm font-bold tracking-wide">Compra Simples</span>
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Botões do lado direito */}
-                        <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                            <HomeBag
-                                items={homeBagItems}
-                                isExpanded={isBagExpanded}
-                                onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
-                                onIncrease={handleBagIncrease}
-                                onDecrease={handleBagDecrease}
-                                onRemove={handleBagRemove}
-                                onCheckout={(storeSlug) => {
-                                    setIsBagExpanded(false)
-                                    router.push(`/${storeSlug}/catalogo`)
-                                }}
-                                statusCounts={{
-                                    pending: pendingCount,
-                                    preparing: preparingCount,
-                                    ready: readyCount,
-                                    reviews: pendingReviewsCount,
-                                }}
-                                animate={cartAnimating}
-                                colors={colors}
-                            />
-
-                            <button
-                                onClick={() => router.push('/')}
-                                className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
-                                style={{
-                                    background: GRADIENT,
-                                    color: '#ffffff',
-                                    borderTop: '2px solid #f97316',
-                                    borderRight: '2px solid #f97316',
-                                    borderBottom: '2px solid #f97316',
-                                    borderLeft: '2px solid #f97316',
-                                    boxShadow: `0 8px 24px #f9731660`,
-                                }}
-                                aria-label="Voltar ao início"
-                            >
-                                <Home size={24} />
-                            </button>
-                        </div>
-                    </>
-                )}
-
-                {/* Botão Home - visível quando está em um dashboard */}
-                {(showProfile || showStoreDashboard || showPublications) && (
-                    <div style={{ position: 'fixed', bottom: 32, right: 24, zIndex: 998 }}>
+                {/* Botão "Compra Simples" - lado esquerdo (apenas fora do dashboard) */}
+                {!showProfile && !showStoreDashboard && !showPublications && ownerType === 'store' && (
+                    <div style={{ position: 'fixed', bottom: 32, left: 24, zIndex: 998 }}>
                         <button
-                            onClick={showMainContent}
-                            className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                            onClick={handleOpenCatalogo}
+                            className="px-6 py-3 rounded-full font-bold text-white shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] active:scale-95"
                             style={{
-                                background: GRADIENT,
-                                color: '#ffffff',
-                                borderTop: '2px solid #f97316',
-                                borderRight: '2px solid #f97316',
-                                borderBottom: '2px solid #f97316',
-                                borderLeft: '2px solid #f97316',
-                                boxShadow: `0 8px 24px #f9731660`,
+                                background: PURPLE_GRADIENT,
+                                boxShadow: '0 8px 24px rgba(76, 29, 149, 0.5)',
+                                border: '2px solid rgba(124, 58, 237, 0.3)',
                             }}
-                            aria-label="Voltar ao conteúdo"
+                            aria-label="Compra Simples"
                         >
-                            <Home size={24} />
+                            <span className="text-sm font-bold tracking-wide">Compra Simples</span>
                         </button>
                     </div>
                 )}
+
+                {/* Botões do lado direito - sacola sempre ao lado do botão Home */}
+                <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
+                    <HomeBag
+                        items={homeBagItems}
+                        isExpanded={isBagExpanded}
+                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                        onIncrease={handleBagIncrease}
+                        onDecrease={handleBagDecrease}
+                        onRemove={handleBagRemove}
+                        onCheckout={(storeSlug) => {
+                            setIsBagExpanded(false)
+                            router.push(`/${storeSlug}/catalogo`)
+                        }}
+                        statusCounts={{
+                            pending: pendingCount,
+                            preparing: preparingCount,
+                            ready: readyCount,
+                            reviews: pendingReviewsCount,
+                        }}
+                        animate={cartAnimating}
+                        colors={colors}
+                    />
+
+                    <button
+                        onClick={(showProfile || showStoreDashboard || showPublications) ? showMainContent : () => router.push('/')}
+                        className="w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                            background: GRADIENT,
+                            color: '#ffffff',
+                            borderTop: '2px solid #f97316',
+                            borderRight: '2px solid #f97316',
+                            borderBottom: '2px solid #f97316',
+                            borderLeft: '2px solid #f97316',
+                            boxShadow: `0 8px 24px #f9731660`,
+                        }}
+                        aria-label={(showProfile || showStoreDashboard || showPublications) ? 'Voltar ao conteúdo' : 'Voltar ao início'}
+                    >
+                        <Home size={24} />
+                    </button>
+                </div>
             </main>
         </div>
     )
