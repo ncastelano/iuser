@@ -32,8 +32,6 @@ import {
     BarChart3,
     ChevronLeft,
     ChevronRight,
-    ChevronDown,
-    ChevronUp,
     TrendingUp,
     Save,
     LogOut,
@@ -142,7 +140,6 @@ export default function ProfileDashboard({
     const [activeTab, setActiveTab] = useState<'compras' | 'favoritas' | 'avaliacoes'>('compras')
 
     // ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) =====
-    const [cfgExpanded, setCfgExpanded] = useState(false)
     const [cfgWhatsapp, setCfgWhatsapp] = useState('')
     const [cfgUseWhatsapp, setCfgUseWhatsapp] = useState(true)
     const [cfgSaving, setCfgSaving] = useState(false)
@@ -1649,10 +1646,7 @@ export default function ProfileDashboard({
                     <User size={16} /> Ver Perfil
                 </button>
                 <button
-                    onClick={() => {
-                        setCfgExpanded(true)
-                        setTimeout(() => cfgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-                    }}
+                    onClick={() => cfgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                     style={{
                         ...pillButtonFullStyle,
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1666,47 +1660,7 @@ export default function ProfileDashboard({
             </div>
 
             {/* ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) ===== */}
-            <div ref={cfgSectionRef} className="mb-6 mt-4">
-            <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: `1px solid ${colors.border}`,
-                    boxShadow: colors.shadow,
-                }}
-            >
-                <button
-                    onClick={() => setCfgExpanded(!cfgExpanded)}
-                    className="w-full flex items-center justify-between text-left p-6"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                >
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: GRADIENT, color: '#ffffff' }}
-                        >
-                            <Settings size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                                Configurações
-                            </h3>
-                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                                Tema, plano de fundo, WhatsApp e fonte
-                            </p>
-                        </div>
-                    </div>
-                    {cfgExpanded ? (
-                        <ChevronUp size={22} style={{ color: colors.textSecondary }} />
-                    ) : (
-                        <ChevronDown size={22} style={{ color: colors.textSecondary }} />
-                    )}
-                </button>
-
-                {cfgExpanded && (
-                    <div className="px-6 pb-6 space-y-6">
+            <div ref={cfgSectionRef} className="mb-6 mt-4 space-y-6">
                         {/* Tema do iUser */}
                         <div
                             className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
@@ -2049,9 +2003,6 @@ export default function ProfileDashboard({
                             <LogOut className="w-5 h-5" />
                             Sair da Conta
                         </button>
-                    </div>
-                )}
-            </div>
             </div>
         </div>
     )
