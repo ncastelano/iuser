@@ -214,7 +214,7 @@ export default function ProfileOperatingDays({ profileId, onLatestUpdate }: Prof
                         </div>
                         <div>
                             <h3 className="text-lg font-black" style={{ color: textPrimary }}>
-                                Horários de Atendimento
+                                Horários permitidos para compromissos
                             </h3>
                             <div className="flex items-center gap-2 text-xs mt-0.5" style={{ color: textSecondary }}>
                                 <span>{openDaysCount} dia{openDaysCount !== 1 ? 's' : ''} com agenda aberta</span>

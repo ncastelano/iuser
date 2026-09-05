@@ -497,7 +497,7 @@ export default function AtalhoCompromissosPessoal({
 
                                     const statusConfig = {
                                         confirmed: { bg: 'rgba(16,185,129,0.2)', text: '#34d399', label: 'Confirmado' },
-                                        pending: { bg: 'rgba(234,179,8,0.2)', text: '#fbbf24', label: 'Pendente' },
+                                        pending: { bg: 'rgba(34,197,94,0.2)', text: '#22c55e', label: 'Pendente' },
                                         cancelled: { bg: 'rgba(239,68,68,0.2)', text: '#f87171', label: 'Cancelado' },
                                         completed: { bg: 'rgba(60, 60, 61, 0.2)', text: '#60a5fa', label: 'Concluído' },
                                     }
@@ -579,7 +579,7 @@ export default function AtalhoCompromissosPessoal({
                                                         {isToday ? 'Hoje' : dateStr}
                                                     </span>
                                                     <span
-                                                        className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold"
+                                                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${isPending ? 'animate-pulse' : ''}`}
                                                         style={{ background: statusInfo.bg, color: statusInfo.text }}
                                                     >
                                                         {statusInfo.label}

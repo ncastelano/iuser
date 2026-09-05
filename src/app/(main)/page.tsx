@@ -240,6 +240,7 @@ export default function HomePage() {
     const [readyCount, setReadyCount] = useState(0)
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
     const [loadingStatus, setLoadingStatus] = useState(true)
+    const [pendingInvitesCount, setPendingInvitesCount] = useState(0)
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
@@ -395,6 +396,46 @@ export default function HomePage() {
         }
 
         fetchOrderStatuses()
+    }, [profileSlug])
+
+    // ---------- CONVITES DE COMPROMISSO PENDENTES (badge da aba de perfil) ----------
+    useEffect(() => {
+        if (!profileSlug) {
+            setPendingInvitesCount(0)
+            return
+        }
+
+        let channel: ReturnType<typeof supabase.channel> | null = null
+
+        const fetchPendingInvites = async (userId: string) => {
+            const { count } = await supabase
+                .from('appointments')
+                .select('id', { count: 'exact', head: true })
+                .eq('customer_id', userId)
+                .eq('direction', 'incoming')
+                .eq('status', 'pending')
+                .is('store_id', null)
+
+            setPendingInvitesCount(count || 0)
+        }
+
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            if (!user) return
+            fetchPendingInvites(user.id)
+
+            channel = supabase
+                .channel(`convites-pendentes-${user.id}`)
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'appointments', filter: `customer_id=eq.${user.id}` },
+                    () => fetchPendingInvites(user.id)
+                )
+                .subscribe()
+        })
+
+        return () => {
+            if (channel) supabase.removeChannel(channel)
+        }
     }, [profileSlug])
 
     // ---------- LOJAS DO USUÁRIO ----------
@@ -689,6 +730,7 @@ export default function HomePage() {
                 imageUrl: isLoggedIn ? avatarUrl : null,
                 onClick: handleProfileClick,
                 isActive: (isLoggedIn && showProfile) || (!isLoggedIn && showLogin),
+                badge: isLoggedIn && pendingInvitesCount > 0 ? { count: pendingInvitesCount, color: '#22c55e' } : null,
             },
         ]
 
@@ -730,7 +772,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
