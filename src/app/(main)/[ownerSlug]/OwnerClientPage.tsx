@@ -10,7 +10,7 @@ import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
-import SacolaButton from '@/app/ButtonSacola'
+import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
 import { useCartStore } from '@/store/useCartStore'
 import { User, Store as StoreIcon, LayoutDashboard, Home } from 'lucide-react'
 import type { Tab } from '@/app/Header'
@@ -74,7 +74,8 @@ export default function OwnerClientPage() {
         avatarUrl: loggedUserAvatarUrl,
         loading: profileLoading
     } = useProfile()
-    const { itemsByStore } = useCartStore()
+    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
+    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const publicationsStore = usePublicationsStore()
 
     const ownerSlug = Array.isArray(params.ownerSlug) ? params.ownerSlug[0] : params.ownerSlug
@@ -439,17 +440,32 @@ export default function OwnerClientPage() {
         [cartItems]
     )
 
-    const totalCartValue = useMemo(() => {
-        let total = 0
-        Object.values(itemsByStore).forEach(items => {
-            items.forEach(item => {
-                const price = item.product?.price || 0
-                const quantity = item.quantity || 1
-                total += Number(price) * quantity
-            })
-        })
-        return total
-    }, [itemsByStore])
+    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
+    const homeBagItems: HomeBagItem[] = useMemo(() => {
+        return Object.entries(itemsByStore).flatMap(([slug, items]) =>
+            items.map((item) => ({
+                product: item.product,
+                quantity: item.quantity,
+                storeSlug: slug,
+                storeName: storeDetails[slug]?.name || slug,
+                storeLogoUrl: storeDetails[slug]?.logo_url || null,
+                comment: item.comment,
+            }))
+        )
+    }, [itemsByStore, storeDetails])
+
+    const handleBagIncrease = (item: HomeBagItem) => {
+        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
+        addItem(item.storeSlug, store, item.product, item.comment)
+    }
+
+    const handleBagDecrease = (item: HomeBagItem) => {
+        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
+    }
+
+    const handleBagRemove = (item: HomeBagItem) => {
+        removeItem(item.storeSlug, item.product.id, item.comment)
+    }
 
     useEffect(() => {
         if (totalCartQuantity > 0) {
@@ -602,9 +618,17 @@ export default function OwnerClientPage() {
 
                         {/* Botões do lado direito */}
                         <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                            <SacolaButton
-                                totalItems={totalCartQuantity}
-                                totalValue={totalCartValue}
+                            <HomeBag
+                                items={homeBagItems}
+                                isExpanded={isBagExpanded}
+                                onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                                onIncrease={handleBagIncrease}
+                                onDecrease={handleBagDecrease}
+                                onRemove={handleBagRemove}
+                                onCheckout={(storeSlug) => {
+                                    setIsBagExpanded(false)
+                                    router.push(`/${storeSlug}/catalogo`)
+                                }}
                                 statusCounts={{
                                     pending: pendingCount,
                                     preparing: preparingCount,
@@ -612,6 +636,7 @@ export default function OwnerClientPage() {
                                     reviews: pendingReviewsCount,
                                 }}
                                 animate={cartAnimating}
+                                colors={colors}
                             />
 
                             <button

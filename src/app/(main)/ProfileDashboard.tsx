@@ -8,7 +8,7 @@ import { useTheme } from '@/app/theme'
 import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
-import SacolaButton from '../ButtonSacola'
+import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
 import { toast } from 'sonner'
 import {
     Eye,
@@ -89,7 +89,8 @@ export default function ProfileDashboard({
     const router = useRouter()
     const { colors } = useTheme()
     const surfaceRgb = hexToRgb(colors.surface)
-    const { itemsByStore } = useCartStore()
+    const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
+    const [isBagExpanded, setIsBagExpanded] = useState(false)
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [initialLoadDone, setInitialLoadDone] = useState(false)
@@ -149,18 +150,32 @@ export default function ProfileDashboard({
         return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
     }, [itemsByStore])
 
-    // ===== CALCULAR VALOR TOTAL DO CARRINHO =====
-    const totalCartValue = React.useMemo(() => {
-        let total = 0
-        Object.values(itemsByStore).forEach(items => {
-            items.forEach(item => {
-                const price = item.product?.price || 0
-                const quantity = item.quantity || 1
-                total += Number(price) * quantity
-            })
-        })
-        return total
-    }, [itemsByStore])
+    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
+    const homeBagItems: HomeBagItem[] = useMemo(() => {
+        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
+            items.map((item) => ({
+                product: item.product,
+                quantity: item.quantity,
+                storeSlug,
+                storeName: storeDetails[storeSlug]?.name || storeSlug,
+                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
+                comment: item.comment,
+            }))
+        )
+    }, [itemsByStore, storeDetails])
+
+    const handleBagIncrease = (item: HomeBagItem) => {
+        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
+        addItem(item.storeSlug, store, item.product, item.comment)
+    }
+
+    const handleBagDecrease = (item: HomeBagItem) => {
+        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
+    }
+
+    const handleBagRemove = (item: HomeBagItem) => {
+        removeItem(item.storeSlug, item.product.id, item.comment)
+    }
 
     // ===== USANDO AS FUNÇÕES DO PROFILEHOURS (com suporte a intervalo) =====
     const isProfileOpen = useMemo(() => {
@@ -1665,9 +1680,17 @@ export default function ProfileDashboard({
 
             {/* ===== SACOLA + HOME ===== */}
             <div style={{ position: 'fixed', bottom: 32, right: 24, display: 'flex', gap: 12, zIndex: 998 }}>
-                <SacolaButton
-                    totalItems={totalCartItems}
-                    totalValue={totalCartValue}
+                <HomeBag
+                    items={homeBagItems}
+                    isExpanded={isBagExpanded}
+                    onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                    onIncrease={handleBagIncrease}
+                    onDecrease={handleBagDecrease}
+                    onRemove={handleBagRemove}
+                    onCheckout={(storeSlug) => {
+                        setIsBagExpanded(false)
+                        router.push(`/${storeSlug}/catalogo`)
+                    }}
                     statusCounts={{
                         pending: pendingCount,
                         preparing: preparingCount,
@@ -1675,6 +1698,7 @@ export default function ProfileDashboard({
                         reviews: pendingReviewsCount,
                     }}
                     animate={cartAnimating}
+                    colors={colors}
                 />
                 <button
                     onClick={onBack}

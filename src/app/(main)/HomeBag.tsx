@@ -335,7 +335,7 @@ export default function HomeBag({
                 )}
             </div>
 
-            {/* Contadores de pedidos (mesmo estilo do SacolaButton) */}
+            {/* Contadores de pedidos */}
             {!isExpanded && showStatus && statusCounts && (
                 <div
                     style={{

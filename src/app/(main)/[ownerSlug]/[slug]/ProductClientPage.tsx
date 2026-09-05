@@ -25,7 +25,7 @@ import Header from '@/app/Header'
 import { handleShareLink } from '@/lib/share'
 import { toast } from 'sonner'
 import { useCartStore } from '@/store/useCartStore'
-import SacolaButton from '@/app/ButtonSacola'
+import HomeBag, { type HomeBagItem } from '@/app/(main)/HomeBag'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -105,10 +105,12 @@ export function ProductClientPage({
 
     const {
         itemsByStore,
+        storeDetails,
         addItem,
         updateQuantity,
         removeItem
     } = useCartStore()
+    const [isBagExpanded, setIsBagExpanded] = useState(false)
 
     const [loading, setLoading] = useState(true)
     const [product, setProduct] = useState<ProductWithStore | null>(null)
@@ -124,20 +126,32 @@ export function ProductClientPage({
         price: number | null
     }[]>([])
 
-    // ===== CARRINHO (badge flutuante, igual ao catálogo/home) =====
-    const totalCartItems = useMemo(() => {
-        return Object.values(itemsByStore).reduce((acc, items) => acc + items.length, 0)
-    }, [itemsByStore])
+    // ===== SACOLA FLUTUANTE: fusão dos itens de todas as lojas, igual à home =====
+    const homeBagItems: HomeBagItem[] = useMemo(() => {
+        return Object.entries(itemsByStore).flatMap(([storeSlug, items]) =>
+            items.map((item) => ({
+                product: item.product,
+                quantity: item.quantity,
+                storeSlug,
+                storeName: storeDetails[storeSlug]?.name || storeSlug,
+                storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
+                comment: item.comment,
+            }))
+        )
+    }, [itemsByStore, storeDetails])
 
-    const totalCartValue = useMemo(() => {
-        let total = 0
-        Object.values(itemsByStore).forEach(items => {
-            items.forEach(item => {
-                total += Number(item.product?.price || 0) * (item.quantity || 1)
-            })
-        })
-        return total
-    }, [itemsByStore])
+    const handleBagIncrease = (item: HomeBagItem) => {
+        const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
+        addItem(item.storeSlug, store, item.product, item.comment)
+    }
+
+    const handleBagDecrease = (item: HomeBagItem) => {
+        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
+    }
+
+    const handleBagRemove = (item: HomeBagItem) => {
+        removeItem(item.storeSlug, item.product.id, item.comment)
+    }
 
     // ========== CARREGAR PRODUTO ==========
     // O produto e a loja já vêm prontos do SlugClientPage (que os buscou pra
@@ -650,7 +664,19 @@ export function ProductClientPage({
 
                 {/* Sacola flutuante - igual ao catálogo/home */}
                 <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 998 }}>
-                    <SacolaButton totalItems={totalCartItems} totalValue={totalCartValue} />
+                    <HomeBag
+                        items={homeBagItems}
+                        isExpanded={isBagExpanded}
+                        onToggleExpanded={() => setIsBagExpanded(!isBagExpanded)}
+                        onIncrease={handleBagIncrease}
+                        onDecrease={handleBagDecrease}
+                        onRemove={handleBagRemove}
+                        onCheckout={(storeSlug) => {
+                            setIsBagExpanded(false)
+                            router.push(`/${storeSlug}/catalogo`)
+                        }}
+                        colors={colors}
+                    />
                 </div>
             </main>
         </div>
