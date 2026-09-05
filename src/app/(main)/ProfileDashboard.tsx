@@ -5,8 +5,11 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
+import { useProfile } from '@/app/contexts/ProfileContext'
+import { useFontStore } from '@/store/useFontStore'
 import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
+import ColloriUser from '@/components/ColloriUser'
 import { toast } from 'sonner'
 import {
     Eye,
@@ -29,7 +32,17 @@ import {
     BarChart3,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
+    ChevronUp,
     TrendingUp,
+    Save,
+    LogOut,
+    Type,
+    Bell,
+    Smartphone,
+    Image as ImageIcon,
+    Camera,
+    Palette,
 } from 'lucide-react'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
@@ -81,7 +94,9 @@ export default function ProfileDashboard({
     avatarUrl?: string | null
 }) {
     const router = useRouter()
-    const { colors } = useTheme()
+    const { colors, current: currentTheme, setTheme } = useTheme()
+    const { bgMode, customBgUrl, setBgMode, setCustomBgUrl } = useProfile()
+    const { fontSize, setFontSize } = useFontStore()
     const surfaceRgb = hexToRgb(colors.surface)
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
@@ -125,6 +140,16 @@ export default function ProfileDashboard({
 
     // Tab controle
     const [activeTab, setActiveTab] = useState<'compras' | 'favoritas' | 'avaliacoes'>('compras')
+
+    // ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) =====
+    const [cfgExpanded, setCfgExpanded] = useState(false)
+    const [cfgWhatsapp, setCfgWhatsapp] = useState('')
+    const [cfgUseWhatsapp, setCfgUseWhatsapp] = useState(true)
+    const [cfgSaving, setCfgSaving] = useState(false)
+    const [cfgUploadingBg, setCfgUploadingBg] = useState(false)
+    const cfgFileInputRef = useRef<HTMLInputElement>(null)
+    const cfgSectionRef = useRef<HTMLDivElement>(null)
+    const cfgInitializedRef = useRef(false)
 
     const intervalRef = useRef<any>(null)
     const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -171,6 +196,75 @@ export default function ProfileDashboard({
             toast.error('Erro ao salvar WhatsApp: ' + error.message)
         } finally {
             setSavingWhatsApp(false)
+        }
+    }
+
+    // ===== INICIALIZAR CONFIGURAÇÕES A PARTIR DO PERFIL CARREGADO =====
+    useEffect(() => {
+        if (!profile || cfgInitializedRef.current) return
+        cfgInitializedRef.current = true
+
+        if (profile.whatsapp) {
+            setCfgWhatsapp(profile.whatsapp)
+            setCfgUseWhatsapp(true)
+        } else {
+            setCfgUseWhatsapp(false)
+        }
+        if (profile.app_theme) setTheme(profile.app_theme)
+        if (profile.font_size) setFontSize(profile.font_size)
+    }, [profile, setTheme, setFontSize])
+
+    const handleCfgSave = async () => {
+        setCfgSaving(true)
+        const normalizedWhatsapp = cfgUseWhatsapp ? cfgWhatsapp.replace(/[^\d+]/g, '').trim() : null
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    whatsapp: normalizedWhatsapp || null,
+                    background_mode: bgMode,
+                    background_image_url: bgMode === 'custom' ? customBgUrl : null,
+                    app_theme: currentTheme,
+                    font_size: fontSize,
+                })
+                .eq('id', profile.id)
+
+            if (error) throw error
+            toast.success('Configurações salvas com sucesso!')
+            setProfile({ ...profile, whatsapp: normalizedWhatsapp || null })
+        } catch (error: any) {
+            toast.error('Erro ao salvar: ' + error.message)
+        } finally {
+            setCfgSaving(false)
+        }
+    }
+
+    const handleCfgLogout = async () => {
+        await supabase.auth.signOut()
+        router.replace('/')
+        setTimeout(() => { window.location.href = '/' }, 100)
+    }
+
+    const handleCfgBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setCfgUploadingBg(true)
+        try {
+            const fileExt = file.name.split('.').pop()
+            const fileName = `bg-${Date.now()}.${fileExt}`
+            const { error: uploadError } = await supabase.storage
+                .from('backgrounds')
+                .upload(fileName, file, { upsert: true })
+
+            if (uploadError) throw uploadError
+
+            const { data } = supabase.storage.from('backgrounds').getPublicUrl(fileName)
+            setCustomBgUrl(data.publicUrl)
+        } catch (err: any) {
+            toast.error('Erro ao enviar imagem: ' + err.message)
+        } finally {
+            setCfgUploadingBg(false)
+            if (cfgFileInputRef.current) cfgFileInputRef.current.value = ''
         }
     }
 
@@ -1555,7 +1649,10 @@ export default function ProfileDashboard({
                     <User size={16} /> Ver Perfil
                 </button>
                 <button
-                    onClick={() => router.push(`/${profileSlug}/configuracoes`)}
+                    onClick={() => {
+                        setCfgExpanded(true)
+                        setTimeout(() => cfgSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                    }}
                     style={{
                         ...pillButtonFullStyle,
                         background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
@@ -1566,6 +1663,395 @@ export default function ProfileDashboard({
                 >
                     <Settings size={16} /> Config
                 </button>
+            </div>
+
+            {/* ===== CONFIGURAÇÕES (tema, plano de fundo, whatsapp, fonte) ===== */}
+            <div ref={cfgSectionRef} className="mb-6 mt-4">
+            <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.6)`,
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    border: `1px solid ${colors.border}`,
+                    boxShadow: colors.shadow,
+                }}
+            >
+                <button
+                    onClick={() => setCfgExpanded(!cfgExpanded)}
+                    className="w-full flex items-center justify-between text-left p-6"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: GRADIENT, color: '#ffffff' }}
+                        >
+                            <Settings size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                Configurações
+                            </h3>
+                            <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                                Tema, plano de fundo, WhatsApp e fonte
+                            </p>
+                        </div>
+                    </div>
+                    {cfgExpanded ? (
+                        <ChevronUp size={22} style={{ color: colors.textSecondary }} />
+                    ) : (
+                        <ChevronDown size={22} style={{ color: colors.textSecondary }} />
+                    )}
+                </button>
+
+                {cfgExpanded && (
+                    <div className="px-6 pb-6 space-y-6">
+                        {/* Tema do iUser */}
+                        <div
+                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div
+                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                                >
+                                    <ImageIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Tema do iUser
+                                    </h3>
+                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                        Escolha o tema que combina com você
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex-shrink-0">
+                                <ColloriUser />
+                            </div>
+                        </div>
+
+                        {/* Plano de Fundo */}
+                        <div
+                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div
+                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                                >
+                                    <Palette className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Plano de Fundo
+                                    </h3>
+                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                        Escolha o visual do app
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                                {([
+                                    { mode: 'black' as const, label: 'Sem Imagem', icon: Palette },
+                                    { mode: 'custom' as const, label: 'Sua Imagem', icon: Camera },
+                                ]).map(opt => {
+                                    const isSelected = bgMode === opt.mode
+                                    return (
+                                        <button
+                                            key={opt.mode}
+                                            onClick={() => setBgMode(opt.mode)}
+                                            className={`relative flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all hover:scale-105 active:scale-95 ${isSelected ? 'text-white shadow-md' : ''}`}
+                                            style={{
+                                                background: isSelected ? GRADIENT : 'transparent',
+                                                border: `1px solid ${isSelected ? 'transparent' : colors.border}`,
+                                                color: isSelected ? '#ffffff' : colors.textSecondary,
+                                                boxShadow: isSelected ? `0 4px 12px #f9731640` : 'none',
+                                            }}
+                                        >
+                                            {isSelected && (
+                                                <div
+                                                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+                                                    style={{ background: '#10b981' }}
+                                                >
+                                                    <Check size={8} color="#ffffff" />
+                                                </div>
+                                            )}
+                                            <opt.icon size={14} />
+                                            <span>{opt.label}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Upload de imagem de fundo personalizada */}
+                        {bgMode === 'custom' && (
+                            <div
+                                className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                <div className="flex items-center gap-4 flex-1">
+                                    <div
+                                        className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
+                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                                    >
+                                        {customBgUrl ? (
+                                            <img src={customBgUrl} className="w-full h-full object-cover" alt="Background" />
+                                        ) : (
+                                            <ImageIcon className="w-7 h-7" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                            {customBgUrl ? 'Imagem personalizada' : 'Nenhuma imagem selecionada'}
+                                        </h3>
+                                        <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                            {customBgUrl ? 'Clique em "Trocar" para alterar a imagem' : 'Escolha uma imagem para o fundo do app'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 flex-shrink-0">
+                                    <input type="file" ref={cfgFileInputRef} onChange={handleCfgBgUpload} accept="image/*" style={{ display: 'none' }} />
+                                    <button
+                                        onClick={() => cfgFileInputRef.current?.click()}
+                                        disabled={cfgUploadingBg}
+                                        className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50"
+                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                                    >
+                                        {cfgUploadingBg ? (
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <Camera size={16} />
+                                        )}
+                                        {customBgUrl ? 'Trocar' : 'Escolher'}
+                                    </button>
+                                    {customBgUrl && (
+                                        <button
+                                            onClick={() => setCustomBgUrl(null)}
+                                            className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+                                            style={{ background: '#ef4444', color: '#ffffff', boxShadow: `0 4px 14px #ef444460` }}
+                                        >
+                                            <span>Remover</span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* WhatsApp */}
+                        <div
+                            className="rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <div className="flex items-center gap-4 flex-1">
+                                <div
+                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: '#22c55e20', border: `2px solid #22c55e30` }}
+                                >
+                                    <Smartphone className="w-7 h-7" style={{ color: '#22c55e' }} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                            WhatsApp
+                                        </h3>
+                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full ${cfgUseWhatsapp ? 'bg-green-500/20 text-green-600' : 'bg-gray-500/20 text-gray-600'}`}>
+                                            {cfgUseWhatsapp ? 'Ativo' : 'Inativo'}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                        Receba notificações em tempo real
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex-shrink-0">
+                                <button
+                                    onClick={() => setCfgUseWhatsapp(!cfgUseWhatsapp)}
+                                    className={`relative w-12 h-6 rounded-full transition-all ${cfgUseWhatsapp ? 'bg-green-500' : 'bg-gray-600'}`}
+                                >
+                                    <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${cfgUseWhatsapp ? 'right-0.5' : 'left-0.5'}`} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {cfgUseWhatsapp ? (
+                            <div
+                                className="rounded-2xl p-6"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.3)`,
+                                    border: `1px solid ${colors.border}`,
+                                }}
+                            >
+                                <div className="flex flex-col gap-4">
+                                    <div>
+                                        <label className="block text-xs font-black uppercase tracking-wider mb-2" style={{ color: colors.textSecondary }}>
+                                            Seu número com DDD
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            placeholder="(00) 00000-0000"
+                                            value={cfgWhatsapp}
+                                            onChange={(e) => setCfgWhatsapp(e.target.value)}
+                                            className="w-full px-5 py-4 rounded-full placeholder:text-gray-400 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                            style={{ background: colors.background, border: `1px solid ${colors.border}`, color: colors.textPrimary }}
+                                        />
+                                        <p className="text-[10px] mt-2" style={{ color: colors.textSecondary }}>
+                                            Exemplo: (11) 99999-9999
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl p-4 border" style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.2)' }}>
+                                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center gap-2">
+                                            <Bell className="w-4 h-4" />
+                                            ✨ Receba alertas no celular
+                                        </p>
+                                        <p className="text-xs mt-1 leading-relaxed" style={{ color: colors.textSecondary }}>
+                                            Quando um cliente comprar na sua loja, você receberá os detalhes do pedido diretamente no WhatsApp.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div
+                                className="rounded-2xl p-6"
+                                style={{
+                                    background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.2)`,
+                                    border: `1px dashed ${colors.border}`,
+                                }}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <Bell className="w-10 h-10" style={{ color: colors.textSecondary }} />
+                                    <div>
+                                        <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+                                            Notificações apenas no app
+                                        </p>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Você verá os pedidos na aba Painel
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Fonte */}
+                        <div
+                            className="rounded-2xl p-6 flex flex-col gap-4"
+                            style={{
+                                background: `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.4)`,
+                                border: `1px solid ${colors.border}`,
+                            }}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div
+                                    className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` }}
+                                >
+                                    <Type className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
+                                        Tamanho da Fonte
+                                    </h3>
+                                    <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                                        Para melhor leitura
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                Aumente ou diminua o tamanho dos textos em todo o aplicativo.
+                            </p>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setFontSize('normal')}
+                                    className={`flex-1 py-3 rounded-full font-black uppercase text-[10px] tracking-wider transition-all hover:scale-105 active:scale-95 ${fontSize === 'normal' ? 'text-white shadow-md' : ''}`}
+                                    style={fontSize === 'normal' ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Padrão
+                                </button>
+                                <button
+                                    onClick={() => setFontSize('large')}
+                                    className={`flex-1 py-3 rounded-full font-black uppercase text-[11px] tracking-wider transition-all hover:scale-105 active:scale-95 ${fontSize === 'large' ? 'text-white shadow-md' : ''}`}
+                                    style={fontSize === 'large' ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Grande
+                                </button>
+                                <button
+                                    onClick={() => setFontSize('extra-large')}
+                                    className={`flex-1 py-3 rounded-full font-black uppercase text-[12px] tracking-wider transition-all hover:scale-105 active:scale-95 ${fontSize === 'extra-large' ? 'text-white shadow-md' : ''}`}
+                                    style={fontSize === 'extra-large' ? { background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 12px #f9731640` } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
+                                >
+                                    Enorme
+                                </button>
+                            </div>
+
+                            <div className="mt-2 p-4 rounded-2xl border" style={{ background: colors.background, borderColor: colors.border }}>
+                                <p
+                                    style={{ color: colors.textPrimary }}
+                                    className={`${fontSize === 'normal' ? 'text-sm' : fontSize === 'large' ? 'text-base' : 'text-lg'}`}
+                                >
+                                    🔤 Exemplo de texto com esta fonte
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Botões de ação */}
+                        <button
+                            onClick={handleCfgSave}
+                            disabled={cfgSaving}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 14px #f9731660`,
+                                opacity: cfgSaving ? 0.6 : 1,
+                                width: '100%',
+                            }}
+                            className="hover:scale-105 transition-transform active:scale-95"
+                        >
+                            {cfgSaving ? (
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <Save className="w-5 h-5" />
+                                    Salvar Configurações
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={handleCfgLogout}
+                            style={{
+                                ...pillButtonFullStyle,
+                                background: GRADIENT,
+                                color: '#ffffff',
+                                boxShadow: `0 4px 14px #f9731660`,
+                                width: '100%',
+                            }}
+                            className="hover:scale-105 transition-transform active:scale-95"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            Sair da Conta
+                        </button>
+                    </div>
+                )}
+            </div>
             </div>
         </div>
     )

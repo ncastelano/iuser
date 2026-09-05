@@ -10,7 +10,6 @@ import LookForAService from './inicio/sections/LookForAService'
 import MotoristaSection from './inicio/sections/MotoristaSection'
 import HireAService from './inicio/sections/HireAService'
 import SortableSection from './inicio/sections/SortableSection'
-import ConfiguracoesContent from './Configuration'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '../contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
@@ -105,15 +104,12 @@ export default function HomePage() {
         bgMode,
         customBgUrl,
         loading,
-        setBgMode,
-        setCustomBgUrl,
     } = useProfile()
 
     const { colors } = useTheme()
     const { itemsByStore, storeDetails, addItem, updateQuantity, removeItem } = useCartStore()
 
     const [sections, setSections] = useState<string[]>(DEFAULT_SECTIONS)
-    const [showConfig, setShowConfig] = useState(false)
     const [editMode, setEditMode] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [searchFocused, setSearchFocused] = useState(false)
@@ -674,14 +670,13 @@ export default function HomePage() {
             case 'servico':
                 return <HireAService />
             case 'settingsSection':
-                return <ButtonSettingsHome onClick={() => setShowConfig(true)} />
+                return <ButtonSettingsHome onClick={handleProfileClick} />
             default:
                 return null
         }
     }
 
     const showHomeSections = () => {
-        setShowConfig(false)
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
@@ -690,7 +685,6 @@ export default function HomePage() {
 
     const handleLoginClick = () => {
         setShowLogin(true)
-        setShowConfig(false)
         setShowCreateStore(false)
         setShowProfile(false)
         setShowStoreDashboard(null)
@@ -699,8 +693,7 @@ export default function HomePage() {
     const handleProfileClick = () => {
         if (profileSlug && !loading) {
             setShowProfile(true)
-            setShowConfig(false)
-            setShowCreateStore(false)
+                setShowCreateStore(false)
             setShowLogin(false)
             setShowStoreDashboard(null)
         } else {
@@ -710,7 +703,6 @@ export default function HomePage() {
 
     const handleStoreDashboardClick = (storeSlug: string, storeName: string) => {
         setShowStoreDashboard({ slug: storeSlug, name: storeName })
-        setShowConfig(false)
         setShowCreateStore(false)
         setShowLogin(false)
         setShowProfile(false)
@@ -768,9 +760,9 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
+    }, [profileSlug, loading, avatarUrl, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
-    const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
+    const showFab = showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin
     const shouldShowBag = !showStoreDashboard && !showLogin
 
@@ -856,14 +848,7 @@ export default function HomePage() {
                     }
                 />
 
-                {showConfig ? (
-                    <ConfiguracoesContent
-                        onBack={() => setShowConfig(false)}
-                        setBgMode={setBgMode}
-                        customBgUrl={customBgUrl}
-                        setCustomBgUrl={setCustomBgUrl}
-                    />
-                ) : showCreateStore ? (
+                {showCreateStore ? (
                     <CreateStoreAndRegisterProfile
                         embedded
                         onBack={() => setShowCreateStore(false)}
