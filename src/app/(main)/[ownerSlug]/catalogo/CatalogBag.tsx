@@ -1,7 +1,7 @@
 // src/app/(main)/[ownerSlug]/catalogo/CatalogBag.tsx
 'use client'
 
-import { ShoppingBag, Minus, Plus, Trash2, MessageCircle } from 'lucide-react'
+import { ShoppingBag, Minus, Plus, Trash2, MessageCircle, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -25,6 +25,14 @@ interface CatalogBagProps {
     deliveryFeeType?: 'free' | 'fixed' | 'distance' | 'none'
     deliveryFee?: number
     deliveryFeeIsEstimate?: boolean
+    deliveryDistanceKm?: number | null
+    deliveryOrigin?: string | null
+    deliveryDestination?: string | null
+}
+
+function shortAddress(address: string): string {
+    const firstPart = address.split(',')[0].trim()
+    return firstPart.length > 28 ? firstPart.substring(0, 26) + '...' : firstPart
 }
 
 // ===== Sacola flutuante do catálogo: mostra os produtos adicionados ao carrinho =====
@@ -41,10 +49,14 @@ export default function CatalogBag({
     deliveryFeeType = 'none',
     deliveryFee = 0,
     deliveryFeeIsEstimate = false,
+    deliveryDistanceKm = null,
+    deliveryOrigin = null,
+    deliveryDestination = null,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
     const showDelivery = deliveryFeeType !== 'none'
+    const showRoute = showDelivery && !!deliveryOrigin && !!deliveryDestination
     const finalTotal = totalValue + (showDelivery ? deliveryFee : 0)
 
     const textColor = colors.textPrimary
@@ -219,6 +231,15 @@ export default function CatalogBag({
                                                 {deliveryFee === 0
                                                     ? 'Grátis'
                                                     : `${deliveryFeeIsEstimate ? 'a partir de ' : ''}${formatPrice(deliveryFee)}`}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {showRoute && (
+                                        <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
+                                            <MapPin size={10} className="flex-shrink-0" />
+                                            <span className="truncate">
+                                                {shortAddress(deliveryOrigin!)} → {shortAddress(deliveryDestination!)}
+                                                {deliveryDistanceKm != null && ` · ${deliveryDistanceKm.toFixed(1)} km`}
                                             </span>
                                         </div>
                                     )}
