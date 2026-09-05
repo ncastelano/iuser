@@ -1,6 +1,7 @@
 // src/app/(main)/[ownerSlug]/catalogo/CatalogBag.tsx
 'use client'
 
+import { ReactNode } from 'react'
 import { ShoppingBag, Minus, Plus, Trash2, MessageCircle, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -31,6 +32,8 @@ interface CatalogBagProps {
     deliveryBaseDistanceKm?: number | null
     deliveryBaseFee?: number | null
     deliveryFeePerKm?: number | null
+    /** Quando presente, substitui a lista de itens pelo passo de finalização (recebimento/pagamento) embutido na sacola. */
+    checkoutContent?: ReactNode | null
 }
 
 function shortAddress(address: string): string {
@@ -58,6 +61,7 @@ export default function CatalogBag({
     deliveryBaseDistanceKm = null,
     deliveryBaseFee = null,
     deliveryFeePerKm = null,
+    checkoutContent = null,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
@@ -110,7 +114,7 @@ export default function CatalogBag({
                     border: `2px solid ${totalItems > 0 ? colors.accent : colors.border}`,
                     boxShadow: totalItems > 0 ? `0 8px 32px rgba(0,0,0,0.15)` : `0 4px 16px rgba(0,0,0,0.08)`,
                     minWidth: isExpanded ? 280 : 'auto',
-                    maxWidth: isExpanded ? 360 : 'auto',
+                    maxWidth: isExpanded ? (checkoutContent ? 380 : 360) : 'auto',
                 }}
             >
                 <div
@@ -157,7 +161,13 @@ export default function CatalogBag({
                     </div>
                 </div>
 
-                {isExpanded && (
+                {isExpanded && checkoutContent && (
+                    <div className="border-t p-3 max-h-[75vh] overflow-y-auto" style={{ borderColor: colors.border }}>
+                        {checkoutContent}
+                    </div>
+                )}
+
+                {isExpanded && !checkoutContent && (
                     <div className="border-t px-2 py-2 max-h-64 overflow-y-auto" style={{ borderColor: colors.border }}>
                         {bagItems.length === 0 ? (
                             <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>

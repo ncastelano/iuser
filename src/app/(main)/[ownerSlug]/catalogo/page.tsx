@@ -79,9 +79,8 @@ export default function CatalogoPage() {
     const [pendingProduct, setPendingProduct] = useState<any | null>(null)
 
     // ===== STATES PARA FINALIZAÇÃO =====
-    const [showCheckoutModal, setShowCheckoutModal] = useState(false)
     const [checkoutLoading, setCheckoutLoading] = useState(false)
-    const [checkoutStep, setCheckoutStep] = useState<'auth' | 'delivery' | 'payment' | 'confirm'>('auth')
+    const [checkoutStep, setCheckoutStep] = useState<'auth' | 'delivery' | 'payment' | null>(null)
 
     // ===== AUTH =====
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
@@ -535,6 +534,7 @@ export default function CatalogoPage() {
             setCurrentUserId(data.user.id)
             await loadUserData()
             setCheckoutStep('delivery')
+            setIsBagExpanded(true)
             toast.success('Login realizado com sucesso!')
         }
         setAuthLoading(false)
@@ -604,6 +604,7 @@ export default function CatalogoPage() {
             setCurrentUserId(data.user.id)
             await loadUserData()
             setCheckoutStep('delivery')
+            setIsBagExpanded(true)
             toast.success('Conta criada com sucesso!')
         }
         setAuthLoading(false)
@@ -859,9 +860,8 @@ export default function CatalogoPage() {
             }
 
             toast.success('Pedido realizado com sucesso! 🎉')
-            setShowCheckoutModal(false)
             setIsBagExpanded(false)
-            setCheckoutStep('auth')
+            setCheckoutStep(null)
             setCheckoutLoading(false)
 
         } catch (err: any) {
@@ -1351,8 +1351,6 @@ export default function CatalogoPage() {
                         onRemove={removeAllOfProduct}
                         onCheckout={() => {
                             setCheckoutStep(currentUserId ? 'delivery' : 'auth')
-                            setShowCheckoutModal(true)
-                            setIsBagExpanded(false)
                         }}
                         colors={colors}
                         isStoreOpen={isStoreOpen}
@@ -1365,6 +1363,318 @@ export default function CatalogoPage() {
                         deliveryBaseDistanceKm={bagDeliveryEstimate.baseDistanceKm}
                         deliveryBaseFee={bagDeliveryEstimate.baseFee}
                         deliveryFeePerKm={bagDeliveryEstimate.feePerKm}
+                        checkoutContent={checkoutStep === 'delivery' ? (
+                            <>
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                        Etapa 1 de 2 · Recebimento
+                                    </p>
+                                    <button
+                                        onClick={() => setCheckoutStep(null)}
+                                        className="p-1 rounded-full hover:bg-black/5 transition"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                <p className="text-xs font-bold mb-3" style={{ color: colors.textSecondary }}>
+                                    {bagItems.reduce((sum, item) => sum + item.quantity, 0)} {bagItems.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'itens'} · Subtotal {formatPrice(getStoreTotals().itemsTotal)}
+                                </p>
+
+                                {/* Status da loja */}
+                                <div
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
+                                    style={{
+                                        background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                        color: isStoreOpen ? '#22c55e' : '#ef4444',
+                                        border: `1px solid ${isStoreOpen ? '#22c55e30' : '#ef444430'}`,
+                                    }}
+                                >
+                                    <Clock size={14} />
+                                    <span>{isStoreOpen ? '🟢 Aberto' : '🔴 Fechado'}</span>
+                                    {!isStoreOpen && nextAvailable && (
+                                        <span style={{ opacity: 0.7 }}>
+                                            • Abre {nextAvailable.day} às {nextAvailable.open}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Pergunta de recebimento */}
+                                <div className="mb-3">
+                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                        Como você quer receber seu pedido?
+                                    </p>
+
+                                    {canChooseReceivingMethod ? (
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {([
+                                                { value: 'retirada' as const, icon: Store, label: 'Retirar na loja', desc: 'Busque no balcão' },
+                                                { value: 'entrega' as const, icon: Truck, label: 'Receber em casa', desc: 'Entregamos no endereço' },
+                                            ]).map((opt) => {
+                                                const selected = deliveryOption === opt.value
+                                                return (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setDeliveryOption(opt.value)}
+                                                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                        style={selected
+                                                            ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                            : { borderColor: colors.border, background: 'transparent' }}
+                                                    >
+                                                        <div
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                            style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                        >
+                                                            <opt.icon size={18} />
+                                                        </div>
+                                                        <span className="text-xs font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                                            {opt.label}
+                                                        </span>
+                                                        <span className="text-[9px]" style={{ color: colors.textSecondary }}>
+                                                            {opt.desc}
+                                                        </span>
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    ) : onlyPickupAvailable ? (
+                                        <div
+                                            className="flex items-center gap-3 p-3 rounded-2xl"
+                                            style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                        >
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                <Store size={18} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não tem entrega</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                            </div>
+                                        </div>
+                                    ) : onlyDeliveryAvailable ? (
+                                        <div
+                                            className="flex items-center gap-3 p-3 rounded-2xl"
+                                            style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                        >
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                <Truck size={18} />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>Essa loja não faz retirada no local</p>
+                                                <p className="text-[10px]" style={{ color: colors.textSecondary }}>Seu pedido será entregue no seu endereço</p>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                {/* Delivery Address */}
+                                {deliveryOption === 'entrega' && (
+                                    <div className="mb-3">
+                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
+
+                                        {userAddress && userLocation && (
+                                            <button
+                                                onClick={() => {
+                                                    setDeliveryAddress(userAddress)
+                                                    setDeliveryLat(userLocation.lat)
+                                                    setDeliveryLng(userLocation.lng)
+                                                    setSelectedLocation({
+                                                        lat: userLocation.lat,
+                                                        lng: userLocation.lng,
+                                                        address: userAddress
+                                                    })
+                                                    toast.success('Endereço do perfil selecionado!')
+                                                }}
+                                                className="w-full p-2 rounded-xl mb-2 border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2 text-xs"
+                                                style={{ background: 'rgba(16,185,129,0.05)' }}
+                                            >
+                                                <Home size={14} style={{ color: '#10b981' }} />
+                                                <span className="flex-1 truncate" style={{ color: colors.textPrimary }}>{userAddress}</span>
+                                                <CheckCircle2 size={12} style={{ color: '#10b981' }} />
+                                            </button>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
+                                                <Search size={14} style={{ color: colors.textSecondary }} />
+                                                <input
+                                                    type="text"
+                                                    value={locationSearchQuery}
+                                                    onChange={(e) => setLocationSearchQuery(e.target.value)}
+                                                    placeholder="Buscar endereço..."
+                                                    className="flex-1 bg-transparent outline-none text-sm min-w-0"
+                                                    style={{ color: colors.textPrimary }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={searchLocation}
+                                                disabled={isSearchingLocation}
+                                                className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50 flex-shrink-0"
+                                                style={{ background: GRADIENT }}
+                                            >
+                                                {isSearchingLocation ? '...' : 'Buscar'}
+                                            </button>
+                                        </div>
+
+                                        {selectedLocation && (
+                                            <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}>
+                                                <p className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>📍 {selectedLocation.address}</p>
+                                            </div>
+                                        )}
+
+                                        {deliveryAddress && !selectedLocation && (
+                                            <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
+                                                <p className="text-[10px]" style={{ color: colors.textPrimary }}>{deliveryAddress}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={() => setCheckoutStep(null)}
+                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                        style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={() => setCheckoutStep('payment')}
+                                        disabled={!deliveryOption || (deliveryOption === 'entrega' && !deliveryAddress.trim())}
+                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                                    >
+                                        {!deliveryOption ? 'Escolha como receber' :
+                                            (deliveryOption === 'entrega' && !deliveryAddress.trim()) ? 'Informe o endereço' :
+                                                'Continuar'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : checkoutStep === 'payment' ? (
+                            <>
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                        Etapa 2 de 2 · Pagamento
+                                    </p>
+                                    <button
+                                        onClick={() => setCheckoutStep(null)}
+                                        className="p-1 rounded-full hover:bg-black/5 transition"
+                                        style={{ color: colors.textSecondary }}
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                {/* Recap do recebimento escolhido */}
+                                <div
+                                    className="flex items-center gap-3 mb-3 p-2.5 rounded-xl"
+                                    style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
+                                >
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                        {deliveryOption === 'entrega' ? <Truck size={14} /> : <Store size={14} />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                            {deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
+                                        </p>
+                                        {deliveryOption === 'entrega' && (
+                                            <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{deliveryAddress}</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setCheckoutStep('delivery')}
+                                        className="text-[10px] font-bold underline flex-shrink-0"
+                                        style={{ color: '#f97316' }}
+                                    >
+                                        Alterar
+                                    </button>
+                                </div>
+
+                                {/* Pergunta de pagamento */}
+                                <div className="mb-3">
+                                    <p className="text-sm font-black mb-3" style={{ color: colors.textPrimary }}>
+                                        Como você quer pagar?
+                                    </p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {([
+                                            { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: storeConfig?.accepts_pix },
+                                            { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: storeConfig?.accepts_card },
+                                            { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: storeConfig?.accepts_cash },
+                                        ]).filter(opt => opt.enabled).map((opt) => {
+                                            const selected = paymentMethod === opt.value
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => setPaymentMethod(opt.value)}
+                                                    className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                    style={selected
+                                                        ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                        : { borderColor: colors.border, background: 'transparent' }}
+                                                >
+                                                    <div
+                                                        className="w-9 h-9 rounded-full flex items-center justify-center"
+                                                        style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                    >
+                                                        <opt.icon size={16} />
+                                                    </div>
+                                                    <span className="text-[11px] font-bold" style={{ color: selected ? '#f97316' : colors.textPrimary }}>
+                                                        {opt.label}
+                                                    </span>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Total e finalizar */}
+                                <div className="border-t pt-2.5" style={{ borderColor: colors.border }}>
+                                    {deliveryOption === 'entrega' && (
+                                        <div className="flex justify-between text-xs mb-1">
+                                            <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
+                                            {getStoreTotals().isCalculating ? (
+                                                <span className="italic animate-pulse" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                            ) : getStoreTotals().deliveryFee === 0 ? (
+                                                <span className="font-bold text-green-500">Grátis</span>
+                                            ) : (
+                                                <span className="font-bold" style={{ color: '#f97316' }}>
+                                                    {formatPrice(getStoreTotals().deliveryFee)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between text-sm font-bold">
+                                        <span style={{ color: colors.textPrimary }}>Total</span>
+                                        {getStoreTotals().isCalculating ? (
+                                            <span className="italic" style={{ color: colors.textSecondary }}>Calculando...</span>
+                                        ) : (
+                                            <span style={{ color: '#f97316' }}>{formatPrice(getStoreTotals().finalTotal)}</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={() => setCheckoutStep('delivery')}
+                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95"
+                                        style={{ background: 'transparent', border: `2px solid ${colors.border}`, color: colors.textSecondary }}
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={handleFinalizeOrder}
+                                        disabled={checkoutLoading || getStoreTotals().isCalculating || !paymentMethod}
+                                        className="flex-1 py-2.5 rounded-xl font-bold text-xs transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                        style={{ background: GRADIENT, color: '#ffffff', boxShadow: `0 4px 14px #f9731660` }}
+                                    >
+                                        {checkoutLoading ? 'Finalizando...' :
+                                            getStoreTotals().isCalculating ? 'Calculando...' :
+                                                !paymentMethod ? 'Escolha o pagamento' :
+                                                    'Confirmar Pedido'}
+                                    </button>
+                                </div>
+                            </>
+                        ) : null}
                     />
                 </div>
 
@@ -1469,14 +1779,13 @@ export default function CatalogoPage() {
                     </div>
                 )}
 
-                {/* ===== MODAL DE CHECKOUT ===== */}
-                {showCheckoutModal && (
+                {/* ===== MODAL DE AUTENTICAÇÃO (login/cadastro antes de finalizar) ===== */}
+                {checkoutStep === 'auth' && (
                     <div
                         className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
                         onClick={() => {
                             if (!checkoutLoading) {
-                                setShowCheckoutModal(false)
-                                setCheckoutStep('auth')
+                                setCheckoutStep(null)
                             }
                         }}
                     >
@@ -1485,18 +1794,13 @@ export default function CatalogoPage() {
                             style={{ background: cardBackground }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* ===== STEP AUTH ===== */}
-                            {checkoutStep === 'auth' && (
-                                <>
+                            <>
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-lg font-black" style={{ color: textColor }}>
                                             {authMode === 'login' ? 'Entrar' : 'Criar Conta'}
                                         </h3>
                                         <button
-                                            onClick={() => {
-                                                setShowCheckoutModal(false)
-                                                setCheckoutStep('auth')
-                                            }}
+                                            onClick={() => setCheckoutStep(null)}
                                             className="p-1.5 rounded-full hover:bg-black/5 transition"
                                             style={{ color: colors.textSecondary }}
                                         >
@@ -1678,376 +1982,6 @@ export default function CatalogoPage() {
                                         </form>
                                     )}
                                 </>
-                            )}
-
-                            {/* ===== STEP DELIVERY ===== */}
-                            {checkoutStep === 'delivery' && (
-                                <>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                            Etapa 1 de 2
-                                        </p>
-                                        <button
-                                            onClick={() => {
-                                                setShowCheckoutModal(false)
-                                                setCheckoutStep('auth')
-                                            }}
-                                            className="p-1.5 rounded-full hover:bg-black/5 transition"
-                                            style={{ color: colors.textSecondary }}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-                                    <h3 className="text-lg font-black mb-4" style={{ color: textColor }}>
-                                        Finalizar Pedido
-                                    </h3>
-
-                                    {/* Itens resumidos com observações */}
-                                    <div className="mb-4 p-3 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
-                                        <p className="text-xs font-bold mb-2" style={{ color: colors.textPrimary }}>
-                                            {bagItems.length} {bagItems.length === 1 ? 'item' : 'itens'} na sacola
-                                        </p>
-                                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                                            {bagItems.map((item) => (
-                                                <div key={`${item.product.id}::${item.comment || ''}`} className="flex justify-between text-xs">
-                                                    <span style={{ color: colors.textSecondary }}>
-                                                        {item.quantity}x {item.product.name}
-                                                        {item.comment && <span className="text-[8px] ml-1 opacity-60">({item.comment})</span>}
-                                                    </span>
-                                                    <span className="font-bold" style={{ color: textColor }}>
-                                                        {formatPrice(item.product.price * item.quantity)}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="border-t mt-2 pt-2 flex justify-between font-bold text-sm" style={{ borderColor: colors.border }}>
-                                            <span style={{ color: textColor }}>Subtotal</span>
-                                            <span style={{ color: '#f97316' }}>{formatPrice(getStoreTotals().itemsTotal)}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Status da loja */}
-                                    <div
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-4 text-xs font-bold"
-                                        style={{
-                                            background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                                            color: isStoreOpen ? '#22c55e' : '#ef4444',
-                                            border: `1px solid ${isStoreOpen ? '#22c55e30' : '#ef444430'}`,
-                                        }}
-                                    >
-                                        <Clock size={14} />
-                                        <span>{isStoreOpen ? '🟢 Aberto' : '🔴 Fechado'}</span>
-                                        {!isStoreOpen && nextAvailable && (
-                                            <span style={{ opacity: 0.7 }}>
-                                                • Abre {nextAvailable.day} às {nextAvailable.open}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Pergunta de recebimento */}
-                                    <div className="mb-4">
-                                        <p className="text-sm font-black mb-3" style={{ color: textColor }}>
-                                            Como você quer receber seu pedido?
-                                        </p>
-
-                                        {canChooseReceivingMethod ? (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {([
-                                                    { value: 'retirada' as const, icon: Store, label: 'Retirar na loja', desc: 'Busque no balcão' },
-                                                    { value: 'entrega' as const, icon: Truck, label: 'Receber em casa', desc: 'Entregamos no endereço' },
-                                                ]).map((opt) => {
-                                                    const selected = deliveryOption === opt.value
-                                                    return (
-                                                        <button
-                                                            key={opt.value}
-                                                            onClick={() => setDeliveryOption(opt.value)}
-                                                            className="flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                                            style={selected
-                                                                ? { borderColor: '#f97316', background: `${colors.accent}10` }
-                                                                : { borderColor: colors.border, background: 'transparent' }}
-                                                        >
-                                                            <div
-                                                                className="w-11 h-11 rounded-full flex items-center justify-center"
-                                                                style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
-                                                            >
-                                                                <opt.icon size={20} />
-                                                            </div>
-                                                            <span className="text-sm font-bold" style={{ color: selected ? '#f97316' : textColor }}>
-                                                                {opt.label}
-                                                            </span>
-                                                            <span className="text-[10px]" style={{ color: colors.textSecondary }}>
-                                                                {opt.desc}
-                                                            </span>
-                                                        </button>
-                                                    )
-                                                })}
-                                            </div>
-                                        ) : onlyPickupAvailable ? (
-                                            <div
-                                                className="flex items-center gap-3 p-4 rounded-2xl"
-                                                style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
-                                            >
-                                                <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                                    <Store size={20} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold" style={{ color: textColor }}>Essa loja não tem entrega</p>
-                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
-                                                </div>
-                                            </div>
-                                        ) : onlyDeliveryAvailable ? (
-                                            <div
-                                                className="flex items-center gap-3 p-4 rounded-2xl"
-                                                style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
-                                            >
-                                                <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                                    <Truck size={20} />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-bold" style={{ color: textColor }}>Essa loja não faz retirada no local</p>
-                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Seu pedido será entregue no seu endereço</p>
-                                                </div>
-                                            </div>
-                                        ) : null}
-                                    </div>
-
-                                    {/* Delivery Address */}
-                                    {deliveryOption === 'entrega' && (
-                                        <div className="mb-4">
-                                            <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
-
-                                            {/* Endereço salvo do perfil */}
-                                            {userAddress && userLocation && (
-                                                <button
-                                                    onClick={() => {
-                                                        setDeliveryAddress(userAddress)
-                                                        setDeliveryLat(userLocation.lat)
-                                                        setDeliveryLng(userLocation.lng)
-                                                        setSelectedLocation({
-                                                            lat: userLocation.lat,
-                                                            lng: userLocation.lng,
-                                                            address: userAddress
-                                                        })
-                                                        toast.success('Endereço do perfil selecionado!')
-                                                    }}
-                                                    className="w-full p-2 rounded-xl mb-2 border-2 border-green-500/30 hover:bg-green-50 transition flex items-center gap-2 text-xs"
-                                                    style={{ background: 'rgba(16,185,129,0.05)' }}
-                                                >
-                                                    <Home size={16} style={{ color: '#10b981' }} />
-                                                    <span className="flex-1 truncate" style={{ color: colors.textPrimary }}>{userAddress}</span>
-                                                    <CheckCircle2 size={14} style={{ color: '#10b981' }} />
-                                                </button>
-                                            )}
-
-                                            {/* Buscar endereço */}
-                                            <div className="flex gap-2">
-                                                <div className="flex-1 flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ borderColor: colors.border }}>
-                                                    <Search size={14} style={{ color: colors.textSecondary }} />
-                                                    <input
-                                                        type="text"
-                                                        value={locationSearchQuery}
-                                                        onChange={(e) => setLocationSearchQuery(e.target.value)}
-                                                        placeholder="Buscar endereço..."
-                                                        className="flex-1 bg-transparent outline-none text-sm"
-                                                        style={{ color: colors.textPrimary }}
-                                                        onKeyDown={(e) => { if (e.key === 'Enter') searchLocation() }}
-                                                    />
-                                                </div>
-                                                <button
-                                                    onClick={searchLocation}
-                                                    disabled={isSearchingLocation}
-                                                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white disabled:opacity-50"
-                                                    style={{ background: GRADIENT }}
-                                                >
-                                                    {isSearchingLocation ? '...' : 'Buscar'}
-                                                </button>
-                                            </div>
-
-                                            {selectedLocation && (
-                                                <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.accent}10`, border: `1px solid ${colors.accent}30` }}>
-                                                    <p className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>📍 {selectedLocation.address}</p>
-                                                </div>
-                                            )}
-
-                                            {deliveryAddress && !selectedLocation && (
-                                                <div className="mt-2 p-2 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
-                                                    <p className="text-[10px]" style={{ color: colors.textPrimary }}>{deliveryAddress}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    <div className="flex gap-3 mt-4">
-                                        <button
-                                            onClick={() => {
-                                                setShowCheckoutModal(false)
-                                                setCheckoutStep('auth')
-                                            }}
-                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                            style={{
-                                                background: 'transparent',
-                                                border: `2px solid ${colors.border}`,
-                                                color: colors.textSecondary
-                                            }}
-                                        >
-                                            Voltar
-                                        </button>
-                                        <button
-                                            onClick={() => setCheckoutStep('payment')}
-                                            disabled={!deliveryOption || (deliveryOption === 'entrega' && !deliveryAddress.trim())}
-                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95 disabled:opacity-50"
-                                            style={{
-                                                background: GRADIENT,
-                                                color: '#ffffff',
-                                                boxShadow: `0 4px 14px #f9731660`,
-                                            }}
-                                        >
-                                            {!deliveryOption ? 'Escolha como receber' :
-                                                (deliveryOption === 'entrega' && !deliveryAddress.trim()) ? 'Informe o endereço' :
-                                                    'Continuar'}
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-
-                            {checkoutStep === 'payment' && (
-                                <>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
-                                            Etapa 2 de 2
-                                        </p>
-                                        <button
-                                            onClick={() => {
-                                                setShowCheckoutModal(false)
-                                                setCheckoutStep('auth')
-                                            }}
-                                            className="p-1.5 rounded-full hover:bg-black/5 transition"
-                                            style={{ color: colors.textSecondary }}
-                                        >
-                                            <X size={20} />
-                                        </button>
-                                    </div>
-                                    <h3 className="text-lg font-black mb-4" style={{ color: textColor }}>
-                                        Finalizar Pedido
-                                    </h3>
-
-                                    {/* Recap do recebimento escolhido */}
-                                    <div
-                                        className="flex items-center gap-3 mb-4 p-3 rounded-xl"
-                                        style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
-                                    >
-                                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
-                                            {deliveryOption === 'entrega' ? <Truck size={16} /> : <Store size={16} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
-                                                {deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
-                                            </p>
-                                            {deliveryOption === 'entrega' && (
-                                                <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{deliveryAddress}</p>
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={() => setCheckoutStep('delivery')}
-                                            className="text-[10px] font-bold underline flex-shrink-0"
-                                            style={{ color: '#f97316' }}
-                                        >
-                                            Alterar
-                                        </button>
-                                    </div>
-
-                                    {/* Pergunta de pagamento */}
-                                    <div className="mb-4">
-                                        <p className="text-sm font-black mb-3" style={{ color: textColor }}>
-                                            Como você quer pagar?
-                                        </p>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {([
-                                                { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: storeConfig?.accepts_pix },
-                                                { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: storeConfig?.accepts_card },
-                                                { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: storeConfig?.accepts_cash },
-                                            ]).filter(opt => opt.enabled).map((opt) => {
-                                                const selected = paymentMethod === opt.value
-                                                return (
-                                                    <button
-                                                        key={opt.value}
-                                                        onClick={() => setPaymentMethod(opt.value)}
-                                                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
-                                                        style={selected
-                                                            ? { borderColor: '#f97316', background: `${colors.accent}10` }
-                                                            : { borderColor: colors.border, background: 'transparent' }}
-                                                    >
-                                                        <div
-                                                            className="w-10 h-10 rounded-full flex items-center justify-center"
-                                                            style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
-                                                        >
-                                                            <opt.icon size={18} />
-                                                        </div>
-                                                        <span className="text-xs font-bold" style={{ color: selected ? '#f97316' : textColor }}>
-                                                            {opt.label}
-                                                        </span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {/* Total e finalizar */}
-                                    <div className="border-t pt-3" style={{ borderColor: colors.border }}>
-                                        {deliveryOption === 'entrega' && (
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span style={{ color: colors.textSecondary }}>Taxa de entrega</span>
-                                                {getStoreTotals().isCalculating ? (
-                                                    <span className="italic animate-pulse" style={{ color: colors.textSecondary }}>Calculando...</span>
-                                                ) : getStoreTotals().deliveryFee === 0 ? (
-                                                    <span className="font-bold text-green-500">Grátis</span>
-                                                ) : (
-                                                    <span className="font-bold" style={{ color: '#f97316' }}>
-                                                        {formatPrice(getStoreTotals().deliveryFee)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between text-base font-bold">
-                                            <span style={{ color: textColor }}>Total</span>
-                                            {getStoreTotals().isCalculating ? (
-                                                <span className="italic" style={{ color: colors.textSecondary }}>Calculando...</span>
-                                            ) : (
-                                                <span style={{ color: '#f97316' }}>{formatPrice(getStoreTotals().finalTotal)}</span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-3 mt-4">
-                                        <button
-                                            onClick={() => setCheckoutStep('delivery')}
-                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
-                                            style={{
-                                                background: 'transparent',
-                                                border: `2px solid ${colors.border}`,
-                                                color: colors.textSecondary
-                                            }}
-                                        >
-                                            Voltar
-                                        </button>
-                                        <button
-                                            onClick={handleFinalizeOrder}
-                                            disabled={checkoutLoading || getStoreTotals().isCalculating || !paymentMethod}
-                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95 disabled:opacity-50"
-                                            style={{
-                                                background: GRADIENT,
-                                                color: '#ffffff',
-                                                boxShadow: `0 4px 14px #f9731660`,
-                                            }}
-                                        >
-                                            {checkoutLoading ? 'Finalizando...' :
-                                                getStoreTotals().isCalculating ? 'Calculando...' :
-                                                    !paymentMethod ? 'Escolha o pagamento' :
-                                                        'Confirmar Pedido'}
-                                        </button>
-                                    </div>
-                                </>
-                            )}
                         </div>
                     </div>
                 )}
