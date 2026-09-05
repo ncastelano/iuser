@@ -24,7 +24,8 @@ import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import HomeBag, { type HomeBagItem } from './HomeBag'
-import { isStoreOpenNow } from '@/lib/storeHours'
+import { isStoreOpenNow, type BusinessHours } from '@/lib/storeHours'
+import { isProfileOpenNow } from '@/lib/profileHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
@@ -87,37 +88,12 @@ function formatAddress(address: string, addressNumber?: string): string {
     return firstPart
 }
 
-// ---------- Funções de horário ----------
-const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function getTodayKey(): string {
-    return DAY_KEYS[new Date().getDay()]
-}
-
-function getTodaySchedule(businessHours: Record<string, { open: string; close: string }> | null | undefined) {
-    if (!businessHours) return null
-    const todayKey = getTodayKey()
-    return businessHours[todayKey] || null
-}
-
-function isOpenNow(schedule: { open: string; close: string } | null | undefined): boolean {
-    if (!schedule || !schedule.open || !schedule.close) return false
-    const now = new Date()
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
-    const [openH, openM] = schedule.open.split(':').map(Number)
-    let [closeH, closeM] = schedule.close.split(':').map(Number)
-    if (closeH === 0 && closeM === 0) closeH = 24
-    const openMinutes = openH * 60 + openM
-    const closeMinutes = closeH * 60 + closeM
-    return currentMinutes >= openMinutes && currentMinutes <= closeMinutes
-}
-
 export interface StoreInfo {
     id: string
     slug: string
     logoUrl: string | null
     name: string
-    business_hours?: Record<string, { open: string; close: string }> | null
+    business_hours?: BusinessHours | null
 }
 
 export default function HomePage() {
@@ -241,6 +217,7 @@ export default function HomePage() {
     const [pendingReviewsCount, setPendingReviewsCount] = useState(0)
     const [loadingStatus, setLoadingStatus] = useState(true)
     const [pendingInvitesCount, setPendingInvitesCount] = useState(0)
+    const [profileOpenNow, setProfileOpenNow] = useState(false)
 
     // ---------- CARREGAR ORDEM DAS SEÇÕES ----------
     useEffect(() => {
@@ -436,6 +413,25 @@ export default function HomePage() {
         return () => {
             if (channel) supabase.removeChannel(channel)
         }
+    }, [profileSlug])
+
+    // ---------- STATUS ABERTO/FECHADO DO PERFIL (cor da aba de perfil) ----------
+    useEffect(() => {
+        if (!profileSlug) {
+            setProfileOpenNow(false)
+            return
+        }
+
+        supabase.auth.getUser().then(async ({ data: { user } }) => {
+            if (!user) return
+            const { data } = await supabase
+                .from('profiles')
+                .select('business_hours')
+                .eq('id', user.id)
+                .single()
+
+            setProfileOpenNow(isProfileOpenNow(data?.business_hours))
+        })
     }, [profileSlug])
 
     // ---------- LOJAS DO USUÁRIO ----------
@@ -731,6 +727,7 @@ export default function HomePage() {
                 onClick: handleProfileClick,
                 isActive: (isLoggedIn && showProfile) || (!isLoggedIn && showLogin),
                 badge: isLoggedIn && pendingInvitesCount > 0 ? { count: pendingInvitesCount, color: '#22c55e' } : null,
+                statusColor: isLoggedIn ? (profileOpenNow ? '#22c55e' : '#ef4444') : undefined,
             },
         ]
 
@@ -743,8 +740,7 @@ export default function HomePage() {
                 const counts = storeOrderCounts[s.id] || { pending: 0, preparing: 0, ready: 0 }
                 const hasActive = counts.pending + counts.preparing + counts.ready > 0
 
-                const todaySchedule = getTodaySchedule(s.business_hours)
-                const openNow = isOpenNow(todaySchedule)
+                const openNow = isStoreOpenNow(s.business_hours)
                 const statusColor = openNow ? '#22c55e' : '#ef4444'
 
                 allTabs.push({
@@ -772,7 +768,7 @@ export default function HomePage() {
         }
 
         return allTabs
-    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, router])
+    }, [profileSlug, loading, avatarUrl, showConfig, showCreateStore, showLogin, showProfile, showStoreDashboard, stores, loadingStores, storeOrderCounts, pendingInvitesCount, profileOpenNow, router])
 
     const showFab = showConfig || showCreateStore || showLogin || showProfile || showStoreDashboard
     const shouldShowSacola = !showProfile && !showStoreDashboard && !showLogin

@@ -218,13 +218,7 @@ export default function Header({
     }
 
     const getTabBorder = (tab: Tab): string => {
-        if (tab.statusColor) {
-            return tab.statusColor
-        }
-        if (tab.isActive) {
-            return 'transparent'
-        }
-        return colors.textSecondary
+        return tab.isActive ? '#f97316' : '#ffffff'
     }
 
     return (
@@ -386,7 +380,7 @@ export default function Header({
                                             backdropFilter: 'blur(10px)',
                                             color: textColor,
                                             overflow: 'visible',
-                                            border: isActive ? 'none' : `1.5px solid ${borderColor}`,
+                                            border: `1.5px solid ${borderColor}`,
                                             ...(isActive && !tab.statusColor ? {
                                                 boxShadow: `0 2px 8px #f9731640`,
                                                 fontWeight: 'bold',
