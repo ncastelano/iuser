@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/app/Header'
 import { getAvatarUrl } from '@/lib/avatar'
@@ -23,7 +23,6 @@ import {
     LogIn,
     MessageCircle,
 } from 'lucide-react'
-import { Spinner } from '@/components/Spinner'
 
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
 
@@ -203,7 +202,14 @@ export default function CommunityRoomClient() {
     }
 
     if (loading) {
-        return <LoadingSpinner message="Carregando comunidade..." background={colors.background} />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando comunidade...</p>
+                </div>
+            </div>
+        )
     }
 
     if (error || !community) {

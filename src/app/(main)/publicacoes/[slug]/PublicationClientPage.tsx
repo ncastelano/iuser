@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import {
     ArrowLeft,
     Store,
@@ -22,7 +22,6 @@ import {
     Trash2,
     UserCircle
 } from 'lucide-react'
-import { Spinner } from '@/components/Spinner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import Header from '@/app/Header'
@@ -764,7 +763,14 @@ export default function PublicationClientPage() {
     const OwnerIcon = ownerDisplay.type === 'store' ? Store : UserCircle
 
     if (loading) {
-        return <LoadingSpinner message="Carregando publicação..." background={colors.background} />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando publicação...</p>
+                </div>
+            </div>
+        )
     }
 
     if (error || !publication) {

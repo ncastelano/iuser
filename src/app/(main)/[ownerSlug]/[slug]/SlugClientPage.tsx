@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { ProductClientPage } from './ProductClientPage'
@@ -110,7 +110,14 @@ export default function SlugClientPage() {
     }, [slug, ownerSlug])
 
     if (loading) {
-        return <LoadingSpinner message="Carregando..." background={colors.background} />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando...</p>
+                </div>
+            </div>
+        )
     }
 
     if (error || !itemType || !itemData) {

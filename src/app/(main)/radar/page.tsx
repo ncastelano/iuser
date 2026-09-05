@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Search, Store, ShoppingBag, X, MapPin, Star, Briefcase, Layers, Flame, Navigation, Crosshair, Home, Compass, Plus, Edit2, Save, XCircle, Building2, Map as MapIcon, ChevronRight, CheckCircle2, Users, Calendar, MessageCircle, Eye } from 'lucide-react'
 import { useAppModeStore } from '@/store/useAppModeStore'
 import { toast } from 'sonner'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { isStoreOpenNow, getStoreStatusText, getNextOpeningInfo } from '@/lib/storeHours'
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -1052,8 +1052,8 @@ export default function MapPage() {
             </div>
 
             {(!mapReady || loadingLocation) && (
-                <div className="absolute inset-0 z-10">
-                    <LoadingSpinner />
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                    <Spinner size={48} color="#f97316" />
                     {/* Overlay adicional com texto informativo */}
                     {loadingLocation && (
                         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20">

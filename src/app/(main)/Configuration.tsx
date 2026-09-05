@@ -11,7 +11,7 @@ import { useFontStore } from '@/store/useFontStore'
 import { toast } from 'sonner'
 import ColloriUser from '@/components/ColloriUser'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -181,7 +181,14 @@ export default function ConfiguracoesContent({
     }
 
     if (!authChecked || loading) {
-        return <LoadingSpinner message="Carregando configurações..." />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando configurações...</p>
+                </div>
+            </div>
+        )
     }
 
     const bgOptions = [

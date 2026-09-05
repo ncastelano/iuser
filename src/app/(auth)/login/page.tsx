@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/app/theme'
 import Header from '@/app/Header'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 
 // ===== GRADIENTE FIXO LARANJA-VERMELHO =====
 const GRADIENT = 'linear-gradient(135deg, #f97316, #dc2626)'
@@ -241,7 +241,10 @@ export default function Login() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#ffffff' }}>
-        <LoadingSpinner message="Carregando..." background="#ffffff" />
+        <div className="text-center">
+          <Spinner size={48} color="#f97316" className="mx-auto mb-4" />
+          <p className="text-sm font-bold" style={{ color: '#4b5563' }}>Carregando...</p>
+        </div>
       </div>
     }>
       <LoginContent />

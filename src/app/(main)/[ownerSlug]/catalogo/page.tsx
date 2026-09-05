@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
@@ -909,7 +909,14 @@ export default function CatalogoPage() {
 
     // ========== RENDER ==========
     if (loading) {
-        return <LoadingSpinner message="Carregando catálogo..." background={colors.background} />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando catálogo...</p>
+                </div>
+            </div>
+        )
     }
 
     if (error || !storeInfo || !ownerSlug) {

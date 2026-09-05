@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '@/app/theme'
 import { ChevronLeft, ChevronRight, X, Pause, MessageCircle } from 'lucide-react'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { usePublicationsStore } from '@/store/usePublicationStore'
 
 interface PublicationsListViewProps {
@@ -266,7 +266,10 @@ export function PublicationsListView({
                 className="fixed inset-0 z-[999] flex items-center justify-center"
                 style={{ background: colors.background }}
             >
-                <LoadingSpinner message="Carregando publicações..." background={colors.background} />
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando publicações...</p>
+                </div>
             </div>
         )
     }

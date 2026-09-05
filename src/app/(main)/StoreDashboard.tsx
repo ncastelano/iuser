@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
 import {
     Settings,
@@ -354,7 +354,14 @@ export default function StoreDashboard({
         }
     })
 
-    if (loading) return <LoadingSpinner message="Carregando painel..." />
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+            <div className="text-center">
+                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando painel...</p>
+            </div>
+        </div>
+    )
     if (!store) return null
 
     return (

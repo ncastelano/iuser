@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import {
     ArrowLeft,
     Store,
@@ -325,7 +325,14 @@ export function ProductClientPage({
     }
 
     if (loading) {
-        return <LoadingSpinner message="Carregando produto..." background={colors.background} />
+        return (
+            <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+                <div className="text-center">
+                    <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                    <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando produto...</p>
+                </div>
+            </div>
+        )
     }
 
     if (error || !product) {

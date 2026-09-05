@@ -5,7 +5,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { RatingStars } from '@/components/ratings/RatingStars'
 import { useCartStore } from '@/store/useCartStore'
 import SacolaButton from '../ButtonSacola'
@@ -34,7 +34,6 @@ import {
     ChevronRight,
     TrendingUp,
 } from 'lucide-react'
-import { Spinner } from '@/components/Spinner'
 import AtalhoCompromissosPessoal from './compromissos/AtalhoCompromissosPessoal'
 import ProfileVisitors from './ProfileVisitors'
 import PublicationProfile from './ProfilePublication'
@@ -826,7 +825,14 @@ export default function ProfileDashboard({
         [orders]
     )
 
-    if (loading && !initialLoadDone) return <LoadingSpinner message="Carregando perfil..." />
+    if (loading && !initialLoadDone) return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+            <div className="text-center">
+                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando perfil...</p>
+            </div>
+        </div>
+    )
     if (!profile) return null
 
     // ===== BLOCOS ORDENÁVEIS (Gastos até Visitantes) =====

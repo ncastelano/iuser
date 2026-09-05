@@ -35,7 +35,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { ReviewModal } from '@/components/ratings/ReviewModal'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 import { useTheme } from '@/app/theme'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import Header from '@/app/Header'
@@ -1348,7 +1348,14 @@ export default function SacolaPage() {
         )
     }
 
-    if (!mounted || globalLoading) return <LoadingSpinner message="Carregando sacola" background={colors.background} />
+    if (!mounted || globalLoading) return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+            <div className="text-center">
+                <Spinner size={48} color={colors.accent} className="mx-auto mb-4" />
+                <p className="text-sm font-bold" style={{ color: colors.textSecondary }}>Carregando sacola...</p>
+            </div>
+        </div>
+    )
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>

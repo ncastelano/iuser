@@ -51,10 +51,10 @@ export default function ButtonSettingsHome({ onClick }: ButtonSettingsHomeProps)
                 </div>
                 <div>
                     <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
-                        Personalize sua página inicial
+                        Configurações do iUser
                     </h3>
                     <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                        Altere o plano de fundo, reordene seções e ajuste as cores.
+                        Altere o plano de fundo e ajuste as cores.
                     </p>
                 </div>
             </div>
@@ -68,7 +68,7 @@ export default function ButtonSettingsHome({ onClick }: ButtonSettingsHomeProps)
                 }}
             >
                 <Palette size={16} />
-                Configurar
+                Ajustar preferências
             </button>
         </div>
     )

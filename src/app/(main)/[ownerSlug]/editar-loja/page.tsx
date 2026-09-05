@@ -9,7 +9,6 @@ import { Spinner } from '@/components/Spinner'
 import AnimatedBackgroundiUser from '@/components/AnimatedBackground'
 import { useProfile } from '@/app/contexts/ProfileContext'
 import { useTheme } from '@/app/theme'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StoreDescription } from '../../StoreDesciption'
 import { checkSlugAvailability } from '@/lib/slugUtils'
 
@@ -733,7 +732,11 @@ export default function EditarLoja() {
         router.push('/eu')
     }
 
-    if (pageLoading) return <LoadingSpinner />
+    if (pageLoading) return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: colors.background }}>
+            <Spinner size={48} color={colors.accent} />
+        </div>
+    )
 
     return (
         <div className="relative min-h-dvh" style={{ background: colors.background }}>

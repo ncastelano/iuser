@@ -32,7 +32,6 @@ import {
 } from 'lucide-react'
 import { Spinner } from '@/components/Spinner'
 import { toast } from 'sonner'
-import { LoadingSpinner } from '@/components/LoadingSpinner'
 
 function hexToRgb(hex: string) {
   const clean = hex.replace('#', '')
@@ -766,7 +765,10 @@ export default function Register() {
         className="min-h-screen flex items-center justify-center"
         style={{ background: '#000' }}
       >
-        <LoadingSpinner message="Carregando..." background="#000" />
+        <div className="text-center">
+          <Spinner size={48} color="#f97316" className="mx-auto mb-4" />
+          <p className="text-sm font-bold" style={{ color: '#ffffff' }}>Carregando...</p>
+        </div>
       </div>
     }>
       <RegisterContent />
