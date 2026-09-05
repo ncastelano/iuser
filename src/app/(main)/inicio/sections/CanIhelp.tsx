@@ -2,7 +2,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import { useTheme } from '@/app/theme'
 import { categorias, type Categoria } from '@/lib/categorias'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
@@ -65,8 +65,54 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
         setOrderedCategorias(sorted)
     }, [])
 
+    // Só centraliza a lista quando ela cabe inteira no card; caso contrário
+    // (ex: mobile) mantém alinhada ao início, senão o justify-center corta o
+    // primeiro item porque o overflow negativo do flex vira inacessível.
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const [fitsWithoutScroll, setFitsWithoutScroll] = useState(true)
+
+    useEffect(() => {
+        const el = scrollRef.current
+        if (!el) return
+
+        const checkFit = () => setFitsWithoutScroll(el.scrollWidth <= el.clientWidth + 1)
+        checkFit()
+
+        const resizeObserver = new ResizeObserver(checkFit)
+        resizeObserver.observe(el)
+        return () => resizeObserver.disconnect()
+    }, [orderedCategorias])
+
+    // Permite arrastar a lista com o mouse no PC, como um swipe de dedo
+    const dragRef = useRef({ isDown: false, startX: 0, startScrollLeft: 0, moved: false })
+
+    const handleDragStart = (clientX: number) => {
+        const el = scrollRef.current
+        if (!el) return
+        dragRef.current = { isDown: true, startX: clientX, startScrollLeft: el.scrollLeft, moved: false }
+    }
+
+    const handleDragMove = (clientX: number) => {
+        const el = scrollRef.current
+        if (!el || !dragRef.current.isDown) return
+        const walk = clientX - dragRef.current.startX
+        if (Math.abs(walk) > 5) dragRef.current.moved = true
+        el.scrollLeft = dragRef.current.startScrollLeft - walk
+    }
+
+    const handleDragEnd = () => {
+        dragRef.current.isDown = false
+    }
+
     return (
         <section>
+            <div className="flex items-center gap-2 mb-4">
+                {dragHandle}
+                <h2 className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                    Categorias
+                </h2>
+            </div>
+
             <div
                 className="rounded-2xl p-6"
                 style={{
@@ -79,15 +125,16 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                     willChange: 'transform',
                 }}
             >
-                <span
-                    className="block text-sm font-bold mb-3"
-                    style={{ color: colors.textPrimary }}
-                >
-                    Categorias
-                </span>
-
                 {/* Lista de categorias em scroll horizontal - a mais clicada fica à esquerda */}
-                <div className="flex justify-center gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+                <div
+                    ref={scrollRef}
+                    className={`flex gap-3 overflow-x-auto pb-1 px-1 scrollbar-hide cursor-grab active:cursor-grabbing select-none ${fitsWithoutScroll ? 'justify-center' : 'justify-start'
+                        }`}
+                    onMouseDown={(e) => handleDragStart(e.pageX)}
+                    onMouseMove={(e) => handleDragMove(e.pageX)}
+                    onMouseUp={handleDragEnd}
+                    onMouseLeave={handleDragEnd}
+                >
                     {orderedCategorias.map((cat) => {
                         const Icon = cat.icone
                         const iconColor = cat.color || '#f97316'
@@ -98,7 +145,15 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                             <Link
                                 key={cat.slug}
                                 href={href}
-                                onClick={() => { bumpClickCount(cat.slug); startNavProgress() }}
+                                draggable={false}
+                                onClick={(e) => {
+                                    if (dragRef.current.moved) {
+                                        e.preventDefault()
+                                        return
+                                    }
+                                    bumpClickCount(cat.slug)
+                                    startNavProgress()
+                                }}
                                 className="flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 group flex-shrink-0 w-20"
                                 style={{
                                     background: 'transparent',
