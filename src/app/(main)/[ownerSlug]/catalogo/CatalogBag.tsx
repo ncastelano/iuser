@@ -56,8 +56,11 @@ export default function CatalogBag({
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
     const showDelivery = deliveryFeeType !== 'none'
+    // Por distância sem endereço conhecido: não dá pra calcular o frete de
+    // verdade, então pede a localização em vez de chutar um valor.
+    const needsLocation = deliveryFeeType === 'distance' && deliveryFeeIsEstimate
     const showRoute = showDelivery && !!deliveryOrigin && !!deliveryDestination
-    const finalTotal = totalValue + (showDelivery ? deliveryFee : 0)
+    const finalTotal = totalValue + (showDelivery && !needsLocation ? deliveryFee : 0)
 
     const textColor = colors.textPrimary
     const cardBackground = colors.surface
@@ -225,14 +228,27 @@ export default function CatalogBag({
 
                                 <div className="pt-2 border-t space-y-1" style={{ borderColor: colors.border }}>
                                     {showDelivery && (
-                                        <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
-                                            <span>Frete{deliveryFeeIsEstimate ? ' (estimado)' : ''}</span>
-                                            <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
-                                                {deliveryFee === 0
-                                                    ? 'Grátis'
-                                                    : `${deliveryFeeIsEstimate ? 'a partir de ' : ''}${formatPrice(deliveryFee)}`}
-                                            </span>
-                                        </div>
+                                        needsLocation ? (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    onCheckout()
+                                                }}
+                                                className="w-full flex items-center gap-1.5 text-[11px] font-bold underline text-left"
+                                                style={{ color: '#f97316' }}
+                                            >
+                                                <MapPin size={11} className="flex-shrink-0" />
+                                                Adicionar localização para calcular o frete
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center justify-between text-[11px]" style={{ color: colors.textSecondary }}>
+                                                <span>Frete</span>
+                                                <span className="font-bold" style={{ color: deliveryFee === 0 ? '#22c55e' : colors.textSecondary }}>
+                                                    {deliveryFee === 0 ? 'Grátis' : formatPrice(deliveryFee)}
+                                                </span>
+                                            </div>
+                                        )
                                     )}
                                     {showRoute && (
                                         <div className="flex items-center gap-1 text-[10px]" style={{ color: colors.textSecondary }}>
@@ -245,7 +261,7 @@ export default function CatalogBag({
                                     )}
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold" style={{ color: textColor }}>
-                                            Total: {formatPrice(finalTotal)}
+                                            Total: {formatPrice(finalTotal)}{needsLocation ? ' + frete' : ''}
                                         </span>
                                         {!isStoreOpen ? (
                                             <span
