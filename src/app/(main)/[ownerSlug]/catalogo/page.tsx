@@ -1445,7 +1445,7 @@ export default function CatalogoPage() {
                 {/* ===== MODAL DE CHECKOUT ===== */}
                 {showCheckoutModal && (
                     <div
-                        className="fixed inset-0 z-[400] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+                        className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
                         onClick={() => {
                             if (!checkoutLoading) {
                                 setShowCheckoutModal(false)

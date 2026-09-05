@@ -508,18 +508,16 @@ export default function HomePage() {
 
     useEffect(() => {
         if (!stores || stores.length === 0) return
-        const storeIds = stores.map(s => s.id)
+        const storeIds = new Set(stores.map(s => s.id))
         const channel = supabase
             .channel('homepage-store-orders')
             .on(
                 'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'orders',
-                    filter: `store_id=in.(${storeIds.join(',')})`,
-                },
-                () => fetchStoreOrderCounts()
+                { event: '*', schema: 'public', table: 'orders' },
+                (payload) => {
+                    const row: any = payload.new || payload.old
+                    if (row && storeIds.has(row.store_id)) fetchStoreOrderCounts()
+                }
             )
             .subscribe()
 
