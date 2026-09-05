@@ -24,6 +24,7 @@ import LoginAndRegister from './LoginAndRegister'
 import ProfileDashboard from './ProfileDashboard'
 import { useCartStore } from '@/store/useCartStore'
 import HomeBag, { type HomeBagItem } from './HomeBag'
+import { isStoreOpenNow } from '@/lib/storeHours'
 import { useNavProgressStore } from '@/store/useNavProgressStore'
 import ButtonSettingsHome from './ButtonSettingsHome'
 import ProductShowcase from './inicio/sections/ProductShowcase'
@@ -192,6 +193,33 @@ export default function HomePage() {
             }))
         )
     }, [itemsByStore, storeDetails])
+
+    // ===== STATUS ABERTO/FECHADO DAS LOJAS QUE ESTÃO NA SACOLA =====
+    const [cartStoreOpenStatus, setCartStoreOpenStatus] = useState<Record<string, boolean>>({})
+
+    useEffect(() => {
+        const slugs = Object.keys(itemsByStore)
+        if (slugs.length === 0) {
+            setCartStoreOpenStatus({})
+            return
+        }
+
+        let cancelled = false
+        supabase
+            .from('stores')
+            .select('storeSlug, business_hours')
+            .in('storeSlug', slugs)
+            .then(({ data }) => {
+                if (cancelled || !data) return
+                const status: Record<string, boolean> = {}
+                for (const row of data as any[]) {
+                    status[row.storeSlug] = isStoreOpenNow(row.business_hours)
+                }
+                setCartStoreOpenStatus(status)
+            })
+
+        return () => { cancelled = true }
+    }, [itemsByStore])
 
     const handleBagIncrease = (item: HomeBagItem) => {
         const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
@@ -947,6 +975,7 @@ export default function HomePage() {
                                         }}
                                         animate={cartAnimating}
                                         colors={colors}
+                                        storeOpenStatus={cartStoreOpenStatus}
                                     />
                                 )}
                             </div>

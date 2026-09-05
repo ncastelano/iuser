@@ -909,7 +909,7 @@ export default function CatalogoPage() {
                 <div
                     style={{
                         color: colors.textPrimary,
-                        padding: '8px 12px 0 12px',
+                        padding: '8px 12px 14px 12px',
                         position: 'sticky',
                         top: 0,
                         zIndex: 20,
@@ -1280,6 +1280,7 @@ export default function CatalogoPage() {
                             setIsBagExpanded(false)
                         }}
                         colors={colors}
+                        isStoreOpen={isStoreOpen}
                     />
                 </div>
 

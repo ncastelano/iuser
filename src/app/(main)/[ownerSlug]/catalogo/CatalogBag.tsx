@@ -21,6 +21,7 @@ interface CatalogBagProps {
     onRemove: (productId: string) => void
     onCheckout: () => void
     colors: any
+    isStoreOpen?: boolean
 }
 
 // ===== Sacola flutuante do catálogo: mostra os produtos adicionados ao carrinho =====
@@ -33,6 +34,7 @@ export default function CatalogBag({
     onRemove,
     onCheckout,
     colors,
+    isStoreOpen = true,
 }: CatalogBagProps) {
     const totalItems = bagItems.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = bagItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
@@ -205,13 +207,22 @@ export default function CatalogBag({
                                     <span className="text-xs font-bold" style={{ color: textColor }}>
                                         Total: {formatPrice(totalValue)}
                                     </span>
-                                    <button
-                                        onClick={handleCheckout}
-                                        className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
-                                        style={{ background: GRADIENT, color: '#ffffff' }}
-                                    >
-                                        Finalizar
-                                    </button>
+                                    {!isStoreOpen ? (
+                                        <span
+                                            className="px-4 py-1.5 rounded-full text-xs font-bold"
+                                            style={{ background: '#ef444422', color: '#ef4444' }}
+                                        >
+                                            Loja fechada
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={handleCheckout}
+                                            className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
+                                            style={{ background: GRADIENT, color: '#ffffff' }}
+                                        >
+                                            Finalizar
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}

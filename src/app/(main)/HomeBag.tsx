@@ -40,6 +40,7 @@ interface HomeBagProps {
     statusCounts?: StatusCounts
     animate?: boolean
     colors: any
+    storeOpenStatus?: Record<string, boolean>
 }
 
 // ===== Sacola flutuante da home: mesmo desenho do CatalogBag, mas juntando
@@ -55,6 +56,7 @@ export default function HomeBag({
     statusCounts,
     animate = false,
     colors,
+    storeOpenStatus,
 }: HomeBagProps) {
     const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
     const totalValue = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
@@ -303,16 +305,25 @@ export default function HomeBag({
                                                 <span className="text-xs font-bold" style={{ color: textColor }}>
                                                     Total: {formatPrice(groupTotal)}
                                                 </span>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        handleCheckout(group.storeSlug)
-                                                    }}
-                                                    className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
-                                                    style={{ background: GRADIENT, color: '#ffffff' }}
-                                                >
-                                                    Finalizar
-                                                </button>
+                                                {storeOpenStatus?.[group.storeSlug] === false ? (
+                                                    <span
+                                                        className="px-4 py-1.5 rounded-full text-xs font-bold"
+                                                        style={{ background: '#ef444422', color: '#ef4444' }}
+                                                    >
+                                                        Loja fechada
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleCheckout(group.storeSlug)
+                                                        }}
+                                                        className="px-4 py-1.5 rounded-full text-xs font-bold transition hover:scale-105 active:scale-95"
+                                                        style={{ background: GRADIENT, color: '#ffffff' }}
+                                                    >
+                                                        Finalizar
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     )

@@ -32,7 +32,6 @@ export default function SerParceiroPage() {
     const { colors } = useTheme()
 
     const [loading, setLoading] = useState(true)
-    const [loggedIn, setLoggedIn] = useState(false)
     const [showLogin, setShowLogin] = useState(false)
     const [myUserId, setMyUserId] = useState<string | null>(null)
     const [jobs, setJobs] = useState<BoardItem[]>([])
@@ -43,15 +42,18 @@ export default function SerParceiroPage() {
     const load = async () => {
         setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
+
+        // Os pedidos abertos são públicos: qualquer visitante pode ver a lista,
+        // só precisa estar logado para se candidatar (checado em handleApply).
+        setJobs(await fetchOpenBoardItems())
+
         if (!user) {
-            setLoggedIn(false)
+            setMyUserId(null)
+            setAppliedKeys(new Set())
             setLoading(false)
             return
         }
-        setLoggedIn(true)
         setMyUserId(user.id)
-
-        setJobs(await fetchOpenBoardItems())
 
         const [{ data: myServiceApplications }, { data: myRideApplications }] = await Promise.all([
             supabase.from('service_applications').select('service_request_id').eq('applicant_id', user.id),
@@ -120,7 +122,7 @@ export default function SerParceiroPage() {
                     greeting={`Olá, ${profileLoading ? '...' : profileSlug ? `@${profileSlug}` : 'Visitante'}`}
                     avatarUrl={avatarUrl}
                     loading={profileLoading}
-                    showSearch={!loading && loggedIn}
+                    showSearch={!loading && !showLogin}
                     searchPlaceholder="Procurar serviço, motorista, pintor..."
                     searchValue={searchQuery}
                     onSearch={setSearchQuery}
@@ -133,29 +135,11 @@ export default function SerParceiroPage() {
                         </div>
                     )}
 
-                    {!loading && !loggedIn && !showLogin && (
-                        <div
-                            className="rounded-2xl p-6 flex flex-col items-center gap-3 text-center"
-                            style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
-                        >
-                            <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                Entre na sua conta pra ver os pedidos disponíveis.
-                            </p>
-                            <button
-                                onClick={() => setShowLogin(true)}
-                                className="px-6 py-3 rounded-full font-bold text-sm"
-                                style={{ background: GRADIENT, color: '#fff' }}
-                            >
-                                Entrar
-                            </button>
-                        </div>
-                    )}
-
-                    {!loading && !loggedIn && showLogin && (
+                    {!loading && showLogin && (
                         <LoginAndRegister onLoginSuccess={handleLoginSuccess} />
                     )}
 
-                    {!loading && loggedIn && jobs.length === 0 && (
+                    {!loading && !showLogin && jobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -166,7 +150,7 @@ export default function SerParceiroPage() {
                         </div>
                     )}
 
-                    {!loading && loggedIn && jobs.length > 0 && filteredJobs.length === 0 && (
+                    {!loading && !showLogin && jobs.length > 0 && filteredJobs.length === 0 && (
                         <div
                             className="rounded-2xl p-6 text-center"
                             style={{ background: colors.surface, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}
@@ -177,7 +161,7 @@ export default function SerParceiroPage() {
                         </div>
                     )}
 
-                    {!loading && loggedIn && filteredJobs.length > 0 && (
+                    {!loading && !showLogin && filteredJobs.length > 0 && (
                         <div className="flex flex-col gap-3">
                             {filteredJobs.map((job) => {
                                 const Icon = getItemIcon(job)
