@@ -113,8 +113,8 @@ export default function CatalogoPage() {
     const [currentUserName, setCurrentUserName] = useState<string | null>(null)
 
     // ===== DELIVERY =====
-    const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada'>('retirada')
-    const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro'>('pix')
+    const [deliveryOption, setDeliveryOption] = useState<'entrega' | 'retirada' | null>(null)
+    const [paymentMethod, setPaymentMethod] = useState<'pix' | 'cartao' | 'dinheiro' | null>(null)
     const [deliveryAddress, setDeliveryAddress] = useState('')
     const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
     const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
@@ -158,6 +158,20 @@ export default function CatalogoPage() {
             open: next.time,
         }
     }, [storeInfo?.business_hours])
+
+    // ===== SE A LOJA SÓ TEM UMA FORMA DE RECEBIMENTO, JÁ SELECIONA AUTOMATICAMENTE =====
+    useEffect(() => {
+        if (!storeConfig || deliveryOption) return
+        if (storeConfig.accepts_pickup && !storeConfig.accepts_delivery) {
+            setDeliveryOption('retirada')
+        } else if (storeConfig.accepts_delivery && !storeConfig.accepts_pickup) {
+            setDeliveryOption('entrega')
+        }
+    }, [storeConfig, deliveryOption])
+
+    const canChooseReceivingMethod = !!(storeConfig?.accepts_delivery && storeConfig?.accepts_pickup)
+    const onlyPickupAvailable = !!(storeConfig?.accepts_pickup && !storeConfig?.accepts_delivery)
+    const onlyDeliveryAvailable = !!(storeConfig?.accepts_delivery && !storeConfig?.accepts_pickup)
 
     // ========== CORES DO HEADER ==========
     const hexToRgb = (hex: string) => {
@@ -727,8 +741,21 @@ export default function CatalogoPage() {
             return
         }
 
+        if (!deliveryOption) {
+            toast.error('Escolha como deseja receber o pedido')
+            setCheckoutStep('delivery')
+            return
+        }
+
         if (deliveryOption === 'entrega' && !deliveryAddress.trim()) {
             toast.error('Informe o endereço de entrega')
+            setCheckoutStep('delivery')
+            return
+        }
+
+        if (!paymentMethod) {
+            toast.error('Escolha a forma de pagamento')
+            setCheckoutStep('payment')
             return
         }
 
@@ -1656,10 +1683,10 @@ export default function CatalogoPage() {
                             {/* ===== STEP DELIVERY ===== */}
                             {checkoutStep === 'delivery' && (
                                 <>
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="text-lg font-black" style={{ color: textColor }}>
-                                            Finalizar Pedido
-                                        </h3>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                            Etapa 1 de 2
+                                        </p>
                                         <button
                                             onClick={() => {
                                                 setShowCheckoutModal(false)
@@ -1671,6 +1698,9 @@ export default function CatalogoPage() {
                                             <X size={20} />
                                         </button>
                                     </div>
+                                    <h3 className="text-lg font-black mb-4" style={{ color: textColor }}>
+                                        Finalizar Pedido
+                                    </h3>
 
                                     {/* Itens resumidos com observações */}
                                     <div className="mb-4 p-3 rounded-xl" style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}>
@@ -1698,7 +1728,7 @@ export default function CatalogoPage() {
 
                                     {/* Status da loja */}
                                     <div
-                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 text-xs font-bold"
+                                        className="flex items-center gap-2 px-3 py-1.5 rounded-full mb-4 text-xs font-bold"
                                         style={{
                                             background: isStoreOpen ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                                             color: isStoreOpen ? '#22c55e' : '#ef4444',
@@ -1714,34 +1744,76 @@ export default function CatalogoPage() {
                                         )}
                                     </div>
 
-                                    {/* Delivery Option */}
-                                    <div className="mb-3">
-                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Recebimento</p>
-                                        <div className="flex gap-2">
-                                            {storeConfig?.accepts_delivery && (
-                                                <button
-                                                    onClick={() => setDeliveryOption('entrega')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOption === 'entrega' ? 'text-white' : ''}`}
-                                                    style={deliveryOption === 'entrega' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                >
-                                                    <Truck size={14} /> Entrega
-                                                </button>
-                                            )}
-                                            {storeConfig?.accepts_pickup && (
-                                                <button
-                                                    onClick={() => setDeliveryOption('retirada')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${deliveryOption === 'retirada' ? 'text-white' : ''}`}
-                                                    style={deliveryOption === 'retirada' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                >
-                                                    <Store size={14} /> Retirada
-                                                </button>
-                                            )}
-                                        </div>
+                                    {/* Pergunta de recebimento */}
+                                    <div className="mb-4">
+                                        <p className="text-sm font-black mb-3" style={{ color: textColor }}>
+                                            Como você quer receber seu pedido?
+                                        </p>
+
+                                        {canChooseReceivingMethod ? (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {([
+                                                    { value: 'retirada' as const, icon: Store, label: 'Retirar na loja', desc: 'Busque no balcão' },
+                                                    { value: 'entrega' as const, icon: Truck, label: 'Receber em casa', desc: 'Entregamos no endereço' },
+                                                ]).map((opt) => {
+                                                    const selected = deliveryOption === opt.value
+                                                    return (
+                                                        <button
+                                                            key={opt.value}
+                                                            onClick={() => setDeliveryOption(opt.value)}
+                                                            className="flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                            style={selected
+                                                                ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                                : { borderColor: colors.border, background: 'transparent' }}
+                                                        >
+                                                            <div
+                                                                className="w-11 h-11 rounded-full flex items-center justify-center"
+                                                                style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                            >
+                                                                <opt.icon size={20} />
+                                                            </div>
+                                                            <span className="text-sm font-bold" style={{ color: selected ? '#f97316' : textColor }}>
+                                                                {opt.label}
+                                                            </span>
+                                                            <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                {opt.desc}
+                                                            </span>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        ) : onlyPickupAvailable ? (
+                                            <div
+                                                className="flex items-center gap-3 p-4 rounded-2xl"
+                                                style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                            >
+                                                <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                    <Store size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold" style={{ color: textColor }}>Essa loja não tem entrega</p>
+                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Seu pedido será retirado no balcão</p>
+                                                </div>
+                                            </div>
+                                        ) : onlyDeliveryAvailable ? (
+                                            <div
+                                                className="flex items-center gap-3 p-4 rounded-2xl"
+                                                style={{ background: `${colors.surface}66`, border: `1px dashed ${colors.border}` }}
+                                            >
+                                                <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                                    <Truck size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold" style={{ color: textColor }}>Essa loja não faz retirada no local</p>
+                                                    <p className="text-xs" style={{ color: colors.textSecondary }}>Seu pedido será entregue no seu endereço</p>
+                                                </div>
+                                            </div>
+                                        ) : null}
                                     </div>
 
                                     {/* Delivery Address */}
                                     {deliveryOption === 'entrega' && (
-                                        <div className="mb-3">
+                                        <div className="mb-4">
                                             <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Endereço de Entrega</p>
 
                                             {/* Endereço salvo do perfil */}
@@ -1805,37 +1877,118 @@ export default function CatalogoPage() {
                                         </div>
                                     )}
 
-                                    {/* Payment */}
+                                    <div className="flex gap-3 mt-4">
+                                        <button
+                                            onClick={() => {
+                                                setShowCheckoutModal(false)
+                                                setCheckoutStep('auth')
+                                            }}
+                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
+                                            style={{
+                                                background: 'transparent',
+                                                border: `2px solid ${colors.border}`,
+                                                color: colors.textSecondary
+                                            }}
+                                        >
+                                            Voltar
+                                        </button>
+                                        <button
+                                            onClick={() => setCheckoutStep('payment')}
+                                            disabled={!deliveryOption || (deliveryOption === 'entrega' && !deliveryAddress.trim())}
+                                            className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95 disabled:opacity-50"
+                                            style={{
+                                                background: GRADIENT,
+                                                color: '#ffffff',
+                                                boxShadow: `0 4px 14px #f9731660`,
+                                            }}
+                                        >
+                                            {!deliveryOption ? 'Escolha como receber' :
+                                                (deliveryOption === 'entrega' && !deliveryAddress.trim()) ? 'Informe o endereço' :
+                                                    'Continuar'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+
+                            {checkoutStep === 'payment' && (
+                                <>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#f97316' }}>
+                                            Etapa 2 de 2
+                                        </p>
+                                        <button
+                                            onClick={() => {
+                                                setShowCheckoutModal(false)
+                                                setCheckoutStep('auth')
+                                            }}
+                                            className="p-1.5 rounded-full hover:bg-black/5 transition"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                    <h3 className="text-lg font-black mb-4" style={{ color: textColor }}>
+                                        Finalizar Pedido
+                                    </h3>
+
+                                    {/* Recap do recebimento escolhido */}
+                                    <div
+                                        className="flex items-center gap-3 mb-4 p-3 rounded-xl"
+                                        style={{ background: `${colors.surface}44`, border: `1px solid ${colors.border}` }}
+                                    >
+                                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT, color: '#ffffff' }}>
+                                            {deliveryOption === 'entrega' ? <Truck size={16} /> : <Store size={16} />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-bold" style={{ color: colors.textPrimary }}>
+                                                {deliveryOption === 'entrega' ? 'Entrega' : 'Retirada na loja'}
+                                            </p>
+                                            {deliveryOption === 'entrega' && (
+                                                <p className="text-[10px] truncate" style={{ color: colors.textSecondary }}>{deliveryAddress}</p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => setCheckoutStep('delivery')}
+                                            className="text-[10px] font-bold underline flex-shrink-0"
+                                            style={{ color: '#f97316' }}
+                                        >
+                                            Alterar
+                                        </button>
+                                    </div>
+
+                                    {/* Pergunta de pagamento */}
                                     <div className="mb-4">
-                                        <p className="text-[10px] font-bold uppercase mb-2" style={{ color: colors.textSecondary }}>Pagamento</p>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {storeConfig?.accepts_pix && (
-                                                <button
-                                                    onClick={() => setPaymentMethod('pix')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'pix' ? 'text-white' : ''}`}
-                                                    style={paymentMethod === 'pix' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                >
-                                                    <QrCode size={14} /> Pix
-                                                </button>
-                                            )}
-                                            {storeConfig?.accepts_card && (
-                                                <button
-                                                    onClick={() => setPaymentMethod('cartao')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'cartao' ? 'text-white' : ''}`}
-                                                    style={paymentMethod === 'cartao' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                >
-                                                    <CreditCard size={14} /> Cartão
-                                                </button>
-                                            )}
-                                            {storeConfig?.accepts_cash && (
-                                                <button
-                                                    onClick={() => setPaymentMethod('dinheiro')}
-                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition ${paymentMethod === 'dinheiro' ? 'text-white' : ''}`}
-                                                    style={paymentMethod === 'dinheiro' ? { background: GRADIENT, color: '#ffffff' } : { background: 'transparent', border: `1px solid ${colors.border}`, color: colors.textSecondary }}
-                                                >
-                                                    <Banknote size={14} /> Dinheiro
-                                                </button>
-                                            )}
+                                        <p className="text-sm font-black mb-3" style={{ color: textColor }}>
+                                            Como você quer pagar?
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {([
+                                                { value: 'pix' as const, icon: QrCode, label: 'Pix', enabled: storeConfig?.accepts_pix },
+                                                { value: 'cartao' as const, icon: CreditCard, label: 'Cartão', enabled: storeConfig?.accepts_card },
+                                                { value: 'dinheiro' as const, icon: Banknote, label: 'Dinheiro', enabled: storeConfig?.accepts_cash },
+                                            ]).filter(opt => opt.enabled).map((opt) => {
+                                                const selected = paymentMethod === opt.value
+                                                return (
+                                                    <button
+                                                        key={opt.value}
+                                                        onClick={() => setPaymentMethod(opt.value)}
+                                                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl border-2 text-center transition hover:scale-[1.02] active:scale-95"
+                                                        style={selected
+                                                            ? { borderColor: '#f97316', background: `${colors.accent}10` }
+                                                            : { borderColor: colors.border, background: 'transparent' }}
+                                                    >
+                                                        <div
+                                                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                                                            style={selected ? { background: GRADIENT, color: '#ffffff' } : { background: `${colors.surface}88`, color: colors.textSecondary }}
+                                                        >
+                                                            <opt.icon size={18} />
+                                                        </div>
+                                                        <span className="text-xs font-bold" style={{ color: selected ? '#f97316' : textColor }}>
+                                                            {opt.label}
+                                                        </span>
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
                                     </div>
 
@@ -1867,10 +2020,7 @@ export default function CatalogoPage() {
 
                                     <div className="flex gap-3 mt-4">
                                         <button
-                                            onClick={() => {
-                                                setShowCheckoutModal(false)
-                                                setCheckoutStep('auth')
-                                            }}
+                                            onClick={() => setCheckoutStep('delivery')}
                                             className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95"
                                             style={{
                                                 background: 'transparent',
@@ -1882,7 +2032,7 @@ export default function CatalogoPage() {
                                         </button>
                                         <button
                                             onClick={handleFinalizeOrder}
-                                            disabled={checkoutLoading || getStoreTotals().isCalculating || (deliveryOption === 'entrega' && !deliveryAddress.trim())}
+                                            disabled={checkoutLoading || getStoreTotals().isCalculating || !paymentMethod}
                                             className="flex-1 py-3 rounded-xl font-bold text-sm transition hover:scale-105 active:scale-95 disabled:opacity-50"
                                             style={{
                                                 background: GRADIENT,
@@ -1892,7 +2042,7 @@ export default function CatalogoPage() {
                                         >
                                             {checkoutLoading ? 'Finalizando...' :
                                                 getStoreTotals().isCalculating ? 'Calculando...' :
-                                                    (deliveryOption === 'entrega' && !deliveryAddress.trim()) ? 'Informe o endereço' :
+                                                    !paymentMethod ? 'Escolha o pagamento' :
                                                         'Confirmar Pedido'}
                                         </button>
                                     </div>
