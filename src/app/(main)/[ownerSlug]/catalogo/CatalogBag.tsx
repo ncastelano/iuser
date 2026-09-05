@@ -16,9 +16,9 @@ interface CatalogBagProps {
     bagItems: CartItemWithComment[]
     isExpanded: boolean
     onToggleExpanded: () => void
-    onIncrease: (product: any) => void
-    onDecrease: (productId: string) => void
-    onRemove: (productId: string) => void
+    onIncrease: (product: any, comment?: string) => void
+    onDecrease: (productId: string, comment?: string) => void
+    onRemove: (productId: string, comment?: string) => void
     onCheckout: () => void
     colors: any
     isStoreOpen?: boolean
@@ -143,7 +143,7 @@ export default function CatalogBag({
                             <div className="space-y-2">
                                 {bagItems.map((item) => (
                                     <div
-                                        key={item.product.id}
+                                        key={`${item.product.id}::${item.comment || ''}`}
                                         className="flex items-center gap-2 p-1.5 rounded-lg"
                                         style={{ background: `${colors.surface}66` }}
                                     >
@@ -186,9 +186,9 @@ export default function CatalogBag({
                                                 onClick={(e) => {
                                                     e.stopPropagation()
                                                     if (item.quantity <= 1) {
-                                                        onRemove(item.product.id)
+                                                        onRemove(item.product.id, item.comment)
                                                     } else {
-                                                        onDecrease(item.product.id)
+                                                        onDecrease(item.product.id, item.comment)
                                                     }
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
@@ -202,7 +202,7 @@ export default function CatalogBag({
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    onIncrease(item.product)
+                                                    onIncrease(item.product, item.comment)
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold hover:scale-110 transition-transform"
                                                 style={{ background: GRADIENT, color: '#ffffff' }}
@@ -212,7 +212,7 @@ export default function CatalogBag({
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    onRemove(item.product.id)
+                                                    onRemove(item.product.id, item.comment)
                                                 }}
                                                 className="w-6 h-6 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                                 style={{ background: '#ef4444', color: '#ffffff' }}

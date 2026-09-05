@@ -190,6 +190,7 @@ export default function HomePage() {
                 storeSlug,
                 storeName: storeDetails[storeSlug]?.name || storeSlug,
                 storeLogoUrl: storeDetails[storeSlug]?.logo_url || null,
+                comment: item.comment,
             }))
         )
     }, [itemsByStore, storeDetails])
@@ -223,15 +224,15 @@ export default function HomePage() {
 
     const handleBagIncrease = (item: HomeBagItem) => {
         const store = storeDetails[item.storeSlug] || { name: item.storeName, logo_url: null }
-        addItem(item.storeSlug, store, item.product)
+        addItem(item.storeSlug, store, item.product, item.comment)
     }
 
     const handleBagDecrease = (item: HomeBagItem) => {
-        updateQuantity(item.storeSlug, item.product.id, -1)
+        updateQuantity(item.storeSlug, item.product.id, -1, item.comment)
     }
 
     const handleBagRemove = (item: HomeBagItem) => {
-        removeItem(item.storeSlug, item.product.id)
+        removeItem(item.storeSlug, item.product.id, item.comment)
     }
 
     const [pendingCount, setPendingCount] = useState(0)

@@ -13,6 +13,7 @@ export interface HomeBagItem {
     storeSlug: string
     storeName: string
     storeLogoUrl?: string | null
+    comment?: string
 }
 
 interface StoreGroup {
@@ -222,7 +223,7 @@ export default function HomeBag({
                                             <div className="space-y-2">
                                                 {group.items.map((item) => (
                                                     <div
-                                                        key={`${item.storeSlug}:${item.product.id}`}
+                                                        key={`${item.storeSlug}:${item.product.id}:${item.comment || ''}`}
                                                         className="flex items-center gap-2 p-1.5 rounded-lg"
                                                         style={{ background: `${colors.surface}66` }}
                                                     >

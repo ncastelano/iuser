@@ -369,8 +369,11 @@ export default function CatalogoPage() {
         (productId: string) => {
             if (!ownerSlug) return 0
             const storeItems = itemsByStore[ownerSlug] || []
-            const found = storeItems.find((item) => item.product.id === productId)
-            return found ? found.quantity : 0
+            // Soma todas as linhas do produto — pode haver mais de uma quando
+            // cada uma tem uma observação diferente.
+            return storeItems
+                .filter((item) => item.product.id === productId)
+                .reduce((sum, item) => sum + item.quantity, 0)
         },
         [itemsByStore, ownerSlug]
     )
@@ -407,27 +410,10 @@ export default function CatalogoPage() {
             category: pendingProduct.category || undefined,
         }
 
-        addItem(ownerSlug, storeDetails, cartProduct as any)
-
-        // Atualiza o item com comentário
-        setTimeout(() => {
-            const storeItems = itemsByStore[ownerSlug] || []
-            const found = storeItems.find((item: any) => item.product.id === pendingProduct.id)
-            if (found) {
-                const updatedItems = storeItems.map((item: any) => {
-                    if (item.product.id === pendingProduct.id) {
-                        return { ...item, comment: commentText.trim() || undefined }
-                    }
-                    return item
-                })
-                const items = updatedItems.map(item => ({
-                    product: item.product,
-                    quantity: item.quantity,
-                    comment: (item as any).comment || ''
-                }))
-                setBagItems(items)
-            }
-        }, 100)
+        // Duas adições do mesmo produto com observações diferentes viram
+        // linhas separadas na sacola (ver useCartStore.addItem) — assim a
+        // observação de cada uma não se perde nem sobrescreve a outra.
+        addItem(ownerSlug, storeDetails, cartProduct as any, commentText.trim() || undefined)
 
         toast.success(`Produto adicionado${commentText.trim() ? ' com observação!' : '!'}`)
         setShowAddCommentModal(false)
@@ -436,7 +422,7 @@ export default function CatalogoPage() {
     }
 
     const increaseQuantity = useCallback(
-        (product: any) => {
+        (product: any, comment?: string) => {
             if (!storeInfo || !ownerSlug) return
 
             if (!isStoreOpen) {
@@ -444,24 +430,23 @@ export default function CatalogoPage() {
                 return
             }
 
-            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, product)
+            addItem(ownerSlug, { name: storeInfo.name, logo_url: storeInfo.logo_url ?? null }, product, comment)
         },
         [storeInfo, ownerSlug, addItem, isStoreOpen]
     )
 
     const decreaseQuantity = useCallback(
-        (productId: string) => {
+        (productId: string, comment?: string) => {
             if (!ownerSlug) return
-            updateQuantity(ownerSlug, productId, -1)
+            updateQuantity(ownerSlug, productId, -1, comment)
         },
         [ownerSlug, updateQuantity]
     )
 
     const removeAllOfProduct = useCallback(
-        (productId: string) => {
+        (productId: string, comment?: string) => {
             if (!ownerSlug) return
-            removeItem(ownerSlug, productId)
-            setBagItems(prev => prev.filter(item => item.product.id !== productId))
+            removeItem(ownerSlug, productId, comment)
         },
         [ownerSlug, removeItem]
     )
@@ -1681,7 +1666,7 @@ export default function CatalogoPage() {
                                         </p>
                                         <div className="space-y-1 max-h-32 overflow-y-auto">
                                             {bagItems.map((item) => (
-                                                <div key={item.product.id} className="flex justify-between text-xs">
+                                                <div key={`${item.product.id}::${item.comment || ''}`} className="flex justify-between text-xs">
                                                     <span style={{ color: colors.textSecondary }}>
                                                         {item.quantity}x {item.product.name}
                                                         {item.comment && <span className="text-[8px] ml-1 opacity-60">({item.comment})</span>}
