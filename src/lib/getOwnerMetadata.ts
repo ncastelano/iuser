@@ -40,7 +40,7 @@ export async function generateOwnerMetadata(ownerSlug: string): Promise<Metadata
     if (!supabase || !ownerSlug) {
         return {
             title: 'iUser | Mostre o que você tem de melhor!',
-            description: 'Os melhores produtos e serviços, você encontra aqui!',
+            description: 'Tudo o que você precisa está aqui!',
         }
     }
 

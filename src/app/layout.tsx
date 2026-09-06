@@ -12,9 +12,12 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://iuser.com.br'),
+  metadataBase: new URL('https://www.iuser.com.br'),
   title: 'iUser | Mostre o que você tem de melhor!',
   description: 'iUser: Mostre o que você tem de melhor!',
+  alternates: {
+    canonical: 'https://www.iuser.com.br',
+  },
   verification: {
     google: 'lUgD-IyItAD8DLPH6GiHQxOcIXArO5WVoqV-yAZFXQk',
   },
@@ -32,8 +35,8 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   openGraph: {
     title: 'iUser | Mostre o que você tem de melhor!',
-    description: 'Os melhores produtos e serviços, você encontra aqui!',
-    url: 'https://iuser.com.br',
+    description: 'Tudo o que você precisa está aqui!',
+    url: 'https://www.iuser.com.br',
     siteName: 'iuser.com.br',
     images: [
       {
@@ -50,7 +53,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'iUser | Mostre o que você tem de melhor!',
-    description: 'Os melhores produtos e serviços, você encontra aqui!',
+    description: 'Tudo o que você precisa está aqui!',
     images: ['/logo.png'],
   },
   robots: {
@@ -66,6 +69,22 @@ export const metadata: Metadata = {
   },
 }
 
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'iUser',
+  url: 'https://www.iuser.com.br',
+  logo: 'https://www.iuser.com.br/logo.png',
+  description: 'iUser: Mostre o que você tem de melhor!',
+}
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'iUser',
+  url: 'https://www.iuser.com.br',
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -74,6 +93,14 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="light" suppressHydrationWarning>
       <body suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        />
         <Providers>
           {children}
         </Providers>

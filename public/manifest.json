@@ -1,7 +1,7 @@
 {
   "name": "iUser",
   "short_name": "iUser",
-  "description": "Os melhores produtos e serviços, você encontra aqui!",
+  "description": "Tudo o que você precisa está aqui!",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
