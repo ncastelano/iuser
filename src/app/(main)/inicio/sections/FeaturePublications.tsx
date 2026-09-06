@@ -496,7 +496,7 @@ export default function FeaturedPublications({
                             ))}
                         </div>
 
-                        <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
+                        <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
                             {currentIndex + 1}/{totalPages}
                         </span>
 

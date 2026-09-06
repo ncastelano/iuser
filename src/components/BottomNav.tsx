@@ -9,10 +9,20 @@ import { useMerchantStore } from '@/store/useMerchantStore'
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import BottomNavBackground from '@/components/BottomNavBackground'
+import { useTheme } from '@/app/theme'
 
 export function BottomNav() {
     const pathname = usePathname()
     const { itemsByStore } = useCartStore()
+    const { colors } = useTheme()
+
+    const hexToRgb = (hex: string) => {
+        const clean = hex.replace('#', '')
+        const bigint = parseInt(clean, 16)
+        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }
+    }
+    const surfaceRgb = hexToRgb(colors.surface)
+    const navBg = `rgba(${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}, 0.7)`
 
     const totalCartItems = Object.values(itemsByStore).reduce(
         (acc, items) => acc + items.reduce((sum, item) => sum + item.quantity, 0),
@@ -116,30 +126,30 @@ export function BottomNav() {
 
     const getCartIconColor = () => {
         if (!customerOrderStatuses || customerOrderStatuses.length === 0) {
-            return pathname === '/sacola' ? 'text-white' : 'text-gray-500'
+            return pathname === '/sacola' ? 'text-white' : 'text-[var(--nav-inactive)]'
         }
         if (customerOrderStatuses.includes('pending')) return pathname === '/sacola' ? 'text-white' : 'text-blue-500'
         if (customerOrderStatuses.includes('preparing')) return pathname === '/sacola' ? 'text-white' : 'text-yellow-500'
         if (customerOrderStatuses.includes('ready')) return pathname === '/sacola' ? 'text-white' : 'text-purple-500'
-        return pathname === '/sacola' ? 'text-white' : 'text-gray-500'
+        return pathname === '/sacola' ? 'text-white' : 'text-[var(--nav-inactive)]'
     }
 
     const getCartButtonGradient = () => {
         if (pathname === '/sacola') return 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav'
-        if (!customerOrderStatuses || customerOrderStatuses.length === 0) return 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'
+        if (!customerOrderStatuses || customerOrderStatuses.length === 0) return 'text-[var(--nav-inactive)] hover:text-orange-500 hover:bg-orange-50/80'
         if (customerOrderStatuses.includes('pending')) return 'text-blue-500 hover:text-blue-600'
         if (customerOrderStatuses.includes('preparing')) return 'text-yellow-500 hover:text-yellow-600'
         if (customerOrderStatuses.includes('ready')) return 'text-purple-500 hover:text-purple-600'
-        return 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'
+        return 'text-[var(--nav-inactive)] hover:text-orange-500 hover:bg-orange-50/80'
     }
 
     const getCartLabelColor = () => {
         if (pathname === '/sacola') return 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'
-        if (!customerOrderStatuses || customerOrderStatuses.length === 0) return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
+        if (!customerOrderStatuses || customerOrderStatuses.length === 0) return 'opacity-70 text-[var(--nav-inactive)] group-hover/item:text-orange-500'
         if (customerOrderStatuses.includes('pending')) return 'opacity-100 text-blue-500'
         if (customerOrderStatuses.includes('preparing')) return 'opacity-100 text-yellow-500'
         if (customerOrderStatuses.includes('ready')) return 'opacity-100 text-purple-500'
-        return 'opacity-70 text-gray-500 group-hover/item:text-orange-500'
+        return 'opacity-70 text-[var(--nav-inactive)] group-hover/item:text-orange-500'
     }
 
     // Nome exibido no botão "Eu"
@@ -187,25 +197,32 @@ export function BottomNav() {
                 .animate-float-nav { animation: float-nav 3s ease-in-out infinite; }
             `}</style>
 
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-t border-white/20 shadow-[0_-10px_30px_-10px_rgba(249,115,22,0.1)] overflow-hidden">
+            <div
+                className="fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl shadow-[0_-10px_30px_-10px_rgba(249,115,22,0.1)] overflow-hidden"
+                style={{
+                    '--nav-inactive': colors.textPrimary,
+                    background: navBg,
+                    borderTop: `1px solid ${colors.border}`,
+                } as React.CSSProperties}
+            >
                 <BottomNavBackground />
 
                 <nav className="px-2 pt-1.5 pb-[env(safe-area-inset-bottom)] relative z-10">
                     <div className="max-w-md mx-auto flex justify-around items-center h-16">
                         {/* Inicio */}
                         <Link href="/" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'}`}>
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-[var(--nav-inactive)] hover:text-orange-500 hover:bg-orange-50/80'}`}>
                                 <Store size={22} className={`transition-all duration-300 ${pathname === '/' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Inicio</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-[var(--nav-inactive)] group-hover/item:text-orange-500'}`}>Inicio</span>
                         </Link>
 
                         {/* Mapa */}
                         <Link href="/radar" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/radar' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'}`}>
+                            <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 ${pathname === '/radar' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-[var(--nav-inactive)] hover:text-orange-500 hover:bg-orange-50/80'}`}>
                                 <MapPinned size={22} className={`transition-all duration-300 ${pathname === '/radar' ? '' : 'group-hover/item:scale-110'}`} />
                             </div>
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/radar' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'}`}>Mapa</span>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname === '/radar' ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-[var(--nav-inactive)] group-hover/item:text-orange-500'}`}>Mapa</span>
                         </Link>
 
                         {/* Sacola */}
@@ -234,13 +251,13 @@ export function BottomNav() {
 
                         {/* Perfil (Eu) - agora circular como os outros */}
                         <Link href="/eu" className="relative flex flex-col items-center justify-center gap-1 group/item flex-1">
-                            <div className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 overflow-visible ${pathname?.startsWith('/eu') ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-gray-500 hover:text-orange-500 hover:bg-orange-50/80'} ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
+                            <div className={`relative w-11 h-11 rounded-full flex items-center justify-center transition-all duration-300 overflow-visible ${pathname?.startsWith('/eu') ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg animate-float-nav' : 'text-[var(--nav-inactive)] hover:text-orange-500 hover:bg-orange-50/80'} ${isFinanceAnimating ? 'animate-cart-bounce' : ''}`}>
                                 {avatarUrl ? (
                                     <div className={`w-full h-full rounded-full overflow-hidden ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>
                                         <img src={avatarUrl} alt={userName || 'Eu'} className="w-full h-full object-cover" />
                                     </div>
                                 ) : getInitial() ? (
-                                    <span className={`text-sm font-black transition-all duration-300 ${pathname?.startsWith('/eu') ? 'text-white' : 'text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>
+                                    <span className={`text-sm font-black transition-all duration-300 ${pathname?.startsWith('/eu') ? 'text-white' : 'text-[var(--nav-inactive)] group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'animate-cart-shake' : ''}`}>
                                         {getInitial()}
                                     </span>
                                 ) : (
@@ -255,7 +272,7 @@ export function BottomNav() {
                                 )}
                             </div>
 
-                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/eu') ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-gray-500 group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}`}>
+                            <span className={`text-[9px] font-black uppercase tracking-wider transition-all duration-300 ${pathname?.startsWith('/eu') ? 'opacity-100 bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent' : 'opacity-70 text-[var(--nav-inactive)] group-hover/item:text-orange-500'} ${isFinanceAnimating ? 'scale-110 text-orange-600' : ''}`}>
                                 {displayName}
                             </span>
 

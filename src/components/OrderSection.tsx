@@ -121,7 +121,7 @@ export default function OrderSection({
         ...pillButtonStyle,
         flex: 1,
         background: 'transparent',
-        color: colors.textSecondary,
+        color: colors.textPrimary,
         border: `1px solid ${colors.border}`,
         boxShadow: 'none',
     }
@@ -170,11 +170,11 @@ export default function OrderSection({
                         <h2 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                             Organizar Página
                         </h2>
-                        <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                        <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
                             Personalize a ordem das seções na sua página inicial.
                         </p>
                         {defaultOrder.length > 0 && (
-                            <p className="text-xs mt-0.5 opacity-60" style={{ color: colors.textSecondary }}>
+                            <p className="text-xs mt-0.5 opacity-60" style={{ color: colors.textPrimary }}>
                                 {defaultOrder.length} seções disponíveis
                             </p>
                         )}
@@ -215,7 +215,7 @@ export default function OrderSection({
                             className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
                             style={{
                                 background: 'transparent',
-                                color: colors.textSecondary,
+                                color: colors.textPrimary,
                                 border: `1px solid ${colors.border}`,
                             }}
                         >
@@ -228,7 +228,7 @@ export default function OrderSection({
                             className="px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 transition-all hover:opacity-70 active:scale-95"
                             style={{
                                 background: 'transparent',
-                                color: colors.textSecondary,
+                                color: colors.textPrimary,
                                 border: `1px solid ${colors.border}`,
                             }}
                             title="Restaurar ordem padrão"
@@ -244,7 +244,7 @@ export default function OrderSection({
                 <div className="mt-3 px-1">
                     <p
                         className="text-xs"
-                        style={{ color: colors.textSecondary }}
+                        style={{ color: colors.textPrimary }}
                     >
                         Arraste as seções para reordenar. Depois clique em{' '}
                         <strong style={{ color: '#f97316' }}>

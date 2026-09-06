@@ -214,13 +214,13 @@ function StoreCard({
                             {store.name}
                         </h3>
                         {hasAddress && (
-                            <div className="flex items-center gap-1 mt-0.5 text-[10px]" style={{ color: colors.textSecondary }}>
+                            <div className="flex items-center gap-1 mt-0.5 text-[10px]" style={{ color: colors.textPrimary }}>
                                 <MapPin className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{addressShort}</span>
                             </div>
                         )}
                     </div>
-                    <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: colors.textSecondary }} />
+                    <ChevronRight className="w-4 h-4 flex-shrink-0 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: colors.textPrimary }} />
                 </div>
 
                 <div className="flex-shrink-0">
@@ -232,14 +232,14 @@ function StoreCard({
                                     {store.ratings_avg?.toFixed(1)}
                                 </span>
                             </div>
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textSecondary }}>
+                            <span className="text-[9px] opacity-60" style={{ color: colors.textPrimary }}>
                                 ({store.ratings_count})
                             </span>
                         </div>
                     ) : (
                         <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 opacity-30" style={{ color: colors.textSecondary }} />
-                            <span className="text-[9px] opacity-60" style={{ color: colors.textSecondary }}>
+                            <Star className="w-3 h-3 opacity-30" style={{ color: colors.textPrimary }} />
+                            <span className="text-[9px] opacity-60" style={{ color: colors.textPrimary }}>
                                 Sem avaliações
                             </span>
                         </div>
@@ -253,7 +253,7 @@ function StoreCard({
                 <div className="flex-1 min-h-0">
                     {hasProducts && (
                         <div className="pt-2 border-t" style={{ borderColor: colors.border }}>
-                            <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textSecondary }}>
+                            <p className="text-[9px] font-black uppercase tracking-wider mb-1.5 opacity-60" style={{ color: colors.textPrimary }}>
                                 <TrendingUp className="inline w-3 h-3 mr-1" style={{ color: '#f97316' }} />
                                 Destaques
                             </p>
@@ -276,7 +276,7 @@ function StoreCard({
                                                     className="w-5 h-5 rounded object-cover flex-shrink-0"
                                                 />
                                             ) : (
-                                                <ShoppingBag className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textSecondary }} />
+                                                <ShoppingBag className="w-3 h-3 flex-shrink-0 opacity-40" style={{ color: colors.textPrimary }} />
                                             )}
                                             <span className="text-[9px] font-medium truncate flex-1" style={{ color: colors.textPrimary }}>
                                                 {product.name}
@@ -313,7 +313,7 @@ function StoreCard({
                                             <RatingStars value={review.rating} size={7} />
                                         </div>
                                         {review.comment && (
-                                            <p className="text-[9px] truncate opacity-70" style={{ color: colors.textSecondary }}>
+                                            <p className="text-[9px] truncate opacity-70" style={{ color: colors.textPrimary }}>
                                                 "{review.comment}"
                                             </p>
                                         )}
@@ -725,7 +725,7 @@ export function StoreList({
         return (
             <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
                 <AlertCircle className="w-12 h-12" style={{ color: '#f97316' }} />
-                <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                     {error}
                 </p>
                 <button
@@ -750,7 +750,7 @@ export function StoreList({
     if (filteredStores.length === 0) {
         return (
             <div className="py-12 text-center">
-                <Store className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: colors.textSecondary }} />
+                <Store className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: colors.textPrimary }} />
                 <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                     Nenhuma loja disponível no momento
                 </p>
@@ -836,7 +836,7 @@ export function StoreList({
                         ))}
                     </div>
 
-                    <span className="text-xs font-medium px-2" style={{ color: colors.textSecondary }}>
+                    <span className="text-xs font-medium px-2" style={{ color: colors.textPrimary }}>
                         {currentIndex + 1}/{totalPages}
                     </span>
 

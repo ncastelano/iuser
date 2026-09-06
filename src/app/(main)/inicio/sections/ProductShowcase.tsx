@@ -526,7 +526,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                         )}
                                         <span
                                             className="text-[10px] font-medium truncate"
-                                            style={{ color: colors.textSecondary }}
+                                            style={{ color: colors.textPrimary }}
                                         >
                                             {product.storeName}
                                         </span>
@@ -563,7 +563,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                     {product.storeAddress && (
                                         <div
                                             className="flex items-start gap-0.5 mt-0.5 opacity-70 text-[10px]"
-                                            style={{ color: colors.textSecondary }}
+                                            style={{ color: colors.textPrimary }}
                                         >
                                             <MapPin size={10} className="shrink-0 mt-0.5" />
                                             <span className="line-clamp-1">{product.storeAddress}</span>
@@ -605,7 +605,7 @@ export default function ProductShowcase({ dragHandle }: ProductShowcaseProps) {
                                 ))}
                             </div>
 
-                            <span className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>
+                            <span className="text-[10px] font-bold" style={{ color: colors.textPrimary }}>
                                 {currentPage + 1}/{totalPages}
                             </span>
 

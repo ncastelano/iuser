@@ -559,7 +559,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     }}
                 >
                     <Spinner size={32} color={colors.accent} />
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                    <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Verificando autenticação...
                     </p>
                 </div>
@@ -591,7 +591,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     </h3>
 
                     {/* ===== TEXTO INSTRUTIVO ACIMA DO INPUT ===== */}
-                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textSecondary }}>
+                    <p className="text-[10px] mb-2 opacity-60" style={{ color: colors.textPrimary }}>
                         Escreva a localização e clique em <strong>"Ir"</strong> para buscar
                     </p>
 
@@ -605,7 +605,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         >
                             <div className="h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0"
                                 style={{ background: `${colors.surface}88` }}>
-                                <Search size={14} color={colors.textSecondary} />
+                                <Search size={14} color={colors.textPrimary} />
                             </div>
                             <input
                                 type="text"
@@ -647,7 +647,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                     </div>
 
                     {/* ===== TEXTO INSTRUTIVO ABAIXO DO INPUT ===== */}
-                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textSecondary }}>
+                    <p className="text-[10px] mb-2 opacity-60 text-center" style={{ color: colors.textPrimary }}>
                         Ou arraste o <strong>Pin</strong> ou o <strong>mapa</strong> para ajustar a localização
                     </p>
 
@@ -679,19 +679,19 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                     </div>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
                                         Localização salva
                                     </span>
                                     <p className="text-xs font-medium mt-0.5 break-words leading-relaxed" style={{ color: colors.textPrimary }}>
                                         {savedAddress || 'Carregando endereço...'}
                                     </p>
                                     {savedNumber && (
-                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textSecondary }}>
+                                        <p className="text-[11px] mt-0.5 opacity-70" style={{ color: colors.textPrimary }}>
                                             Nº {savedNumber}
                                         </p>
                                     )}
                                     {savedComplement && (
-                                        <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textSecondary }}>
+                                        <p className="text-[11px] mt-0.5 opacity-70 italic" style={{ color: colors.textPrimary }}>
                                             "{savedComplement}"
                                         </p>
                                     )}
@@ -711,11 +711,11 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 </div>
                             </div>
                             <div className="flex-1 min-w-0">
-                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textSecondary }}>
+                                <span className="text-[10px] font-semibold uppercase tracking-wider opacity-50" style={{ color: colors.textPrimary }}>
                                     Nova localização
                                 </span>
                                 {resolvingAddress ? (
-                                    <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textSecondary }}>
+                                    <p className="text-xs mt-0.5 opacity-50" style={{ color: colors.textPrimary }}>
                                         Obtendo endereço...
                                     </p>
                                 ) : (
@@ -736,7 +736,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 }}
                             >
                                 <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                    style={{ color: colors.textSecondary }}>
+                                    style={{ color: colors.textPrimary }}>
                                     <Hash size={12} />
                                     Número da casa/apto *
                                 </label>
@@ -764,7 +764,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 }}
                             >
                                 <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider opacity-50 mb-1"
-                                    style={{ color: colors.textSecondary }}>
+                                    style={{ color: colors.textPrimary }}>
                                     <FileText size={12} />
                                     Complemento (opcional)
                                 </label>
@@ -784,14 +784,14 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         <p className="text-red-500 text-xs font-medium mb-2 ml-1">{error}</p>
                     )}
 
-                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textSecondary }}>
+                    <p className="text-[10px] mb-3 ml-1 opacity-50" style={{ color: colors.textPrimary }}>
                         💡 Arraste o marcador laranja ou o mapa para ajustar a nova localização
                     </p>
 
                     <div className="flex gap-2 justify-end">
                         <button onClick={onClose} disabled={loading}
                             className="flex items-center pl-0 pr-3 py-0.5 rounded-full text-xs font-semibold transition-all hover:opacity-80"
-                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', color: colors.textSecondary, border: `1px solid ${colors.border}` }}>
+                            style={{ background: `${colors.surface}88`, backdropFilter: 'blur(10px)', color: colors.textPrimary, border: `1px solid ${colors.border}` }}>
                             <div className="h-7 w-7 rounded-full flex items-center justify-center"
                                 style={{ background: `${colors.surface}88` }}>
                                 <X size={14} />
@@ -834,13 +834,13 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                         </div>
 
                         <div className="space-y-2 p-3 rounded-xl" style={{ background: `${colors.surface}88` }}>
-                            <p className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                            <p className="text-xs font-medium" style={{ color: colors.textPrimary }}>
                                 Você está prestes a salvar esta localização:
                             </p>
                             <p className="text-sm font-bold" style={{ color: colors.textPrimary }}>
                                 📍 {pendingLocation.address}
                             </p>
-                            <div className="flex gap-3 text-xs" style={{ color: colors.textSecondary }}>
+                            <div className="flex gap-3 text-xs" style={{ color: colors.textPrimary }}>
                                 <span>Nº: <strong style={{ color: colors.textPrimary }}>{pendingLocation.addressNumber}</strong></span>
                                 {pendingLocation.addressComplement && (
                                     <span>Complemento: <strong style={{ color: colors.textPrimary }}>{pendingLocation.addressComplement}</strong></span>
@@ -854,7 +854,7 @@ export default function LocationPicker({ initialLocation, onSave, onClose }: Loc
                                 className="flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all hover:scale-[1.02]"
                                 style={{
                                     background: `${colors.surface}88`,
-                                    color: colors.textSecondary,
+                                    color: colors.textPrimary,
                                     border: `1px solid ${colors.border}`,
                                 }}
                             >

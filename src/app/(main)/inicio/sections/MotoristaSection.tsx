@@ -109,7 +109,7 @@ export default function MotoristaSection({ dragHandle, onBreveStatusChange }: Mo
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                 Motorista Particular
                             </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
                                 Chame um motorista para te levar aonde quiser
                             </p>
                         </div>

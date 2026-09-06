@@ -42,7 +42,7 @@ export default function SortableSection({
                     }
                 `}
                 style={{
-                    color: isFirst ? colors.textSecondary : colors.accent,
+                    color: isFirst ? colors.textPrimary : colors.accent,
                 }}
                 title="Mover para cima"
             >
@@ -60,7 +60,7 @@ export default function SortableSection({
                     }
                 `}
                 style={{
-                    color: isLast ? colors.textSecondary : colors.accent,
+                    color: isLast ? colors.textPrimary : colors.accent,
                 }}
                 title="Mover para baixo"
             >

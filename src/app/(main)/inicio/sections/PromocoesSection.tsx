@@ -34,10 +34,10 @@ export default function PromocoesSection({ dragHandle }: PromocoesSectionProps) 
 
                 <div className="flex-1">
                     <h3 className="font-bold">Ofertas perto de você</h3>
-                    <p className="text-sm" style={{ color: colors.textSecondary }}>Aproveite descontos exclusivos</p>
+                    <p className="text-sm" style={{ color: colors.textPrimary }}>Aproveite descontos exclusivos</p>
                 </div>
 
-                <ChevronRight className="w-5 h-5" style={{ color: colors.textSecondary }} />
+                <ChevronRight className="w-5 h-5" style={{ color: colors.textPrimary }} />
             </div>
         </section>
     )

@@ -183,7 +183,7 @@ export default function CanIhelp({ dragHandle }: CanIhelpProps) {
                                 <span
                                     className="text-[8px] font-medium text-center opacity-60 truncate w-full"
                                     style={{
-                                        color: colors.textSecondary,
+                                        color: colors.textPrimary,
                                     }}
                                 >
                                     {cat.desc}

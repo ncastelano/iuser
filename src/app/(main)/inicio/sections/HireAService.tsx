@@ -83,7 +83,7 @@ export default function HireAService({ dragHandle }: HireAServiceProps) {
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                 Solicitar um serviço
                             </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
                                 Pintor, encanador, jardineiro e mais
                             </p>
                         </div>

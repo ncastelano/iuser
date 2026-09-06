@@ -334,11 +334,11 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
 
             {!loading && totalResults === 0 && (
                 <div className="rounded-2xl p-6 flex flex-col items-center gap-3" style={{ background: cardBg, backdropFilter: 'blur(12px)', border: `1px solid ${colors.border}` }}>
-                    <Search className="w-8 h-8" style={{ color: colors.textSecondary }} />
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                    <Search className="w-8 h-8" style={{ color: colors.textPrimary }} />
+                    <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Nenhum resultado encontrado para "{displayQuery}".
                     </p>
-                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    <p className="text-xs" style={{ color: colors.textPrimary }}>
                         Tente buscar por outro termo ou verifique a ortografia.
                     </p>
                 </div>
@@ -350,10 +350,10 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                     {profiles.length > 0 && (
                         <div>
                             <div className="flex items-center gap-2 mb-3">
-                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                                     Perfis
                                 </span>
-                                <span className="text-[10px] font-bold opacity-60" style={{ color: colors.textSecondary }}>
+                                <span className="text-[10px] font-bold opacity-60" style={{ color: colors.textPrimary }}>
                                     ({profiles.length})
                                 </span>
                             </div>
@@ -513,14 +513,14 @@ export default function SearchResultsSection({ searchQuery, onSearchSelect }: Se
                                                             </div>
                                                             <div className="flex items-center gap-0.5">
                                                                 <Clock size={10} style={{ color: colors.accent }} />
-                                                                <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                                                <span className="text-[9px] font-bold" style={{ color: colors.textPrimary }}>
                                                                     {formatPrepTime(store)}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <ChevronRight size={16} className="flex-shrink-0 opacity-50" style={{ color: colors.textSecondary }} />
+                                                    <ChevronRight size={16} className="flex-shrink-0 opacity-50" style={{ color: colors.textPrimary }} />
                                                 </div>
                                             </div>
                                         )

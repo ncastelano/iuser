@@ -101,7 +101,7 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                 Candidatar-se a um Serviço
                             </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
                                 Candidate-se e comece a ganhar dinheiro
                             </p>
                         </div>
@@ -142,11 +142,11 @@ export default function LookForAService({ dragHandle, onBreveStatusChange }: Loo
                                             {getItemLabel(item)}
                                         </span>
                                     </div>
-                                    <span className="flex items-center gap-1 text-[10px] mt-1.5" style={{ color: colors.textSecondary }}>
+                                    <span className="flex items-center gap-1 text-[10px] mt-1.5" style={{ color: colors.textPrimary }}>
                                         <MapPin size={10} className="flex-shrink-0" />
                                         <span className="truncate">{getItemAddress(item)}</span>
                                     </span>
-                                    <span className="text-[9px] mt-1 block" style={{ color: colors.textSecondary }}>
+                                    <span className="text-[9px] mt-1 block" style={{ color: colors.textPrimary }}>
                                         {relativeTime(item.created_at)}
                                     </span>
                                 </button>

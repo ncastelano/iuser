@@ -215,7 +215,7 @@ export default function Header({
         if (tab.isActive) {
             return '#ffffff'
         }
-        return colors.textSecondary
+        return colors.textPrimary
     }
 
     const getTabBorder = (tab: Tab): string => {
@@ -587,25 +587,25 @@ export default function Header({
                         scrollbar-width: none;
                     }
                     input::placeholder {
-                        color: ${colors.textSecondary} !important;
+                        color: ${colors.textPrimary} !important;
                         opacity: 0.6;
                         font-weight: 400;
                         letter-spacing: 0.3px;
                     }
                     input::-webkit-input-placeholder {
-                        color: ${colors.textSecondary} !important;
+                        color: ${colors.textPrimary} !important;
                         opacity: 0.6;
                     }
                     input::-moz-placeholder {
-                        color: ${colors.textSecondary} !important;
+                        color: ${colors.textPrimary} !important;
                         opacity: 0.6;
                     }
                     input:-ms-input-placeholder {
-                        color: ${colors.textSecondary} !important;
+                        color: ${colors.textPrimary} !important;
                         opacity: 0.6;
                     }
                     input:-moz-placeholder {
-                        color: ${colors.textSecondary} !important;
+                        color: ${colors.textPrimary} !important;
                         opacity: 0.6;
                     }
                     input[type="search"]::-webkit-search-decoration,

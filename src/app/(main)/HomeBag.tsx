@@ -114,7 +114,7 @@ export default function HomeBag({
                     <div className="flex items-center gap-2">
                         <div
                             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textSecondary }}
+                            style={{ background: totalItems > 0 ? GRADIENT : `${colors.border}50`, color: totalItems > 0 ? '#ffffff' : colors.textPrimary }}
                         >
                             <ShoppingBag size={18} />
                         </div>
@@ -133,7 +133,7 @@ export default function HomeBag({
                                     >
                                         {totalItems}
                                     </span>
-                                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                    <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
                                         {totalItems === 1 ? 'item' : 'itens'}
                                     </span>
                                     <span className="text-xs font-bold ml-1" style={{ color: '#f97316' }}>
@@ -141,7 +141,7 @@ export default function HomeBag({
                                     </span>
                                 </>
                             ) : (
-                                <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                                <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
                                     Vazio
                                 </span>
                             )}
@@ -150,7 +150,7 @@ export default function HomeBag({
                         <div className="ml-auto flex items-center">
                             <svg
                                 className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? '' : 'rotate-180'}`}
-                                style={{ color: colors.textSecondary }}
+                                style={{ color: colors.textPrimary }}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -173,7 +173,7 @@ export default function HomeBag({
                                     {group.storeLogoUrl ? (
                                         <img src={group.storeLogoUrl} alt={group.storeName} className="w-full h-full object-cover" />
                                     ) : (
-                                        <span className="text-[9px] font-bold" style={{ color: colors.textSecondary }}>
+                                        <span className="text-[9px] font-bold" style={{ color: colors.textPrimary }}>
                                             {group.storeSlug.charAt(0).toUpperCase()}
                                         </span>
                                     )}
@@ -186,7 +186,7 @@ export default function HomeBag({
                 {isExpanded && (
                     <div className="border-t px-2 py-2 max-h-80 overflow-y-auto" style={{ borderColor: colors.border }}>
                         {items.length === 0 ? (
-                            <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
+                            <p className="text-xs text-center py-4" style={{ color: colors.textPrimary }}>
                                 Nenhum item na sacola
                             </p>
                         ) : (
@@ -207,7 +207,7 @@ export default function HomeBag({
                                                     {group.storeLogoUrl ? (
                                                         <img src={group.storeLogoUrl} alt={group.storeName} className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <span className="text-[7px] font-bold" style={{ color: colors.textSecondary }}>
+                                                        <span className="text-[7px] font-bold" style={{ color: colors.textPrimary }}>
                                                             {group.storeSlug.charAt(0).toUpperCase()}
                                                         </span>
                                                     )}
@@ -253,7 +253,7 @@ export default function HomeBag({
                                                                 <span className="text-xs font-bold" style={{ color: '#f97316' }}>
                                                                     {formatPrice(item.product.price)}
                                                                 </span>
-                                                                <span className="text-[10px]" style={{ color: colors.textSecondary }}>
+                                                                <span className="text-[10px]" style={{ color: colors.textPrimary }}>
                                                                     x{item.quantity}
                                                                 </span>
                                                             </div>

@@ -121,7 +121,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
             case 'profile': return '#3b82f6'
             case 'store': return '#f97316'
             case 'product': return '#8b5cf6'
-            default: return colors.textSecondary
+            default: return colors.textPrimary
         }
     }
 
@@ -217,7 +217,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                         </h3>
                         <span
                             className="text-[10px] font-medium opacity-60"
-                            style={{ color: colors.textSecondary }}
+                            style={{ color: colors.textPrimary }}
                         >
                             {items.length} {items.length === 1 ? 'item' : 'itens'}
                         </span>
@@ -229,8 +229,8 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                             onClick={clearAll}
                             className="text-[10px] font-semibold px-2.5 py-1 rounded-full transition-all hover:opacity-70 flex-shrink-0"
                             style={{
-                                color: colors.textSecondary,
-                                background: `${colors.textSecondary}15`
+                                color: colors.textPrimary,
+                                background: `${colors.textPrimary}15`
                             }}
                         >
                             Limpar histórico
@@ -254,7 +254,7 @@ export default function LastSearched({ onItemClick, onClearResults }: LastSearch
                         >
                             <span
                                 className="text-[9px] font-bold uppercase tracking-wider opacity-50 flex-shrink-0"
-                                style={{ color: colors.textSecondary }}
+                                style={{ color: colors.textPrimary }}
                             >
                                 {groupLabel}
                             </span>

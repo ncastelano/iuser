@@ -104,7 +104,7 @@ export default function AcceptARider({ dragHandle }: AcceptARiderProps) {
                             <h3 className="text-lg font-black" style={{ color: colors.textPrimary }}>
                                 Canal do Motorista
                             </h3>
-                            <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            <p className="text-sm mt-1" style={{ color: colors.textPrimary }}>
                                 Defina sua tarifa e aceite corridas disponíveis
                             </p>
                         </div>
